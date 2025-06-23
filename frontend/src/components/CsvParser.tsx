@@ -99,7 +99,11 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
 
   const handleTemplateDownload = async () => {
     try {
-      const response = await fetch('http://192.168.44.253:8001/api/admin/csv-template', {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8001/api/admin/csv-template', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
         credentials: 'include',
       });
       const blob = await response.blob();

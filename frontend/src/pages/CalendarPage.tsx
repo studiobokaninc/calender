@@ -583,30 +583,43 @@ const CalendarPage: React.FC = () => {
         }
     };
 
-    const handleDeleteEvent = async (eventId: string) => {
-        console.log(`--- handleDeleteEvent STARTED for id: ${eventId} ---`); // ログ追加
-
-        // ★★★ ID 文字列から数値部分を抽出 ★★★
-        const numericIdMatch = eventId.match(/\d+$/); // 末尾の数字部分を取得
-        if (!numericIdMatch) {
-            console.error("Invalid event ID format for deletion:", eventId);
-            setError("無効なイベントIDのため削除できませんでした。");
-            return; // 数値 ID がなければ処理中断
-        }
-        const numericId = numericIdMatch[0]; // 抽出した数値文字列
-        console.log(`Extracted numeric ID: ${numericId}`); // 抽出結果をログ表示
+    const handleDeleteEvent = async (event: CalendarEvent) => {
+        console.log(`--- handleDeleteEvent STARTED for id: ${event.id} ---`); // ログ追加
 
         setLoading(true);
         setError(null);
         try {
-            // ★★★ 抽出した数値 ID を使って API を呼び出す ★★★
-            await api.delete(`/calendar/events/${numericId}`);
-            console.log(`Event with numeric ID ${numericId} (original ID: ${eventId}) deleted successfully.`);
+            if (event.extendedProps.type === 'Task') {
+                // ★★★ ID 文字列から数値部分を抽出 ★★★
+                const numericIdMatch = event.id.match(/\d+$/); // 末尾の数字部分を取得
+                if (!numericIdMatch) {
+                    console.error("Invalid event ID format for deletion:", event.id);
+                    setError("無効なイベントIDのため削除できませんでした。");
+                    return; // 数値 ID がなければ処理中断
+                }
+                const numericId = numericIdMatch[0]; // 抽出した数値文字列
+                console.log(`Extracted numeric ID: ${numericId}`); // 抽出結果をログ表示
+
+                await api.delete(`/tasks/${numericId}`);
+                console.log(`Task with numeric ID ${numericId} (original ID: ${event.id}) deleted successfully.`);
+            } else {
+                // ★★★ ID 文字列から数値部分を抽出 ★★★
+                const numericIdMatch = event.id.match(/\d+$/); // 末尾の数字部分を取得
+                if (!numericIdMatch) {
+                    console.error("Invalid event ID format for deletion:", event.id);
+                    setError("無効なイベントIDのため削除できませんでした。");
+                    return; // 数値 ID がなければ処理中断
+                }
+                const numericId = numericIdMatch[0]; // 抽出した数値文字列
+                console.log(`Extracted numeric ID: ${numericId}`); // 抽出結果をログ表示
+
+                await api.delete(`/calendar/events/${numericId}`);
+                console.log(`Event with numeric ID ${numericId} (original ID: ${event.id}) deleted successfully.`);
+            }
 
             // ★★★ フロントエンドの状態からも削除 ★★★
-            setRawEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+            setRawEvents(prevEvents => prevEvents.filter(ev => ev.id !== event.id));
             setSelectedEventDetails({ event: null }); // 詳細パネルをクリア
-            // fetchData(); // DB から再取得する場合（今回はローカルで削除）
 
         } catch (err) {
             console.error("Failed to delete event:", err); // エラーログは残す
@@ -890,7 +903,7 @@ const CalendarPage: React.FC = () => {
                             users={users}
                             groups={groups}
                             onEdit={handleOpenEditModal}
-                            onDelete={handleDeleteEvent}
+                            onDelete={handleDeleteEvent as (event: import('../types').CalendarEvent) => void}
                         eventStatusFilter={eventStatusFilter}
                         onEventStatusFilterChange={handleEventStatusFilterChange}
                         projects={projects}

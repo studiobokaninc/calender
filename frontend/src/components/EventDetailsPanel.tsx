@@ -113,7 +113,7 @@ interface EventDetailsPanelProps {
   users: User[];
   groups: Group[];
   onEdit: (event: CalendarEvent) => void;
-  onDelete: (eventId: string) => void;
+  onDelete: (event: CalendarEvent) => void;
   eventStatusFilter: string;
   onEventStatusFilterChange: (event: any) => void;
   projects: Project[];
@@ -243,7 +243,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
 
   const handleDelete = () => {
       if (selectedEvent && window.confirm('このイベントを削除してもよろしいですか？')) {
-          onDelete(selectedEvent.id);
+          onDelete(selectedEvent);
       }
   };
 

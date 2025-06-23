@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "email": "tanaka@example.com",
+      "full_name": null,
+      "role": "admin",
+      "iconUrl": null,
+      "id": 1,
+      "created_at": "2025-04-24T04:11:43.335551",
+      "updated_at": "2025-04-24T04:11:43.335558"
+    }
+  ],
+  "projects": [],
+  "tasks": [],
+  "events": [],
+  "groups": [],
+  "user_groups": []
+}

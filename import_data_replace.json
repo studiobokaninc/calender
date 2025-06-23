@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "id": 101,
+      "email": "imported@example.com",
+      "full_name": "Imported User",
+      "role": "user",
+      "password": "importedpassword",
+      "iconUrl": null
+    }
+  ],
+  "projects": [
+    {
+      "id": 101,
+      "name": "Imported Project",
+      "description": "From Replace Import",
+      "status": "in-progress",
+      "startDate": "2024-01-01T00:00:00",
+      "endDate": "2024-12-31T00:00:00",
+      "color": "#aabbcc"
+    }
+  ],
+  "tasks": [],
+  "events": [],
+  "groups": [],
+  "user_groups": [],
+  "append_mode": false
+} 

@@ -1,0 +1,71 @@
+/* src/index.css */
+
+/* 右側のバーエリアのプロジェクト行 */
+.gantt .bar-wrapper.project-summary-task .bar-progress {
+  fill: #cccccc !important; 
+}
+
+/* ★★★ プロジェクト行の背景バー(.bar)を非表示にする (幅を0にする) ★★★ */
+.gantt .bar-wrapper.project-summary-task .bar-group .bar {
+  /* display: none; */
+  /* fill: none !important; */ 
+  /* stroke: none !important; */
+  width: 0 !important; 
+}
+
+/* 左側のリスト部分 - 親要素にクラスが付いていることを期待して試す */
+.gantt .grid-row.project-summary-task .grid-row-label-wrapper .row-label .title {
+  font-weight: bold !important; 
+}
+
+/* デバッグ用：行全体の背景色 */
+.gantt .grid-row.project-summary-task {
+   background-color: rgba(0, 0, 0, 0.05) !important; 
+} 
+
+/* 右側のバーエリアのプロジェクト行 */
+.gantt .bar-wrapper.project-summary-task .bar-progress {
+  fill: #cccccc !important; 
+}
+
+/* ★★★ プロジェクト行の背景バー(.bar)を非表示にする (幅を0にする) ★★★ */
+.gantt .bar-wrapper.project-summary-task .bar-group .bar {
+  /* display: none; */
+  /* fill: none !important; */ 
+  /* stroke: none !important; */
+  width: 0 !important; 
+}
+
+/* 左側のリスト部分 - 親要素にクラスが付いていることを期待して試す */
+.gantt .grid-row.project-summary-task .grid-row-label-wrapper .row-label .title {
+  font-weight: bold !important; 
+}
+
+/* デバッグ用：行全体の背景色 */
+.gantt .grid-row.project-summary-task {
+   background-color: rgba(0, 0, 0, 0.05) !important; 
+} 
+
+/* Gantt-Task-React Specific Styles */
+
+/* タスクリストのフォントサイズ */
+._3_V1F, /* Task list item text */
+.list-header-title, /* Task list header (assuming class name) */
+._3_RnB /* Task list item text (alternative found in some versions) */
+{
+  font-size: 0.4rem !important; /* 7度目の縮小 (ほぼ最小) */
+}
+
+/* タイムラインヘッダーのフォントサイズ */
+._1nZmD, /* Calendar header text (e.g., Month/Year) */
+._2Qh4D, /* Calendar date text (e.g., Week/Day numbers) */
+._SvxGO /* Calendar header text (alternative) */
+{
+  font-size: 0.4rem !important; /* 7度目の縮小 (リストに合わせる) */
+}
+
+/* バーの上に表示されるタスク名のフォントサイズ (もしあれば) */
+._3L9iG /* Bar display text */
+{
+    font-size: 0.35rem !important; /* 7度目の縮小 */
+} 

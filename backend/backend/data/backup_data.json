@@ -1,0 +1,1292 @@
+{
+  "users": [
+    {
+      "id": "user-admin",
+      "username": "tanaka@example.com",
+      "full_name": "田中 太郎 (Admin)",
+      "email": "tanaka@example.com",
+      "role": "admin",
+      "hashed_password": "$2b$12$RxzPlipczdMOwjVHQpHNheQVLvqcoq29OHfnDb7WpiddhtAYixYC2"
+    },
+    {
+      "id": "user-1",
+      "username": "user1@example.com",
+      "full_name": "一般ユーザー 1",
+      "email": "user1@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$QqW1OQZ.AkQd1oeTAfxW/eTIMUZ1jE9ofpO6Q0DlhLuloJESp3dhq"
+    },
+    {
+      "id": "user-2",
+      "username": "user2@example.com",
+      "full_name": "一般ユーザー 2",
+      "email": "user2@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$.7LrtQzrEJi/hQHkRu9XFOJjav0n1o/YPH3q3C.Kb3muWozev/qgq"
+    },
+    {
+      "id": "user-3",
+      "username": "user3@example.com",
+      "full_name": "一般ユーザー 3",
+      "email": "user3@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$.oY1RkYu6UMlxWe0j7RR4ew0PsVyfmMlZkxQ9VutH508OW5PWKLF6"
+    },
+    {
+      "id": "user-4",
+      "username": "user4@example.com",
+      "full_name": "一般ユーザー 4",
+      "email": "user4@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$GciL3HNMCM8J4crQF.ZZPeGJ8qSmviEXMKwnw3KoXIcaLHKSJPpB6"
+    },
+    {
+      "id": "user-5",
+      "username": "user5@example.com",
+      "full_name": "一般ユーザー 5",
+      "email": "user5@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$5cySSMCTTLGLe0vBpXD7NO8tFuFySXnyskaFvEQ8Opfar2SWW8ik."
+    },
+    {
+      "id": "user-6",
+      "username": "user6@example.com",
+      "full_name": "一般ユーザー 6",
+      "email": "user6@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$Zr43wZvyHQwSA95HbmFEmuQygnVsUhpf4VfsvRptRbEJyFPEpJ52S"
+    },
+    {
+      "id": "user-7",
+      "username": "user7@example.com",
+      "full_name": "一般ユーザー 7",
+      "email": "user7@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$X6OigCqil2AKB1xDY6gIVeWD7u1yGf6jKdbzlVZgvWV44M0qQdkqe"
+    },
+    {
+      "id": "user-8",
+      "username": "user8@example.com",
+      "full_name": "一般ユーザー 8",
+      "email": "user8@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$RK.YBsla6V3AvI.XIxenbOZ7N2fYcOyRHaFVBW.C/aD8XCKi7uKGS"
+    },
+    {
+      "id": "user-9",
+      "username": "user9@example.com",
+      "full_name": "一般ユーザー 9",
+      "email": "user9@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$FIpY28frkTTVUwRQlCTTSe4riglZ44dlt5anU4aRva9j/UmXfNjK2"
+    },
+    {
+      "id": "user-10",
+      "username": "user10@example.com",
+      "full_name": "一般ユーザー 10",
+      "email": "user10@example.com",
+      "role": "member",
+      "hashed_password": "$2b$12$iD5HtukMjarDMrKZjoMp8.Wyg9IvY0fBzVNYqwp9FkOE52KtJ75Gi"
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj-A",
+      "name": "新製品開発プロジェクトα",
+      "description": "市場投入に向けたコア機能開発",
+      "status": "completed",
+      "color": "#9E9E9E",
+      "startDate": "2025-01-30",
+      "endDate": "2025-04-30"
+    },
+    {
+      "id": "proj-B",
+      "name": "既存システム改善β",
+      "description": "パフォーマンス改善とUI刷新",
+      "status": "planning",
+      "color": "#FF9800",
+      "startDate": "2025-03-26",
+      "endDate": "2025-06-05"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-A1",
+      "projectId": "proj-A",
+      "title": "αタスク 1",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-05-31",
+      "taskDueDate": "2025-06-06",
+      "taskAssigneeId": "user-8",
+      "taskCost": 4,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-21"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-22"
+        },
+        {
+          "status": "done",
+          "date": "2025-03-23"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-18"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-18"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-18"
+        },
+        {
+          "status": "todo",
+          "date": "2025-04-18"
+        }
+      ],
+      "updated_at": "2025-04-22T07:17:27.311657"
+    },
+    {
+      "id": "task-A2",
+      "projectId": "proj-A",
+      "title": "αタスク 2",
+      "taskStatus": "done",
+      "taskStartDate": "2025-06-16",
+      "taskDueDate": "2025-06-22",
+      "taskAssigneeId": "user-1",
+      "taskCost": 4,
+      "dependsOn": [
+        "task-A1"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-18"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-19"
+        },
+        {
+          "status": "done",
+          "date": "2025-03-20"
+        }
+      ],
+      "updated_at": "2025-04-22T07:17:21.820572"
+    },
+    {
+      "id": "task-A3",
+      "projectId": "proj-A",
+      "title": "αタスク 3",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-21",
+      "taskDueDate": "2025-04-25",
+      "taskAssigneeId": "user-10",
+      "taskCost": 8,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-02-27"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-01"
+        },
+        {
+          "status": "done",
+          "date": "2025-03-08"
+        }
+      ],
+      "updated_at": "2025-04-22T12:48:48.878842"
+    },
+    {
+      "id": "task-A4",
+      "projectId": "proj-A",
+      "title": "αタスク 4",
+      "taskStatus": "done",
+      "taskStartDate": "2025-03-26",
+      "taskDueDate": "2025-03-30",
+      "taskAssigneeId": "user-2",
+      "taskCost": 20,
+      "dependsOn": [
+        "task-A3"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-27"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-29"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-04"
+        }
+      ],
+      "updated_at": "2025-04-22T12:55:51.968455"
+    },
+    {
+      "id": "task-A5",
+      "projectId": "proj-A",
+      "title": "αタスク 5",
+      "taskStatus": "delayed",
+      "taskStartDate": "2025-04-22",
+      "taskDueDate": "2025-04-26",
+      "taskAssigneeId": "user-5",
+      "taskCost": 32,
+      "dependsOn": [
+        "task-A4"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-08"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-11"
+        }
+      ],
+      "updated_at": "2025-04-22T11:17:16.701248"
+    },
+    {
+      "id": "task-A6",
+      "projectId": "proj-A",
+      "title": "αタスク 6",
+      "taskStatus": "done",
+      "taskStartDate": "2025-06-01",
+      "taskDueDate": "2025-06-06",
+      "taskAssigneeId": "user-10",
+      "taskCost": 40,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-02-02"
+        },
+        {
+          "status": "done",
+          "date": "2025-02-03"
+        }
+      ],
+      "updated_at": "2025-04-22T07:18:21.195020"
+    },
+    {
+      "id": "task-A7",
+      "projectId": "proj-A",
+      "title": "αタスク 7",
+      "taskStatus": "delayed",
+      "taskStartDate": "2025-06-01",
+      "taskDueDate": "2025-06-06",
+      "taskAssigneeId": "user-2",
+      "taskCost": 20,
+      "dependsOn": [
+        "task-A6"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-06"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-08"
+        }
+      ],
+      "updated_at": "2025-04-22T07:18:14.974126"
+    },
+    {
+      "id": "task-A8",
+      "projectId": "proj-A",
+      "title": "αタスク 8",
+      "taskStatus": "done",
+      "taskStartDate": "2025-03-03",
+      "taskDueDate": "2025-04-10",
+      "taskAssigneeId": "user-6",
+      "taskCost": 24,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-27"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-30"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-01"
+        }
+      ],
+      "updated_at": "2025-04-22T13:55:07.940981"
+    },
+    {
+      "id": "task-A9",
+      "projectId": "proj-A",
+      "title": "αタスク 9",
+      "taskStatus": "delayed",
+      "taskStartDate": "2025-03-28",
+      "taskDueDate": "2025-04-15",
+      "taskAssigneeId": "user-6",
+      "taskCost": 8,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-02"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-05"
+        }
+      ],
+      "updated_at": "2025-04-22T12:56:08.574683"
+    },
+    {
+      "id": "task-A10",
+      "projectId": "proj-A",
+      "title": "αタスク 10",
+      "taskStatus": "done",
+      "taskStartDate": "2025-02-10",
+      "taskDueDate": "2025-02-20",
+      "taskAssigneeId": "user-7",
+      "taskCost": 4,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-02-07"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-02-11"
+        },
+        {
+          "status": "done",
+          "date": "2025-02-12"
+        }
+      ],
+      "updated_at": "2025-04-22T11:16:53.997133"
+    },
+    {
+      "id": "task-A11",
+      "projectId": "proj-A",
+      "title": "αタスク 11",
+      "taskStatus": "done",
+      "taskStartDate": "2025-02-27",
+      "taskDueDate": "2025-03-16",
+      "taskAssigneeId": "user-3",
+      "taskCost": 20,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-01"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-04"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-07"
+        }
+      ],
+      "updated_at": "2025-04-22T11:23:10.952043"
+    },
+    {
+      "id": "task-A12",
+      "projectId": "proj-A",
+      "title": "αタスク 12",
+      "taskStatus": "done",
+      "taskStartDate": "2025-03-18",
+      "taskDueDate": "2025-03-27",
+      "taskAssigneeId": "user-9",
+      "taskCost": 4,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-02-12"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-02-15"
+        },
+        {
+          "status": "done",
+          "date": "2025-02-16"
+        }
+      ],
+      "updated_at": "2025-04-21T15:10:00.796528"
+    },
+    {
+      "id": "task-A13",
+      "projectId": "proj-A",
+      "title": "αタスク 13",
+      "taskStatus": "done",
+      "taskStartDate": "2025-03-18",
+      "taskDueDate": "2025-03-27",
+      "taskAssigneeId": "user-10",
+      "taskCost": 20,
+      "dependsOn": [
+        "task-A12"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-18"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-23"
+        },
+        {
+          "status": "done",
+          "date": "2025-03-26"
+        }
+      ]
+    },
+    {
+      "id": "task-A14",
+      "projectId": "proj-A",
+      "title": "αタスク 14",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-05",
+      "taskDueDate": "2025-04-14",
+      "taskAssigneeId": "user-7",
+      "taskCost": 24,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-05"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-07"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-14"
+        }
+      ]
+    },
+    {
+      "id": "task-A15",
+      "projectId": "proj-A",
+      "title": "αタスク 15",
+      "taskStatus": "delayed",
+      "taskStartDate": "2025-03-23",
+      "taskDueDate": "2025-03-31",
+      "taskAssigneeId": "user-3",
+      "taskCost": 32,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-23"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-27"
+        }
+      ]
+    },
+    {
+      "id": "task-A16",
+      "projectId": "proj-A",
+      "title": "αタスク 16",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-08",
+      "taskDueDate": "2025-04-09",
+      "taskAssigneeId": "user-8",
+      "taskCost": 28,
+      "dependsOn": [
+        "task-A15"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-08"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-09"
+        }
+      ]
+    },
+    {
+      "id": "task-A17",
+      "projectId": "proj-A",
+      "title": "αタスク 17",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-01",
+      "taskDueDate": "2025-04-06",
+      "taskAssigneeId": "user-8",
+      "taskCost": 32,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-01"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-04"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-06"
+        }
+      ]
+    },
+    {
+      "id": "task-A18",
+      "projectId": "proj-A",
+      "title": "αタスク 18",
+      "taskStatus": "done",
+      "taskStartDate": "2025-02-20",
+      "taskDueDate": "2025-02-21",
+      "taskAssigneeId": "user-7",
+      "taskCost": 4,
+      "dependsOn": [
+        "task-A17"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-02-20"
+        },
+        {
+          "status": "done",
+          "date": "2025-02-21"
+        }
+      ]
+    },
+    {
+      "id": "task-A19",
+      "projectId": "proj-A",
+      "title": "αタスク 19",
+      "taskStatus": "done",
+      "taskStartDate": "2025-02-12",
+      "taskDueDate": "2025-02-17",
+      "taskAssigneeId": "user-1",
+      "taskCost": 8,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-02-12"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-02-13"
+        },
+        {
+          "status": "done",
+          "date": "2025-02-16"
+        }
+      ]
+    },
+    {
+      "id": "task-A20",
+      "projectId": "proj-A",
+      "title": "αタスク 20",
+      "taskStatus": "delayed",
+      "taskStartDate": "2025-02-09",
+      "taskDueDate": "2025-02-19",
+      "taskAssigneeId": "user-1",
+      "taskCost": 16,
+      "dependsOn": [
+        "task-A19"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-02-09"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-02-10"
+        }
+      ]
+    },
+    {
+      "id": "task-B1",
+      "projectId": "proj-B",
+      "title": "βタスク 1",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-05-23",
+      "taskDueDate": "2025-05-30",
+      "taskAssigneeId": "user-5",
+      "taskCost": 36,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-05-23"
+        }
+      ]
+    },
+    {
+      "id": "task-B2",
+      "projectId": "proj-B",
+      "title": "βタスク 2",
+      "taskStatus": "in-progress",
+      "taskStartDate": "2025-03-26",
+      "taskDueDate": "2025-04-03",
+      "taskAssigneeId": "user-1",
+      "taskCost": 20,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-26"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-03-29"
+        }
+      ]
+    },
+    {
+      "id": "task-B3",
+      "projectId": "proj-B",
+      "title": "βタスク 3",
+      "taskStatus": "in-progress",
+      "taskStartDate": "2025-05-07",
+      "taskDueDate": "2025-05-14",
+      "taskAssigneeId": "user-6",
+      "taskCost": 20,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-09"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-13"
+        }
+      ],
+      "updated_at": "2025-04-22T11:24:38.914264"
+    },
+    {
+      "id": "task-B4",
+      "projectId": "proj-B",
+      "title": "βタスク 4",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-04-11",
+      "taskDueDate": "2025-04-17",
+      "taskAssigneeId": "user-4",
+      "taskCost": 20,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-11"
+        }
+      ]
+    },
+    {
+      "id": "task-B5",
+      "projectId": "proj-B",
+      "title": "βタスク 5",
+      "taskStatus": "done",
+      "taskStartDate": "2025-03-28",
+      "taskDueDate": "2025-03-29",
+      "taskAssigneeId": "user-3",
+      "taskCost": 16,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-28"
+        },
+        {
+          "status": "done",
+          "date": "2025-03-29"
+        }
+      ]
+    },
+    {
+      "id": "task-B6",
+      "projectId": "proj-B",
+      "title": "βタスク 6",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-20",
+      "taskDueDate": "2025-05-05",
+      "taskAssigneeId": "user-1",
+      "taskCost": 12,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-20"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-21"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-30"
+        }
+      ]
+    },
+    {
+      "id": "task-B7",
+      "projectId": "proj-B",
+      "title": "βタスク 7",
+      "taskStatus": "in-progress",
+      "taskStartDate": "2025-03-26",
+      "taskDueDate": "2025-03-27",
+      "taskAssigneeId": "user-8",
+      "taskCost": 4,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-26"
+        }
+      ]
+    },
+    {
+      "id": "task-B8",
+      "projectId": "proj-B",
+      "title": "βタスク 8",
+      "taskStatus": "done",
+      "taskStartDate": "2025-05-05",
+      "taskDueDate": "2025-05-10",
+      "taskAssigneeId": "user-6",
+      "taskCost": 40,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-05-05"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-05-07"
+        },
+        {
+          "status": "done",
+          "date": "2025-05-08"
+        }
+      ]
+    },
+    {
+      "id": "task-B9",
+      "projectId": "proj-B",
+      "title": "βタスク 9",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-04-02",
+      "taskDueDate": "2025-04-08",
+      "taskAssigneeId": "user-8",
+      "taskCost": 20,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-02"
+        }
+      ]
+    },
+    {
+      "id": "task-B10",
+      "projectId": "proj-B",
+      "title": "βタスク 10",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-21",
+      "taskDueDate": "2025-05-05",
+      "taskAssigneeId": "user-5",
+      "taskCost": 32,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-21"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-24"
+        },
+        {
+          "status": "done",
+          "date": "2025-05-01"
+        }
+      ]
+    },
+    {
+      "id": "task-B11",
+      "projectId": "proj-B",
+      "title": "βタスク 11",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-03-26",
+      "taskDueDate": "2025-03-26",
+      "taskAssigneeId": "user-7",
+      "taskCost": 40,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-26"
+        }
+      ]
+    },
+    {
+      "id": "task-B12",
+      "projectId": "proj-B",
+      "title": "βタスク 12",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-18",
+      "taskDueDate": "2025-04-28",
+      "taskAssigneeId": "user-8",
+      "taskCost": 24,
+      "dependsOn": [
+        "task-B11"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-18"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-19"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-28"
+        }
+      ]
+    },
+    {
+      "id": "task-B13",
+      "projectId": "proj-B",
+      "title": "βタスク 13",
+      "taskStatus": "in-progress",
+      "taskStartDate": "2025-05-09",
+      "taskDueDate": "2025-05-14",
+      "taskAssigneeId": "user-9",
+      "taskCost": 40,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-05-09"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-05-12"
+        }
+      ]
+    },
+    {
+      "id": "task-B14",
+      "projectId": "proj-B",
+      "title": "βタスク 14",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-04-13",
+      "taskDueDate": "2025-04-18",
+      "taskAssigneeId": "user-8",
+      "taskCost": 28,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-13"
+        }
+      ]
+    },
+    {
+      "id": "task-B15",
+      "projectId": "proj-B",
+      "title": "βタスク 15",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-03-26",
+      "taskDueDate": "2025-04-06",
+      "taskAssigneeId": "user-7",
+      "taskCost": 12,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-26"
+        }
+      ]
+    },
+    {
+      "id": "task-B16",
+      "projectId": "proj-B",
+      "title": "βタスク 16",
+      "taskStatus": "done",
+      "taskStartDate": "2025-03-29",
+      "taskDueDate": "2025-04-07",
+      "taskAssigneeId": "user-3",
+      "taskCost": 8,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-29"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-02"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-05"
+        }
+      ]
+    },
+    {
+      "id": "task-B17",
+      "projectId": "proj-B",
+      "title": "βタスク 17",
+      "taskStatus": "todo",
+      "taskStartDate": "2025-05-01",
+      "taskDueDate": "2025-05-11",
+      "taskAssigneeId": "user-3",
+      "taskCost": 36,
+      "dependsOn": [
+        "task-B16"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-05-01"
+        }
+      ]
+    },
+    {
+      "id": "task-B18",
+      "projectId": "proj-B",
+      "title": "βタスク 18",
+      "taskStatus": "done",
+      "taskStartDate": "2025-04-25",
+      "taskDueDate": "2025-04-28",
+      "taskAssigneeId": "user-10",
+      "taskCost": 4,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-04-25"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-04-27"
+        },
+        {
+          "status": "done",
+          "date": "2025-04-28"
+        }
+      ]
+    },
+    {
+      "id": "task-B19",
+      "projectId": "proj-B",
+      "title": "βタスク 19",
+      "taskStatus": "in-progress",
+      "taskStartDate": "2025-05-15",
+      "taskDueDate": "2025-05-17",
+      "taskAssigneeId": "user-6",
+      "taskCost": 12,
+      "dependsOn": [
+        "task-B18"
+      ],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-05-15"
+        },
+        {
+          "status": "in-progress",
+          "date": "2025-05-16"
+        }
+      ]
+    },
+    {
+      "id": "task-B20",
+      "projectId": "proj-B",
+      "title": "βタスク 20",
+      "taskStatus": "in-progress",
+      "taskStartDate": "2025-03-28",
+      "taskDueDate": "2025-03-29",
+      "taskAssigneeId": "user-10",
+      "taskCost": 40,
+      "dependsOn": [],
+      "statusHistory": [
+        {
+          "status": "todo",
+          "date": "2025-03-28"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "event-1",
+      "title": "Milestone 1",
+      "description": "イベント 1 の詳細説明",
+      "start": "2025-04-20T09:00:00",
+      "end": "2025-04-20T10:00:00",
+      "allDay": false,
+      "type": "milestone",
+      "location": "オンライン",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-9"
+        },
+        {
+          "type": "user",
+          "id": "user-3"
+        },
+        {
+          "type": "user",
+          "id": "user-7"
+        },
+        {
+          "type": "user",
+          "id": "user-4"
+        }
+      ]
+    },
+    {
+      "id": "event-2",
+      "title": "Meeting 2",
+      "description": "イベント 2 の詳細説明",
+      "start": "2025-04-22T14:00:00",
+      "end": "2025-04-22T15:00:00",
+      "allDay": false,
+      "type": "meeting",
+      "location": "会議室B",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-9"
+        },
+        {
+          "type": "user",
+          "id": "user-3"
+        },
+        {
+          "type": "user",
+          "id": "user-5"
+        },
+        {
+          "type": "user",
+          "id": "user-6"
+        }
+      ]
+    },
+    {
+      "id": "event-3",
+      "title": "Meeting 3",
+      "description": "イベント 3 の詳細説明",
+      "start": "2025-04-13T14:00:00",
+      "end": "2025-04-13T15:00:00",
+      "allDay": false,
+      "type": "meeting",
+      "location": "会議室B",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-7"
+        }
+      ]
+    },
+    {
+      "id": "event-4",
+      "title": "Meeting 4",
+      "description": "イベント 4 の詳細説明",
+      "start": "2025-05-01T17:00:00",
+      "end": "2025-05-01T18:00:00",
+      "allDay": false,
+      "type": "meeting",
+      "location": "会議室B",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-8"
+        },
+        {
+          "type": "user",
+          "id": "user-2"
+        }
+      ]
+    },
+    {
+      "id": "event-5",
+      "title": "Reminder 5",
+      "description": "イベント 5 の詳細説明",
+      "start": "2025-04-19T11:00:00",
+      "end": "2025-04-19T12:00:00",
+      "allDay": false,
+      "type": "reminder",
+      "location": "会議室B",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-9"
+        },
+        {
+          "type": "user",
+          "id": "user-4"
+        },
+        {
+          "type": "user",
+          "id": "user-1"
+        }
+      ]
+    },
+    {
+      "id": "event-6",
+      "title": "Milestone 6",
+      "description": "イベント 6 の詳細説明",
+      "start": "2025-04-25T10:00:00",
+      "end": "2025-04-25T10:30:00",
+      "allDay": false,
+      "type": "milestone",
+      "location": "会議室B",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-7"
+        },
+        {
+          "type": "user",
+          "id": "user-5"
+        },
+        {
+          "type": "user",
+          "id": "user-6"
+        },
+        {
+          "type": "user",
+          "id": "user-1"
+        }
+      ]
+    },
+    {
+      "id": "event-7",
+      "title": "Workshop 7",
+      "description": "イベント 7 の詳細説明",
+      "start": "2025-04-21T14:00:00",
+      "end": "2025-04-21T15:00:00",
+      "allDay": false,
+      "type": "workshop",
+      "location": "会議室B",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-4"
+        },
+        {
+          "type": "user",
+          "id": "user-3"
+        }
+      ]
+    },
+    {
+      "id": "event-8",
+      "title": "Reminder 8",
+      "description": "イベント 8 の詳細説明",
+      "start": "2025-04-18T12:00:00",
+      "end": "2025-04-18T12:30:00",
+      "allDay": false,
+      "type": "reminder",
+      "location": "会議室B",
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-3"
+        },
+        {
+          "type": "user",
+          "id": "user-1"
+        },
+        {
+          "type": "user",
+          "id": "user-7"
+        },
+        {
+          "type": "user",
+          "id": "user-5"
+        }
+      ]
+    },
+    {
+      "id": "event-9",
+      "title": "Milestone 9",
+      "description": "イベント 9 の詳細説明",
+      "start": "2025-04-29T11:00:00",
+      "end": "2025-04-29T12:00:00",
+      "allDay": false,
+      "type": "milestone",
+      "location": null,
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-9"
+        },
+        {
+          "type": "user",
+          "id": "user-6"
+        },
+        {
+          "type": "user",
+          "id": "user-2"
+        }
+      ]
+    },
+    {
+      "id": "event-10",
+      "title": "Review 10",
+      "description": "イベント 10 の詳細説明",
+      "start": "2025-04-16T17:00:00",
+      "end": "2025-04-16T18:30:00",
+      "allDay": false,
+      "type": "review",
+      "location": null,
+      "participants": [
+        {
+          "type": "user",
+          "id": "user-8"
+        },
+        {
+          "type": "user",
+          "id": "user-3"
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "group-1",
+      "name": "開発チームα",
+      "description": "プロジェクトα担当"
+    },
+    {
+      "id": "group-2",
+      "name": "開発チームβ",
+      "description": "プロジェクトβ担当"
+    }
+  ],
+  "user_groups": []
+}

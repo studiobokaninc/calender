@@ -1,0 +1,1334 @@
+from fastapi import FastAPI, Depends, HTTPException, status, Body, BackgroundTasks, Response, Request, Query, Path
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+from datetime import datetime, timedelta, date
+from typing import Optional, List, Dict, Any, Union, Annotated
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from pydantic import BaseModel, EmailStr, Field
+from . import models, database, crud, schemas
+from . import mock_data
+from .database import engine, get_db
+import uuid
+import os
+import json
+from . import security
+
+# データベーステーブルの作成
+# models.Base.metadata.create_all(bind=engine) # ← この行をコメントアウト
+
+# FastAPIアプリケーションインスタンスの作成
+app = FastAPI(
+    title="プロジェクト管理API",
+    description="プロジェクト、タスク、イベント、ユーザーを管理するためのAPI",
+    version="0.1.0",
+)
+
+# CORSミドルウェアの設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5175"], # フロントエンドのオリジンを明示的に指定
+    allow_credentials=True,
+    allow_methods=["*"], # GET, POST, PUT, DELETE など
+    allow_headers=["*"], # Authorization, Content-Type など
+)
+
+# ユーザー認証関連のモデルとユーティリティ
+SECRET_KEY = os.getenv("SECRET_KEY", "your_very_secret_key_that_is_long_and_secure")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 120))
+
+# pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto") # security.py に移動
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
+
+# ★★★ Create fake_users_db from mock_data ★★★
+fake_users_db = {user["username"]: user for user in mock_data.users}
+
+def get_user(db, username: str):
+    print(f"[DEBUG] get_user called with username: {username}") # Keep debug print for now
+    if username in db:
+        user_dict = db[username]
+        print(f"[DEBUG] User found in fake_db: {user_dict}") # Keep debug print for now
+        return user_dict
+    print("[DEBUG] User NOT found in fake_db") # Keep debug print for now
+    return None
+
+def authenticate_user(db: Session, username: str, password: str) -> Union[models.User, bool]:
+    """ユーザー名とパスワードで認証し、成功すれば User オブジェクトを返す"""
+    db_user = crud.get_user_by_email(db, email=username)
+    if not db_user:
+        return False
+    # verify_password を security から呼び出す
+    if not security.verify_password(password, db_user.hashed_password):
+        return False
+    return db_user
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session = Depends(get_db)) -> models.User:
+    """JWT トークンを検証し、対応するユーザーを DB から取得"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str | None = payload.get("sub")  # トークンには username (email) が入っている想定
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user = crud.get_user_by_email(db, email=username)
+    if user is None:
+        raise credentials_exception
+    return user
+
+# ★★★ Moved get_current_active_admin definition here ★★★
+async def get_current_active_admin(current_user: Annotated[models.User, Depends(get_current_user)]) -> models.User:
+    """現在のユーザーが管理者ロールを持っているか確認"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="管理者権限が必要です",
+        )
+    return current_user
+
+@app.post("/api/auth/token", tags=["Auth"])
+async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):
+    """ユーザー名とパスワードで認証し、アクセストークンを返す"""
+    user = authenticate_user(db, username=form_data.username, password=form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires  # トークンには email を格納
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/users/me", response_model=schemas.UserResponse, tags=["Users"])
+async def read_users_me(current_user: Annotated[models.User, Depends(get_current_user)]):
+    """現在認証されているユーザーの情報を返す"""
+    # SQLAlchemy モデルを Pydantic モデルに変換して返す (orm_mode=True)
+    return current_user
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to the Project Management API"}
+
+# メトリクスエンドポイント
+@app.get("/metrics/dashboard")
+async def get_dashboard_metrics(current_user: dict = Depends(get_current_user)):
+    return {
+        "users": len(mock_data.users),
+        "tasks": len(mock_data.tasks),
+        "projects": len(mock_data.projects),
+        "events": len(mock_data.events)
+    }
+
+@app.get("/projects", response_model=List[schemas.ProjectResponse], tags=["Projects"])
+async def get_projects_endpoint(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 100,
+    display_status: Optional[str] = Query(None, description="表示ステータスでフィルタ (カンマ区切りで複数指定可: online,offline,archived)")
+):
+    """プロジェクトのリストを取得"""
+    display_status_list = None
+    if display_status:
+        display_status_list = [s.strip() for s in display_status.split(',') if s.strip() in ['online', 'offline', 'archived']]
+        if not display_status_list: # 有効なステータスがない場合はNone扱い(全件またはデフォルトへ)
+            display_status_list = None 
+    
+    if current_user.role == 'admin':
+        if display_status_list is None: # 管理者で指定がない場合は全件
+            display_status_list = ['online', 'offline', 'archived']
+    else: # 一般ユーザーの場合
+        if display_status_list is None: # 指定がなければ online のみ
+            display_status_list = ['online']
+        else: # 指定があっても online のみ許可 (セキュリティのため上書き)
+            display_status_list = ['online']
+            
+    projects = crud.get_projects(db=db, skip=skip, limit=limit, display_status_in=display_status_list)
+    return projects
+
+@app.get("/projects/{project_id}", response_model=schemas.ProjectResponse, tags=["Projects"])
+async def get_project_endpoint(
+    project_id: int, # パスパラメータから project_id を受け取る
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user) # 認証
+):
+    """指定された ID のプロジェクト詳細を取得"""
+    db_project = crud.get_project(db=db, project_id=project_id)
+    if db_project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="プロジェクトが見つかりません"
+        )
+    # FastAPI が自動的に schemas.ProjectResponse に変換して返す
+    return db_project
+
+@app.post("/projects", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED, tags=["Projects"])
+async def create_project_endpoint(
+    project_data: schemas.ProjectCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """新規プロジェクトを作成"""
+    created_project = crud.create_project(db=db, project=project_data)
+    return created_project
+
+@app.put("/projects/{project_id}", response_model=schemas.ProjectResponse, tags=["Projects"])
+async def update_project_endpoint(
+    project_id: int,
+    project_data: schemas.ProjectUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """プロジェクト情報を更新"""
+    db_project = crud.get_project(db=db, project_id=project_id)
+    if db_project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="プロジェクトが見つかりません"
+        )
+    
+    # display_status 変更権限チェック (管理者のみ)
+    if project_data.display_status is not None and db_project.display_status != project_data.display_status:
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="プロジェクトの表示ステータスを変更する権限がありません"
+            )
+
+    updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
+    return updated_project
+
+@app.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Projects"])
+async def delete_project_endpoint(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """プロジェクトを削除"""
+    # TODO: Add more robust authorization (e.g., project owner, admin)
+    db_project = crud.get_project(db=db, project_id=project_id)
+    if db_project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="プロジェクトが見つかりません"
+        )
+    crud.delete_project_with_tasks(db=db, project_id=project_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.get("/tasks", response_model=List[schemas.TaskResponse], tags=["Tasks"])
+async def get_tasks_endpoint(
+    project_id: Optional[str] = None, # Project ID (str) でフィルタリング
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 100,
+    display_status: Optional[str] = Query(None, description="表示ステータスでフィルタ (カンマ区切りで複数指定可: online,offline,archived)")
+):
+    """タスクのリストを取得 (プロジェクトIDでフィルタ可能)"""
+    project_id_int = crud._parse_int_safe(project_id) # crud 内のヘルパーを拝借
+    
+    display_status_list = None
+    if display_status:
+        display_status_list = [s.strip() for s in display_status.split(',') if s.strip() in ['online', 'offline', 'archived']]
+        if not display_status_list:
+            display_status_list = None
+            
+    if current_user.role == 'admin':
+        if display_status_list is None:
+            display_status_list = ['online', 'offline', 'archived']
+    else: # 一般ユーザーの場合
+        if display_status_list is None:
+            display_status_list = ['online']
+        else:
+            display_status_list = ['online']
+            
+    tasks = crud.get_tasks(db=db, project_id=project_id_int, skip=skip, limit=limit, display_status_in=display_status_list)
+    return tasks
+
+@app.get("/calendar/events", response_model=List[schemas.EventResponse], tags=["Events"])
+async def get_events_endpoint(
+    project_id: Optional[str] = Query(None, description="プロジェクトIDでフィルタリング"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 1000  # ← ここを1000に変更
+):
+    """
+    イベントのリストを取得 (プロジェクトIDでフィルタ可能)
+    """
+    project_id_int: Optional[int] = None
+    if project_id is not None:
+        project_id_int = crud._parse_int_safe(project_id)
+        if project_id_int is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"無効なプロジェクトID形式です: {project_id}"
+            )
+
+    events = crud.get_events(db=db, skip=skip, limit=limit, project_id=project_id_int)
+    return events
+
+@app.post("/calendar/events", response_model=schemas.EventResponse, status_code=status.HTTP_201_CREATED, tags=["Events"])
+async def create_event_endpoint(
+    event_data: schemas.EventCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """新規イベントを作成 (デフォルトステータスは 'offline')"""
+    # TODO: Add authorization checks if needed
+    created_event = crud.create_event(db=db, event=event_data)
+    return created_event
+
+@app.put("/calendar/events/{event_id}", response_model=schemas.EventResponse, tags=["Events"])
+async def update_event_endpoint(
+    event_id: int,
+    event_data: schemas.EventUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """イベント情報を更新 (ステータス変更は管理者のみ)"""
+    db_event = crud.get_event(db=db, event_id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # 権限チェック: ステータス変更は管理者のみ
+    if event_data.status is not None and db_event.status != event_data.status:
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="イベントステータスを変更する権限がありません"
+            )
+    # TODO: Add more granular permission checks (e.g., event creator)
+
+    updated_event = crud.update_event(db=db, db_event=db_event, event_in=event_data)
+    return updated_event
+
+@app.delete("/calendar/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Events"])
+async def delete_event_endpoint(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """イベントを削除 (管理者のみ)"""
+    db_event = crud.get_event(db=db, event_id=event_id)
+    if db_event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+
+    # 権限チェック: 管理者のみ
+    if current_user.role != 'admin':
+         raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="イベントを削除する権限がありません"
+        )
+    # TODO: Add more granular permission checks (e.g., event creator)
+
+    crud.delete_event(db=db, db_event=db_event)
+    return None # 204 No Content
+
+@app.get("/api/users", response_model=List[Dict[str, Any]])
+async def get_users_endpoint(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user), skip: int = 0, limit: int = 100):
+    # 権限チェック（例：管理者のみ）
+    # if current_user.get("role") != "admin":
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    users_db = crud.get_users(db=db, skip=skip, limit=limit)
+    # 手動でレスポンス形式を調整
+    response_data = []
+    for user in users_db:
+        user_data = schemas.UserResponse.from_orm(user).dict()
+        user_data['full_name'] = user_data.pop('name', None) # name を full_name にリネーム
+        response_data.append(user_data)
+    return response_data
+
+@app.get("/api/groups", response_model=List[schemas.GroupResponse], tags=["Groups"])
+async def get_groups_endpoint(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 100
+):
+    """グループのリストを取得"""
+    groups = crud.get_groups(db=db, skip=skip, limit=limit)
+    return groups
+
+@app.post("/api/groups", response_model=schemas.GroupResponse, status_code=status.HTTP_201_CREATED, tags=["Groups"])
+async def create_group_endpoint(
+    group_data: schemas.GroupCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """新規グループを作成"""
+    # TODO: Add authorization check?
+    created_group = crud.create_group(db=db, group=group_data)
+    return created_group
+
+@app.get("/api/user_groups", response_model=List[schemas.UserGroupResponse], tags=["Groups"])
+async def get_user_groups_endpoint(
+    user_id: Optional[int] = None,
+    group_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    skip: int = 0,
+    limit: int = 100
+):
+    """ユーザーとグループの関連リストを取得 (user_id または group_id でフィルタ)"""
+    if user_id is not None:
+        user_groups = crud.get_user_groups_by_user(db=db, user_id=user_id, skip=skip, limit=limit)
+    elif group_id is not None:
+        user_groups = crud.get_user_groups_by_group(db=db, group_id=group_id, skip=skip, limit=limit)
+    else:
+        # TODO: Decide behavior without filter - return all? Or require filter?
+        # Returning all might be too much data.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Either user_id or group_id filter is required")
+        # Or return empty list: user_groups = []
+    return user_groups
+
+@app.post("/api/user_groups", response_model=schemas.UserGroupResponse, status_code=status.HTTP_201_CREATED, tags=["Groups"])
+async def add_user_to_group_endpoint(
+    user_group_data: schemas.UserGroupCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """ユーザーをグループに追加"""
+    # TODO: Add authorization check (e.g., admin or group leader?)
+    
+    # 存在チェック (CRUD 内ではなく API レイヤーで行う場合)
+    user_id_int = crud._parse_int_safe(user_group_data.user_id)
+    group_id_int = crud._parse_int_safe(user_group_data.group_id)
+    if user_id_int is None or group_id_int is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user_id or group_id")
+    
+    db_user = crud.get_user(db, user_id=user_id_int)
+    if not db_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id_int} not found")
+    db_group = crud.get_group(db, group_id=group_id_int)
+    if not db_group:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Group with id {group_id_int} not found")
+        
+    existing_relation = crud.get_user_group(db, user_id=user_id_int, group_id=group_id_int)
+    if existing_relation:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already in this group")
+
+    added_relation = crud.add_user_to_group(db=db, user_group=user_group_data)
+    if added_relation is None: # Should not happen if IDs are valid, but check anyway
+         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add user to group")
+    return added_relation
+
+@app.delete("/api/user_groups/{user_id}/{group_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Groups"])
+async def remove_user_from_group_endpoint(
+    user_id: int,
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """ユーザーをグループから削除"""
+    # TODO: Add authorization check (e.g., admin or group leader?)
+    deleted_relation = crud.remove_user_from_group(db=db, user_id=user_id, group_id=group_id)
+    if deleted_relation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User-group relationship not found")
+    return None # 204 No Content
+
+# --- ユーザー管理エンドポイント (DB参照版) ---
+
+@app.post("/api/users", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED, tags=["Users"])
+async def create_user_endpoint(
+    user_data: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_admin) # Now defined before usage
+):
+    """新規ユーザーを作成 (管理者のみ)"""
+    # Email の重複チェック (DB で一意制約があるはずだが、事前チェック)
+    existing_user = crud.get_user_by_email(db, email=user_data.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="このメールアドレスは既に使用されています"
+        )
+    
+    # crud を使ってユーザーを作成 (パスワードハッシュ化は crud 内で行われる)
+    created_user = crud.create_user(db=db, user=user_data)
+    return created_user
+
+@app.put("/api/users/{user_id}", response_model=schemas.UserResponse)
+async def update_user_endpoint(
+    user_id: int,
+    user_data: schemas.UserUpdate,
+    current_user: Annotated[models.User, Depends(get_current_user)], # current_user の型を修正
+    db: Session = Depends(get_db) 
+):
+    # データベースからユーザーを取得
+    db_user = crud.get_user(db=db, user_id=user_id)
+    if db_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ユーザーが見つかりません"
+        )
+
+    # 権限チェック (管理者 or 自分自身)
+    if not (current_user.role == 'admin' or current_user.id == user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="このユーザーを編集する権限がありません"
+        )
+
+    # crud を使ってユーザーを更新
+    updated_user = crud.update_user(db=db, db_user=db_user, user_in=user_data)
+
+    # Pydantic モデルに変換して返す (orm_mode=True で自動変換)
+    return updated_user
+
+@app.delete("/api/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Users"])
+async def delete_user_endpoint(
+    user_id: int, # ID を int に変更
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_admin) # 管理者のみ許可
+):
+    """ユーザーを削除 (管理者のみ)"""
+    # 自分自身は削除できない
+    if current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="自分自身を削除することはできません"
+        )
+    
+    # 削除対象ユーザーの存在チェック
+    db_user = crud.get_user(db=db, user_id=user_id)
+    if db_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ユーザーが見つかりません"
+        )
+    
+    # crud を使ってユーザーを削除
+    crud.delete_user(db=db, db_user=db_user)
+    
+    return None # 204 No Content
+
+# --- Project 管理エンドポイント (DB参照版) ---
+
+@app.post("/tasks", response_model=schemas.TaskResponse, status_code=status.HTTP_201_CREATED, tags=["Tasks"])
+async def create_task_endpoint(
+    task_data: schemas.TaskCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """新規タスクを作成"""
+    # TODO: Check if project_id exists and user has permission
+    created_task = crud.create_task(db=db, task=task_data)
+    return created_task
+
+@app.put("/tasks/{task_id}", response_model=schemas.TaskResponse, tags=["Tasks"])
+async def update_task_endpoint(
+    task_id: int,
+    task_data: schemas.TaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """タスク情報を更新"""
+    db_task = crud.get_task(db=db, task_id=task_id)
+    if db_task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="タスクが見つかりません"
+        )
+    # TODO: Add authorization check (e.g., user is assignee or project member)
+
+    # display_status 変更権限チェック (管理者のみ)
+    if task_data.display_status is not None and db_task.display_status != task_data.display_status:
+        if current_user.role != 'admin':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="タスクの表示ステータスを変更する権限がありません"
+            )
+
+    updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data)
+    return updated_task
+
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Tasks"])
+async def delete_task_endpoint(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """タスクを削除"""
+    db_task = crud.get_task(db=db, task_id=task_id)
+    if db_task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="タスクが見つかりません"
+        )
+    # TODO: Add authorization check
+    crud.delete_task(db=db, db_task=db_task)
+    return None # 204 No Content
+
+# ★★★ Mock Data Import/Export Model ★★★
+class MockDataImport(BaseModel):
+    users: List[Dict[str, Any]]
+    projects: List[Dict[str, Any]]
+    tasks: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    events: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    groups: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    user_groups: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    append_mode: Optional[bool] = False
+
+# ★★★ データ永続化のためのファイルパス ★★★
+# DATA_BACKUP_FILE = "backend/data/backup_data.json"
+# os.makedirs(os.path.dirname(DATA_BACKUP_FILE), exist_ok=True)
+
+# ★★★ データを保存するヘルパー関数 ★★★
+# def save_data_to_file():
+#     """現在のモックデータをファイルに保存する"""
+#     try:
+#         data = {
+#             "users": mock_data.users,
+#             "projects": mock_data.projects,
+#             "tasks": mock_data.tasks,
+#             "events": mock_data.events,
+#             "groups": mock_data.groups if hasattr(mock_data, 'groups') else [],
+#             "user_groups": mock_data.user_groups if hasattr(mock_data, 'user_groups') else []
+#         }
+#         
+#         with open(DATA_BACKUP_FILE, 'w', encoding='utf-8') as f:
+#             json.dump(data, f, ensure_ascii=False, indent=2)
+#         
+#         print(f"Data saved to {DATA_BACKUP_FILE}")
+#         return True
+#     except Exception as e:
+#         print(f"Error saving data: {e}")
+#         return False
+
+# ★★★ データをファイルから読み込むヘルパー関数 ★★★
+# def load_data_from_file():
+#     """保存されたデータをファイルから読み込む"""
+#     try:
+#         if not os.path.exists(DATA_BACKUP_FILE):
+#             print(f"No backup file found at {DATA_BACKUP_FILE}")
+#             return False
+#         
+#         with open(DATA_BACKUP_FILE, 'r', encoding='utf-8') as f:
+#             data = json.load(f)
+#         
+#         # モックデータを更新 (注意: DB移行後はこの部分も不要になるはず)
+#         mock_data.users = data["users"]
+#         mock_data.projects = data["projects"]
+#         # ... (tasks, events, groups, user_groups のロード)
+#         
+#         # ユーザーデータベースの更新 (fake_users_db)
+#         global fake_users_db
+#         try:
+#             # ★★★ キーを 'email' に変更 ★★★
+#             fake_users_db = {user["email"]: user for user in mock_data.users if "email" in user}
+#         except KeyError as e:
+#             print(f"Error creating fake_users_db from loaded data: Missing key {e}")
+#             return False # エラー時はロード失敗とする
+#         
+#         print(f"Data loaded from {DATA_BACKUP_FILE}")
+#         return True
+#     except Exception as e:
+#         print(f"Error loading data: {e}")
+#         return False
+
+# ★★★ アプリケーション起動時にデータをロード ★★★
+# @app.on_event("startup")
+# async def startup_event():
+#     print("サーバー起動: データファイルをチェックします...")
+#     if load_data_from_file():
+#         print(f"{DATA_BACKUP_FILE} からデータをロードしました。")
+#     else:
+#         print(f"{DATA_BACKUP_FILE} が見つからないか、ロードに失敗しました。mock_data.py の初期データを使用します。")
+#         # fake_users_db の整合性を保つために再構築
+#         global fake_users_db
+#         try:
+#             # ★★★ キーを 'email' に変更 ★★★
+#             fake_users_db = {user["email"]: user for user in mock_data.users if "email" in user}
+#         except KeyError as e:
+#              print(f"Error creating fake_users_db from mock_data.py: Missing key {e}")
+#              # 起動時にエラーが発生したら、空の辞書などで初期化する？
+#              fake_users_db = {} 
+#         print("mock_data.py の初期データをメモリで使用します。")
+# ★★★ ここまで削除 ★★★
+
+# 管理者用：モックデータをエクスポート
+@app.post("/admin/mock-data/export", response_model=Dict[str, Any])
+async def export_mock_data(current_user: models.User = Depends(get_current_active_admin), db: Session = Depends(get_db)):
+    """
+    現在のデータベース内容をモックデータ形式でエクスポートします。
+    """
+    try:
+        # --- DB からデータを取得 --- 
+        db_users = crud.get_users(db=db, limit=1000) # limit を大きくして全件取得
+        db_projects = crud.get_projects(db=db, limit=1000)
+        db_tasks = crud.get_tasks(db=db, limit=1000)
+        db_events = crud.get_events(db=db, limit=1000) # ステータスフィルタなしで全件
+        db_groups = crud.get_groups(db=db, limit=1000)
+        
+        # --- Pydantic モデル経由で辞書リストに変換 --- 
+        # SQLAlchemy オブジェクト -> Pydantic オブジェクト -> 辞書
+        users_list = [schemas.UserResponse.from_orm(u).dict() for u in db_users]
+        projects_list = [schemas.ProjectResponse.from_orm(p).dict() for p in db_projects]
+        tasks_list = [schemas.TaskResponse.from_orm(t).dict() for t in db_tasks]
+        events_list = [schemas.EventResponse.from_orm(e).dict() for e in db_events]
+        groups_list = [schemas.GroupResponse.from_orm(g).dict() for g in db_groups]
+
+        # user_groups は少し複雑。全ユーザーをループして関連を取得
+        user_groups_list = []
+        for db_user in db_users:
+            user_groups = crud.get_user_groups_by_user(db=db, user_id=db_user.id, limit=1000)
+            user_groups_list.extend([schemas.UserGroupResponse.from_orm(ug).dict() for ug in user_groups])
+        # 重複排除 (念のため)
+        user_groups_list = [dict(t) for t in {tuple(d.items()) for d in user_groups_list}]
+
+        # パスワードハッシュはエクスポートしない方が安全
+        for user_dict in users_list:
+            if 'hashed_password' in user_dict:
+                del user_dict['hashed_password']
+
+        return {
+            "users": users_list,
+            "projects": projects_list,
+            "tasks": tasks_list,
+            "events": events_list,
+            "groups": groups_list,
+            "user_groups": user_groups_list
+        }
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc() # エラー詳細を出力
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"データエクスポート中にエラーが発生しました: {str(e)}"
+        )
+
+# モックデータをインポートするエンドポイント
+@app.post("/admin/mock-data/import", status_code=status.HTTP_200_OK)
+async def import_mock_data(mock_data_import: MockDataImport, current_user: models.User = Depends(get_current_active_admin), db: Session = Depends(get_db)):
+    """
+    提供されたモックデータをデータベースにインポートします。
+    append_mode=True の場合は既存データを保持して追加します。重複データはスキップされます。
+    append_mode=False の場合、既存のデータ(管理者を除く)を削除して置き換えます。
+    インポートファイルに管理者ユーザーが含まれていても無視されます。
+    """
+    try:
+        # ... (必須フィールドバリデーション: users, projects)
+        if not mock_data_import.users or not mock_data_import.projects:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="ユーザーとプロジェクトのリストは必須です"
+            )
+        
+        # ... (Optional リストのハンドリング: tasks_to_import など)
+        tasks_to_import = mock_data_import.tasks if mock_data_import.tasks is not None else []
+        events_to_import = mock_data_import.events if mock_data_import.events is not None else []
+        groups_to_import = mock_data_import.groups if mock_data_import.groups is not None else []
+        user_groups_to_import = mock_data_import.user_groups if mock_data_import.user_groups is not None else []
+
+        # カウント用変数の初期化
+        users_added_count = 0
+        projects_added_count = 0
+        tasks_added_count = 0
+        events_added_count = 0
+        groups_added_count = 0
+        user_groups_added_count = 0
+        admin_users = [] # finally ブロックで使えるようにスコープを広げる
+
+        if mock_data_import.append_mode:
+            # --- 追加モード ---
+            print("追加モード実行 (DB操作)")
+            try:
+                # 1. ID マッピング用辞書の初期化
+                user_id_map = {}
+                project_id_map = {}
+                group_id_map = {}
+
+                # 2. 既存データの一意キーとDB IDを取得 (重複チェックと関連付けのため)
+                print("既存データを取得中...")
+                existing_user_emails = {user.email: user.id for user in crud.get_users(db, limit=99999)}
+                existing_project_names = {project.name: project.id for project in crud.get_projects(db, limit=99999)}
+                existing_group_names = {group.name: group.id for group in crud.get_groups(db, limit=99999)}
+                print(f"既存ユーザー: {len(existing_user_emails)}件, 既存プロジェクト: {len(existing_project_names)}件, 既存グループ: {len(existing_group_names)}件")
+
+                # 既存データのIDもマップに追加しておく (関連付け用)
+                # ここで既存データの original_id -> db_id をマップする方法がないため、
+                # インポートファイルが既存データを参照する場合は email/name 等で検索が必要になるが、
+                # ここではインポートファイル内のIDは新規追加されるもののみを指すと仮定する。
+                # ただし、重複チェックで見つかった既存データの db_id はマップに追加する。
+
+                print("新しいデータを追加します...")
+
+                # --- User の追加 ---
+                users_to_create = []
+                if mock_data_import.users:
+                    for user_data in mock_data_import.users:
+                        original_id = user_data.get('id')
+                        email = user_data.get('email')
+                        if not original_id or not email:
+                            print(f"Skipping user data due to missing id or email: {user_data}")
+                            continue
+
+                        # ★ 重複チェック (email) ★
+                        if email in existing_user_emails:
+                            print(f"Skipping existing user: {email}")
+                            user_id_map[original_id] = existing_user_emails[email] # 既存IDをマップに追加
+                            continue
+                        # ★ Admin は常に既存として扱う ★
+                        if user_data.get('role') == 'admin':
+                             print(f"Skipping admin user defined in import file: {email}")
+                             admin_db_id = existing_user_emails.get(email)
+                             if admin_db_id:
+                                 user_id_map[original_id] = admin_db_id
+                             continue
+
+                        password = user_data.get('password', 'defaultpassword')
+                        hashed_password = security.get_password_hash(password)
+                        new_user = models.User(
+                            email=email,
+                            hashed_password=hashed_password,
+                            name=user_data.get('full_name'),
+                            role=user_data.get('role', 'user')
+                        )
+                        db.add(new_user)
+                        users_to_create.append({'original_id': original_id, 'db_instance': new_user})
+                        users_added_count += 1
+                    if users_to_create:
+                        print(f"{users_added_count} 人の新規ユーザーをDBセッションに追加しました (コミット前)。")
+                        db.flush()
+                        for item in users_to_create:
+                            user_id_map[item['original_id']] = item['db_instance'].id
+                        print("ユーザーIDマップを更新しました (新規 + 既存)。")
+                    # print(f"[DEBUG] user_id_map after adding users: {user_id_map}")
+
+                # --- Project の追加 ---
+                projects_to_create = []
+                if mock_data_import.projects:
+                    for proj_data in mock_data_import.projects:
+                        original_id = proj_data.get('id')
+                        name = proj_data.get('name')
+                        if not original_id or not name:
+                            print(f"Skipping project data due to missing id or name: {proj_data}")
+                            continue
+
+                        # ★ 重複チェック (name) ★
+                        if name in existing_project_names:
+                            print(f"Skipping existing project: {name}")
+                            project_id_map[original_id] = existing_project_names[name] # 既存IDをマップに追加
+                            continue
+
+                        start_date_str = proj_data.get('startDate')
+                        end_date_str = proj_data.get('endDate')
+                        start_date = None; end_date = None
+                        try:
+                            if start_date_str: start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00')) if isinstance(start_date_str, str) else start_date_str
+                            if end_date_str: end_date = datetime.fromisoformat(end_date_str.replace('Z', '+00:00')) if isinstance(end_date_str, str) else end_date_str
+                        except ValueError:
+                             print(f"警告: プロジェクト '{name}' の日付形式が無効です。None に設定します。")
+                             start_date = None; end_date = None
+
+                        new_project = models.Project(
+                            name=name,
+                            description=proj_data.get('description'),
+                            status=proj_data.get('status', 'not-started'),
+                            start_date=start_date,
+                            end_date=end_date
+                        )
+                        db.add(new_project)
+                        projects_to_create.append({'original_id': original_id, 'db_instance': new_project})
+                        projects_added_count += 1
+                    if projects_to_create:
+                        print(f"{projects_added_count} 件の新規プロジェクトをDBセッションに追加しました (コミット前)。")
+                        db.flush()
+                        for item in projects_to_create:
+                            project_id_map[item['original_id']] = item['db_instance'].id
+                        print("プロジェクトIDマップを作成しました。")
+                    # print(f"[DEBUG] project_id_map after adding projects: {project_id_map}")
+
+
+                # --- Group の追加 ---
+                groups_to_create = []
+                if groups_to_import:
+                     for group_data in groups_to_import:
+                        original_id = group_data.get('id')
+                        name = group_data.get('name')
+                        if not original_id or not name:
+                            print(f"Skipping group data due to missing id or name: {group_data}")
+                            continue
+
+                        # ★ 重複チェック (name) ★
+                        if name in existing_group_names:
+                            print(f"Skipping existing group: {name}")
+                            group_id_map[original_id] = existing_group_names[name] # 既存IDをマップに追加
+                            continue
+
+                        new_group = models.Group(
+                            name=name,
+                            description=group_data.get('description')
+                        )
+                        db.add(new_group)
+                        groups_to_create.append({'original_id': original_id, 'db_instance': new_group})
+                        groups_added_count += 1
+                     if groups_to_create:
+                         print(f"{groups_added_count} 件の新規グループをDBセッションに追加しました (コミット前)。")
+                         db.flush()
+                         for item in groups_to_create:
+                            group_id_map[item['original_id']] = item['db_instance'].id
+                         print("グループIDマップを作成しました。")
+                     # print(f"[DEBUG] group_id_map after adding groups: {group_id_map}")
+
+
+                # --- Task の追加 ---
+                if tasks_to_import:
+                    print("タスクを追加中...")
+                    for task_data in tasks_to_import:
+                        # <<< 修正: JSONキーを 'projectId' に合わせる >>>
+                        original_proj_id = task_data.get('projectId')
+                        # <<< 修正: JSONキーを 'taskAssigneeId' に合わせる >>>
+                        original_assignee_id = task_data.get('taskAssigneeId')
+                        title = task_data.get('title')
+                        if not title:
+                             print(f"Skipping task data due to missing title: {task_data}")
+                             continue
+
+                        # ★ 関連データの ID を解決 (ID マップから引く) ★
+                        db_project_id = project_id_map.get(original_proj_id)
+                        if db_project_id is None:
+                            print(f"警告: タスク '{title}' のプロジェクトID '{original_proj_id}' がマップで見つかりません (既存にも新規にもなし)。スキップします。")
+                            continue
+
+                        db_assignee_id = user_id_map.get(original_assignee_id)
+                        if db_assignee_id is None and original_assignee_id is not None:
+                             print(f"警告: タスク '{title}' の担当者ID '{original_assignee_id}' がマップで見つかりません (既存にも新規にもなし)。担当者なしにします。")
+                             db_assignee_id = None
+
+                        # ステータスマッピング
+                        raw_task_status = task_data.get('taskStatus') or task_data.get('status', 'not-started')
+                        task_status_enum = None
+                        status_map = {
+                            'done': models.TaskStatus.COMPLETED, 'completed': models.TaskStatus.COMPLETED,
+                            'delayed': models.TaskStatus.IN_PROGRESS, 'in-progress': models.TaskStatus.IN_PROGRESS,
+                            'todo': models.TaskStatus.TODO, 'review': models.TaskStatus.REVIEW
+                        }
+                        task_status_enum = status_map.get(raw_task_status.lower())
+                        if task_status_enum is None:
+                             print(f"警告: タスク '{title}' のステータス '{raw_task_status}' は不明です (既存にも新規にもなし)。スキップします。")
+                             continue
+
+                        task_in_data = {
+                            "title": title,
+                            "description": task_data.get('description'),
+                            "taskStatus": task_status_enum,
+                            "projectId": db_project_id,
+                            "taskAssigneeId": db_assignee_id,
+                            "taskDueDate": task_data.get('taskDueDate') or task_data.get('dueDate')
+                        }
+
+                        try:
+                            task_in_data.setdefault('description', None)
+                            task_in_data.setdefault('taskDueDate', None)
+                            task_create_schema = schemas.TaskCreate(**task_in_data)
+                            crud.create_task(db=db, task=task_create_schema)
+                            tasks_added_count += 1
+                        except Exception as task_create_e:
+                             print(f"エラー: タスク '{title}' の作成に失敗しました (append mode)。データ: {task_in_data}, エラー: {task_create_e}")
+                    print(f"{tasks_added_count} 件のタスクをDBセッションに追加しました (コミット前)。")
+
+
+                # --- Event の追加 ---
+                if events_to_import:
+                     print("イベントを追加中...")
+                     for event_data in events_to_import:
+                         original_proj_id = event_data.get('project_id')
+                         title = event_data.get('title')
+                         if not title:
+                              print(f"Skipping event data due to missing title: {event_data}")
+                              continue
+
+                         # ★ 関連データの ID を解決 ★
+                         db_project_id = project_id_map.get(original_proj_id)
+                         if db_project_id is None and original_proj_id is not None: db_project_id = None
+
+                         # データ準備と Enum マッピング
+                         event_in_data = {
+                             "name": title, "description": event_data.get('description'),
+                             "start_time": event_data.get('start'), "end_time": event_data.get('end'),
+                             "allDay": event_data.get('allDay', False), "status": event_data.get('status', 'offline'),
+                             "project_id": db_project_id, "type": event_data.get('type'),
+                             "location": event_data.get('location')
+                         }
+                         try:
+                             event_type_str = event_in_data.get('type')
+                             valid_event_type = None
+                             if event_type_str:
+                                 try: valid_event_type = models.EventType(event_type_str)
+                                 except ValueError: continue
+                                 event_in_data['type'] = valid_event_type
+                             else: continue
+
+                             event_in_data.setdefault('description', None); event_in_data.setdefault('location', None)
+                             event_in_data.setdefault('start_time', None); event_in_data.setdefault('end_time', None)
+
+                             event_create_schema = schemas.EventCreate(**event_in_data)
+                             crud.create_event(db=db, event=event_create_schema)
+                             events_added_count += 1
+                         except Exception as event_create_e:
+                              print(f"イベント '{title}' の作成中にエラー (append mode): {event_create_e}")
+                     print(f"{events_added_count} 件のイベントをDBセッションに追加しました (コミット前)。")
+
+
+                # --- UserGroup の追加 ---
+                if user_groups_to_import:
+                    print("ユーザーグループ関連を追加中...")
+                    for ug_data in user_groups_to_import:
+                        original_user_id = ug_data.get('user_id')
+                        original_group_id = ug_data.get('group_id')
+                        db_user_id = user_id_map.get(original_user_id)
+                        db_group_id = group_id_map.get(original_group_id)
+                        if db_user_id is None or db_group_id is None: continue
+                        # replace モードでは重複チェック不要
+                        try:
+                            ug_in = schemas.UserGroupCreate(user_id=int(db_user_id), group_id=int(db_group_id))
+                            crud.add_user_to_group(db=db, user_group=ug_in)
+                            user_groups_added_count += 1
+                        except Exception as ug_create_e:
+                             print(f"ユーザーグループ (User: {db_user_id}, Group: {db_group_id}) の作成中にエラー (append mode): {ug_create_e}")
+                    print(f"{user_groups_added_count} 件のユーザーグループ関連をDBセッションに追加しました (コミット前)。")
+
+
+                print("データの追加処理完了。コミットします...")
+                db.commit() # 全ての変更をコミット
+                print("コミット完了。")
+
+            except Exception as inner_e:
+                print(f"DB操作中にエラー発生 (append mode): {inner_e}")
+                db.rollback() # エラー時はロールバック
+                import traceback
+                traceback.print_exc() # スタックトレースも表示
+                raise HTTPException(status_code=500, detail=f"データベース操作エラー (append mode): {inner_e}")
+
+        else:
+            # --- 置き換えモード (既存のコードをベースに微修正) ---
+            print("置き換えモード実行 (DB操作)")
+            try:
+                print("既存データを削除します (管理者は除く)...")
+                db.query(models.UserGroup).delete()
+                db.query(models.Task).delete()
+                db.query(models.Event).delete()
+                db.query(models.Group).delete()
+                db.query(models.Project).delete()
+                admin_users = db.query(models.User).filter(models.User.role == 'admin').all()
+                db.query(models.User).filter(models.User.role != 'admin').delete(synchronize_session=False)
+                print("既存データ削除完了 (管理者は保持)。")
+
+                user_id_map = {}
+                project_id_map = {}
+                group_id_map = {}
+
+                # 管理者情報をIDマップに追加 (Task等の関連付け用)
+                existing_admin_emails = {}
+                for admin in admin_users:
+                    existing_admin_emails[admin.email] = admin.id
+                    # 管理者の original_id を知る方法がないため、ファイル内で管理者を参照する方法は限定的
+
+                print("新しいデータを追加します...")
+
+                # --- User (管理者以外) ---
+                users_to_create = []
+                if mock_data_import.users:
+                    for user_data in mock_data_import.users:
+                         original_id = user_data.get('id')
+                         email = user_data.get('email')
+                         if not original_id or not email: continue
+                         if email in existing_admin_emails or user_data.get('role') == 'admin':
+                            if email in existing_admin_emails: # 既存管理者ならIDマップに追加
+                                user_id_map[original_id] = existing_admin_emails[email]
+                            continue
+                         password = user_data.get('password', 'defaultpassword')
+                         hashed_password = security.get_password_hash(password)
+                         new_user = models.User(
+                             email=email, hashed_password=hashed_password,
+                             name=user_data.get('full_name'), role=user_data.get('role', 'user')
+                         )
+                         db.add(new_user)
+                         users_to_create.append({'original_id': original_id, 'db_instance': new_user})
+                         users_added_count += 1
+                    if users_to_create:
+                        print(f"{users_added_count} 人の新規ユーザーをDBセッションに追加しました (コミット前)。")
+                        db.flush()
+                        for item in users_to_create:
+                            user_id_map[item['original_id']] = item['db_instance'].id
+                        print("ユーザーIDマップを作成しました。")
+
+                # --- Project ---
+                projects_to_create = []
+                if mock_data_import.projects:
+                    for proj_data in mock_data_import.projects:
+                        original_id = proj_data.get('id'); name = proj_data.get('name')
+                        if not original_id or not name: continue
+                        start_date_str = proj_data.get('startDate'); end_date_str = proj_data.get('endDate')
+                        start_date = None; end_date = None
+                        try:
+                            if start_date_str: start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00')) if isinstance(start_date_str, str) else start_date_str
+                            if end_date_str: end_date = datetime.fromisoformat(end_date_str.replace('Z', '+00:00')) if isinstance(end_date_str, str) else end_date_str
+                        except ValueError: pass
+                        new_project = models.Project(
+                            name=name, description=proj_data.get('description'),
+                            status=proj_data.get('status', 'not-started'),
+                            start_date=start_date, end_date=end_date
+                        )
+                        db.add(new_project)
+                        projects_to_create.append({'original_id': original_id, 'db_instance': new_project})
+                        projects_added_count += 1
+                    if projects_to_create:
+                        print(f"{projects_added_count} 件のプロジェクトをDBセッションに追加しました (コミット前)。")
+                        db.flush()
+                        for item in projects_to_create:
+                            project_id_map[item['original_id']] = item['db_instance'].id
+                        print("プロジェクトIDマップを作成しました。")
+
+                # --- Group ---
+                groups_to_create = []
+                if groups_to_import:
+                     for group_data in groups_to_import:
+                        original_id = group_data.get('id'); name = group_data.get('name')
+                        if not original_id or not name: continue
+                        new_group = models.Group(name=name, description=group_data.get('description'))
+                        db.add(new_group)
+                        groups_to_create.append({'original_id': original_id, 'db_instance': new_group})
+                        groups_added_count += 1
+                     if groups_to_create:
+                         print(f"{groups_added_count} 件のグループをDBセッションに追加しました (コミット前)。")
+                         db.flush()
+                         for item in groups_to_create:
+                            group_id_map[item['original_id']] = item['db_instance'].id
+                         print("グループIDマップを作成しました。")
+
+
+                # --- Task ---
+                if tasks_to_import:
+                    print("タスクを追加中...")
+                    for task_data in tasks_to_import:
+                        original_proj_id = task_data.get('projectId')
+                        original_assignee_id = task_data.get('taskAssigneeId')
+                        title = task_data.get('title')
+                        if not title: continue
+
+                        db_project_id = project_id_map.get(original_proj_id)
+                        db_assignee_id = user_id_map.get(original_assignee_id)
+
+                        if original_proj_id is not None and db_project_id is None:
+                             print(f"警告: タスク '{title}' のプロジェクトID '{original_proj_id}' がマップで見つかりません (replace mode)。スキップします。")
+                             continue
+                        if original_assignee_id is not None and db_assignee_id is None:
+                             print(f"警告: タスク '{title}' の担当者ID '{original_assignee_id}' がマップで見つかりません (replace mode)。担当者なしにします。")
+                             db_assignee_id = None
+
+                        raw_task_status = task_data.get('taskStatus') or task_data.get('status', 'not-started')
+                        task_status_enum = None
+                        status_map = {
+                            'done': models.TaskStatus.COMPLETED, 'completed': models.TaskStatus.COMPLETED,
+                            'delayed': models.TaskStatus.IN_PROGRESS, 'in-progress': models.TaskStatus.IN_PROGRESS,
+                            'todo': models.TaskStatus.TODO, 'review': models.TaskStatus.REVIEW
+                        }
+                        task_status_enum = status_map.get(raw_task_status.lower())
+                        if task_status_enum is None:
+                             print(f"警告: タスク '{title}' のステータス '{raw_task_status}' は不明です (replace mode)。スキップします。")
+                             continue
+
+                        task_in_data = {
+                            "title": title, "description": task_data.get('description'),
+                            "taskStatus": task_status_enum, "projectId": db_project_id,
+                            "taskAssigneeId": db_assignee_id,
+                            "taskDueDate": task_data.get('taskDueDate') or task_data.get('dueDate')
+                        }
+                        try:
+                            task_in_data.setdefault('description', None)
+                            task_in_data.setdefault('taskDueDate', None)
+                            task_create_schema = schemas.TaskCreate(**task_in_data)
+                            crud.create_task(db=db, task=task_create_schema)
+                            tasks_added_count += 1
+                        except Exception as task_create_e:
+                             print(f"エラー: タスク '{title}' の作成に失敗しました (replace mode)。データ: {task_in_data}, エラー: {task_create_e}")
+                    print(f"{tasks_added_count} 件のタスクをDBセッションに追加しました (コミット前)。")
+
+                # --- Event ---
+                if events_to_import:
+                     print("イベントを追加中...")
+                     for event_data in events_to_import:
+                         original_proj_id = event_data.get('project_id')
+                         title = event_data.get('title')
+                         if not title: continue
+
+                         db_project_id = project_id_map.get(original_proj_id)
+                         if db_project_id is None and original_proj_id is not None: db_project_id = None
+
+                         event_in_data = {
+                             "name": title, "description": event_data.get('description'),
+                             "start_time": event_data.get('start'), "end_time": event_data.get('end'),
+                             "allDay": event_data.get('allDay', False), "status": event_data.get('status', 'offline'),
+                             "project_id": db_project_id, "type": event_data.get('type'),
+                             "location": event_data.get('location')
+                         }
+                         try:
+                             event_type_str = event_in_data.get('type')
+                             valid_event_type = None
+                             if event_type_str:
+                                 try: valid_event_type = models.EventType(event_type_str)
+                                 except ValueError: continue
+                                 event_in_data['type'] = valid_event_type
+                             else: continue
+
+                             event_in_data.setdefault('description', None); event_in_data.setdefault('location', None)
+                             event_in_data.setdefault('start_time', None); event_in_data.setdefault('end_time', None)
+
+                             event_create_schema = schemas.EventCreate(**event_in_data)
+                             crud.create_event(db=db, event=event_create_schema)
+                             events_added_count += 1
+                         except Exception as event_create_e:
+                              print(f"イベント '{title}' の作成中にエラー (replace mode): {event_create_e}")
+                     print(f"{events_added_count} 件のイベントをDBセッションに追加しました (コミット前)。")
+
+                # --- UserGroup ---
+                if user_groups_to_import:
+                    print("ユーザーグループ関連を追加中...")
+                    for ug_data in user_groups_to_import:
+                        original_user_id = ug_data.get('user_id')
+                        original_group_id = ug_data.get('group_id')
+                        db_user_id = user_id_map.get(original_user_id)
+                        db_group_id = group_id_map.get(original_group_id)
+                        if db_user_id is None or db_group_id is None: continue
+                        # replace モードでは重複チェック不要
+                        try:
+                            ug_in = schemas.UserGroupCreate(user_id=int(db_user_id), group_id=int(db_group_id))
+                            crud.add_user_to_group(db=db, user_group=ug_in)
+                            user_groups_added_count += 1
+                        except Exception as ug_create_e:
+                             print(f"ユーザーグループ (User: {db_user_id}, Group: {db_group_id}) の作成中にエラー (replace mode): {ug_create_e}")
+                    print(f"{user_groups_added_count} 件のユーザーグループ関連をDBセッションに追加しました (コミット前)。")
+
+
+                print("データの追加処理完了。コミットします...")
+                db.commit() # 全ての変更をコミット
+                print("コミット完了。")
+
+            except Exception as inner_e:
+                print(f"DB操作中にエラー発生 (replace mode): {inner_e}")
+                db.rollback() # エラー時はロールバック
+                import traceback
+                traceback.print_exc() # スタックトレースも表示
+                raise HTTPException(status_code=500, detail=f"データベース操作エラー (replace mode): {inner_e}")
+
+        # 応答メッセージ (mode によってメッセージが変わる)
+        mode_msg = "追加" if mock_data_import.append_mode else "置き換え"
+        try:
+            # コミット後に最新の件数を取得
+            final_user_count = db.query(models.User).count()
+            final_project_count = db.query(models.Project).count()
+            final_task_count = db.query(models.Task).count()
+            final_event_count = db.query(models.Event).count()
+            final_group_count = db.query(models.Group).count()
+            final_user_group_count = db.query(models.UserGroup).count()
+            counts = {
+                "ユーザー": final_user_count, "プロジェクト": final_project_count,
+                "タスク": final_task_count, "イベント": final_event_count,
+                "グループ": final_group_count, "ユーザーグループ": final_user_group_count
+            }
+        except Exception as count_e:
+            print(f"Error getting counts after commit: {count_e}")
+            # カウント取得に失敗した場合のフォールバック
+            admin_user_count = 0
+            try: admin_user_count = len(admin_users)
+            except NameError:
+                 # append モードの場合、admin_users は定義されていないことがあるため、DBから再取得
+                 admin_user_count = db.query(models.User).filter(models.User.role == 'admin').count()
+
+            counts = {
+                # append モードの場合、*_added_count は純粋な追加数を示す
+                # replace モードの場合、*_added_count は置き換え後の総数 (管理者除く)
+                # どちらの場合も、最終件数を返すのが理想だが、フォールバックとしては近似値を返す
+                "ユーザー": final_user_count if 'final_user_count' in locals() else (users_added_count + admin_user_count),
+                "プロジェクト": final_project_count if 'final_project_count' in locals() else projects_added_count,
+                "タスク": final_task_count if 'final_task_count' in locals() else tasks_added_count,
+                "イベント": final_event_count if 'final_event_count' in locals() else events_added_count,
+                "グループ": final_group_count if 'final_group_count' in locals() else groups_added_count,
+                "ユーザーグループ": final_user_group_count if 'final_user_group_count' in locals() else user_groups_added_count
+            }
+
+        return {
+            "message": f"モックデータが正常に{mode_msg}されました (DB操作版)",
+            "mode": "append" if mock_data_import.append_mode else "replace",
+            "counts": counts # 更新されたカウント
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"データインポート中に予期せぬエラーが発生しました: {str(e)}"
+        ) 
+
+@app.delete("/api/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Groups"])
+async def delete_group_endpoint(
+    group_id: int = Path(..., title="削除するグループのID", ge=1), # Path を使ってバリデーションを追加
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user) # 認証
+):
+    """
+    指定された ID のグループを削除します。
+
+    - 関連するユーザーグループの割り当ても削除されます。
+    """
+    db_group = crud.get_group(db=db, group_id=group_id)
+    if db_group is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"グループ ID {group_id} が見つかりません"
+        )
+
+    # --- 関連する UserGroup の削除 ---
+    try:
+        # グループに紐づくユーザー割り当てをすべて取得
+        # crud.py の get_user_groups_by_group を使う (limit=-1 で全件取得を意図、要確認)
+        user_groups_to_delete = crud.get_user_groups_by_group(db=db, group_id=group_id, limit=1000) # limit を大きく設定するか、全件取得ロジックを確認
+
+        # 関連オブジェクトをループで削除
+        for ug in user_groups_to_delete:
+            db.delete(ug)
+        # db.flush() # 必要に応じて flush
+
+        # グループ本体の削除 (crud.delete_group 内で commit される想定)
+        crud.delete_group(db=db, db_group=db_group)
+
+    except Exception as e:
+        db.rollback() # エラー発生時はロールバック
+        print(f"Error deleting group or related user_groups: {e}")
+        # エラーの詳細をログに出力することを検討
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="グループの削除中に内部エラーが発生しました"
+        )
+
+    # HTTP 204 No Content を返す (レスポンスボディなし)
+    return Response(status_code=status.HTTP_204_NO_CONTENT) 

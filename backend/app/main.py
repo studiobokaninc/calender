@@ -923,6 +923,15 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session) -> dict:
             else:
                 logger.warning(f"担当者 {assigned_to_username} が見つかりません")
 
+        # --- 開始日を自動計算 ---
+        from math import ceil
+        from datetime import timedelta
+        start_date = None
+        if due_date and cost:
+            days = ceil(cost / 8)
+            start_date = due_date - timedelta(days=days)
+        # ----------------------
+
         return {
             "name": name,
             "description": description,
@@ -936,7 +945,8 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session) -> dict:
             "shotID": shot_id,
             "dependsOn": depends_on,
             "display_status": "offline",
-            "priority": models.TaskPriority.MEDIUM
+            "priority": models.TaskPriority.MEDIUM,
+            "start_date": start_date  # ← 追加
         }
     except Exception as e:
         logger.error(f"タスクデータのパースに失敗: {str(e)}")
@@ -1070,7 +1080,8 @@ async def import_csv_data(
                     shotID=task_dict["shotID"],
                     dependsOn=task_dict["dependsOn"],
                     display_status=task_dict["display_status"],
-                    priority=models.TaskPriority.MEDIUM  # デフォルトの優先度を設定
+                    priority=models.TaskPriority.MEDIUM,  # デフォルトの優先度を設定
+                    start_date=task_dict.get("start_date")  # ← 追加
                 )
                 db.add(task)
                 db.commit()
@@ -1286,7 +1297,8 @@ async def import_mock_data(
                     shotID=shot_id,
                     dependsOn=depends_on,
                     display_status='offline',
-                    priority=models.TaskPriority.MEDIUM  # デフォルトの優先度を設定
+                    priority=models.TaskPriority.MEDIUM,  # デフォルトの優先度を設定
+                    start_date=task_dict.get("start_date")  # ← 追加
                 )
                 db.add(task)
                 db.flush()  # IDを取得するためにflush

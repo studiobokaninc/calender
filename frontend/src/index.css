@@ -1,0 +1,113 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  /* display: flex; */
+  /* place-items: center; */
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+.gantt .bar-wrapper.project-summary-task .bar {
+  fill: #a0a0a0; /* プロジェクト行の色 */
+  height: 10px;   /* プロジェクト行の高さを少し細く */
+}
+.gantt .bar-wrapper.project-summary-task .bar-progress {
+  fill: #cccccc !important; /* バーの背景色を少し濃い灰色に (見えやすくするため !important を追加) */
+}
+.gantt .bar-wrapper.project-summary-task .bar-label {
+  fill: #333;
+  font-weight: bold;
+}
+/* 左側リストのプロジェクト行のスタイル */
+.gantt .grid-row.project-summary-task .grid-row-cell {
+  font-weight: bold;
+  background-color: #f5f5f5;
+}
+
+.gantt .grid-row.project-summary-task .grid-row-bar-wrapper .bar-label {
+  font-weight: bold; /* タスクリストのプロジェクト名を太字に */
+  /* fill: #333; /* 文字色を濃くする (任意) */
+}
+
+.gantt .grid-row.project-summary-task .grid-row-bar-wrapper .bar-progress {
+  fill: #e0e0e0; /* プロジェクト行のバーの背景色 (例: 明るい灰色) */
+}
+
+/* プロジェクト行全体の視認性を上げる (任意) */
+.gantt .grid-row.project-summary-task .row-line {
+   /* background-color: rgba(0, 0, 0, 0.05); */ /* 薄い背景色 */
+}
+
+/* 左側のリスト部分 - 親要素にクラスが付いていることを期待して試す */
+/* (もしかしたら grid-row にも project-summary-task が付くかもしれない？) */
+.gantt .grid-row.project-summary-task .grid-row-label-wrapper .row-label .title {
+  font-weight: bold !important; /* 左側のプロジェクト名を太字に */
+  /* color: #333 !important; */ /* 文字色 */
+}
+/* ↑ セレクタが複雑なので、より具体的に指定 */
+
+/* デバッグ用：行全体の背景色を変えて、クラスが付いているか視覚的に確認 */
+.gantt .grid-row.project-summary-task {
+   background-color: rgba(0, 0, 0, 0.05) !important; /* 薄い灰色に戻す */
+   /* background-color: yellow !important; */ /* 削除 */
+}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Management App</title>
+    <!-- ガントチャートのホイールイベントバグを修正するためのスクリプト -->
+    <script>
+      // DOMContentLoadedイベントでgantt-task-reactライブラリのホイール関連問題を修正
+      document.addEventListener('DOMContentLoaded', function() {
+        // MutationObserverでDOMの変化を監視し、ガントチャートコンポーネントが追加されたら処理を行う
+        const observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            if (mutation.addedNodes.length) {
+              const ganttElements = document.querySelectorAll('.gantt');
+              if (ganttElements.length) {
+                // ガントチャートのホイールイベントを無効化するためのパッチ
+                ganttElements.forEach(function(gantt) {
+                  // wheel イベントリスナーに直接介入
+                  const wheelEvents = getEventListeners(gantt, 'wheel');
+                  if (wheelEvents && wheelEvents.length) {
+                    wheelEvents.forEach(function(event) {
+                      gantt.removeEventListener('wheel', event.listener);
+                    });
+                  }
+                  
+                  // 全てのSVG要素にも同様の処理
+                  const svgElements = gantt.querySelectorAll('svg');
+                  svgElements.forEach(function(svg) {
+                    const wheelEvents = getEventListeners(svg, 'wheel');
+                    if (wheelEvents && wheelEvents.length) {
+                      wheelEvents.forEach(function(event) {
+                        svg.removeEventListener('wheel', event.listener);
+                      });
+                    }
+                  });
+                });
+              }
+            }
+          });
+        });
+        
+        // ドキュメント全体の変更を監視
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+        
+        // 非標準のgetEventListenersがない場合の代替実装
+        function getEventListeners(element, eventType) {
+          // Chromeデベロッパーツールの機能がない場合は何もしない
+          if (typeof window.getEventListeners !== 'function') {
+            return [];
+          }
+          
+          try {
+            return window.getEventListeners(element)[eventType] || [];
+          } catch (e) {
+            return [];
+          }
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html> 

@@ -1,0 +1,390 @@
+import React, { useMemo, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Task, User, Project } from '../types'; // Adjust path if necessary
+import { Box, Typography, Paper, Grid, Modal, IconButton, FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput, Tooltip as MuiTooltip } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // ヘルプアイコン
+import { parseISO, isValid, isBefore, startOfDay } from 'date-fns';
+
+interface AssigneeLoadChartProps {
+    tasks: Task[];
+    users: User[];
+    projects: Project[]; // ★★★ projects を追加 ★★★
+}
+
+interface AssigneeLoadData {
+    assigneeId: string; // フィルター用にIDも保持
+    assigneeName: string;
+    todoTasks: number;
+    inProgressTasks: number;
+    delayedTasks: number;
+    doneTasks: number;
+    todoCost: number;
+    inProgressCost: number;
+    delayedCost: number;
+    doneCost: number;
+}
+
+// ★★★ データ計算ロジック変更: 新しい遅延定義を適用 ★★★
+const calculateAssigneeLoadData = (
+    tasks: Task[], 
+    users: User[], 
+    selectedProjectId: string | 'all' // ★★★ プロジェクトIDを受け取る ★★★
+): AssigneeLoadData[] => {
+    const today = startOfDay(new Date()); // 今日の開始時刻
+    const assignees = users.filter(u => u.role !== 'admin');
+    
+    // ★★★ プロジェクトでタスクを絞り込む ★★★
+    const filteredTasks = selectedProjectId === 'all' 
+        ? tasks 
+        : tasks.filter(task => task.project_id === selectedProjectId);
+
+    const loadData = assignees.map(assignee => {
+        const assignedTasks = filteredTasks.filter(task => task.assigned_to === assignee.id);
+        
+        // ★★★ ステータス別に集計 ★★★
+        let todoTasks = 0;
+        let inProgressTasks = 0;
+        let delayedTasks = 0;
+        let doneTasks = 0;
+        let todoCost = 0;
+        let inProgressCost = 0;
+        let delayedCost = 0;
+        let doneCost = 0;
+
+        assignedTasks.forEach(task => {
+            const cost = typeof task.cost === 'number' ? task.cost : 0;
+            let isDelayed = false;
+
+            // 遅延判定 (新しい定義)
+            if (task.due_date) {
+                const dueDate = startOfDay(parseISO(task.due_date));
+                if (isValid(dueDate) && isBefore(dueDate, today) && task.status !== 'completed') {
+                    isDelayed = true;
+                }
+            }
+
+            // 集計
+            if (isDelayed) {
+                delayedTasks++;
+                delayedCost += cost;
+            } else {
+                // 遅延でない場合は元のステータスで分類
+                switch (task.status) {
+                    case 'todo':
+                        todoTasks++;
+                        todoCost += cost;
+                        break;
+                    case 'in-progress':
+                        inProgressTasks++;
+                        inProgressCost += cost;
+                        break;
+                    case 'completed':
+                        doneTasks++;
+                        doneCost += cost;
+                        break;
+                    // taskStatus が 'delayed' だが isDelayed が false (例: dueDate が未来) の場合は
+                    // 本来ありえないが、もしあれば todo or in-progress に分類するか、無視するか。
+                    // 今回は status が delayed だが isDelayed=false なら無視される。
+                    // 必要ならここに case 'delayed': を追加してハンドリング。
+                    default:
+                        break;
+                }
+            }
+        });
+
+        return {
+            assigneeId: assignee.id, // IDを追加
+            assigneeName: assignee.full_name || assignee.username, 
+            todoTasks,
+            inProgressTasks,
+            delayedTasks,
+            doneTasks,
+            todoCost,
+            inProgressCost,
+            delayedCost,
+            doneCost,
+        };
+    });
+
+    console.log(`Calculated Assignee Load Data (new delay def) for Project '${selectedProjectId}':`, loadData); 
+    return loadData;
+};
+
+// ★★★ 担当者負荷グラフ用のカスタムツールチップ (枠削除) ★★★
+const AssigneeCustomTooltip = ({ active, payload, label, formatter }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <>
+                <Typography sx={{ fontWeight: 'bold', mb: 0.5, color: 'text.primary', fontSize: '0.8rem' }}>{label}</Typography>
+                {payload.map((pld: any, index: number) => {
+                    const value = formatter ? formatter(pld.value) : pld.value;
+                    // valueが0の場合は表示しない
+                    if (pld.value === 0) return null; 
+                    return (
+                        <Typography key={index} sx={{ color: pld.color, fontSize: '0.75rem' }}> 
+                            {`${pld.name}: ${value}`}
+                        </Typography>
+                    );
+                })}
+            </>
+        );
+    }
+    return null;
+};
+
+// ★★★ モーダルスタイル (ProjectProgressChartから流用) ★★★
+const modalStyle = {
+  position: 'absolute' as 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: '80vw', // 少し小さめにする
+  height: '70vh', 
+  bgcolor: 'background.paper',
+  border: '1px solid #000',
+  boxShadow: 24,
+  p: 3, 
+  display: 'flex',
+  flexDirection: 'column' 
+};
+
+const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, projects }) => { // ★★★ projects を受け取る ★★★
+    // ★★★ フィルター用の State ★★★
+    const [selectedProjectId, setSelectedProjectId] = useState<string | 'all'>('all');
+    const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]); // 初期は空（=全員表示）
+
+    const assigneeLoadDataAll = useMemo(
+        () => calculateAssigneeLoadData(tasks, users, selectedProjectId),
+        [tasks, users, selectedProjectId] // selectedProjectId に依存
+    );
+
+    // ★★★ 担当者リスト（フィルター用）★★★
+    const assigneeOptions = useMemo(() => 
+        users
+            .filter(u => u.role !== 'admin')
+            .map(u => ({ id: u.id, name: u.full_name || u.username }))
+    , [users]);
+    // ★★★ 全担当者IDリスト（「すべて選択」用）★★★
+    const allAssigneeIds = useMemo(() => assigneeOptions.map(opt => opt.id), [assigneeOptions]);
+
+    // ★★★ 担当者フィルター適用後のデータ ★★★
+    const filteredAssigneeLoadData = useMemo(() => {
+        // ★★★ フィルターロジック変更: IDリストが全IDと同じか空なら全員表示 ★★★
+        const isAllSelected = selectedAssigneeIds.length === 0 || selectedAssigneeIds.length === allAssigneeIds.length;
+        if (isAllSelected) {
+            return assigneeLoadDataAll; 
+        }
+        return assigneeLoadDataAll.filter(d => selectedAssigneeIds.includes(d.assigneeId));
+    }, [assigneeLoadDataAll, selectedAssigneeIds, allAssigneeIds]); // allAssigneeIds を依存配列に追加
+
+    // ★★★ モーダル State ★★★
+    const [isTaskCountModalOpen, setIsTaskCountModalOpen] = useState(false);
+    const [isTaskCostModalOpen, setIsTaskCostModalOpen] = useState(false);
+
+    if (!assigneeLoadDataAll) { // 元データがない場合はローディング等を考慮（MetricsPage側で対応済みのはず）
+        return null; 
+    }
+
+    const taskCountFormatter = (value: number) => `${value} 件`;
+    const costFormatter = (value: number) => `${value}`; 
+
+    // ★★★ グラフ描画関数修正: done を追加 ★★★
+    const renderBarChart = (
+        data: AssigneeLoadData[], 
+        countOrCost: 'count' | 'cost',
+        title: string, 
+        formatter: (value: any) => string, 
+        isModal: boolean = false
+    ) => {
+        // ★★★ keys に done を追加 ★★★
+        const keys = countOrCost === 'count' 
+            ? { key1: 'todoTasks', name1: 'Todo', key2: 'inProgressTasks', name2: 'In Progress', key3: 'delayedTasks', name3: 'Delayed', key4: 'doneTasks', name4: 'Done' }
+            : { key1: 'todoCost', name1: 'Todo', key2: 'inProgressCost', name2: 'In Progress', key3: 'delayedCost', name3: 'Delayed', key4: 'doneCost', name4: 'Done' };
+        // ★★★ colors に done を追加 ★★★
+        const colors = { todo: '#2196F3', inProgress: '#4CAF50', delayed: '#F44336', done: '#9E9E9E' }; 
+
+        return (
+            <ResponsiveContainer width="100%" height={isModal ? "100%" : "90%"}>
+                <BarChart data={data} margin={{ top: 5, right: 5, left: isModal ? -15 : -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="assigneeName" fontSize={isModal ? 11 : 10} tick={{ dy: 5 }} interval={0} />
+                    <YAxis fontSize={isModal ? 11 : 10} tickFormatter={formatter} />
+                    <Tooltip 
+                        content={<AssigneeCustomTooltip formatter={formatter} />} 
+                        cursor={{ fill: '#f5f5f5' }} // カーソル色を薄いグレーに
+                        wrapperStyle={isModal ? { zIndex: 1500 } : {}}
+                    />
+                    <Legend 
+                        wrapperStyle={{ fontSize: isModal ? '0.8rem' : '0.75rem', paddingTop: '5px' }} 
+                        verticalAlign="top" 
+                        align="right" 
+                    />
+                    {/* ★★★ Bar に done を追加 ★★★ */}
+                    <Bar dataKey={keys.key1} name={keys.name1} fill={colors.todo} barSize={isModal ? 15 : 10} />
+                    <Bar dataKey={keys.key2} name={keys.name2} fill={colors.inProgress} barSize={isModal ? 15 : 10} />
+                    <Bar dataKey={keys.key3} name={keys.name3} fill={colors.delayed} barSize={isModal ? 15 : 10} />
+                    <Bar dataKey={keys.key4} name={keys.name4} fill={colors.done} barSize={isModal ? 15 : 10} />
+                </BarChart>
+            </ResponsiveContainer>
+        );
+    }
+
+     // ★★★ 「すべて選択」ハンドラー ★★★
+    const handleSelectAllAssignees = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.checked) {
+            setSelectedAssigneeIds(allAssigneeIds); // 全員のIDを選択
+        } else {
+            setSelectedAssigneeIds([]); // 選択を解除（空配列 = すべて）
+        }
+    };
+
+    return (
+        <Box>
+             {/* ★★★ フィルターUIを Box で囲み、タイトルとヘルプを追加 ★★★ */}
+             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                     担当者別タスク負荷
+                </Typography>
+                <MuiTooltip 
+                    title={
+                        <Box sx={{ fontSize: '0.75rem' }}>
+                            担当者ごとのタスク状況を表示します。<br />
+                            Todo: 未着手<br />
+                            In Progress: 進行中<br />
+                            Delayed: 期限切れ(未完了)<br />
+                            Done: 完了
+                        </Box>
+                    }
+                >
+                    <IconButton size="small">
+                        <HelpOutlineIcon fontSize="small" />
+                    </IconButton>
+                </MuiTooltip>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                <FormControl size="small" sx={{ minWidth: 180 }}>
+                    <InputLabel sx={{fontSize: '0.8rem'}}>プロジェクト</InputLabel>
+                    <Select
+                        value={selectedProjectId}
+                        label="プロジェクト"
+                        onChange={(e) => setSelectedProjectId(e.target.value as string)}
+                         sx={{fontSize: '0.8rem'}}
+                    >
+                        <MenuItem value="all">すべてのプロジェクト</MenuItem>
+                        {projects.map((proj) => (
+                            <MenuItem key={proj.id} value={proj.id}>
+                                {proj.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                 <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel sx={{fontSize: '0.8rem'}}>担当者</InputLabel>
+                    <Select
+                        multiple
+                        value={selectedAssigneeIds}
+                        onChange={(e) => {
+                            const value = e.target.value;
+                            // Ensure value is always an array of strings
+                            const newValue = typeof value === 'string' ? value.split(',') : (Array.isArray(value) ? value : []);
+                            setSelectedAssigneeIds(newValue.filter(id => id !== 'select-all')); // Filter out 'select-all' just in case
+                        }}
+                        input={<OutlinedInput label="担当者" />}
+                        renderValue={(selected) => 
+                             // ★★★ 空配列の場合「すべて」と表示 ★★★
+                            selected.length === 0 || selected.length === allAssigneeIds.length
+                              ? 'すべて' 
+                              : selected.map(id => assigneeOptions.find(opt => opt.id === id)?.name).join(', ')
+                        }
+                        MenuProps={{ PaperProps: { style: { maxHeight: 224 } } }}
+                         sx={{fontSize: '0.8rem'}}
+                    >
+                         {/* ★★★ 「すべて選択」MenuItem から value="select-all" を削除 ★★★ */}
+                         <MenuItem> 
+                            <Checkbox 
+                                checked={selectedAssigneeIds.length === allAssigneeIds.length} 
+                                indeterminate={selectedAssigneeIds.length > 0 && selectedAssigneeIds.length < allAssigneeIds.length}
+                                onChange={handleSelectAllAssignees}
+                                size="small"
+                             />
+                            <ListItemText primary="すべて選択/解除" primaryTypographyProps={{ fontSize: '0.85rem' }} />
+                         </MenuItem>
+                        {assigneeOptions.map((assignee) => (
+                            <MenuItem key={assignee.id} value={assignee.id}>
+                                <Checkbox checked={selectedAssigneeIds.includes(assignee.id)} size="small" />
+                                <ListItemText primary={assignee.name} primaryTypographyProps={{ fontSize: '0.85rem' }} />
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+             </Box>
+
+             <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold', fontSize: '0.9rem' }}>担当者別タスク負荷</Typography>
+             {/* グラフがない場合のメッセージ */}
+             {filteredAssigneeLoadData.length === 0 && (
+                 <Typography sx={{ textAlign: 'center', color: 'text.secondary', height: 320 }}>表示対象の担当者データがありません。</Typography>
+             )}
+             {/* ★★★ グラフ表示部分 (Grid) ★★★ */}
+             {filteredAssigneeLoadData.length > 0 && (
+                 <Grid container spacing={2}>
+                     <Grid item xs={12} md={6}>
+                         <Paper sx={{ p: 2, height: '320px' }}>
+                             <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign:'center', fontSize: '0.8rem' }}>タスク数</Typography>
+                              {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
+                             <Box onClick={() => setIsTaskCountModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}> 
+                                {renderBarChart(filteredAssigneeLoadData, 'count', "タスク数", taskCountFormatter)}
+                              </Box>
+                         </Paper>
+                     </Grid>
+                     <Grid item xs={12} md={6}>
+                         <Paper sx={{ p: 2, height: '320px' }}>
+                             <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign:'center', fontSize: '0.8rem' }}>タスクコスト</Typography>
+                             {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
+                             <Box onClick={() => setIsTaskCostModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}> 
+                                {renderBarChart(filteredAssigneeLoadData, 'cost', "タスクコスト", costFormatter)}
+                             </Box>
+                         </Paper>
+                     </Grid>
+                 </Grid>
+             )}
+
+             {/* ★★★ タスク数モーダル ★★★ */}
+            <Modal
+                open={isTaskCountModalOpen}
+                onClose={() => setIsTaskCountModalOpen(false)}
+            >
+                <Box sx={modalStyle}>
+                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                         <Typography variant="h6" component="h2">担当者別タスク数 (拡大)</Typography>
+                         <IconButton onClick={() => setIsTaskCountModalOpen(false)} size="small"><CloseIcon /></IconButton>
+                     </Box>
+                     <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                        {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
+                        {renderBarChart(filteredAssigneeLoadData, 'count', "タスク数", taskCountFormatter, true)} 
+                     </Box>
+                </Box>
+            </Modal>
+
+             {/* ★★★ タスクコストモーダル ★★★ */}
+            <Modal
+                open={isTaskCostModalOpen}
+                onClose={() => setIsTaskCostModalOpen(false)}
+            >
+                 <Box sx={modalStyle}>
+                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                         <Typography variant="h6" component="h2">担当者別タスクコスト (拡大)</Typography>
+                         <IconButton onClick={() => setIsTaskCostModalOpen(false)} size="small"><CloseIcon /></IconButton>
+                     </Box>
+                     <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                         {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
+                        {renderBarChart(filteredAssigneeLoadData, 'cost', "タスクコスト", costFormatter, true)}
+                     </Box>
+                 </Box>
+            </Modal>
+
+        </Box>
+    );
+};
+
+export default AssigneeLoadChart; 

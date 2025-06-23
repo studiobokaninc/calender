@@ -1,0 +1,410 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# APIエンドポイント一覧
+
+---
+
+## 認証・ユーザー関連
+# APIエンドポイント一覧
+
+---
+
+## 認証・ユーザー関連
+
+- **POST /api/auth/token**
+  - ユーザー名とパスワードで認証し、アクセストークンを返す
+  - 使用例:
+    ```http
+    POST /api/auth/token
+    Content-Type: application/x-www-form-urlencoded
+
+    username=admin&password=yourpassword
+    ```
+    レスポンス例:
+    ```json
+    { "access_token": "...", "token_type": "bearer" }
+    ```
+
+- **GET /api/users/me**
+  - 現在認証されているユーザーの情報を返す
+  - 使用例:
+    ```http
+    GET /api/users/me
+    Authorization: Bearer <token>
+    ```
+    レスポンス例:
+    ```json
+    { "id": 1, "email": "admin@example.com", "name": "管理者", "role": "admin" }
+    ```
+
+- **GET /api/users**
+  - ユーザー一覧を取得（管理者のみ）
+  - 使用例:
+    ```http
+    GET /api/users
+    Authorization: Bearer <token>
+    ```
+    レスポンス例:
+    ```json
+    [
+      { "id": 1, "name": "田中太郎", "email": "tanaka@example.com", "role": "user" },
+      { "id": 2, "name": "山田花子", "email": "yamada@example.com", "role": "admin" }
+    ]
+    ```
+
+---
+
+## プロジェクト・タスクCSVインポート機能
+
+- **POST /admin/mock-data/import**
+  - プロジェクト・タスク情報をCSVからインポートする際、フロントエンドでCSVをパースし、下記JSON形式でAPIにPOSTします。
+  - 使用例:
+    ```http
+    POST /admin/mock-data/import
+    Content-Type: application/json
+    Authorization: Bearer <token>
+
+    {
+      "users": [],
+      "projects": [
+        {
+          "name": "新製品開発プロジェクトα",
+          "description": "新製品の開発プロジェクト",
+          "status": "in-progress",
+          "start_date": "2025-03-01",
+          "end_date": "2025-05-15",
+          "color": "#FF5733"
+        }
+      ],
+      "tasks": [
+        {
+          "title": "要件定義",
+          "description": "システム要件の定義",
+          "projectId": "新製品開発プロジェクトα",
+          "userId": "1",
+          "taskDueDate": "2025-03-15",
+          "taskStatus": "todo",
+          "taskCost": 16,
+          "dependsOn": []
+        }
+      ],
+      "events": []
+    }
+    ```
+    レスポンス例:
+    ```json
+    {
+      "message": "インポート完了",
+      "summary": { "projects": 1, "tasks": 1 },
+      "errors": []
+    }
+    ```
+
+- **POST /admin/mock-data/import-csv**
+  - CSVファイルからプロジェクトとタスク情報をインポート
+  - 使用例:
+    ```http
+    POST /admin/mock-data/import-csv
+    Content-Type: text/plain
+    Authorization: Bearer <token>
+
+    プロジェクト情報
+    プロジェクト名,開始日,終了日,説明
+    プロジェクトX,2024/03/01,2024/03/31,プロジェクトXの説明
+
+    タスク情報
+    タスク名,期日,説明,担当者,コスト,タイプ,seqID,shotID,依存タスク
+    T1,2024/03/15,T1の説明,user1,16,fx,SEQ001,SHOT001,
+    T2,2024/03/20,T2の説明,user2,24,animation,SEQ001,SHOT002,T1
+    T3,2024/03/25,T3の説明,user3,32,comp,SEQ002,SHOT001,"T1,T2"
+    ```
+    レスポンス例:
+    ```json
+    {
+      "message": "CSVデータのインポートが完了しました"
+    }
+    ```
+    エラーレスポンス例:
+    ```json
+    {
+      "detail": "CSVデータのインポート中にエラーが発生しました: ユーザーが見つかりません: user1"
+    }
+    ```
+
+- **GET /api/admin/csv-template**
+  - CSVテンプレートファイルをダウンロード
+  - 使用例:
+    ```http
+    GET /api/admin/csv-template
+    Authorization: Bearer <token>
+    ```
+    レスポンス: CSVファイル（UTF-8 with BOM）
+
+---
+
+## その他のAPI
+
+（省略。既存のAPI一覧を参照） 
+
+# API仕様書
+
+## 概要
+このドキュメントでは、プロジェクト管理システムのAPI仕様について説明します。
+
+## 認証
+
+### JWT認証
+- エンドポイント: `/api/auth/token`
+- メソッド: POST
+- リクエストボディ:
+  ```json
+  {
+    "username": "string",
+    "password": "string"
+  }
+  ```
+- レスポンス:
+  ```json
+  {
+    "access_token": "string",
+    "token_type": "bearer"
+  }
+  ```
+
+## プロジェクト管理
+
+### プロジェクト一覧取得
+- エンドポイント: `/api/projects`
+- メソッド: GET
+- レスポンス:
+  ```json
+  [
+    {
+      "id": "integer",
+      "name": "string",
+      "description": "string",
+      "status": "string",
+      "priority": "string",
+      "start_date": "string",
+      "end_date": "string",
+      "color": "string",
+      "display_status": "string"
+    }
+  ]
+  ```
+
+### プロジェクト作成
+- エンドポイント: `/api/projects`
+- メソッド: POST
+- リクエストボディ:
+  ```json
+  {
+    "name": "string",
+    "description": "string",
+    "status": "string",
+    "priority": "string",
+    "start_date": "string",
+    "end_date": "string",
+    "color": "string",
+    "display_status": "string"
+  }
+  ```
+
+### プロジェクト更新
+- エンドポイント: `/api/projects/{project_id}`
+- メソッド: PUT
+- リクエストボディ: プロジェクト作成と同じ
+
+### プロジェクト削除
+- エンドポイント: `/api/projects/{project_id}`
+- メソッド: DELETE
+
+### メトリクス関連API
+
+#### プロジェクトメトリクスの取得
+```
+GET /api/projects/{project_id}/metrics
+```
+
+レスポンス:
+```json
+{
+  "total_tasks": 120,
+  "completed_tasks": 41,
+  "in_progress_tasks": 30,
+  "delayed_tasks": 18,
+  "project_progress": 34.17
+}
+```
+
+#### ユーザーメトリクスの取得
+```
+GET /api/users/{user_id}/metrics
+```
+
+レスポンス:
+```json
+{
+  "total_tasks": 45,
+  "completed_tasks": 15,
+  "in_progress_tasks": 20,
+  "delayed_tasks": 5,
+  "user_progress": 33.33
+}
+```
+
+## タスク管理
+
+### タスク一覧取得
+- エンドポイント: `/api/tasks`
+- メソッド: GET
+- レスポンス:
+  ```json
+  [
+    {
+      "id": "string",
+      "name": "string",
+      "description": "string",
+      "due_date": "string",
+      "status": "string",
+      "priority": "string",
+      "project_id": "integer",
+      "assigned_to": "string",
+      "cost": "integer",
+      "type": "string",
+      "seq_id": "string",
+      "shot_id": "string",
+      "dependencies": ["string"]
+    }
+  ]
+  ```
+
+### タスク作成
+- エンドポイント: `/api/tasks`
+- メソッド: POST
+- リクエストボディ:
+  ```json
+  {
+    "name": "string",
+    "description": "string",
+    "due_date": "string",
+    "status": "string",
+    "priority": "string",
+    "project_id": "integer",
+    "assigned_to": "string",
+    "cost": "integer",
+    "type": "string",
+    "seq_id": "string",
+    "shot_id": "string",
+    "dependencies": ["string"]
+  }
+  ```
+
+### タスク更新
+- エンドポイント: `/api/tasks/{task_id}`
+- メソッド: PUT
+- リクエストボディ: タスク作成と同じ
+
+### タスク削除
+- エンドポイント: `/api/tasks/{task_id}`
+- メソッド: DELETE
+
+## データインポート
+
+### CSVインポート
+- エンドポイント: `/api/import/csv`
+- メソッド: POST
+- リクエスト: multipart/form-data
+  - ファイル: CSVファイル
+- レスポンス:
+  ```json
+  {
+    "message": "string",
+    "imported_projects": "integer",
+    "imported_tasks": "integer"
+  }
+  ```
+
+### JSONインポート
+- エンドポイント: `/api/import/json`
+- メソッド: POST
+- リクエストボディ: JSONデータ
+- レスポンス:
+  ```json
+  {
+    "message": "string",
+    "imported_items": "integer"
+  }
+  ```
+
+## エラーレスポンス
+
+### 400 Bad Request
+```json
+{
+  "detail": "string"
+}
+```
+
+### 401 Unauthorized
+```json
+{
+  "detail": "Not authenticated"
+}
+```
+
+### 403 Forbidden
+```json
+{
+  "detail": "Not enough permissions"
+}
+```
+
+### 404 Not Found
+```json
+{
+  "detail": "Item not found"
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "detail": "Internal server error"
+}
+```
+
+## ステータスコード
+
+### プロジェクト
+- planning: 計画中
+- in-progress: 進行中
+- completed: 完了
+- on-hold: 保留中
+- cancelled: キャンセル
+- delayed: 遅延
+
+### タスク
+- todo: 未着手
+- in-progress: 進行中
+- review: レビュー中
+- completed: 完了
+
+### 優先度
+- high: 高
+- medium: 中
+- low: 低
+
+### 表示ステータス
+- online: オンライン
+- offline: オフライン
+- archived: アーカイブ
+
+## 制限事項
+- リクエストサイズ: 10MB以下
+- 認証トークンの有効期限: 24時間
+- ページネーション: 1ページあたり最大100件
+- ファイルアップロード: 10MB以下 

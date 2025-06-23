@@ -1,0 +1,234 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# カレンダーアプリケーション インストール手順
+
+## 1. 必要なソフトウェア
+
+### 1.1 基本要件
+- macOS 10.15以降
+- メモリ: 8GB以上推奨
+- ストレージ: 1GB以上の空き容量
+
+### 1.2 開発環境
+- Python 3.11
+- Node.js 18.x以上
+- npm 9.x以上
+- Git
+
+### 1.3 データベース
+- SQLite 3.x（Pythonに同梱）
+
+## 2. インストール手順
+
+### 2.1 開発環境のセットアップ
+
+#### Pythonのインストール
+```bash
+# Homebrewを使用する場合
+brew install python@3.11
+
+# インストールの確認
+python3 --version  # Python 3.11.x と表示されることを確認
+```
+
+#### Node.jsのインストール
+```bash
+# Homebrewを使用する場合
+brew install node@18
+
+# インストールの確認
+node --version  # v18.x.x と表示されることを確認
+npm --version   # 9.x.x と表示されることを確認
+```
+
+### 2.2 プロジェクトのセットアップ
+
+#### リポジトリのクローン
+```bash
+git clone [リポジトリURL]
+cd calender
+```
+
+#### バックエンドのセットアップ
+```bash
+# 仮想環境の作成
+python3.11 -m venv venv
+
+# 仮想環境の有効化
+source venv/bin/activate  # macOS/Linux
+
+# 依存パッケージのインストール
+pip install -r requirements.txt
+
+# データベースの初期化
+python scripts/init_db.py
+```
+
+#### フロントエンドのセットアップ
+```bash
+# 依存パッケージのインストール
+npm install
+
+# 開発サーバーの起動
+npm run dev
+```
+
+## 3. 環境設定
+
+### 3.1 バックエンド設定
+1. `.env`ファイルの作成
+```bash
+cp .env.example .env
+```
+
+2. 環境変数の設定
+```
+# データベース設定
+DATABASE_URL=sqlite:///./app.db
+
+# セキュリティ設定
+SECRET_KEY=your-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# サーバー設定
+HOST=0.0.0.0
+PORT=8000
+```
+
+### 3.2 フロントエンド設定
+1. `frontend/.env`ファイルの作成
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+2. 環境変数の設定
+```
+VITE_API_URL=http://localhost:8000
+```
+
+## 4. アプリケーションの起動
+
+### 4.1 バックエンドの起動
+```bash
+# 仮想環境が有効化されていることを確認
+source venv/bin/activate
+
+# サーバーの起動
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 4.2 フロントエンドの起動
+```bash
+# 別のターミナルで
+cd frontend
+npm run dev
+```
+
+## 5. 動作確認
+
+1. ブラウザで以下のURLにアクセス
+   - フロントエンド: http://localhost:5173
+   - バックエンドAPI: http://localhost:8000
+
+2. 以下の機能が正常に動作することを確認
+   - ユーザー登録/ログイン
+   - カレンダー表示
+   - タスク管理
+   - プロジェクト管理
+
+## 6. トラブルシューティング
+
+### 6.1 よくある問題と解決方法
+
+#### ポートが使用中の場合
+```bash
+# 使用中のポートを確認
+lsof -i :8000
+lsof -i :5173
+
+# プロセスの終了
+kill -9 [プロセスID]
+```
+
+#### データベースエラーの場合
+```bash
+# データベースの再初期化
+rm app.db
+python scripts/init_db.py
+```
+
+#### 依存パッケージの更新
+```bash
+# バックエンド
+pip install --upgrade -r requirements.txt
+
+# フロントエンド
+npm update
+```
+
+## 7. セキュリティ設定
+
+### 7.1 本番環境での設定
+1. 強力なSECRET_KEYの設定
+2. HTTPSの有効化
+3. 適切なCORS設定
+4. レート制限の設定
+
+### 7.2 ファイアウォール設定
+- 必要なポートのみ開放
+- アクセス制限の設定
+
+## 8. バックアップと復元
+
+### 8.1 データベースのバックアップ
+```bash
+# バックアップの作成
+sqlite3 app.db ".backup 'backup_$(date +%Y%m%d).db'"
+```
+
+### 8.2 バックアップからの復元
+```bash
+# バックアップの復元
+sqlite3 app.db ".restore 'backup_YYYYMMDD.db'"
+```
+
+## 9. メンテナンス
+
+### 9.1 ログローテーション
+```bash
+# ログファイルのローテーション設定
+logrotate /etc/logrotate.d/calender
+```
+
+### 9.2 パフォーマンスモニタリング
+- メモリ使用量の監視
+- CPU使用率の監視
+- ディスク使用量の監視
+
+## 10. アンインストール
+
+### 10.1 アプリケーションの削除
+```bash
+# 仮想環境の削除
+rm -rf venv
+
+# データベースの削除
+rm app.db
+
+# プロジェクトディレクトリの削除
+cd ..
+rm -rf calender
+```
+
+### 10.2 依存パッケージの削除
+```bash
+# Pythonパッケージの削除
+pip uninstall -r requirements.txt -y
+
+# Node.jsパッケージの削除
+npm uninstall
+```

@@ -330,6 +330,8 @@ const getStatusCountsOnDate = (
         }
 
         let finalStatus: string | undefined = statusOnDate;
+        if (finalStatus === 'completed') finalStatus = 'done';
+        if (finalStatus === 'in-progress') finalStatus = 'inProgress';
         if (task.due_date) {
             const dueDate = startOfDay(parseISO(task.due_date));
             if (isValid(dueDate) && isBefore(dueDate, targetDate) && finalStatus !== 'done') {
@@ -338,7 +340,7 @@ const getStatusCountsOnDate = (
         }
 
         if (finalStatus === 'todo') initialCounts.todo++;
-        else if (finalStatus === 'in-progress') initialCounts.inProgress++;
+        else if (finalStatus === 'inProgress') initialCounts.inProgress++;
         else if (finalStatus === 'delayed') initialCounts.delayed++;
         else if (finalStatus === 'done') initialCounts.done++;
     });
@@ -416,6 +418,8 @@ const getTasksByStatusOnDate = (
         if (!statusOnDate) return;
 
         let finalStatus: string | undefined = statusOnDate;
+        if (finalStatus === 'completed') finalStatus = 'done';
+        if (finalStatus === 'in-progress') finalStatus = 'inProgress';
 
         // ★★★ types.ts に合わせて taskDueDate ★★★
         if (task.due_date) {

@@ -1188,7 +1188,7 @@ const GanttView: React.FC<GanttViewProps> = memo(
     // 1. プロジェクトフィルター
     const projectFilteredTasks = selectedProjectId === "all"
         ? localTasks
-        : localTasks.filter(task => String(task.project_id) === selectedProjectId);
+        : localTasks.filter(task => String(task.project_id) === String(selectedProjectId));
     console.log(`プロジェクトフィルタリング後 (${selectedProjectId}): ${projectFilteredTasks.length}個`);
 
     // 2. GtrTask への変換と検証

@@ -506,29 +506,23 @@ interface GanttViewProps {
 
 // MemoizedGanttをuseMemoで生成するように変更
 const MemoizedGantt = React.memo(ReactGantt, (prevProps, nextProps) => {
-  // 更新が必要ない場合はtrueを返す
+  // columnWidth, viewMode も比較
   if (!prevProps.tasks || !nextProps.tasks) return true;
-  
-  // tasksが同じ参照または同じ長さの場合は再レンダリングしない
-  if (prevProps.tasks === nextProps.tasks) return true;
-  
-  // サイズを比較（配列の長さなど）
+  if (
+    prevProps.tasks === nextProps.tasks &&
+    prevProps.viewMode === nextProps.viewMode &&
+    prevProps.columnWidth === nextProps.columnWidth
+  ) return true;
   if (prevProps.tasks.length !== nextProps.tasks.length) {
-    return false; // 長さが違う場合は更新が必要
+    return false;
   }
-  
-  // 必要に応じて中身の比較も行える
-  // 例：最初の数件のタスクIDを比較
   const sampleSize = Math.min(5, prevProps.tasks.length);
   for (let i = 0; i < sampleSize; i++) {
     if (prevProps.tasks[i].id !== nextProps.tasks[i].id) {
-      return false; // 内容が違う場合は更新が必要
+      return false;
     }
   }
-  
-  // その他のpropsも必要に応じて比較
-  
-  return true; // 上記の条件をすべて満たした場合、更新不要
+  return false;
 });
 
 const GanttWrapper = styled.div`

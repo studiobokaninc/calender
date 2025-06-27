@@ -1049,24 +1049,23 @@ async def import_csv_data(
                 break
 
         # ヘッダー行をスキップ
-        next(csv_reader, None)  # "タスク名,期日,説明,担当者,コスト,タイプ,seqID,shotID,依存タスク" の行をスキップ
+        next(csv_reader, None)
 
-        # タスク情報を読み込む
+        # 1. 全タスクを一度DBに追加
+        all_task_data = []
         for task_data in csv_reader:
             if not task_data or not task_data[0].strip():  # 空行をスキップ
                 continue
-
-            # ヘッダー行のチェック
             if task_data[0].strip() == "タスク名":
                 continue
-
             logger.info(f"タスク情報（生データ）: {task_data}")
-            
+            all_task_data.append(task_data)
+
+        task_name_to_obj = {}
+        for task_data in all_task_data:
             try:
-                # タスクデータのパース
                 task_dict = parse_task_data(task_data, project.id, db)
-                
-                # タスクの作成
+                # dependsOnはタスク名リストのまま
                 task = models.Task(
                     name=task_dict["name"],
                     description=task_dict["description"],
@@ -1080,16 +1079,15 @@ async def import_csv_data(
                     shotID=task_dict["shotID"],
                     dependsOn=task_dict["dependsOn"],
                     display_status=task_dict["display_status"],
-                    priority=models.TaskPriority.MEDIUM,  # デフォルトの優先度を設定
-                    start_date=task_dict.get("start_date")  # ← 追加
+                    priority=models.TaskPriority.MEDIUM,
+                    start_date=task_dict.get("start_date")
                 )
                 db.add(task)
-                db.commit()
+                db.flush()  # IDを発番
                 db.refresh(task)
-                logger.info(f"新規タスクを作成: {task.name} (ID: {task.id})")
+                task_name_to_obj[task.name] = task
                 import_results["tasks"]["imported"] += 1
                 import_results["tasks"]["results"].append(f"作成: {task.name}")
-
                 # ステータス履歴の作成
                 status_history = models.TaskStatusHistory(
                     task_id=task.id,
@@ -1098,17 +1096,26 @@ async def import_csv_data(
                     changed_at=datetime.now()
                 )
                 db.add(status_history)
-                db.commit()
-                logger.info(f"タスク {task.name} のステータス履歴を作成: TODO")
-
-                # 依存関係の更新
-                if task_dict["dependsOn"]:
-                    update_task_dependencies(task.name, task_dict["dependsOn"], db)
             except Exception as e:
                 logger.error(f"タスクの作成に失敗: {str(e)}")
                 import_results["tasks"]["skipped"] += 1
                 import_results["tasks"]["results"].append(f"エラー: {task_data[0]} - {str(e)}")
                 continue
+        db.commit()
+
+        # 2. 依存関係をIDに変換して再保存
+        for task in task_name_to_obj.values():
+            dependsOn_names = task.dependsOn if task.dependsOn else []
+            dependsOn_ids = []
+            for dep_name in dependsOn_names:
+                dep_task = task_name_to_obj.get(dep_name)
+                if dep_task:
+                    dependsOn_ids.append(str(dep_task.id))
+                else:
+                    logger.warning(f"依存タスクが見つかりません: {dep_name}")
+            if dependsOn_ids:
+                task.dependsOn = dependsOn_ids
+        db.commit()
 
         return import_results
 

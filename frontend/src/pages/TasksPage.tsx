@@ -246,9 +246,9 @@ const TasksPage: React.FC = () => {
             start_date: startDateParsed ? format(startDateParsed, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
             due_date: dueDateParsed ? format(dueDateParsed, 'yyyy-MM-dd') : format(new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
             cost: task.cost || 0,
-            type: task.extendedProps?.type?.toLowerCase() || '',  // extendedPropsから取得
-            seqID: task.extendedProps?.seqID || '',  // extendedPropsから取得
-            shotID: task.extendedProps?.shotID || '',  // extendedPropsから取得
+            type: (task as any)?.type ?? task.extendedProps?.type?.toLowerCase() ?? '',
+            seqID: (task as any)?.seqID ?? task.extendedProps?.seqID ?? '',
+            shotID: (task as any)?.shotID ?? task.extendedProps?.shotID ?? '',
             dependsOn: task.dependsOn || []
         });
         setOpenDialog(true);

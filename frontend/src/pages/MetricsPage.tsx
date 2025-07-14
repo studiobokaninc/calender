@@ -246,6 +246,7 @@ const MetricsPage: React.FC = () => {
     setSelectedDisplayStatuses([]);
   };
 
+
   if (loading) {
     console.log("MetricsPage: Rendering Loading state");
     return (
@@ -400,8 +401,8 @@ const MetricsPage: React.FC = () => {
             <ProjectProgressChart
                  projects={filteredProjects}
                  tasks={filteredTasks}
-                selectedProjectId={selectedProjectIdForProgress}
-                onProjectChange={setSelectedProjectIdForProgress}
+                 selectedProjectId={String(selectedProjectIdForProgress)}
+                 onProjectChange={setSelectedProjectIdForProgress}
             />
              )}
              

@@ -133,17 +133,17 @@ const calculateUserProgressData = (
 
         userTasks.forEach(task => {
             let statusOnDate: string | undefined = undefined;
-            let latestHistoryDate: Date | null = null;
+            let latestHistoryDateTime: Date | null = null;
 
             if (task.status_history && task.status_history.length > 0) {
                 task.status_history.forEach((history: StatusHistoryEntry) => {
                     const historyDate = parseISO(history.changed_at);
                     const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
                     if (historyDay && (isBefore(historyDay, currentDate) || isEqual(historyDay, currentDate))) {
-                        if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
-                            latestHistoryDate = historyDay;
+                        if (latestHistoryDateTime === null || isBefore(latestHistoryDateTime, historyDate)) {
+                            latestHistoryDateTime = historyDate;
                             statusOnDate = history.status;
-                        } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'completed') {
+                        } else if (isEqual(latestHistoryDateTime, historyDate) && history.status === 'completed') {
                             statusOnDate = history.status;
                         }
                     }
@@ -250,21 +250,23 @@ const calculateAllUsersProgressData = (
             if (totalUserTasksCount > 0) {
                 userTasks.forEach(task => {
                     let statusOnDate: string | undefined = undefined;
-                    let latestHistoryDate: Date | null = null;
+                    let latestHistoryDateTime: Date | null = null;
                     task.status_history?.forEach((history: StatusHistoryEntry) => {
                         const historyDate = parseISO(history.changed_at);
                         const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
                         if (historyDay && (isBefore(historyDay, currentDate) || isEqual(historyDay, currentDate))) {
-                            if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
-                                latestHistoryDate = historyDay;
+                            if (latestHistoryDateTime === null || isBefore(latestHistoryDateTime, historyDate)) {
+                                latestHistoryDateTime = historyDate;
                                 statusOnDate = history.status;
-                            } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'done') {
+                            } else if (isEqual(latestHistoryDateTime, historyDate) && history.status === 'completed') {
                                 statusOnDate = history.status;
                             }
                         }
                     });
-                    if (statusOnDate === 'done') doneCount++;
-                    else if (statusOnDate === 'in-progress') inProgressCount++;
+                    // 正規化: 履歴は 'completed' を返すため 'done' 相当として扱う
+                    const normalizedStatus = statusOnDate === 'completed' ? 'done' : statusOnDate;
+                    if (normalizedStatus === 'done') doneCount++;
+                    else if (normalizedStatus === 'in-progress') inProgressCount++;
                 });
                  const actualValue = ((doneCount * 1.0) + (inProgressCount * 0.5)) / totalUserTasksCount * 100;
                  dataPoint[userId] = Math.max(0, Math.min(100, Math.round(actualValue))); 
@@ -322,10 +324,10 @@ const getStatusCountsOnDate = (
                 const historyDate = parseISO(history.changed_at);
                 const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
                 if (historyDay && (isBefore(historyDay, targetDate) || isEqual(historyDay, targetDate))) {
-                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
-                        latestHistoryDate = historyDay;
+                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
+                        latestHistoryDate = historyDate;
                         statusOnDate = history.status;
-                    } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'done') {
+                    } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'completed') {
                         statusOnDate = history.status;
                     }
                 }
@@ -401,10 +403,10 @@ const getTasksByStatusOnDate = (
                 const historyDate = parseISO(history.changed_at);
                 const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
                 if (historyDay && (isBefore(historyDay, targetDate) || isEqual(historyDay, targetDate))) {
-                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
-                        latestHistoryDate = historyDay;
+                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
+                        latestHistoryDate = historyDate;
                         statusOnDate = history.status;
-                    } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'done') {
+                    } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'completed') {
                         statusOnDate = history.status;
                     }
                 }

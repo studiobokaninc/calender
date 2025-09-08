@@ -138,11 +138,12 @@ const calculateUserProgressData = (
             if (task.status_history && task.status_history.length > 0) {
                 task.status_history.forEach((history: StatusHistoryEntry) => {
                     const historyDate = parseISO(history.changed_at);
-                    if (isValid(historyDate) && (isBefore(historyDate, currentDate) || isEqual(historyDate, currentDate))) {
-                        if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
-                            latestHistoryDate = historyDate;
+                    const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
+                    if (historyDay && (isBefore(historyDay, currentDate) || isEqual(historyDay, currentDate))) {
+                        if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
+                            latestHistoryDate = historyDay;
                             statusOnDate = history.status;
-                        } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'completed') {
+                        } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'completed') {
                             statusOnDate = history.status;
                         }
                     }
@@ -252,11 +253,12 @@ const calculateAllUsersProgressData = (
                     let latestHistoryDate: Date | null = null;
                     task.status_history?.forEach((history: StatusHistoryEntry) => {
                         const historyDate = parseISO(history.changed_at);
-                        if (isValid(historyDate) && (isBefore(historyDate, currentDate) || isEqual(historyDate, currentDate))) {
-                            if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
-                                latestHistoryDate = historyDate;
+                        const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
+                        if (historyDay && (isBefore(historyDay, currentDate) || isEqual(historyDay, currentDate))) {
+                            if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
+                                latestHistoryDate = historyDay;
                                 statusOnDate = history.status;
-                            } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'done') {
+                            } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'done') {
                                 statusOnDate = history.status;
                             }
                         }
@@ -318,11 +320,12 @@ const getStatusCountsOnDate = (
         if (task.status_history && task.status_history.length > 0) {
             task.status_history.forEach((history: StatusHistoryEntry) => {
                 const historyDate = parseISO(history.changed_at);
-                if (isValid(historyDate) && (isBefore(historyDate, targetDate) || isEqual(historyDate, targetDate))) {
-                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
-                        latestHistoryDate = historyDate;
+                const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
+                if (historyDay && (isBefore(historyDay, targetDate) || isEqual(historyDay, targetDate))) {
+                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
+                        latestHistoryDate = historyDay;
                         statusOnDate = history.status;
-                    } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'done') {
+                    } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'done') {
                         statusOnDate = history.status;
                     }
                 }
@@ -396,11 +399,12 @@ const getTasksByStatusOnDate = (
         if (task.status_history && task.status_history.length > 0) {
             task.status_history.forEach((history: StatusHistoryEntry) => {
                 const historyDate = parseISO(history.changed_at);
-                if (isValid(historyDate) && (isBefore(historyDate, targetDate) || isEqual(historyDate, targetDate))) {
-                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
-                        latestHistoryDate = historyDate;
+                const historyDay = isValid(historyDate) ? startOfDay(historyDate) : null;
+                if (historyDay && (isBefore(historyDay, targetDate) || isEqual(historyDay, targetDate))) {
+                    if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDay)) {
+                        latestHistoryDate = historyDay;
                         statusOnDate = history.status;
-                    } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'done') {
+                    } else if (isEqual(latestHistoryDate, historyDay) && history.status === 'done') {
                         statusOnDate = history.status;
                     }
                 }

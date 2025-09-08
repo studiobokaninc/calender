@@ -1197,14 +1197,25 @@ async def import_mock_data(
             "user_groups": {"total": len(data.user_groups or []), "imported": 0, "skipped": 0, "results": []}
         }
 
+        # 既存プロジェクト名集合と {プロジェクト名: ID} マップを準備
+        existing_project_names = set()
+        project_name_to_id = {}
+
         # ユーザーをインポート
         for user_data in data.users:
             username = "<不明>"  # 初期化しておく
             try:
-                username = user_data[0]
-                email = user_data[1]
-                password = user_data[2]
-                role = user_data[3] if len(user_data) > 3 else 'user'
+                # dict 形式と配列形式の両方に対応
+                if isinstance(user_data, dict):
+                    username = user_data.get("username") or user_data.get("full_name") or user_data.get("name") or (user_data.get("email", "").split("@")[0] if user_data.get("email") else "<不明>")
+                    email = user_data.get("email", "")
+                    password = user_data.get("password") or "password123"
+                    role = user_data.get("role", "user")
+                else:
+                    username = user_data[0]
+                    email = user_data[1]
+                    password = user_data[2]
+                    role = user_data[3] if len(user_data) > 3 else 'user'
 
                 # 既存のユーザーをチェック
                 existing_user = db.query(models.User).filter(models.User.username == username).first()
@@ -1233,10 +1244,19 @@ async def import_mock_data(
         for project_data in data.projects:
             name = "<不明>"
             try:
-                name = project_data[0]
-                start_date = parse_date(project_data[1])
-                end_date = parse_date(project_data[2])
-                description = project_data[3] if len(project_data) > 3 else None
+                # dict 形式と配列形式の両方に対応
+                if isinstance(project_data, dict):
+                    name = project_data.get("name") or "<不明>"
+                    start_raw = project_data.get("start_date") or project_data.get("startDate") or ""
+                    end_raw = project_data.get("end_date") or project_data.get("endDate") or ""
+                    description = project_data.get("description")
+                    start_date = parse_date(start_raw) if start_raw else None
+                    end_date = parse_date(end_raw) if end_raw else None
+                else:
+                    name = project_data[0]
+                    start_date = parse_date(project_data[1])
+                    end_date = parse_date(project_data[2])
+                    description = project_data[3] if len(project_data) > 3 else None
 
                 # 重複を避けるために一意の名前を生成
                 unique_name = generate_unique_name(name, existing_project_names)
@@ -1258,23 +1278,45 @@ async def import_mock_data(
                 db.flush()
                 import_results["projects"]["imported"] += 1
                 import_results["projects"]["results"].append(f"追加: {name} (ID: {project.id})")
+                existing_project_names.add(name)
+                project_name_to_id[name] = project.id
             except Exception as e:
                 import_results["projects"]["results"].append(f"エラー: {name} - {str(e)}")
 
         # タスクをインポート
         for task_data in data.tasks:
             try:
-                name = task_data[0]
-                due_date = parse_date(task_data[1])
-                description = task_data[2]
-                assigned_to_name = task_data[3]
-                cost = float(task_data[4])
-                task_type = task_data[5].upper() if task_data[5] else None
-                seq_id = task_data[6]
-                shot_id = task_data[7]
-                depends_on = task_data[8].split(',') if len(task_data) > 8 and task_data[8] else []
+                # dict 形式と配列形式の両方に対応
+                if isinstance(task_data, dict):
+                    name = task_data.get("name") or task_data.get("title") or "<不明>"
+                    due_raw = task_data.get("due_date") or task_data.get("taskDueDate") or task_data.get("dueDate") or ""
+                    due_date = parse_date(due_raw) if due_raw else None
+                    description = task_data.get("description", "")
+                    # 担当者は名前またはIDのどちらかを受け付ける
+                    assigned_to_name = task_data.get("assigneeName") or task_data.get("assigned_to_name")
+                    assigned_to_id = task_data.get("assigned_to")
+                    cost = float(task_data.get("cost", 0) or 0)
+                    task_type_val = task_data.get("type")
+                    task_type = task_type_val.upper() if isinstance(task_type_val, str) else (task_type_val if task_type_val else None)
+                    seq_id = task_data.get("seqID") or task_data.get("seqId") or ""
+                    shot_id = task_data.get("shotID") or task_data.get("shotId") or ""
+                    depends_field = task_data.get("dependsOn") or task_data.get("dependent_tasks") or []
+                    if isinstance(depends_field, list):
+                        depends_on = [str(x) for x in depends_field if x]
+                    else:
+                        depends_on = [s for s in str(depends_field).split(',') if s]
+                else:
+                    name = task_data[0]
+                    due_date = parse_date(task_data[1])
+                    description = task_data[2]
+                    assigned_to_name = task_data[3]
+                    cost = float(task_data[4])
+                    task_type = task_data[5].upper() if task_data[5] else None
+                    seq_id = task_data[6]
+                    shot_id = task_data[7]
+                    depends_on = task_data[8].split(',') if len(task_data) > 8 and task_data[8] else []
 
-                # プロジェクトIDを取得（最初のプロジェクトを使用）
+                # プロジェクトIDを取得（最初のプロジェクト or マッピングから）
                 project_id = next(iter(project_name_to_id.values())) if project_name_to_id else None
                 if not project_id:
                     import_results["tasks"]["skipped"] += 1
@@ -1282,8 +1324,15 @@ async def import_mock_data(
                     import_results["tasks"]["results"].append(f"スキップ: {name} (プロジェクトが見つかりません)")
                     continue
 
-                # 担当者IDを取得
-                assigned_to = get_user_id_by_name(db, assigned_to_name)
+                # 担当者IDを取得（IDが明示されていれば優先、なければ名前で検索）
+                assigned_to = None
+                if 'assigned_to_id' in locals() and assigned_to_id:
+                    try:
+                        assigned_to = int(assigned_to_id)
+                    except Exception:
+                        assigned_to = None
+                if not assigned_to:
+                    assigned_to = get_user_id_by_name(db, assigned_to_name) if 'assigned_to_name' in locals() else None
                 if not assigned_to:
                     import_results["tasks"]["skipped"] += 1
                     import_results["tasks"]["imported"] += 1
@@ -1305,7 +1354,7 @@ async def import_mock_data(
                     dependsOn=depends_on,
                     display_status='offline',
                     priority=models.TaskPriority.MEDIUM,  # デフォルトの優先度を設定
-                    start_date=task_dict.get("start_date")  # ← 追加
+                    start_date=None
                 )
                 db.add(task)
                 db.flush()  # IDを取得するためにflush
@@ -1324,7 +1373,7 @@ async def import_mock_data(
                         if dep_task:
                             depends_on_ids.append(str(dep_task.id))
                         else:
-                            results.append(f"警告: 依存タスク '{dep_name}' が見つかりません")
+                            import_results["tasks"]["results"].append(f"警告: 依存タスク '{dep_name}' が見つかりません")
                     
                     if depends_on_ids:
                         task.dependsOn = depends_on_ids

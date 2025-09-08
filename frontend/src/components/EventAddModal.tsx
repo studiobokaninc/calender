@@ -241,17 +241,23 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             }
           }
         } else if (eventToEdit.start) {
-          calculatedStartDateStr = format(parseISO(eventToEdit.start as string), 'yyyy-MM-dd');
+          const startObjTmp = (eventToEdit.start instanceof Date) ? eventToEdit.start : parseISO(eventToEdit.start as string);
+          if (isDateValid(startObjTmp)) {
+            calculatedStartDateStr = format(startObjTmp, 'yyyy-MM-dd');
+          }
         }
+
+        const startObjForForm = eventToEdit.start ? ((eventToEdit.start instanceof Date) ? eventToEdit.start : parseISO(eventToEdit.start as string)) : undefined;
+        const endObjForForm = eventToEdit.end ? ((eventToEdit.end instanceof Date) ? eventToEdit.end : parseISO(eventToEdit.end as string)) : undefined;
 
         setFormData({
           type: eventTypeFromEdit,
           title: eventToEdit.title || '',
           description: eventToEdit.extendedProps?.description || '',
           startDate: calculatedStartDateStr,
-          endDate: (isTask || !eventToEdit.end) ? undefined : format(parseISO(eventToEdit.end as string), 'yyyy-MM-dd'),
-          startTime: (isTask || !eventToEdit.start || eventToEdit.allDay) ? undefined : format(parseISO(eventToEdit.start as string), 'HH:mm'),
-          endTime: (isTask || !eventToEdit.end || eventToEdit.allDay) ? undefined : format(parseISO(eventToEdit.end as string), 'HH:mm'),
+          endDate: (isTask || !endObjForForm || !isDateValid(endObjForForm)) ? undefined : format(endObjForForm, 'yyyy-MM-dd'),
+          startTime: (isTask || !startObjForForm || !isDateValid(startObjForForm) || eventToEdit.allDay) ? undefined : format(startObjForForm, 'HH:mm'),
+          endTime: (isTask || !endObjForForm || !isDateValid(endObjForForm) || eventToEdit.allDay) ? undefined : format(endObjForForm, 'HH:mm'),
           allDay: isTask ? true : (eventToEdit.allDay ?? false),
           projectId: eventToEdit.extendedProps?.projectId?.toString() || null,
           taskDueDate: taskDueDateStr, // Use the parsed and formatted due date string for tasks
@@ -593,7 +599,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         if (formData.startDate) { // Check if calculated startDate exists
             const startDateObj = parseDateString(formData.startDate);
             if (startDateObj && isDateValid(startDateObj)) {
-                dataToSave.start_time = startOfDay(startDateObj).toISOString();
+                dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
             }
         } else if (formData.taskDueDate) { // Fallback if startDate is not calculated for some reason, calculate from dueDate
             const dueDateObj = parseDateString(formData.taskDueDate);
@@ -601,7 +607,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                 const cost = formData.taskCost ? Number(formData.taskCost) : 0;
                 const days = Math.ceil(cost / 8);
                 const startDateObjFallback = addDays(dueDateObj, -days);
-                dataToSave.start_time = startOfDay(startDateObjFallback).toISOString();
+                dataToSave.start_time = format(startOfDay(startDateObjFallback), "yyyy-MM-dd'T'HH:mm:ssxxx");
             }
         }
 
@@ -609,7 +615,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         if (formData.taskDueDate) {
             const dueDateObj = parseDateString(formData.taskDueDate);
             if (dueDateObj && isDateValid(dueDateObj)) {
-                dataToSave.end_time = startOfDay(addDays(dueDateObj, 1)).toISOString();
+                dataToSave.end_time = format(startOfDay(addDays(dueDateObj, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
                 // ★ due_date は日付文字列 'yyyy-MM-dd' で送信
                 dataToSave.due_date = format(dueDateObj, 'yyyy-MM-dd'); 
             }
@@ -658,11 +664,11 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           const startDateObj = parseDateString(formData.startDate);
           if (startDateObj) {
             if (formData.allDay || normalizedType === 'Deadline' || normalizedType === 'Milestone') {
-              dataToSave.start_time = startOfDay(startDateObj).toISOString();
-              dataToSave.end_time = startOfDay(startDateObj).toISOString();
+              dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
+              dataToSave.end_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
               } else if (formData.startTime) {
               const startDateTime = parseTimeString(formData.startTime, startDateObj);
-              if (startDateTime) dataToSave.start_time = startDateTime.toISOString();
+              if (startDateTime) dataToSave.start_time = format(startDateTime, "yyyy-MM-dd'T'HH:mm:ssxxx");
             }
           }
         }
@@ -672,16 +678,16 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           const endDateObj = parseDateString(endDateForCalc);
           if (endDateObj && formData.endTime) {
             const endDateTime = parseTimeString(formData.endTime, endDateObj);
-            if (endDateTime) dataToSave.end_time = endDateTime.toISOString();
+            if (endDateTime) dataToSave.end_time = format(endDateTime, "yyyy-MM-dd'T'HH:mm:ssxxx");
           } else if (endDateObj && !formData.endTime && dataToSave.start_time) {
-            dataToSave.end_time = addHours(parseISO(dataToSave.start_time), 1).toISOString();
+            dataToSave.end_time = format(addHours(parseISO(dataToSave.start_time), 1), "yyyy-MM-dd'T'HH:mm:ssxxx");
           }
         } else if (formData.allDay && (normalizedType === 'Generic' || normalizedType === 'Meeting' || normalizedType === 'Workshop')) {
             if(dataToSave.start_time) {
                  const startDateForEnd = parseISO(dataToSave.start_time);
                  const endDateForEnd = formData.endDate ? parseDateString(formData.endDate) : startDateForEnd;
                  if(endDateForEnd){
-                    dataToSave.end_time = startOfDay(addDays(endDateForEnd, 1)).toISOString();
+                    dataToSave.end_time = format(startOfDay(addDays(endDateForEnd, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
                  }
             }
         }

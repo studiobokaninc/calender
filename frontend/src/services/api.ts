@@ -224,32 +224,8 @@ export const exportMockData = async (): Promise<MockDataImport> => {
  */
 export const importMockData = async (data: MockDataImport): Promise<any> => {
   try {
-    // タスクデータのキー名を変換
-    const transformedData = {
-      ...data,
-      tasks: data.tasks?.map(task => {
-        // 古い形式のデータを新しい形式に変換
-        const transformedTask: TaskCreate = {
-          name: task.name,
-          description: task.description || '',
-          project_id: task.project_id,
-          status: task.status || 'todo',
-          due_date: task.due_date,
-          assigned_to: task.assigned_to,
-          cost: task.cost || 0,
-          dependsOn: task.dependsOn || [],
-          display_status: task.display_status || 'online',
-          priority: task.priority || 'medium',
-          type: task.type || 'development',
-          start_date: task.start_date,
-          progress: task.progress || 0
-        };
-        return transformedTask;
-      })
-    };
-
-    console.log('Transformed task data:', transformedData.tasks); // デバッグ出力を追加
-    const response = await api.post('/admin/mock-data/import', transformedData);
+    // バリデーションは辞書ベースを要求するため、変換せずそのまま送信
+    const response = await api.post('/admin/mock-data/import', data);
     return response.data;
   } catch (error) {
     console.error('Error importing mock data:', error);

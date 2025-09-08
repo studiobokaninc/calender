@@ -348,13 +348,21 @@ const CalendarPage: React.FC = () => {
             if (event.start) {
                 const startDateObj = (typeof event.start === 'string') ? parseISO(event.start) : event.start;
                 if (isValidDateFns(startDateObj)) {
-                    startStr = formatDateFnsOriginal(startDateObj, "yyyy-MM-dd'T'HH:mm:ssXXX"); // 元のformatDateFnsOriginalを使用
+                    if (event.allDay) {
+                        startStr = formatDateFnsOriginal(startDateObj, "yyyy-MM-dd");
+                    } else {
+                        startStr = formatDateFnsOriginal(startDateObj, "yyyy-MM-dd'T'HH:mm:ssXXX");
+                    }
                 }
             }
             if (event.end) {
                 const endDateObj = (typeof event.end === 'string') ? parseISO(event.end) : event.end;
                 if (isValidDateFns(endDateObj)) {
-                    endStr = formatDateFnsOriginal(endDateObj, "yyyy-MM-dd'T'HH:mm:ssXXX"); // 元のformatDateFnsOriginalを使用
+                    if (event.allDay) {
+                        endStr = formatDateFnsOriginal(endDateObj, "yyyy-MM-dd");
+                    } else {
+                        endStr = formatDateFnsOriginal(endDateObj, "yyyy-MM-dd'T'HH:mm:ssXXX");
+                    }
                 }
             }
 

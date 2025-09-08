@@ -46,7 +46,8 @@ import {
   EventNote as EventNoteIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
-import { mockDataApi } from '../services/api'
+import { mockDataApi, importMockData } from '../services/api'
+import { transformImportData } from '../utils/transformImportData'
 
 interface LayoutProps {
   children?: ReactNode;
@@ -203,20 +204,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const reader = new FileReader()
     reader.onload = async (e) => {
       try {
-        const jsonData = JSON.parse(e.target?.result as string)
+        const raw = JSON.parse(e.target?.result as string)
+        const jsonData = transformImportData(raw)
         setIsLoading(true)
         setErrorMessage(null)
         
-        await mockDataApi.importMockData(jsonData)
+        await importMockData(jsonData)
         setSuccessMessage('モックデータを正常にインポートしました')
         
         // ファイル選択をリセット
         if (fileInputRef.current) {
           fileInputRef.current.value = ''
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Import error:', error)
-        setErrorMessage('モックデータのインポートに失敗しました')
+        let message = 'モックデータのインポートに失敗しました'
+        if (error?.response?.data) {
+          const data = error.response.data
+          if (typeof data === 'string') message += `: ${data}`
+          else if (data?.detail) message += `: ${JSON.stringify(data.detail)}`
+          else message += `: ${JSON.stringify(data)}`
+        } else if (error?.message) {
+          message += `: ${error.message}`
+        }
+        setErrorMessage(message)
       } finally {
         setIsLoading(false)
       }

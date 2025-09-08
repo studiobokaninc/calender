@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem } from '@mui/material';
 import { CalendarEvent, Project, Task, User, Group, Participant } from '../types';
-import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay } from 'date-fns';
+import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay, addDays } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -378,7 +378,15 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                 {selectedEvent.extendedProps?.taskDueDate != null
                   ? `${formatDate(selectedEvent.extendedProps.taskDueDate)} (終日)`
                   : (selectedEvent.start != null
-                      ? `${formatDate(selectedEvent.start)}${selectedEvent.allDay ? ' (終日)' : ` ${formatTime(selectedEvent.start)} - ${formatTime(selectedEvent.end != null ? selectedEvent.end : '')}`}`
+                      ? (() => {
+                          if (selectedEvent.allDay) {
+                            const endForDisplay = selectedEvent.end
+                              ? addDays((typeof selectedEvent.end === 'string' ? parseISO(selectedEvent.end) : selectedEvent.end), -1)
+                              : (typeof selectedEvent.start === 'string' ? parseISO(selectedEvent.start) : selectedEvent.start);
+                            return `${formatDate(endForDisplay)} (終日)`;
+                          }
+                          return `${formatDate(selectedEvent.start)} ${formatTime(selectedEvent.start)} - ${formatTime(selectedEvent.end != null ? selectedEvent.end : '')}`;
+                        })()
                       : '')}
               </Typography>
 
@@ -586,7 +594,12 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   </Box>
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.2, fontSize: '0.85rem' }}>
                     {ev.allDay
-                      ? `${formatDate(ev.start)} (終日)`
+                      ? (() => {
+                          const endForDisplay = ev.end
+                            ? addDays((typeof ev.end === 'string' ? parseISO(ev.end) : ev.end), -1)
+                            : (typeof ev.start === 'string' ? parseISO(ev.start) : ev.start);
+                          return `${formatDate(endForDisplay)} (終日)`;
+                        })()
                       : `${formatDate(ev.start)} ${formatTime(ev.start)} - ${formatTime(ev.end)}`}
                   </Typography>
                   {ev.extendedProps?.location && (

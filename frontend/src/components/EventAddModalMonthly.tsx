@@ -373,8 +373,8 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
         }
       } else if (normalizedType === 'Deadline' || normalizedType === 'Milestone') {
         const dueDate = parseDateString(formData.startDate);
-        dataToSave.start_time = dueDate ? startOfDay(dueDate).toISOString() : null;
-        dataToSave.end_time = dueDate ? startOfDay(dueDate).toISOString() : null;
+        dataToSave.start_time = dueDate ? format(startOfDay(dueDate), "yyyy-MM-dd'T'HH:mm:ssxxx") : null;
+        dataToSave.end_time = dueDate ? format(startOfDay(dueDate), "yyyy-MM-dd'T'HH:mm:ssxxx") : null;
         dataToSave.allDay = true;
         dataToSave.display_status = formData.displayStatus || 'online';
         if (formData.projectId) {
@@ -383,8 +383,8 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
       } else {
         const startDate = parseDateString(formData.startDate);
         if (startDate) {
-          dataToSave.start_time = startOfDay(startDate).toISOString();
-          dataToSave.end_time = startOfDay(startDate).toISOString();
+          dataToSave.start_time = format(startOfDay(startDate), "yyyy-MM-dd'T'HH:mm:ssxxx");
+          dataToSave.end_time = format(startOfDay(startDate), "yyyy-MM-dd'T'HH:mm:ssxxx");
         }
         dataToSave.allDay = true;
         dataToSave.location = formData.location || '';

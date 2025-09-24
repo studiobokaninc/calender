@@ -16,23 +16,23 @@ from .security import pwd_context # security.py から pwd_context をインポ�
 
 def _parse_datetime(date_val: str | datetime | None) -> datetime | None:
     """日付文字列またはdatetimeオブジェクトをdatetimeオブジェクトに変換"""
-    print(f"[DEBUG _parse_datetime] Received date value: {repr(date_val)}")
+    logger.debug("[_parse_datetime] Received date value: %r", date_val)
     if date_val is None or date_val == '':
-        print("[DEBUG _parse_datetime] Input is None or empty string, returning None.")
+        logger.debug("[_parse_datetime] Input is None or empty string, returning None.")
         return None
     if isinstance(date_val, datetime):
-        print("[DEBUG _parse_datetime] Input is already datetime, returning as is.")
+        logger.debug("[_parse_datetime] Input is already datetime, returning as is.")
         return date_val
     if not isinstance(date_val, str):
-        print(f"[DEBUG _parse_datetime] Input is not a string or datetime: {type(date_val)}. Returning None.")
+        logger.debug("[_parse_datetime] Input is not a string or datetime: %s. Returning None.", type(date_val))
         return None
     try:
         # YYYY-MM-DD形式の文字列をdatetimeに変換
         parsed_dt = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
-        print(f"[DEBUG _parse_datetime] Parsed successfully: {parsed_dt}")
+        logger.debug("[_parse_datetime] Parsed successfully: %s", parsed_dt)
         return parsed_dt
     except (ValueError, TypeError) as e:
-        print(f"[DEBUG _parse_datetime] Failed to parse date string '{date_val}'. Error: {e}")
+        logger.debug("[_parse_datetime] Failed to parse date string '%s'. Error: %s", date_val, e)
         return None
 
 def _parse_int_safe(value: str | None) -> int | None:

@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         try {
           // Verify token by fetching user data
-          const response = await api.get<User>('/api/users/me');
+          const response = await api.get<User>('/users/me');
           console.log("User info retrieved successfully:", response.data);
           setUser(response.data);
         } catch (error) {
@@ -74,10 +74,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       formData.append('username', username);
       formData.append('password', password);
       
-      console.log(`Sending login request to: ${api.defaults.baseURL}/api/auth/token`);
+      console.log(`Sending login request to: ${api.defaults.baseURL}/auth/token`);
       
       const response = await api.post<{ access_token: string; token_type: string }>(
-        '/api/auth/token',
+        '/auth/token',
         formData.toString(),
         {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // ユーザー情報の取得
       console.log("Fetching user info...");
-      const userResponse = await api.get<User>('/api/users/me');
+      const userResponse = await api.get<User>('/users/me');
       const userData = userResponse.data;
       
       console.log("User data retrieved:", userData);

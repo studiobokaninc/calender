@@ -13,6 +13,8 @@ from .database import engine, get_db
 import uuid
 import os
 from . import security
+from .routers import chat as chat_router
+from dotenv import load_dotenv
 import json
 import logging
 import math
@@ -32,6 +34,13 @@ logger = logging.getLogger(__name__)
 # データベーステーブルの作成
 models.Base.metadata.create_all(bind=engine)
 
+# .env を読み込む（backend/.env など）
+load_dotenv()
+logger.debug("After load_dotenv - DIFY_API_URL: %s", os.getenv('DIFY_API_URL', 'NOT_SET'))
+api_key = os.getenv('DIFY_API_KEY')
+logger.debug("After load_dotenv - DIFY_API_KEY: %s", (api_key[:10] + '...') if api_key else 'NOT_SET')
+logger.debug("After load_dotenv - DIFY_USER: %s", os.getenv('DIFY_USER', 'NOT_SET'))
+
 # FastAPIアプリケーションインスタンスの作成
 app = FastAPI(
     title="プロジェクト管理API",
@@ -49,6 +58,11 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
+# --- Routers ---
+# Vite の proxy が "/api" を剥がしてバックエンドに転送するため、
+# バックエンド側はルートに直接マウントしておく
+app.include_router(chat_router.router, tags=["Chat"])
+
 # ユーザー認証関連のモデルとユーティリティ
 SECRET_KEY = os.getenv("SECRET_KEY", "your_very_secret_key_that_is_long_and_secure")
 ALGORITHM = "HS256"
@@ -62,12 +76,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 fake_users_db = {user["username"]: user for user in mock_data.users}
 
 def get_user(db, username: str):
-    print(f"[DEBUG] get_user called with username: {username}") # Keep debug print for now
+    logger.debug("get_user called with username: %s", username)
     if username in db:
         user_dict = db[username]
-        print(f"[DEBUG] User found in fake_db: {user_dict}") # Keep debug print for now
+        logger.debug("User found in fake_db: %s", user_dict)
         return user_dict
-    print("[DEBUG] User NOT found in fake_db") # Keep debug print for now
+    logger.debug("User NOT found in fake_db")
     return None
 
 def authenticate_user(db: Session, username: str, password: str) -> Union[models.User, bool]:

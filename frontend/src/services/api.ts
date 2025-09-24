@@ -239,3 +239,11 @@ export async function fetchUsers() {
 }
 
 export default api; 
+
+// --- Chat API ---
+export const chatApi = {
+  send: async (query: string): Promise<{ answer: string; conversation_id?: string; message_id?: string }> => {
+    const res = await api.post('/chat', { query })
+    return res.data
+  },
+}

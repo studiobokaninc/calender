@@ -137,8 +137,8 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
     if (open) {
       if (eventToEdit) {
         const eventTypeFromEditRaw = eventToEdit.extendedProps?.type;
-        const eventTypeFromEdit = (eventTypeFromEditRaw === 'Task' || eventTypeFromEditRaw === 'task') ? 'task' : (eventTypeFromEditRaw || 'Generic');
-        const isTask = eventTypeFromEdit === 'task';
+        const eventTypeFromEdit = (eventTypeFromEditRaw === 'Task' || eventTypeFromEditRaw === 'task') ? 'Task' : (eventTypeFromEditRaw || 'Generic');
+        const isTask = eventTypeFromEdit === 'Task';
         const taskDueDateFromProps = eventToEdit.extendedProps?.taskDueDate;
         const eventStartDate = eventToEdit.start ? new Date(eventToEdit.start as string) : new Date();
         const eventEndDate = eventToEdit.end ? new Date(eventToEdit.end as string) : new Date();
@@ -146,7 +146,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
 
         setFormData(prev => ({
           ...prev,
-          type: eventTypeFromEdit,
+          type: eventTypeFromEdit as EventType,
           title: eventToEdit.title || '',
           description: eventToEdit.extendedProps?.description || '',
           startDate: format(eventStartDate, 'yyyy-MM-dd'),
@@ -252,7 +252,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
     }
   };
 
-  const handleTypeChange = (event: SelectChangeEvent<EventType>) => {
+  const handleTypeChange = (event: SelectChangeEvent<string>) => {
     const newType = event.target.value as EventType;
     setFormData(prev => ({
       ...getInitialState(),
@@ -310,7 +310,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
     if (!formData.type) newErrors.type = 'イベントタイプを選択してください';
     if (!formData.title.trim()) newErrors.title = 'タイトル/タスク名を入力してください';
 
-    if (formData.type === 'task') {
+    if (formData.type === 'Task') {
         if (projectSelectionMode === 'existing' && !formData.projectId) { newErrors.projectId = '既存プロジェクトを選択してください'; }
         else if (projectSelectionMode === 'new') {
             if (!formData.newProjectName?.trim()) newErrors.newProjectName = '新規プロジェクト名を入力してください';
@@ -373,8 +373,15 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
         }
       } else if (normalizedType === 'Deadline' || normalizedType === 'Milestone') {
         const dueDate = parseDateString(formData.startDate);
-        dataToSave.start_time = dueDate ? format(startOfDay(dueDate), "yyyy-MM-dd'T'HH:mm:ssxxx") : null;
-        dataToSave.end_time = dueDate ? format(startOfDay(dueDate), "yyyy-MM-dd'T'HH:mm:ssxxx") : null;
+        if (dueDate) {
+          // 締切・マイルストーンの場合は、日付をそのまま使用（タイムゾーン問題を回避）
+          const dateStr = format(dueDate, 'yyyy-MM-dd');
+          dataToSave.start_time = `${dateStr}T00:00:00+09:00`;
+          dataToSave.end_time = `${dateStr}T00:00:00+09:00`;
+        } else {
+          dataToSave.start_time = null;
+          dataToSave.end_time = null;
+        }
         dataToSave.allDay = true;
         dataToSave.display_status = formData.displayStatus || 'online';
         if (formData.projectId) {
@@ -465,7 +472,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
               </FormControl>
             </Grid>
             <Grid item xs={12}>
-              <TextField label={formData.type === 'task' ? "タスク名 *" : "タイトル *"} name="title" value={formData.title} onChange={handleChange} fullWidth required error={!!errors.title} helperText={errors.title} size="small" sx={{ mb: 1.5 }}/>
+              <TextField label={formData.type === 'Task' ? "タスク名 *" : "タイトル *"} name="title" value={formData.title} onChange={handleChange} fullWidth required error={!!errors.title} helperText={errors.title} size="small" sx={{ mb: 1.5 }}/>
               
               {formData.type && (
                 <TextField
@@ -481,7 +488,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
                 />
               )}
               
-              {formData.type === 'task' && (
+              {formData.type === 'Task' && (
                 <>
                   <Divider sx={{ my: 1 }}><Typography variant="caption">プロジェクト情報</Typography></Divider>
                   <FormControl component="fieldset" sx={{ mb: 1 }}>
@@ -526,7 +533,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
               )}
             </Grid>
 
-            {formData.type?.toLowerCase() === 'task' && (
+            {formData.type === 'Task' && (
               <Grid item xs={12} container spacing={1.5}> 
                 <Grid item xs={12}> 
                   <DatePicker

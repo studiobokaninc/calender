@@ -419,85 +419,65 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
 
   const handleTypeChange = (event: any) => {
-    const newType = event.target.value;
-    const initial = getInitialState(); // フォームを初期状態に戻すが、クリックされた日付は保持したい
-    // getInitialState()が返すinitial.typeは必ずしもnewTypeと一致しないので注意
-    // この関数が呼ばれる時点でのカレンダーの状況(dateClickArg)を元にinitialが生成されるべき
-    // しかし、getInitialStateは引数を取らないため、ここでは一旦汎用的な初期値を使う
-
-    let typeSpecificState = {};
-    let resetToGenericTimes = false;
-
-    if (newType === 'Task' || newType === 'task') {
-      typeSpecificState = {
-        allDay: true,
-        startTime: undefined,
-        endTime: undefined,
-        taskDueDate: initial.taskDueDate || format(new Date(), 'yyyy-MM-dd'), // フォールバック
-        startDate: undefined,
-        endDate: undefined,
-      };
-    } else if (newType === 'Deadline' || newType === 'Milestone') {
-      typeSpecificState = {
-        allDay: true,
-        startTime: undefined,
-        endTime: undefined,
-        startDate: initial.startDate || format(new Date(), 'yyyy-MM-dd'), // フォールバック
-        endDate: initial.startDate || format(new Date(), 'yyyy-MM-dd'),
-      };
-    } else if (newType === 'Meeting' || newType === 'Workshop') {
-      typeSpecificState = {
-        allDay: false, // ★ 終日をOFFに固定
-        startTime: initial.startTime || '09:00',
-        endTime: initial.endTime || '11:00',
-        startDate: initial.startDate || format(new Date(), 'yyyy-MM-dd'),
-        endDate: initial.endDate || format(new Date(), 'yyyy-MM-dd'),
-      };
-      resetToGenericTimes = true;
-    } else { // Generic
-      typeSpecificState = {
-        allDay: initial.allDay, // GenericはinitialのallDay設定に従う (デフォルトfalseになるはず)
-        startTime: initial.startTime || '09:00',
-        endTime: initial.endTime || '11:00',
-        startDate: initial.startDate || format(new Date(), 'yyyy-MM-dd'),
-        endDate: initial.endDate || format(new Date(), 'yyyy-MM-dd'),
-      };
-      resetToGenericTimes = true;
-    }
-
-    setFormData(prev => {
-      const baseState = getInitialState(); // 最新のクリック状況などを反映した初期状態を取得
-      const newFormData = {
-        ...baseState, // 最新の initial state をベースにする
-        type: newType,
-      title: prev.title,
-        description: prev.description, 
-        ...typeSpecificState, 
-        // 他のフィールドも baseState から持ってくるか、明示的にリセット
-        projectId: baseState.projectId,
-        taskAssigneeId: baseState.taskAssigneeId,
-        location: baseState.location,
-        taskCost: baseState.taskCost,
-        taskStatus: baseState.taskStatus,
-        taskDependsOn: baseState.taskDependsOn,
-        // newProject関連もリセット
-        newProjectName: '',
-        newProjectDescription: '',
-        newProjectStartDate: '',
-        newProjectEndDate: '',
-      };
-
-      // プロジェクトが変更された場合、または新規プロジェクトモードから既存プロジェクトモードに切り替わった場合、
-      // 依存タスクの選択肢が変わりうるため、選択済みの依存タスクをリセット
-      if (
-        (prev.type === 'Task' || prev.type === 'task') &&
-        ( (prev.projectId !== newFormData.projectId && newType === (prev.type as string)) || // プロジェクトIDが変更された (タイプは変更なし)
-          (projectSelectionMode === 'existing' && prev.projectId !== newFormData.projectId) // 新規から既存に切り替わり、プロジェクトが選択された場合を想定
-        )
-      ) {
-           setSelectedDependencies([]);
+    const newType = event.target.value as string;
+  
+    setFormData((prev) => {
+      // まずは現在の入力をすべて保持
+      const next: EventFormData = { ...prev, type: newType };
+  
+      // 型ごとに「必要な差分だけ」上書きする
+      if (newType === 'Task' || newType === 'task') {
+        // タスクは終日・時間不要。start/end は保存時に計算するのでクリア。
+        next.allDay = true;
+        next.startTime = undefined;
+        next.endTime = undefined;
+  
+        // 期日は可能なら既存値を優先。未設定なら既存の開始/終了日から推測、
+        // それも無ければ空（= バリデーションで促す）。※今日にはしない
+        if (!prev.taskDueDate) {
+          next.taskDueDate = prev.endDate || prev.startDate || '';
+        }
+  
+        next.startDate = undefined;
+        next.endDate = undefined;
+  
+      } else if (newType === 'Deadline' || newType === 'Milestone') {
+        // これらは終日・時間不要。必要なのは期日に相当する startDate。
+        next.allDay = true;
+        next.startTime = undefined;
+        next.endTime = undefined;
+  
+        // 既存の startDate を優先。無ければ taskDueDate → endDate の順に利用。
+        next.startDate = prev.startDate || prev.taskDueDate || prev.endDate || '';
+        next.endDate = undefined;
+  
+      } else if (newType === 'Meeting' || newType === 'Workshop') {
+        // 会議/WSは基本的に時間あり（終日OFF固定）。
+        next.allDay = false;
+  
+        // 日付は既存値を尊重。無ければ taskDueDate を流用、無ければ空。
+        next.startDate = prev.startDate || prev.taskDueDate || '';
+        next.endDate   = prev.endDate   || next.startDate || '';
+  
+        // 時刻は既存値を優先、なければ軽いデフォルト（今日には依存しない）
+        next.startTime = prev.startTime || '09:00';
+        next.endTime   = prev.endTime   || '10:00';
+  
+      } else { // Generic
+        // Generic は終日ON/OFFをユーザーに委ねる（既存をそのまま）
+        next.startDate = prev.startDate || prev.taskDueDate || '';
+        next.endDate   = prev.endDate   || (prev.allDay ? '' : prev.startDate) || '';
+  
+        if (prev.allDay) {
+          next.startTime = '';
+          next.endTime   = '';
+        } else {
+          next.startTime = prev.startTime || '09:00';
+          next.endTime   = prev.endTime   || '10:00';
+        }
       }
-      return newFormData;
+  
+      return next;
     });
 
     // タイプ変更時は常に依存関係をリセットし、プロジェクト選択を既存に戻す
@@ -664,8 +644,10 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           const startDateObj = parseDateString(formData.startDate);
           if (startDateObj) {
             if (formData.allDay || normalizedType === 'Deadline' || normalizedType === 'Milestone') {
-              dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
-              dataToSave.end_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
+              // 締切・マイルストーンの場合は、日付をそのまま使用（タイムゾーン問題を回避）
+              const dateStr = format(startDateObj, 'yyyy-MM-dd');
+              dataToSave.start_time = `${dateStr}T00:00:00+09:00`;
+              dataToSave.end_time = `${dateStr}T00:00:00+09:00`;
               } else if (formData.startTime) {
               const startDateTime = parseTimeString(formData.startTime, startDateObj);
               if (startDateTime) dataToSave.start_time = format(startDateTime, "yyyy-MM-dd'T'HH:mm:ssxxx");
@@ -845,7 +827,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                                 size="small"
                                 disabled={projectsLoading}
                              >
-                                 <MenuItem value="" disabled><em>{projectsLoading ? '読み込み中...' : (projectSelectionMode === 'new' ? '新規プロジェクト作成中' : '選択してください')}</em></MenuItem>
+                                 <MenuItem value="" disabled><em>{projectsLoading ? '読み込み中...' : '選択してください'}</em></MenuItem>
                                  {projectOptions.map((p) => (
                                      <MenuItem key={`project-${p.id}`} value={p.id}>{p.name}</MenuItem>
                                  ))}

@@ -3,6 +3,7 @@ import { Box, Button, Typography, Paper, Alert, CircularProgress } from '@mui/ma
 import { Upload as UploadIcon, Download as DownloadIcon } from '@mui/icons-material';
 import { mockDataApi } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { usePageState } from '../contexts/PageStateContext';
 
 interface ParsedData {
   users: Array<{
@@ -60,6 +61,7 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { refreshGlobalData } = usePageState();
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -85,6 +87,18 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
 
       const result = await mockDataApi.importCsvData(formData);
       setSuccess(result.message);
+      
+      // グローバルデータを更新
+      console.log('[CsvParser] Refreshing global data after CSV import...');
+      await refreshGlobalData();
+      console.log('[CsvParser] Global data refresh completed');
+      
+      // CSVインポート完了を通知するカスタムイベントを発火
+      console.log('[CsvParser] Dispatching csvImportCompleted event...');
+      window.dispatchEvent(new CustomEvent('csvImportCompleted', {
+        detail: { message: result.message }
+      }));
+      
       if (onImportComplete) {
         onImportComplete();
       }

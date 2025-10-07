@@ -1,16 +1,20 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-    Box, Typography, CircularProgress, Paper, TableContainer, Table, TableHead,
+    Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    IconButton, Snackbar, Alert, SelectChangeEvent
+    Snackbar, Alert, SelectChangeEvent
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { Task, Project, User } from '../types'; // Import User type as well
 import { format, parseISO, isValid } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import { DataGrid, GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
+import { useTasksPageState } from '../contexts/PageStateContext';
+
+
+
 
 // Helper function to format dates (similar to other pages)
 const formatDate = (dateInput: string | Date | null | undefined): string => {
@@ -27,6 +31,9 @@ const formatDate = (dateInput: string | Date | null | undefined): string => {
     }
 };
 
+
+
+
 // Helper function to get task status color (similar to EventDetailsPanel)
 const getTaskStatusColor = (status?: string | null): string => {
     switch (status) {
@@ -39,17 +46,14 @@ const getTaskStatusColor = (status?: string | null): string => {
     }
 };
 
-const columnDefs = [
-  { key: 'name', label: 'タスク名', minWidth: 80, defaultWidth: 180 },
-  { key: 'description', label: '説明', minWidth: 100, defaultWidth: 200 },
-  { key: 'status', label: 'ステータス', minWidth: 80, defaultWidth: 120 },
-  { key: 'project', label: 'プロジェクト', minWidth: 80, defaultWidth: 120 },
-  { key: 'assignee', label: '担当者', minWidth: 80, defaultWidth: 120 },
-  { key: 'start', label: '開始日', minWidth: 80, defaultWidth: 110 },
-  { key: 'due', label: '期日', minWidth: 80, defaultWidth: 110 },
-  { key: 'depends', label: '依存元タスク', minWidth: 80, defaultWidth: 150 },
-  { key: 'cost', label: 'コスト', minWidth: 60, defaultWidth: 90 },
-];
+
+
+
+
+
+
+
+
 
 interface TaskFormData {
     id: number | null;
@@ -58,6 +62,7 @@ interface TaskFormData {
     status: string;
     priority: string;
     assigned_to: number | null;
+    project_id: number | null;
     start_date: string;
     due_date: string;
     cost: number;
@@ -67,14 +72,12 @@ interface TaskFormData {
     dependsOn: string[];
 }
 
-// ステータス履歴表示用のインターフェース
-interface StatusHistoryEntry {
-    id: number;
-    task_id: number;
-    status: string;
-    changed_at: string;
-    changed_by: number;
-}
+
+
+
+
+
+
 
 interface StatusHistory {
     id: number;
@@ -84,6 +87,9 @@ interface StatusHistory {
     changed_by: number;
 }
 
+
+
+
 const TasksPage: React.FC = () => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
@@ -91,16 +97,37 @@ const TasksPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // ページ状態管理の使用
+    const { tasksState, updateTasksState, isInitialLoad, globalData, updateGlobalData } = useTasksPageState();
+    
+    // 状態を分離（初期化時はページ状態から取得）
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [projectFilter, setProjectFilter] = useState<string>('');
     const [assigneeFilter, setAssigneeFilter] = useState<string>('');
+    const [paginationModel, setPaginationModel] = useState({
+        page: 0,
+        pageSize: 20,
+    });
+    const [sortModel, setSortModel] = useState<GridSortModel>([]);
+    const [stateRestored, setStateRestored] = useState(false);
+
+    // ページ状態が復元されたらローカル状態を更新
+    useEffect(() => {
+        if (!isInitialLoad) {
+            setStatusFilter(tasksState.statusFilter);
+            setProjectFilter(tasksState.projectFilter);
+            setAssigneeFilter(tasksState.assigneeFilter);
+            setPaginationModel(tasksState.paginationModel);
+            setSortModel(tasksState.sortModel);
+            setStateRestored(true);
+        }
+    }, [tasksState, isInitialLoad]);
+
+
+
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-    const [colWidths, setColWidths] = useState(() =>
-      Object.fromEntries(columnDefs.map(col => [col.key, col.defaultWidth]))
-    );
-    const resizing = useRef<{ key: string, startX: number, startWidth: number } | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [currentTask, setCurrentTask] = useState<TaskFormData>({
@@ -108,8 +135,9 @@ const TasksPage: React.FC = () => {
         name: '',
         description: '',
         status: 'todo',
-        priority: '',
+        priority: 'low',
         assigned_to: null,
+        project_id: null,
         start_date: format(new Date(), 'yyyy-MM-dd'),
         due_date: format(new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
         cost: 0,
@@ -128,14 +156,18 @@ const TasksPage: React.FC = () => {
         severity: 'info'
     });
 
+
+
+
     // ステータス履歴表示用の状態
-    const [statusHistoryDialog, setStatusHistoryDialog] = useState(false);
     const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
-    const [selectedTaskForHistory, setSelectedTaskForHistory] = useState<Task | null>(null);
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
+
+
+
     // タスク一覧を取得する関数
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const [tasksResponse, projectsResponse, usersResponse] = await Promise.all([
@@ -143,9 +175,23 @@ const TasksPage: React.FC = () => {
                 api.get('/projects'),
                 api.get('/api/users')
             ]);
-            setTasks(tasksResponse.data);
-            setProjects(projectsResponse.data);
-            setUsers(usersResponse.data);
+            const tasksData = tasksResponse.data;
+            const projectsData = projectsResponse.data;
+            const usersData = usersResponse.data;
+            
+            setTasks(tasksData);
+            setProjects(projectsData);
+            setUsers(usersData);
+            
+            // グローバルデータも更新
+            if (updateGlobalData) {
+                updateGlobalData({
+                    tasks: tasksData,
+                    projects: projectsData,
+                    users: usersData,
+                });
+            }
+            
             setError(null);
         } catch (err) {
             console.error('データの取得に失敗しました:', err);
@@ -153,28 +199,190 @@ const TasksPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []); // 依存関係を空にして無限ループを防ぐ
 
-    // 初回レンダリング時にデータを取得
+
+
+
+    // グローバルデータから初期値を設定
     useEffect(() => {
-        fetchData();
+        console.log("[TasksPage] Global data changed:", {
+            tasks: globalData?.tasks?.length || 0,
+            projects: globalData?.projects?.length || 0,
+            users: globalData?.users?.length || 0,
+            lastFetched: globalData?.lastFetched
+        });
+        
+        if (globalData && globalData.tasks && globalData.tasks.length > 0) {
+            console.log("[TasksPage] Updating tasks from global data");
+            setTasks(globalData.tasks);
+        }
+        if (globalData && globalData.projects && globalData.projects.length > 0) {
+            console.log("[TasksPage] Updating projects from global data");
+            setProjects(globalData.projects);
+        }
+        if (globalData && globalData.users && globalData.users.length > 0) {
+            console.log("[TasksPage] Updating users from global data");
+            setUsers(globalData.users);
+        }
+        if (globalData) {
+            setLoading(false);
+        }
+    }, [globalData]);
+
+    // データ取得の統合（重複を防ぐ）
+    useEffect(() => {
+        // グローバルデータが既に存在する場合はスキップ
+        if (globalData && globalData.tasks.length > 0 && globalData.projects.length > 0) {
+            console.log("[TasksPage] Using existing global data...");
+            setTasks(globalData.tasks);
+            setProjects(globalData.projects);
+            setUsers(globalData.users);
+            setLoading(false);
+            return;
+        }
+
+        // 初回ロード時のみデータを取得（他のページが既に取得済みの場合はスキップ）
+        if (isInitialLoad && (!globalData || globalData.tasks.length === 0)) {
+            console.log("[TasksPage] Fetching data on initial load...");
+            fetchData();
+        }
+    }, [isInitialLoad, globalData]); // fetchDataを依存関係から除外
+
+    // グローバルデータの変更を直接監視（より確実な方法）
+    useEffect(() => {
+        if (globalData && globalData.tasks && globalData.tasks.length > 0) {
+            console.log("[TasksPage] Global data updated, refreshing local state...");
+            console.log("[TasksPage] Tasks count:", globalData.tasks.length);
+            setTasks(globalData.tasks);
+        }
+        if (globalData && globalData.projects && globalData.projects.length > 0) {
+            console.log("[TasksPage] Projects count:", globalData.projects.length);
+            setProjects(globalData.projects);
+        }
+        if (globalData && globalData.users && globalData.users.length > 0) {
+            console.log("[TasksPage] Users count:", globalData.users.length);
+            setUsers(globalData.users);
+        }
+    }, [globalData.tasks, globalData.projects, globalData.users, globalData.lastFetched]);
+
+    // globalDataRefreshedイベントをリッスンしてデータを強制更新
+    useEffect(() => {
+        const handleGlobalDataRefresh = (event: CustomEvent) => {
+            console.log("[TasksPage] Global data refreshed event received, updating local state...");
+            console.log("[TasksPage] Received data:", {
+                tasks: event.detail.tasks?.length || 0,
+                projects: event.detail.projects?.length || 0,
+                users: event.detail.users?.length || 0
+            });
+            const { tasks, projects, users } = event.detail;
+            setTasks(tasks);
+            setProjects(projects);
+            setUsers(users);
+        };
+
+        const handleCsvImportCompleted = (event: CustomEvent) => {
+            console.log("[TasksPage] CSV import completed event received:", event.detail);
+            // CSVインポート完了時はグローバルデータの更新を待つ
+            if (refreshGlobalData) {
+                console.log("[TasksPage] Refreshing global data after CSV import...");
+                refreshGlobalData();
+            }
+        };
+
+        console.log("[TasksPage] Adding globalDataRefreshed and csvImportCompleted event listeners");
+        window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
+        window.addEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
+        
+        return () => {
+            console.log("[TasksPage] Removing globalDataRefreshed and csvImportCompleted event listeners");
+            window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
+            window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
+        };
     }, []);
 
-    const projectMap = useMemo(() => 
+    // プロジェクト変更イベントをリッスンしてタスクデータを強制更新
+    useEffect(() => {
+        const handleProjectDeleted = (event: CustomEvent) => {
+            console.log("[TasksPage] Project deleted event received:", event.detail);
+            // プロジェクト削除時はタスクも削除されるため、グローバルデータの更新を待つ
+            if (refreshGlobalData) {
+                console.log("[TasksPage] Refreshing global data after project deletion...");
+                refreshGlobalData();
+            }
+        };
+
+        const handleProjectUpdated = (event: CustomEvent) => {
+            console.log("[TasksPage] Project updated event received:", event.detail);
+            // プロジェクト更新時はタスクデータも再取得
+            if (refreshGlobalData) {
+                console.log("[TasksPage] Refreshing global data after project update...");
+                refreshGlobalData();
+            }
+        };
+
+        const handleProjectStatusUpdated = (event: CustomEvent) => {
+            console.log("[TasksPage] Project status updated event received:", event.detail);
+            // プロジェクト表示ステータス更新時はタスクデータも再取得
+            if (refreshGlobalData) {
+                console.log("[TasksPage] Refreshing global data after project status update...");
+                refreshGlobalData();
+            }
+        };
+
+        console.log("[TasksPage] Adding project change event listeners");
+        window.addEventListener('projectDeleted', handleProjectDeleted as EventListener);
+        window.addEventListener('projectUpdated', handleProjectUpdated as EventListener);
+        window.addEventListener('projectStatusUpdated', handleProjectStatusUpdated as EventListener);
+        
+        return () => {
+            console.log("[TasksPage] Removing project change event listeners");
+            window.removeEventListener('projectDeleted', handleProjectDeleted as EventListener);
+            window.removeEventListener('projectUpdated', handleProjectUpdated as EventListener);
+            window.removeEventListener('projectStatusUpdated', handleProjectStatusUpdated as EventListener);
+        };
+    }, []); // 依存関係を空にして無限ループを防ぐ
+
+    // フィルター状態の変更をページ状態に反映（状態復元が完了した後のみ）
+    useEffect(() => {
+        if (stateRestored) {
+            updateTasksState({
+                statusFilter,
+                projectFilter,
+                assigneeFilter,
+                paginationModel,
+                sortModel,
+            });
+        }
+    }, [statusFilter, projectFilter, assigneeFilter, paginationModel, sortModel, stateRestored, updateTasksState]);
+
+
+
+
+    const projectMap = useMemo(() =>
         new Map(projects.map(p => [p.id, p.name]))
     , [projects]);
-    
-    const userMap = useMemo(() => 
+   
+    const userMap = useMemo(() =>
         new Map(users.map(u => [u.id, u.name || u.email]))
     , [users]);
 
-    const taskMap = useMemo(() => 
+
+
+
+    const taskMap = useMemo(() =>
         new Map(tasks.map(t => [t.id, t.name]))
     , [tasks]);
 
-    const uniqueStatuses = useMemo(() => 
+
+
+
+    const uniqueStatuses = useMemo(() =>
         [...new Set(tasks.map(task => task.status).filter(Boolean))] as string[]
     , [tasks]);
+
+
+
 
     const filteredTasks = useMemo(() => {
         return tasks.filter(task => {
@@ -192,34 +400,16 @@ const TasksPage: React.FC = () => {
         });
     }, [tasks, statusFilter, projectFilter, assigneeFilter]);
 
-    const handleTaskRowClick = (task: Task) => {
-        setSelectedTask(task);
-        setIsModalOpen(true);
-    };
+
+
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setSelectedTask(null); 
+        setSelectedTask(null);
     };
 
-    // リサイズ用ハンドラ
-    const handleResizeMouseDown = (colKey: string) => (e: React.MouseEvent<HTMLDivElement>) => {
-      resizing.current = { key: colKey, startX: e.clientX, startWidth: colWidths[colKey] };
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        if (!resizing.current) return;
-        const { key, startX, startWidth } = resizing.current;
-        const def = columnDefs.find(c => c.key === key)!;
-        const newWidth = Math.max(def.minWidth, startWidth + (moveEvent.clientX - startX));
-        setColWidths(w => ({ ...w, [key]: newWidth }));
-      };
-      const onMouseUp = () => {
-        resizing.current = null;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-      };
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    };
+
+
 
     const handleEditTask = (task: Task) => {
         setIsEditMode(true);
@@ -233,8 +423,14 @@ const TasksPage: React.FC = () => {
             }
         };
 
+
+
+
         const startDateParsed = safeParseDate(task.start_date);
         const dueDateParsed = safeParseDate(task.due_date);
+
+
+
 
         setCurrentTask({
             id: task.id,
@@ -243,6 +439,7 @@ const TasksPage: React.FC = () => {
             status: task.status || 'todo',
             priority: task.extendedProps?.priority?.toLowerCase() || 'low',  // extendedPropsから取得
             assigned_to: task.assigned_to || null,
+            project_id: task.project_id || null,
             start_date: startDateParsed ? format(startDateParsed, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
             due_date: dueDateParsed ? format(dueDateParsed, 'yyyy-MM-dd') : format(new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
             cost: task.cost || 0,
@@ -254,10 +451,33 @@ const TasksPage: React.FC = () => {
         setOpenDialog(true);
     };
 
+
+
+
     const handleDeleteTask = async (taskId: number) => {
         try {
             await api.delete(`/tasks/${taskId}`);
-            setTasks(tasks.filter(task => task.id !== taskId));
+            setTasks(prevTasks => {
+                const updatedTasks = prevTasks.filter(task => task.id !== taskId);
+                
+                // グローバルデータも更新
+                if (updateGlobalData) {
+                    const updatedGlobalData: any = {
+                        tasks: updatedTasks,
+                    };
+                    
+                    // グローバルデータにイベントがある場合、該当タスクのイベントも削除
+                    if (globalData && globalData.events && globalData.events.length > 0) {
+                        const taskEventId = `task-${taskId}`;
+                        const updatedEvents = globalData.events.filter(event => event.id !== taskEventId);
+                        updatedGlobalData.events = updatedEvents;
+                    }
+                    
+                    updateGlobalData(updatedGlobalData);
+                }
+                
+                return updatedTasks;
+            });
             setSnackbar({
                 open: true,
                 message: 'タスクを削除しました',
@@ -273,9 +493,15 @@ const TasksPage: React.FC = () => {
         }
     };
 
+
+
+
     const handleCloseDialog = () => {
         setOpenDialog(false);
     };
+
+
+
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -287,6 +513,9 @@ const TasksPage: React.FC = () => {
         }
     };
 
+
+
+
     const handleSelectChange = (e: SelectChangeEvent<string | number>) => {
         const { name, value } = e.target;
         if (name) {
@@ -297,6 +526,9 @@ const TasksPage: React.FC = () => {
         }
     };
 
+
+
+
     const handleSubmit = async () => {
         try {
             const taskData = {
@@ -305,6 +537,7 @@ const TasksPage: React.FC = () => {
                 status: currentTask.status,
                 priority: currentTask.priority?.toUpperCase() || 'LOW',
                 assigned_to: currentTask.assigned_to || null,
+                project_id: currentTask.project_id || null,
                 start_date: currentTask.start_date,
                 due_date: currentTask.due_date,
                 cost: currentTask.cost || 0,
@@ -315,7 +548,13 @@ const TasksPage: React.FC = () => {
                 display_status: 'online'
             };
 
+
+
+
             console.log('送信するタスクデータ:', taskData);  // デバッグログを追加
+
+
+
 
             if (isEditMode && currentTask.id !== null) {
                 const response = await api.put(`/tasks/${currentTask.id}`, taskData);
@@ -335,8 +574,91 @@ const TasksPage: React.FC = () => {
                 });
             }
 
+
+
+
             setOpenDialog(false);
-            await fetchData();
+            
+            // タスク更新後はローカル状態を更新してページネーションを保持
+            if (isEditMode && currentTask.id !== null) {
+                // 編集モードの場合、該当タスクを更新
+                setTasks(prevTasks => {
+                    const updatedTasks = prevTasks.map(task => 
+                        task.id === currentTask.id 
+                            ? { ...task, ...taskData, id: currentTask.id }
+                            : task
+                    );
+                    
+                    // グローバルデータも更新
+                    if (updateGlobalData) {
+                        // イベントの色も更新するため、該当タスクのイベントを更新
+                        const updatedGlobalData: any = {
+                            tasks: updatedTasks,
+                        };
+                        
+                        // グローバルデータにイベントがある場合、該当タスクのイベントを更新
+                        if (globalData && globalData.events && globalData.events.length > 0) {
+                            const taskEventId = `task-${currentTask.id}`;
+                            const updatedEvents = globalData.events.map(event => {
+                                if (event.id === taskEventId && event.extendedProps?.type === 'task') {
+                                    // タスクのステータスに基づいて色を更新
+                                    const getTaskColor = (status?: string): string => {
+                                        switch (status) {
+                                            case 'todo': return '#2196F3';
+                                            case 'in-progress': return '#FF9800';
+                                            case 'review': return '#9C27B0';
+                                            case 'delayed': return '#F44336';
+                                            case 'completed': return '#4CAF50';
+                                            default: return '#BDBDBD';
+                                        }
+                                    };
+                                    const newColor = getTaskColor(taskData.status);
+                                    return {
+                                        ...event,
+                                        backgroundColor: newColor,
+                                        borderColor: newColor,
+                                        extendedProps: {
+                                            ...event.extendedProps,
+                                            taskStatus: taskData.status
+                                        }
+                                    };
+                                }
+                                return event;
+                            });
+                            updatedGlobalData.events = updatedEvents;
+                        }
+                        
+                        updateGlobalData(updatedGlobalData);
+                    }
+                    
+                    return updatedTasks;
+                });
+            } else {
+                // 新規作成の場合、新しいタスクを追加
+                const newTask: Task = {
+                    ...taskData,
+                    id: Date.now(),
+                    project_id: taskData.project_id || 1,
+                    extendedProps: {
+                        priority: taskData.priority.toLowerCase() as 'low' | 'medium' | 'high',
+                        type: taskData.type,
+                        seqID: taskData.seqID,
+                        shotID: taskData.shotID
+                    }
+                };
+                setTasks(prevTasks => {
+                    const updatedTasks = [...prevTasks, newTask];
+                    
+                    // グローバルデータも更新
+                    if (updateGlobalData) {
+                        updateGlobalData({
+                            tasks: updatedTasks,
+                        });
+                    }
+                    
+                    return updatedTasks;
+                });
+            }
         } catch (err: any) {
             console.error('タスクの保存に失敗しました:', err);
             console.error('エラーの詳細:', {
@@ -344,9 +666,9 @@ const TasksPage: React.FC = () => {
                 data: err.response?.data,
                 config: err.config
             });  // より詳細なエラー情報をログ出力
-            
+           
             let errorMessage = 'タスクの保存に失敗しました';
-            
+           
             if (err.response?.data?.detail) {
                 if (Array.isArray(err.response.data.detail)) {
                     errorMessage = err.response.data.detail
@@ -359,6 +681,9 @@ const TasksPage: React.FC = () => {
                 errorMessage = err.message;
             }
 
+
+
+
             setSnackbar({
                 open: true,
                 message: errorMessage,
@@ -367,9 +692,49 @@ const TasksPage: React.FC = () => {
         }
     };
 
+
+
+
     const handleCloseSnackbar = () => {
         setSnackbar({...snackbar, open: false});
     };
+
+
+
+    // 並び替え用の素の値を各行に前計算して埋める
+    const rows = useMemo(() => {
+        const nameByProjectId = new Map(projects.map(p => [p.id, p.name ?? '']));
+        const nameByTaskId = new Map(tasks.map(t => [t.id, t.name ?? '']));
+    
+        const dependsText = (row: Task) => {
+        if (!row.dependsOn?.length) return '';
+        return row.dependsOn
+            .map((id) => {
+            const n = parseInt(String(id).replace('task-',''), 10);
+            return nameByTaskId.get(n) ?? '';
+            })
+            .filter(Boolean)
+            .join(', ');
+        };
+    
+        const toTs = (v: unknown) => {
+        if (!v) return 0;
+        try {
+            const d = typeof v === 'string' ? parseISO(v) : new Date(v as any);
+            return isValid(d) ? d.getTime() : 0;
+        } catch { return 0; }
+        };
+    
+        return (filteredTasks ?? []).map(t => ({
+        ...t,
+        _projectName: nameByProjectId.get(t.project_id as any) ?? '',
+        _startTs: toTs(t.start_date),
+        _dueTs: toTs(t.due_date),
+        _dependsText: dependsText(t),
+        _actionsSortKey: t.id ?? 0,
+        }));
+    }, [filteredTasks, projects, tasks]);
+    
 
     // DataGrid用のカラム定義
     const columns: GridColDef[] = useMemo(() => [
@@ -381,10 +746,10 @@ const TasksPage: React.FC = () => {
         { field: 'status', headerName: 'ステータス', minWidth: 80, width: 120, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
             return (
-                <Chip 
-                    label={row.status || '未設定'} 
+                <Chip
+                    label={row.status || '未設定'}
                     size="small"
-                    sx={{ 
+                    sx={{
                         backgroundColor: getTaskStatusColor(row.status),
                         color: 'white',
                         '& .MuiChip-label': { px: 1 }
@@ -392,11 +757,15 @@ const TasksPage: React.FC = () => {
                 />
             );
         } },
-        { field: 'project', headerName: 'プロジェクト', minWidth: 100, width: 150, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            const project = projects.find(p => p.id === row.project_id);
-            return project ? project.name : '-';
-        } },
+        {
+            field: '_projectName',
+            headerName: 'プロジェクト',
+            minWidth: 100,
+            width: 150,
+            sortable: true,
+            renderCell: (params) => String(params.value ?? '-') ,
+            sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
+        },
         { field: 'priority', headerName: '優先度', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
             const priorityColors = {
@@ -405,10 +774,10 @@ const TasksPage: React.FC = () => {
                 'low': '#4caf50'
             };
             return (
-                <Chip 
-                    label={row.priority || '未設定'} 
+                <Chip
+                    label={row.priority || '未設定'}
                     size="small"
-                    sx={{ 
+                    sx={{
                         backgroundColor: priorityColors[row.priority as keyof typeof priorityColors] || '#9e9e9e',
                         color: 'white',
                         '& .MuiChip-label': { px: 1 }
@@ -440,74 +809,86 @@ const TasksPage: React.FC = () => {
             };
             return typeLabels[row.type] || '-';
         } },
-        { field: 'assigned_to', headerName: '担当者', minWidth: 80, width: 120, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            const user = users.find(u => u.id === row.assigned_to);
-            return user ? user.username : '-';
-        } },
-        { field: 'start', headerName: '開始日', minWidth: 80, width: 110, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            return formatDate(row.start_date);
-        } },
-        { field: 'due', headerName: '期日', minWidth: 80, width: 110, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            return formatDate(row.due_date);
-        } },
-        { field: 'depends', headerName: '依存元タスク', minWidth: 80, width: 150, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            if (!row.dependsOn || row.dependsOn.length === 0) return '-';
-            return row.dependsOn
-                .map((id: string) => {
-                    const numericId = parseInt(id.replace('task-', ''), 10);
-                    return taskMap.get(numericId);
-                })
-                .filter(Boolean)
-                .join(', ') || '-';
-        } },
+        { field: 'assigned_to', headerName: '担当者', minWidth: 80, width: 120, 
+            sortable: true,
+            sortComparator: (a, b) => {
+                const userA = users.find(u => u.id === a);
+                const userB = users.find(u => u.id === b);
+                const nameA = userA ? userA.username || userA.full_name || userA.name || '' : '';
+                const nameB = userB ? userB.username || userB.full_name || userB.name || '' : '';
+                return nameA.localeCompare(nameB, 'ja');
+            },
+            renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                const user = users.find(u => u.id === row.assigned_to);
+                return user ? user.username : '-';
+            } 
+        },
+        {
+            field: '_startTs',
+            headerName: '開始日',
+            minWidth: 80,
+            width: 110,
+            sortable: true,
+            renderCell: (params) => formatDate((params.row as any).start_date),
+            sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+        },
+        {
+            field: '_dueTs',
+            headerName: '期日',
+            minWidth: 80,
+            width: 110,
+            sortable: true,
+            renderCell: (params) => formatDate((params.row as any).due_date),
+            sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+        },
+        {
+            field: '_dependsText',
+            headerName: '依存元タスク',
+            minWidth: 80,
+            width: 150,
+            sortable: true,
+            renderCell: (params) => String(params.value ?? '-') ,
+            sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
+        },
         { field: 'cost', headerName: 'コスト', minWidth: 60, width: 90, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
             return row.cost ?? '-';
         } },
         {
-            field: 'actions',
+            field: '_actionsSortKey',
             headerName: '操作',
             width: 200,
-            renderCell: (params: GridRenderCellParams) => (
+            sortable: true,
+            sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+            renderCell: (params) => {
+              const row = params.row as Task;
+              return (
                 <Box>
-                    <Button
-                        size="small"
-                        onClick={() => handleViewHistory(params.row)}
-                        sx={{ mr: 1 }}
-                    >
-                        <HistoryIcon />
-                    </Button>
-                    <Button
-                        size="small"
-                        onClick={() => handleEditTask(params.row)}
-                        sx={{ mr: 1 }}
-                    >
-                        <EditIcon />
-                    </Button>
-                    <Button
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteTask(params.row.id)}
-                    >
-                        <DeleteIcon />
-                    </Button>
+                  <Button size="small" onClick={() => handleViewHistory(row)} sx={{ mr: 1 }}>
+                    <HistoryIcon />
+                  </Button>
+                  <Button size="small" onClick={() => handleEditTask(row)} sx={{ mr: 1 }}>
+                    <EditIcon />
+                  </Button>
+                  <Button size="small" color="error" onClick={() => handleDeleteTask(row.id)}>
+                    <DeleteIcon />
+                  </Button>
                 </Box>
-            ),
-        },
+              );
+            },
+          },
     ], [users, projects, taskMap]);
+
+
+
 
     // ステータス履歴を表示する関数
     const handleViewHistory = async (task: Task) => {
         try {
             const response = await api.get<StatusHistory[]>(`/tasks/${task.id}/status-history`);
-            // 日付でソート
-            const sortedHistory = response.data.sort((a, b) => 
-                new Date(a.changed_at).getTime() - new Date(b.changed_at).getTime()
-            );
+            // IDでソート
+            const sortedHistory = response.data.sort((a, b) => a.id - b.id);
             setStatusHistory(sortedHistory);
             setSelectedTask(task);
             setHistoryDialogOpen(true);
@@ -521,6 +902,9 @@ const TasksPage: React.FC = () => {
         }
     };
 
+
+
+
     // ステータス履歴ダイアログを閉じる関数
     const handleCloseHistoryDialog = () => {
         setHistoryDialogOpen(false);
@@ -528,52 +912,18 @@ const TasksPage: React.FC = () => {
         setSelectedTask(null);
     };
 
-    const handleStatusChange = async (taskId: number, newStatus: string) => {
-        try {
-            // タスクを取得
-            const task = tasks.find(t => t.id === taskId);
-            if (!task) {
-                throw new Error('タスクが見つかりません');
-            }
 
-            const now = new Date().toISOString();
 
-            // タスクのステータスを更新
-            await api.put(`/tasks/${taskId}`, { 
-                status: newStatus.toLowerCase(),  // 小文字に変換
-                priority: task.extendedProps?.priority?.toLowerCase() || 'low',
-                type: task.extendedProps?.type || null,
-                seqID: task.extendedProps?.seqID || null,
-                shotID: task.extendedProps?.shotID || null,
-                display_status: task.display_status || 'online'
-            });
-            
-            // ステータス履歴を記録
-            await api.post(`/tasks/${taskId}/status-history`, {
-                status: newStatus.toLowerCase(),  // 小文字に変換
-                changed_at: now  // 現在時刻を明示的に設定
-            });
-            
-            // タスク一覧を更新
-            await fetchData();
-            
-            setSnackbar({
-                open: true,
-                message: 'タスクのステータスを更新しました',
-                severity: 'success'
-            });
-        } catch (err) {
-            console.error('タスクのステータス更新に失敗しました:', err);
-            setSnackbar({
-                open: true,
-                message: 'タスクのステータス更新に失敗しました',
-                severity: 'error'
-            });
-        }
-    };
+
+
+
+
 
     if (loading) return <CircularProgress />;
     if (error) return <Typography color="error">{error}</Typography>;
+
+
+
 
     return (
         <Box sx={{ p: 2 }}>
@@ -616,24 +966,30 @@ const TasksPage: React.FC = () => {
                 </Grid>
             </Paper>
 
+
+
+
             <Paper>
                 <Box sx={{ height: 600, width: '100%' }}>
                     <DataGrid
-                        rows={filteredTasks}
+                        rows={rows}
                         columns={columns}
                         getRowId={(row) => row.id}
-                        initialState={{
-                            pagination: { paginationModel: { pageSize: 20, page: 0 } },
-                        }}
+                        sortingMode="client"
+                        sortingOrder={['asc','desc']}
+                        sortModel={sortModel}
+                        onSortModelChange={setSortModel}
+                        paginationModel={paginationModel}
+                        onPaginationModelChange={setPaginationModel}
                         pageSizeOptions={[10, 20, 50]}
                         rowHeight={40}
                         autoHeight
                         sx={{
-                            '& .MuiDataGrid-columnHeaders': { 
+                            '& .MuiDataGrid-columnHeaders': {
                                 background: '#f5f5f5',
                                 fontSize: '0.8rem'
                             },
-                            '& .MuiDataGrid-cell': { 
+                            '& .MuiDataGrid-cell': {
                                 alignItems: 'center',
                                 fontSize: '0.8rem'
                             },
@@ -644,6 +1000,9 @@ const TasksPage: React.FC = () => {
                     />
                 </Box>
             </Paper>
+
+
+
 
             {/* タスク詳細モーダル */}
             {selectedTask && (
@@ -714,6 +1073,9 @@ const TasksPage: React.FC = () => {
                     </DialogActions>
                 </Dialog>
             )}
+
+
+
 
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontSize: '1rem' }}>{isEditMode ? 'タスク編集' : '新規タスク'}</DialogTitle>
@@ -855,6 +1217,9 @@ const TasksPage: React.FC = () => {
                 </DialogActions>
             </Dialog>
 
+
+
+
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={5000}
@@ -869,6 +1234,9 @@ const TasksPage: React.FC = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+
+
+
 
             {/* ステータス履歴ダイアログ */}
             <Dialog
@@ -907,4 +1275,12 @@ const TasksPage: React.FC = () => {
     );
 };
 
-export default TasksPage; 
+
+
+
+export default TasksPage;
+
+
+
+
+

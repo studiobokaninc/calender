@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
   Box,
-  Paper,
   Typography,
   CircularProgress,
   Button,
@@ -47,7 +46,6 @@ const Projects: React.FC = () => {
     start_date: '',
     end_date: '',
     status: 'planning',
-    group_id: '',
   })
 
   useEffect(() => {
@@ -81,10 +79,9 @@ const Projects: React.FC = () => {
       setFormData({
         name: project.name,
         description: project.description || '',
-        start_date: project.start_date,
+        start_date: project.start_date || '',
         end_date: project.end_date || '',
-        status: project.status,
-        group_id: project.group_id.toString(),
+        status: project.status || 'planning',
       })
     } else {
       setSelectedProject(null)
@@ -94,7 +91,6 @@ const Projects: React.FC = () => {
         start_date: '',
         end_date: '',
         status: 'planning',
-        group_id: '',
       })
     }
     setOpenDialog(true)
@@ -139,7 +135,7 @@ const Projects: React.FC = () => {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">プロジェクト</Typography>
-        {user?.is_admin && (
+        {user?.role === 'admin' && (
           <Button
             variant="contained"
             startIcon={<AddIcon />}
@@ -169,7 +165,7 @@ const Projects: React.FC = () => {
                 </Typography>
                 <Box display="flex" gap={1} mb={2}>
                   <Chip
-                    label={statusLabels[project.status]}
+                    label={statusLabels[project.status as keyof typeof statusLabels] || '計画中'}
                     color={project.status === 'completed' ? 'success' : 'default'}
                     size="small"
                   />
@@ -188,7 +184,7 @@ const Projects: React.FC = () => {
                   </Typography>
                 </Box>
                 <Typography variant="body2" color="textSecondary">
-                  開始日: {new Date(project.start_date).toLocaleDateString()}
+                  開始日: {project.start_date ? new Date(project.start_date).toLocaleDateString() : '未設定'}
                 </Typography>
                 {project.end_date && (
                   <Typography variant="body2" color="textSecondary">
@@ -197,7 +193,7 @@ const Projects: React.FC = () => {
                 )}
               </CardContent>
               <CardActions>
-                {user?.is_admin && (
+                {user?.role === 'admin' && (
                   <Button size="small" onClick={() => handleOpenDialog(project)}>
                     編集
                   </Button>

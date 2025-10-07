@@ -96,6 +96,7 @@ const getEventColor = (type?: string): string => {
     case 'meeting': return '#1976d2';
     case 'review': return '#9c27b0';
     case 'deadline': return '#d32f2f';
+    case 'milestone': return '#d32f2f';
     default: return '#2196f3'; // Default blue for generic events
   }
 };
@@ -274,7 +275,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     if (!event) return 'transparent';
     const type = event.extendedProps?.type;
     if (type === 'project') return getProjectColor(projectMap.get(String(event.extendedProps?.projectId)));
-    if (type === 'Task') return getTaskColor(event.extendedProps?.taskStatus ?? undefined);
+    if (type === 'task') return getTaskColor(event.extendedProps?.taskStatus ?? 'todo');
     return getEventColor(type);
   };
 
@@ -291,7 +292,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     }
     if (type === 'milestone') return '#d32f2f'; // マイルストーンは常に赤
     if (type === 'project') return getProjectColor(projectMap.get(String(projectId)));
-    if (type === 'task') return getTaskColor(typeof ev.extendedProps?.taskStatus === 'string' ? ev.extendedProps?.taskStatus : undefined);
+    if (type === 'task') return getTaskColor(ev.extendedProps?.taskStatus ?? 'todo');
     if (type === 'milestone' || type === 'deadline') return getEventColor(type);
     return getEventColor(type);
   };
@@ -354,13 +355,15 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   fontWeight: 'bold',
                   display: 'flex',
                   alignItems: 'center',
-                  color: getEventColor(selectedEvent.extendedProps?.type ?? undefined) || getTaskColor(selectedEvent.extendedProps?.taskStatus ?? undefined),
+                  color: selectedEvent.extendedProps?.type === 'task' 
+                    ? getTaskColor(selectedEvent.extendedProps?.taskStatus ?? 'todo')
+                    : getEventColor(selectedEvent.extendedProps?.type ?? undefined),
                   fontSize: '1.1rem',
                   mb: 0.5,
                   pl: 0,
                 }}
               >
-                {getTypeIcon(selectedEvent.extendedProps?.type)} {selectedEvent.extendedProps?.type === 'Task' ? `タスク: ${selectedEvent.title}` : selectedEvent.title}
+                {getTypeIcon(selectedEvent.extendedProps?.type)} {selectedEvent.extendedProps?.type === 'task' ? `タスク: ${selectedEvent.title}` : selectedEvent.title}
               </Typography>
 
               {/* 2. 時間 or 期日（アイコン付き） */}
@@ -380,10 +383,25 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   : (selectedEvent.start != null
                       ? (() => {
                           if (selectedEvent.allDay) {
-                            const endForDisplay = selectedEvent.end
-                              ? addDays((typeof selectedEvent.end === 'string' ? parseISO(selectedEvent.end) : selectedEvent.end), -1)
-                              : (typeof selectedEvent.start === 'string' ? parseISO(selectedEvent.start) : selectedEvent.start);
-                            return `${formatDate(endForDisplay)} (終日)`;
+                            // 締切・マイルストーンの場合は、startを直接使用（タイムゾーン問題を回避）
+                            const eventType = selectedEvent.extendedProps?.type;
+                            if (eventType === 'Deadline' || eventType === 'Milestone') {
+                              return `${formatDate(selectedEvent.start)} (終日)`;
+                            }
+                          // 期間のある終日イベント（プロジェクトや通常イベント）は開始日と終了日を表示
+                          if (selectedEvent.end) {
+                            const startDate = typeof selectedEvent.start === 'string' ? parseISO(selectedEvent.start) : selectedEvent.start;
+                            const endDate = addDays((typeof selectedEvent.end === 'string' ? parseISO(selectedEvent.end) : selectedEvent.end), -1);
+                            // 開始日と終了日が同じ場合は終日のみ表示
+                            if (formatDate(startDate) === formatDate(endDate)) {
+                              return `${formatDate(startDate)} (終日)`;
+                            }
+                            // 異なる場合は期間を表示
+                            return `${formatDate(startDate)} - ${formatDate(endDate)} (終日)`;
+                          }
+                          // 終了日がない場合は開始日のみ
+                          console.log(`[EventDetailsPanel] No end date for event: ${selectedEvent.title}, type: ${selectedEvent.extendedProps?.type}, start: ${selectedEvent.start}`);
+                          return `${formatDate(selectedEvent.start)} (終日)`;
                           }
                           return `${formatDate(selectedEvent.start)} ${formatTime(selectedEvent.start)} - ${formatTime(selectedEvent.end != null ? selectedEvent.end : '')}`;
                         })()
@@ -391,14 +409,20 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               </Typography>
 
               {/* 3. その他の詳細（Chipや担当者など） */}
-              {selectedEvent.extendedProps?.type === 'Task' && (
+              {selectedEvent.extendedProps?.type === 'task' && (
                 <>
+                  {/* タスクの説明 */}
+                  {selectedEvent.extendedProps?.description && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.9rem', lineHeight: 1.4 }}>
+                      {selectedEvent.extendedProps.description}
+                    </Typography>
+                  )}
                   {/* ステータスChip */}
                   {selectedEvent.extendedProps?.taskStatus && (
                     <Chip
                       label={selectedEvent.extendedProps.taskStatus}
                       size="small"
-                      sx={{ mt: 0, backgroundColor: getTaskColor(selectedEvent.extendedProps.taskStatus), color: '#fff' }}
+                      sx={{ mt: 0, backgroundColor: getTaskColor(selectedEvent.extendedProps.taskStatus ?? 'todo'), color: '#fff' }}
                     />
                   )}
                   {/* 担当者（ユーザーIDで表示） */}
@@ -421,43 +445,36 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       コスト: {selectedEvent.extendedProps.taskCost ?? '未設定'}
                     </Typography>
                   )}
-                  {/* from/to 依存関係 */}
+                  {/* 依存関係 */}
                   {(() => {
                     const dependsOn = selectedEvent.extendedProps?.dependsOn || [];
-                    // ★★★ デバッグログ追加 ★★★
-                    console.log("[EventDetailsPanel] Current Task ID:", selectedEvent.extendedProps?.taskId);
-                    console.log("[EventDetailsPanel] DependsOn IDs for current task:", JSON.stringify(dependsOn));
-                    console.log("[EventDetailsPanel] All task events available for lookup (showing relevant props):", JSON.stringify(
-                      events
-                        .filter(e => e.extendedProps?.type === 'Task')
-                        .map(e => ({ 
-                          id: e.id, // FullCalendar event ID, e.g., task-10
-                          taskId: e.extendedProps?.taskId, // Actual task ID from DB, e.g., 10
-                          title: e.title,
-                          dependsOn: e.extendedProps?.dependsOn
-                        })),
-                      null, 2
-                    ));
-                    // ★★★ デバッグログ追加ここまで ★★★
                     const thisTaskId = selectedEvent.extendedProps?.taskId;
                     const toTasks = events.filter(e =>
-                      e.extendedProps?.type === 'Task' &&
+                      e.extendedProps?.type === 'task' &&
                       Array.isArray(e.extendedProps?.dependsOn) &&
                       e.extendedProps.dependsOn.includes(String(thisTaskId))
                     );
-                    return (
-                      <>
+                    
+                    // 依存関係がある場合のみ表示
+                    if (dependsOn.length > 0 || toTasks.length > 0) {
+                      // 依存タスクをまとめて表示
+                      const allDependentTasks = [
+                        // このタスクが依存しているタスク
+                        ...dependsOn.map(id => {
+                          const t = events.find(e => e.extendedProps?.type === 'task' && String(e.extendedProps?.taskId) === String(id));
+                          return t ? t.title : id;
+                        }),
+                        // このタスクに依存しているタスク
+                        ...toTasks.map(t => t.title)
+                      ];
+                      
+                      return (
                         <Typography variant="body2" color="text.secondary">
-                          from: {dependsOn.length > 0 ? dependsOn.map(id => {
-                            const t = events.find(e => e.extendedProps?.type === 'Task' && String(e.extendedProps?.taskId) === String(id));
-                            return t ? t.title : id;
-                          }).join(', ') : 'なし'}
+                          依存タスク: {allDependentTasks.join(', ')}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          to: {toTasks.length > 0 ? toTasks.map(t => t.title).join(', ') : 'なし'}
-                        </Typography>
-                      </>
-                    );
+                      );
+                    }
+                    return null;
                   })()}
                   {/* 関連プロジェクト */}
                    {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) && (
@@ -480,7 +497,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   {/* トータルコスト・タスク数・関係ユーザー */}
                   {(() => {
                     const projectId = selectedEvent.extendedProps?.projectId;
-                    const projectTasks = events.filter(e => e.extendedProps?.type === 'Task' && String(e.extendedProps?.projectId) === String(projectId));
+                    const projectTasks = events.filter(e => e.extendedProps?.type === 'task' && String(e.extendedProps?.projectId) === String(projectId));
                     const totalCost = projectTasks.reduce((sum, t) => sum + (t.extendedProps?.taskCost || 0), 0);
                     const taskCount = projectTasks.length;
                     const assigneeIds = Array.from(new Set(projectTasks.map(t => t.extendedProps?.taskAssigneeId).filter(Boolean)));
@@ -595,10 +612,25 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   <Typography variant="caption" color="text.secondary" sx={{ mb: 0.2, fontSize: '0.85rem' }}>
                     {ev.allDay
                       ? (() => {
-                          const endForDisplay = ev.end
-                            ? addDays((typeof ev.end === 'string' ? parseISO(ev.end) : ev.end), -1)
-                            : (typeof ev.start === 'string' ? parseISO(ev.start) : ev.start);
-                          return `${formatDate(endForDisplay)} (終日)`;
+                          // 締切・マイルストーンの場合は、startを直接使用（タイムゾーン問題を回避）
+                          const eventType = ev.extendedProps?.type;
+                          if (eventType === 'Deadline' || eventType === 'Milestone') {
+                            return `${formatDate(ev.start)} (終日)`;
+                          }
+                          // 期間のある終日イベント（プロジェクトや通常イベント）は開始日と終了日を表示
+                          if (ev.end) {
+                            const startDate = typeof ev.start === 'string' ? parseISO(ev.start) : ev.start;
+                            const endDate = addDays((typeof ev.end === 'string' ? parseISO(ev.end) : ev.end), -1);
+                            // 開始日と終了日が同じ場合は終日のみ表示
+                            if (formatDate(startDate) === formatDate(endDate)) {
+                              return `${formatDate(startDate)} (終日)`;
+                            }
+                            // 異なる場合は期間を表示
+                            return `${formatDate(startDate)} - ${formatDate(endDate)} (終日)`;
+                          }
+                          // 終了日がない場合は開始日のみ
+                          console.log(`[EventDetailsPanel] No end date for event: ${ev.title}, type: ${ev.extendedProps?.type}, start: ${ev.start}`);
+                          return `${formatDate(ev.start)} (終日)`;
                         })()
                       : `${formatDate(ev.start)} ${formatTime(ev.start)} - ${formatTime(ev.end)}`}
                   </Typography>

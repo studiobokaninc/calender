@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Paper, Grid, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Tab, Tabs, Button, Chip, TextField, Autocomplete, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Box, Typography, Paper, Grid, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Tab, Tabs, Button, TextField, Autocomplete, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
 import api from '../services/api';
 import { Project, Task, User } from '../types';
 import ProjectProgressChart from '../components/ProjectProgressChart';
@@ -9,6 +9,7 @@ import UserProgressChart from '../components/UserProgressChart';
 import GanttView from '../components/GanttView';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useMetricsPageState } from '../contexts/PageStateContext';
 
 // Placeholder types - replace with your actual types if different
 // type Project = { id: string; name: string; status: string; };
@@ -27,15 +28,45 @@ const MetricsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProjectIdForProgress, setSelectedProjectIdForProgress] = useState<string | 'all'>('all');
+
+  // ページ状態管理の使用
+  const { metricsState, updateMetricsState, isInitialLoad, globalData, updateGlobalData } = useMetricsPageState();
+  
+  // 状態を分離（初期化時はデフォルト値）
   const [selectedTab, setSelectedTab] = useState<number>(0);
   const [dateRange, setDateRange] = useState<string>('all');
   const [projectNameFilter, setProjectNameFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedDisplayStatuses, setSelectedDisplayStatuses] = useState<string[]>([]);
 
+  // ページ状態が復元されたらローカル状態を更新
   useEffect(() => {
+    if (!isInitialLoad) {
+      setSelectedTab(metricsState.selectedTab);
+      setDateRange(metricsState.dateRange);
+      setProjectNameFilter(metricsState.projectNameFilter);
+      setStatusFilter(metricsState.statusFilter);
+      setSelectedDisplayStatuses(metricsState.selectedDisplayStatuses);
+    }
+  }, [metricsState, isInitialLoad]);
+
+  // グローバルデータから初期値を設定
+  useEffect(() => {
+    if (globalData.tasks.length > 0) {
+      setTasks(globalData.tasks);
+    }
+    if (globalData.projects.length > 0) {
+      setProjects(globalData.projects);
+    }
+    if (globalData.users.length > 0) {
+      setUsers(globalData.users);
+    }
+    setLoading(false);
+  }, [globalData]);
+
+  // データ取得関数
+  const fetchData = useCallback(async () => {
     console.log("MetricsPage: useEffect - Fetching data...");
-    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
@@ -51,9 +82,21 @@ const MetricsPage: React.FC = () => {
         console.log("Fetched Tasks:", taskRes.data.length);
         console.log("Fetched Users:", userRes.data.length);
         console.log("Fetched Tasks Data:", taskRes.data);
-        setProjects(projRes.data);
-        setTasks(taskRes.data);
-        setUsers(userRes.data);
+        
+        const projectsData = projRes.data;
+        const tasksData = taskRes.data;
+        const usersData = userRes.data;
+        
+        setProjects(projectsData);
+        setTasks(tasksData);
+        setUsers(usersData);
+
+        // グローバルデータも更新
+        updateGlobalData({
+          tasks: tasksData,
+          projects: projectsData,
+          users: usersData,
+        });
 
       } catch (err: any) {
         console.error("Failed to fetch metrics data:", err);
@@ -61,21 +104,69 @@ const MetricsPage: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    };
+    }, []); // 依存関係を空にして無限ループを防ぐ
 
-    fetchData();
-  }, []);
-
-  // URLクエリパラメータに基づいて初期タブを設定
+  // データ取得の統合（重複を防ぐ）
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const tabParam = params.get('tab');
-    if (tabParam === 'progress') setSelectedTab(0);
-    else if (tabParam === 'load') setSelectedTab(1);
-    else if (tabParam === 'delayed') setSelectedTab(2);
-    else if (tabParam === 'member_progress') setSelectedTab(3);
-    else if (tabParam === 'gantt') setSelectedTab(4);
-  }, [location.search]);
+    // グローバルデータが既に存在する場合はスキップ
+    if (globalData && globalData.tasks.length > 0 && globalData.projects.length > 0) {
+      console.log("[MetricsPage] Using existing global data...");
+      setTasks(globalData.tasks);
+      setProjects(globalData.projects);
+      setUsers(globalData.users);
+      setLoading(false);
+      return;
+    }
+
+    // 初回ロード時のみデータを取得（他のページが既に取得済みの場合はスキップ）
+    if (isInitialLoad && (!globalData || globalData.tasks.length === 0)) {
+      console.log("[MetricsPage] Fetching data on initial load...");
+      fetchData();
+    }
+  }, [isInitialLoad, globalData]); // fetchDataを依存関係から除外
+
+  // グローバルデータの変更を直接監視（より確実な方法）
+  useEffect(() => {
+    if (globalData && globalData.tasks && globalData.tasks.length > 0) {
+      console.log("[MetricsPage] Global data updated, refreshing local state...");
+      console.log("[MetricsPage] Tasks count:", globalData.tasks.length);
+      setTasks(globalData.tasks);
+    }
+    if (globalData && globalData.projects && globalData.projects.length > 0) {
+      console.log("[MetricsPage] Projects count:", globalData.projects.length);
+      setProjects(globalData.projects);
+    }
+    if (globalData && globalData.users && globalData.users.length > 0) {
+      console.log("[MetricsPage] Users count:", globalData.users.length);
+      setUsers(globalData.users);
+    }
+  }, [globalData.tasks, globalData.projects, globalData.users, globalData.lastFetched]);
+
+  // フィルター状態の変更をページ状態に反映（初期化完了後のみ）
+  useEffect(() => {
+    if (!isInitialLoad) {
+      updateMetricsState({
+        selectedTab,
+        dateRange,
+        projectNameFilter,
+        statusFilter,
+        selectedDisplayStatuses,
+      });
+    }
+  }, [selectedTab, dateRange, projectNameFilter, statusFilter, selectedDisplayStatuses, isInitialLoad]);
+
+  // URLクエリパラメータに基づいて初期タブを設定（ブラウザ更新時のみ）
+  useEffect(() => {
+    if (isInitialLoad) {
+      const params = new URLSearchParams(location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'progress') setSelectedTab(0);
+      else if (tabParam === 'load') setSelectedTab(1);
+      else if (tabParam === 'delayed') setSelectedTab(2);
+      else if (tabParam === 'member_progress') setSelectedTab(3);
+      else if (tabParam === 'gantt') setSelectedTab(4);
+    }
+  }, [location.search, isInitialLoad]);
 
   // プロジェクト名オプションの準備
   const projectNameOptions = useMemo(() => {
@@ -208,7 +299,7 @@ const MetricsPage: React.FC = () => {
     [filteredTasks]
   );
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setSelectedTab(newValue);
     // URLも更新する
     let tabName = '';
@@ -235,7 +326,7 @@ const MetricsPage: React.FC = () => {
     );
   };
 
-  const handleProjectNameChange = (event: React.SyntheticEvent, newValue: string | null) => {
+  const handleProjectNameChange = (_event: React.SyntheticEvent, newValue: string | null) => {
     setProjectNameFilter(newValue);
   };
 

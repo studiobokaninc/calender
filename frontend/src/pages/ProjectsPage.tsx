@@ -5,6 +5,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import api from '../services/api';
 import { Project, Task } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
 import { DataGrid, GridColDef, GridRenderCellParams, GridRowParams } from '@mui/x-data-grid';
 import ProjectDeleteDialog from '../components/ProjectDeleteDialog';
@@ -81,6 +82,7 @@ const ProjectsPage: React.FC = () => {
         severity: 'success'
     });
     const { user } = useAuth();
+    const { refreshGlobalData } = usePageState();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState<ProjectWithProgress | null>(null);
 
@@ -216,6 +218,17 @@ const ProjectsPage: React.FC = () => {
                 severity: 'success'
             });
             await fetchData();
+            // グローバルデータを更新して他のページにも反映
+            if (refreshGlobalData) {
+                console.log('[ProjectsPage] Refreshing global data after project deletion...');
+                await refreshGlobalData();
+                console.log('[ProjectsPage] Global data refresh completed for project deletion');
+                // プロジェクト削除完了を通知するカスタムイベントを発火
+                console.log('[ProjectsPage] Dispatching projectDeleted event...');
+                window.dispatchEvent(new CustomEvent('projectDeleted', {
+                    detail: { projectId: projectId }
+                }));
+            }
         } catch (err: any) {
             console.error('プロジェクトの削除に失敗しました:', err);
             const errorMessage = err.response?.data?.detail || 'プロジェクトの削除に失敗しました';
@@ -282,6 +295,17 @@ const ProjectsPage: React.FC = () => {
 
             setOpenDialog(false);
             await fetchData();
+            // グローバルデータを更新して他のページにも反映
+            if (refreshGlobalData) {
+                console.log('[ProjectsPage] Refreshing global data after project save/update...');
+                await refreshGlobalData();
+                console.log('[ProjectsPage] Global data refresh completed for project save/update');
+                // プロジェクト更新完了を通知するカスタムイベントを発火
+                console.log('[ProjectsPage] Dispatching projectUpdated event...');
+                window.dispatchEvent(new CustomEvent('projectUpdated', {
+                    detail: { projectId: currentProject.id }
+                }));
+            }
         } catch (err) {
             console.error('プロジェクトの保存に失敗しました:', err);
             setSnackbar({
@@ -375,6 +399,17 @@ const ProjectsPage: React.FC = () => {
                                 await api.put(`/projects/${row.id}`, { display_status: newStatus });
                                 setProjects((prev) => prev.map(p => p.id === row.id ? { ...p, display_status: newStatus } : p));
                                 setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
+                                // グローバルデータを更新して他のページにも反映
+                                if (refreshGlobalData) {
+                                    console.log('[ProjectsPage] Refreshing global data after display status update...');
+                                    await refreshGlobalData();
+                                    console.log('[ProjectsPage] Global data refresh completed for display status update');
+                                    // プロジェクト表示ステータス更新完了を通知するカスタムイベントを発火
+                                    console.log('[ProjectsPage] Dispatching projectStatusUpdated event...');
+                                    window.dispatchEvent(new CustomEvent('projectStatusUpdated', {
+                                        detail: { projectId: row.id, newStatus }
+                                    }));
+                                }
                             } catch (err) {
                                 setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
                             }

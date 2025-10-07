@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
   Box,
-  Paper,
   Typography,
   CircularProgress,
   Button,
@@ -24,7 +23,6 @@ import {
 import { Add as AddIcon } from '@mui/icons-material'
 import { Task } from '../types'
 import api from '../services/api'
-import { useAuth } from '../contexts/AuthContext'
 
 const priorityColors = {
   low: 'success',
@@ -39,7 +37,6 @@ const statusLabels = {
 } as const
 
 const Tasks: React.FC = () => {
-  const { user } = useAuth()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -56,6 +53,8 @@ const Tasks: React.FC = () => {
   })
 
   useEffect(() => {
+    // グローバルデータが利用可能な場合はそれを使用
+    // 独立したコンポーネントなので、必要に応じてデータを取得
     fetchTasks()
   }, [])
 
@@ -77,10 +76,10 @@ const Tasks: React.FC = () => {
       setFormData({
         name: task.name,
         description: task.description || '',
-        status: task.status,
-        priority: task.priority,
+        status: task.status || 'todo',
+        priority: task.extendedProps?.priority || 'medium',
         due_date: task.due_date || '',
-        project_id: task.project_id.toString(),
+        project_id: task.project_id?.toString() || '',
         cost: task.cost || 0,
       })
     } else {
@@ -130,7 +129,8 @@ const Tasks: React.FC = () => {
 
   const calculateProgress = (task: Task) => {
     if (!task.cost) return 0
-    return (task.completed_cost / task.cost) * 100
+    // completed_costプロパティが存在しないため、progressプロパティを使用
+    return task.progress || 0
   }
 
   if (loading) {
@@ -178,15 +178,15 @@ const Tasks: React.FC = () => {
                     size="small"
                   />
                   <Chip
-                    label={task.priority}
-                    color={priorityColors[task.priority as keyof typeof priorityColors]}
+                    label={task.extendedProps?.priority || 'medium'}
+                    color={priorityColors[(task.extendedProps?.priority || 'medium') as keyof typeof priorityColors]}
                     size="small"
                   />
                 </Box>
-                {task.cost > 0 && (
+                {task.cost && task.cost > 0 && (
                   <Box mb={2}>
                     <Typography variant="body2" color="textSecondary" gutterBottom>
-                      コスト進捗: {task.completed_cost}h / {task.cost}h
+                      コスト進捗: {task.progress || 0}% / {task.cost}h
                     </Typography>
                     <LinearProgress
                       variant="determinate"

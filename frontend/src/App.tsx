@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, BrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { Box, CssBaseline, CircularProgress, Typography } from '@mui/material';
 import { useAuth } from './contexts/AuthContext'; // Import useAuth
+import { PageStateProvider } from './contexts/PageStateContext'; // Import PageStateProvider
 import Layout from './components/Layout'; // ★ Layout をインポート
 import UserManagementPage from './pages/UserManagementPage'; // ★★★ Import UserManagementPage ★★★
 import ProjectsPage from './pages/ProjectsPage'; // ★★★ Import ProjectsPage ★★★
@@ -53,9 +54,10 @@ const App: React.FC = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', width: '100%' }}>
-      <CssBaseline /> {/* MUI base styles */} 
-      <Routes>
+    <PageStateProvider>
+      <Box sx={{ display: 'flex', height: '100vh', width: '100%' }}>
+        <CssBaseline /> {/* MUI base styles */} 
+        <Routes>
         <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/calendar" replace />} />
 
         {/* ★★★ End of Restore Test Route ★★★ */}
@@ -109,8 +111,9 @@ const App: React.FC = () => {
 
         {/* Optional Catch-all for non-authenticated routes (if needed) */}
         {/* <Route path="*" element={<Navigate to="/login" replace />} /> */}
-      </Routes>
-    </Box>
+        </Routes>
+      </Box>
+    </PageStateProvider>
   );
 };
 

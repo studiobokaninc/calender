@@ -473,6 +473,7 @@ async def get_users_endpoint(
             detail=f"ユーザー情報の取得に失敗しました: {str(e)}"
         )
 
+
 @app.get("/api/groups", response_model=List[schemas.GroupResponse], tags=["Groups"])
 async def get_groups_endpoint(
     db: Session = Depends(get_db),
@@ -869,24 +870,45 @@ def parse_float(value: str) -> float:
         return 0.0
 
 def get_user_id_by_name(db: Session, username: str) -> Optional[int]:
-    """ユーザー名からユーザーIDを取得する関数"""
+    """ユーザー名からユーザーIDを取得する関数（省略形対応）"""
     if not username:
         return None
 
-    # ユーザー名で検索
+    # デバッグ情報は削除（本番環境では不要）
+
+    # 1. 完全一致でユーザー名検索
     user = db.query(models.User).filter(models.User.username == username).first()
     if user:
         return user.id
     
-    # メールアドレスで検索
+    # 2. 完全一致でメールアドレス検索
     user = crud.get_user_by_email(db, email=username)
     if user:
         return user.id
     
-    # フルネームで検索
+    # 3. 完全一致でフルネーム検索
     user = db.query(models.User).filter(models.User.name == username).first()
     if user:
         return user.id
+    
+    # 4. 部分一致でフルネーム検索（省略形対応）
+    if len(username) >= 2:  # 2文字以上の場合のみ部分一致検索
+        users = db.query(models.User).filter(models.User.name.like(f"%{username}%")).all()
+        if len(users) == 1:  # 1件のみ見つかった場合
+            return users[0].id
+        elif len(users) > 1:
+            logger.warning(f"複数のユーザーが見つかりました: {username} -> {[u.name for u in users]}")
+            # 最初のユーザーを返す（曖昧な場合は最初の結果）
+            return users[0].id
+    
+    # 5. 部分一致でユーザー名検索
+    if len(username) >= 2:
+        users = db.query(models.User).filter(models.User.username.like(f"%{username}%")).all()
+        if len(users) == 1:
+            return users[0].id
+        elif len(users) > 1:
+            logger.warning(f"複数のユーザー名が見つかりました: {username} -> {[u.username for u in users]}")
+            return users[0].id
     
     logger.warning(f"ユーザーが見つかりません: {username}")
     return None
@@ -928,13 +950,11 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session) -> dict:
         shot_id = task_data[7].strip() if len(task_data) > 7 and task_data[7].strip() else None
         depends_on = parse_dependencies(task_data[8]) if len(task_data) > 8 and task_data[8].strip() else []
 
-        # 担当者IDを取得
+        # 担当者IDを取得（改良された検索機能を使用）
         assigned_to_id = None
         if assigned_to_username:
-            user = db.query(models.User).filter(models.User.username == assigned_to_username).first()
-            if user:
-                assigned_to_id = user.id
-            else:
+            assigned_to_id = get_user_id_by_name(db, assigned_to_username)
+            if assigned_to_id is None:
                 logger.warning(f"担当者 {assigned_to_username} が見つかりません")
 
         # --- 開始日を自動計算 ---
@@ -1346,8 +1366,11 @@ async def import_mock_data(
                     except Exception:
                         assigned_to = None
                 if not assigned_to:
-                    assigned_to = get_user_id_by_name(db, assigned_to_name) if 'assigned_to_name' in locals() else None
-                if not assigned_to:
+                    # assigned_to_name変数が存在するかチェック
+                    assigned_to_name_for_search = assigned_to_name if 'assigned_to_name' in locals() else None
+                    if assigned_to_name_for_search:
+                        assigned_to = get_user_id_by_name(db, assigned_to_name_for_search)
+                if not assigned_to and 'assigned_to_name' in locals() and assigned_to_name:
                     import_results["tasks"]["skipped"] += 1
                     import_results["tasks"]["imported"] += 1
                     import_results["tasks"]["results"].append(f"スキップ: {name} (担当者 {assigned_to_name} が見つかりません)")

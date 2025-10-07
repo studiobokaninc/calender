@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
+from .timezone import now_jst_naive
 from typing import List, Optional
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func
@@ -69,8 +70,8 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
         name=user.name,
         hashed_password=hashed_password,
         role=user.role,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
     )
     db.add(db_user)
     db.commit()
@@ -91,7 +92,7 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
         db_user.email = update_data["email"]
     if "role" in update_data:
         db_user.role = update_data["role"]
-    db_user.updated_at = datetime.utcnow()
+    db_user.updated_at = now_jst_naive()
     
     db.commit()
     db.refresh(db_user)
@@ -254,8 +255,8 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         shotID=task.shotID,
         seqID=task.seqID,
         type=task.type,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
     )
     db.add(db_task)
     db.commit()
@@ -265,7 +266,7 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         initial_history = models.TaskStatusHistory(
             task_id=db_task.id,
             status=db_task.status,
-            changed_at=db_task.created_at or datetime.utcnow(),
+            changed_at=db_task.created_at or now_jst_naive(),
             changed_by=task.assigned_to  # タスクの担当者を設定
         )
         db.add(initial_history)
@@ -308,7 +309,7 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
         if hasattr(db_task, db_key):
             setattr(db_task, db_key, parsed_value)
 
-    db_task.updated_at = datetime.utcnow()
+    db_task.updated_at = now_jst_naive()
 
     new_status = db_task.status
     if new_status is not None and new_status != original_status:
@@ -504,7 +505,7 @@ def create_status_history(db: Session, task_id: int, status_history: schemas.Sta
     db_status_history = models.TaskStatusHistory(
         task_id=task_id,
         status=status_history.status,
-        changed_at=status_history.changed_at or datetime.utcnow(),
+        changed_at=status_history.changed_at or now_jst_naive(),
         changed_by=status_history.changed_by
     )
     db.add(db_status_history)

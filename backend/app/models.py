@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column, selectinload
 import enum
 from typing import List, Optional
 from datetime import datetime
+from .timezone import now_jst_naive
 from .database import Base
 
 class ProjectStatus(str, enum.Enum):
@@ -97,7 +98,7 @@ class TaskStatusHistory(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), index=True)
     status: Mapped[TaskStatus] = mapped_column()
-    changed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, index=True)
+    changed_at: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
     changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
 
     task: Mapped["Task"] = relationship(back_populates="status_history")

@@ -1126,21 +1126,25 @@ const CalendarPage: React.FC = () => {
                     white-space: nowrap;
                     display: block;
                 }
-                /* プロジェクトは通常通り表示（タスクと同じ高さ） */
+                /* プロジェクトは細めに表示（名前が読める程度） */
                 .fc-daygrid-event.project-event,
                 .fc-event.project-event {
                     height: auto !important;
-                    min-height: 1.5em !important;
+                    min-height: 1.15em !important;
+                    max-height: 1.3em !important;
                 }
                 .fc-event.project-event .fc-event-main {
-                    padding: 2px 4px !important;
+                    padding: 0 3px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    height: 100% !important;
                 }
                 .fc-event.project-event .fc-event-title {
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
-                    line-height: 1.2 !important;
-                    font-size: 0.8rem !important;
+                    line-height: 1 !important;
+                    font-size: 0.72rem !important;
                 }
                 /* 締切・マイルストーン共通で背景・枠を消す（親要素にクラスが付与される想定） */
                 .fc-event.deadline-event-wrapper,

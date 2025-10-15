@@ -234,7 +234,27 @@ export const importMockData = async (data: MockDataImport): Promise<any> => {
 };
 
 export async function fetchUsers() {
-  const response = await api.get('/users');
+  const response = await api.get('/api/users');
+  return response.data;
+}
+
+export async function fetchTasks() {
+  const response = await api.get('/tasks');
+  return response.data;
+}
+
+export async function fetchProjects() {
+  const response = await api.get('/projects');
+  return response.data;
+}
+
+export async function fetchGroups() {
+  const response = await api.get('/api/groups');
+  return response.data;
+}
+
+export async function fetchEvents() {
+  const response = await api.get('/calendar/events');
   return response.data;
 }
 

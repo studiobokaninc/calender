@@ -78,17 +78,6 @@ const Dashboard: React.FC = () => {
       
       // 状態復元が完了したことを示す
       setStateRestored(true);
-    } else if (!isInitialLoad && dashboardState.messages.length === 0) {
-      // 初回読み込み完了後、メッセージが空の場合はデモ質問を表示
-      const demoQuestions = [
-        '今週のタスクの進捗状況を教えて',
-        '今日の予定を確認したい',
-        '期限が近いタスクはありますか？',
-        'プロジェクトの状況をまとめて',
-        '今月の完了タスクを教えて'
-      ]
-      setSuggestedQuestions(demoQuestions)
-      setShowSuggestions(true)
     }
   }, [dashboardState, isInitialLoad]);
 
@@ -373,16 +362,11 @@ const Dashboard: React.FC = () => {
         suggestions = response.data.data
       }
       
-      // 推奨質問が空の場合はデモ用の質問を表示
+      // 推奨質問が空の場合は何も表示しない
       if (suggestions.length === 0) {
-        const demoQuestions = [
-          'タスクの進捗状況を教えて',
-          '今日の予定を確認したい',
-          '期限が近いタスクはありますか？',
-          'プロジェクトの状況をまとめて',
-          '今月の完了タスクを教えて'
-        ]
-        suggestions = demoQuestions
+        setShowSuggestions(false)
+        setIsLoadingSuggestions(false)
+        return
       }
       
       setSuggestedQuestions(suggestions)
@@ -390,16 +374,9 @@ const Dashboard: React.FC = () => {
       setLastSuggestedForMessageId(messageId)
     } catch (error) {
       console.error('[chat] Failed to fetch suggestions:', error)
-      // エラー時はデモ用の推奨質問を表示
-      const demoQuestions = [
-        'タスクの進捗状況を教えて',
-        '今日の予定を確認したい',
-        '期限が近いタスクはありますか？',
-        'プロジェクトの状況をまとめて',
-        '今月の完了タスクを教えて'
-      ]
-      setSuggestedQuestions(demoQuestions)
-      setShowSuggestions(true)
+      // エラー時は推奨質問を表示しない
+      setSuggestedQuestions([])
+      setShowSuggestions(false)
     } finally {
       setIsLoadingSuggestions(false)
     }
@@ -712,7 +689,7 @@ const Dashboard: React.FC = () => {
     setSending(false)
     setChatInput('')
     
-    // 推奨質問の状態もリセットして、デモ質問を表示
+    // 推奨質問の状態もリセット（デモ質問は表示しない）
     setSuggestedQuestions([])
     setShowSuggestions(false)
     setLastSuggestedForMessageId(null)
@@ -720,16 +697,9 @@ const Dashboard: React.FC = () => {
     const initialMessage = { role: 'assistant' as const, content: 'ようこそ！何かお聞きになりたいことはありますか？' }
     setMessages([initialMessage])
     
-    // デモ質問を表示
-    const demoQuestions = [
-      '今週のタスクの進捗状況を教えて',
-      '今日の予定を確認したい',
-      '期限が近いタスクはありますか？',
-      'プロジェクトの状況をまとめて',
-      '今月の完了タスクを教えて'
-    ]
-    setSuggestedQuestions(demoQuestions)
-    setShowSuggestions(true)
+    // デモ質問は表示しない
+    setSuggestedQuestions([])
+    setShowSuggestions(false)
     
     // 新しい会話開始時も状態を更新
     updateDashboardState({
@@ -1004,7 +974,7 @@ const Dashboard: React.FC = () => {
 			      mb: 1,
 			    }}>
 				  <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.875rem' }}>
-				    {messages.length <= 1 ? 'デモ質問' : '推奨質問'} ({suggestedQuestions.length}件):
+				    推奨質問 ({suggestedQuestions.length}件):
 				  </Typography>
 				  <Box sx={{ 
 				    display: 'flex', 
@@ -1083,20 +1053,8 @@ const Dashboard: React.FC = () => {
 				  onChange={(e) => setChatInput(e.target.value)}
 				  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
 				  onFocus={() => {
-				    // メッセージが空または初期メッセージのみの場合、デモ質問を表示
-				    if (messages.length <= 1 && suggestedQuestions.length === 0) {
-				      const demoQuestions = [
-				        'タスクの進捗状況を教えて',
-				        '今日の予定を確認したい',
-				        '期限が近いタスクはありますか？',
-				        'プロジェクトの状況をまとめて',
-				        '今月の完了タスクを教えて'
-				      ]
-				      setSuggestedQuestions(demoQuestions)
-				      setShowSuggestions(true)
-				    }
 				    // 推奨質問がまだ取得されていない場合（メッセージがある時）
-				    else if (messages.length > 1 && suggestedQuestions.length === 0 && !isLoadingSuggestions) {
+				    if (messages.length > 1 && suggestedQuestions.length === 0 && !isLoadingSuggestions) {
 				      // refから直接message_idを取得
 				      const messageIdToUse = messageIdRef.current || currentMessageId
 				      

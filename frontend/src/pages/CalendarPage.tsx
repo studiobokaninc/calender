@@ -11,7 +11,7 @@ import { Project, Task, BackendEvent, CalendarEvent, User, Group } from '../type
 import EventDetailsPanel from '../components/EventDetailsPanel';
 import EventAddModal from '../components/EventAddModal';
 import { useAuth } from '../contexts/AuthContext';
-import { useCalendarPageState } from '../contexts/PageStateContext';
+import { useCalendarPageState, usePageState } from '../contexts/PageStateContext';
 import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns } from 'date-fns';
 import { Box, CircularProgress, Typography, useMediaQuery, Theme, SelectChangeEvent } from '@mui/material';
 import { debounce } from 'lodash';
@@ -107,6 +107,7 @@ const CalendarPage: React.FC = () => {
 
     // ページ状態管理の使用
     const { calendarState, updateCalendarState, isInitialLoad, globalData, updateGlobalData } = useCalendarPageState();
+    const { refreshGlobalData } = usePageState();
     
     // 状態を分離（初期化時はページ状態から取得）
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -302,14 +303,13 @@ const CalendarPage: React.FC = () => {
                 setRawEvents(allCalendarEvents); // 新しいイベントを設定
             }, 0);
             
-            // グローバルデータも更新
+            // グローバルデータも更新（eventsは各ページで生成されるため含めない）
             if (updateGlobalData) {
                 updateGlobalData({
                     tasks: tasksData,
                     projects: projectsData,
                     users: usersData,
                     groups: groupsData,
-                    events: allCalendarEvents,
                 });
             }
 
@@ -343,11 +343,8 @@ const CalendarPage: React.FC = () => {
             console.log("[CalendarPage] Groups count:", globalData.groups.length);
             setGroups(globalData.groups);
         }
-        if (globalData && globalData.events && globalData.events.length > 0) {
-            console.log("[CalendarPage] Events count:", globalData.events.length);
-            setRawEvents(globalData.events);
-        }
-    }, [globalData.tasks, globalData.projects, globalData.users, globalData.groups, globalData.events, globalData.lastFetched]);
+        // イベントはtasksとprojectsから自動生成されるため、ここでは設定しない
+    }, [globalData.tasks, globalData.projects, globalData.users, globalData.groups, globalData.lastFetched]);
 
     // globalDataRefreshedイベントをリッスンしてデータを強制更新
     useEffect(() => {
@@ -357,78 +354,77 @@ const CalendarPage: React.FC = () => {
                 tasks: event.detail.tasks?.length || 0,
                 projects: event.detail.projects?.length || 0,
                 users: event.detail.users?.length || 0,
-                groups: event.detail.groups?.length || 0,
-                events: event.detail.events?.length || 0
+                groups: event.detail.groups?.length || 0
             });
-            const { tasks, projects, users, groups, events } = event.detail;
-            setTasks(tasks);
-            setProjects(projects);
-            setUsers(users);
-            setGroups(groups);
-            setRawEvents(events || []);
+            const { tasks, projects, users, groups } = event.detail;
+            setTasks(tasks || []);
+            setProjects(projects || []);
+            setUsers(users || []);
+            setGroups(groups || []);
+            // イベントはtasksとprojectsの更新時にuseEffectで自動的に再生成される
         };
 
-        const handleCsvImportCompleted = (event: CustomEvent) => {
+        const handleCsvImportCompleted = async (event: CustomEvent) => {
             console.log("[CalendarPage] CSV import completed event received:", event.detail);
             // CSVインポート完了時はグローバルデータの更新を待つ
             if (refreshGlobalData) {
                 console.log("[CalendarPage] Refreshing global data after CSV import...");
-                refreshGlobalData();
+                await refreshGlobalData();
             }
         };
 
         console.log("[CalendarPage] Adding globalDataRefreshed and csvImportCompleted event listeners");
-        window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
-        window.addEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
+        window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
+        window.addEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
         
         return () => {
             console.log("[CalendarPage] Removing globalDataRefreshed and csvImportCompleted event listeners");
-            window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
-            window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
+            window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
+            window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
         };
-    }, []);
+    }, [refreshGlobalData]);
 
     // プロジェクト変更イベントをリッスンしてタスクデータを強制更新
     useEffect(() => {
-        const handleProjectDeleted = (event: CustomEvent) => {
+        const handleProjectDeleted = async (event: CustomEvent) => {
             console.log("[CalendarPage] Project deleted event received:", event.detail);
             // プロジェクト削除時はタスクも削除されるため、グローバルデータの更新を待つ
             if (refreshGlobalData) {
                 console.log("[CalendarPage] Refreshing global data after project deletion...");
-                refreshGlobalData();
+                await refreshGlobalData();
             }
         };
 
-        const handleProjectUpdated = (event: CustomEvent) => {
+        const handleProjectUpdated = async (event: CustomEvent) => {
             console.log("[CalendarPage] Project updated event received:", event.detail);
             // プロジェクト更新時はタスクデータも再取得
             if (refreshGlobalData) {
                 console.log("[CalendarPage] Refreshing global data after project update...");
-                refreshGlobalData();
+                await refreshGlobalData();
             }
         };
 
-        const handleProjectStatusUpdated = (event: CustomEvent) => {
+        const handleProjectStatusUpdated = async (event: CustomEvent) => {
             console.log("[CalendarPage] Project status updated event received:", event.detail);
             // プロジェクト表示ステータス更新時はタスクデータも再取得
             if (refreshGlobalData) {
                 console.log("[CalendarPage] Refreshing global data after project status update...");
-                refreshGlobalData();
+                await refreshGlobalData();
             }
         };
 
         console.log("[CalendarPage] Adding project change event listeners");
-        window.addEventListener('projectDeleted', handleProjectDeleted as EventListener);
-        window.addEventListener('projectUpdated', handleProjectUpdated as EventListener);
-        window.addEventListener('projectStatusUpdated', handleProjectStatusUpdated as EventListener);
+        window.addEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
+        window.addEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
+        window.addEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
         
         return () => {
             console.log("[CalendarPage] Removing project change event listeners");
-            window.removeEventListener('projectDeleted', handleProjectDeleted as EventListener);
-            window.removeEventListener('projectUpdated', handleProjectUpdated as EventListener);
-            window.removeEventListener('projectStatusUpdated', handleProjectStatusUpdated as EventListener);
+            window.removeEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
+            window.removeEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
+            window.removeEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
         };
-    }, []); // 依存関係を空にして無限ループを防ぐ
+    }, [refreshGlobalData]);
 
     // タスクとプロジェクトのデータが更新された時にイベントを再生成
     // ★★★ ローカルのタスク・プロジェクトが変更された場合のみイベントを再生成 ★★★
@@ -509,7 +505,7 @@ const CalendarPage: React.FC = () => {
         }
     }, [tasks, projects, backendEvents, loading]);
 
-    // データ取得の統合（重複を防ぐ）
+    // タブを開いた時に最新データを取得（バックグラウンド）
     useEffect(() => {
         // グローバルデータが既に存在する場合は使用
         if (globalData && globalData.tasks && globalData.tasks.length > 0 && globalData.projects && globalData.projects.length > 0) {
@@ -519,90 +515,20 @@ const CalendarPage: React.FC = () => {
             setUsers(globalData.users || []);
             setGroups(globalData.groups || []);
             
-            // バックエンドイベントを分離
-            if (globalData.events && globalData.events.length > 0) {
-                const backendEventsFromGlobal = globalData.events.filter(event => 
-                    event.extendedProps.type !== 'task' && event.extendedProps.type !== 'project'
-                );
-                setBackendEvents(backendEventsFromGlobal);
-                console.log("[CalendarPage] Using events from globalData:", globalData.events.length);
-                setRawEvents(globalData.events);
-            } else {
-                // イベントがない場合は、タスクとプロジェクトから再生成
-                console.log("[CalendarPage] Regenerating events from globalData tasks and projects");
-                const taskEvents = globalData.tasks
-                    .filter(task => task.due_date)
-                    .map(task => {
-                        const project = globalData.projects.find(p => p.id === task.project_id);
-                        return {
-                            id: `task-${task.id}`,
-                            title: task.name,
-                            start: task.due_date ? parseISO(task.due_date) : new Date(),
-                            end: undefined,
-                            allDay: true,
-                            backgroundColor: getTaskColor(task.status ?? 'todo'),
-                            borderColor: getTaskColor(task.status ?? 'todo'),
-                            extendedProps: {
-                                type: 'task',
-                                taskId: task.id,
-                                description: task.description,
-                                location: undefined,
-                                participants: undefined,
-                                projectId: task.project_id ? String(task.project_id) : undefined,
-                                taskDueDate: task.due_date,
-                                taskAssigneeId: task.assigned_to ? String(task.assigned_to) : undefined,
-                                taskCost: task.cost,
-                                taskStatus: task.status,
-                                status: undefined,
-                                displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
-                                dependsOn: task.dependsOn,
-                            }
-                        };
-                    });
-
-                const projectEvents = globalData.projects
-                    .filter(project => project.start_date)
-                    .map(project => ({
-                        id: `proj-${project.id}`,
-                        title: project.name,
-                        start: project.start_date ? parseISO(project.start_date) : new Date(),
-                        end: project.end_date ? parseISO(project.end_date) : undefined,
-                        allDay: true,
-                        backgroundColor: getProjectColor(project.status ?? 'planning'),
-                        borderColor: getProjectColor(project.status ?? 'planning'),
-                        extendedProps: {
-                            type: 'project',
-                            projectId: String(project.id),
-                            projectStatus: project.status,
-                            projectDescription: project.description,
-                            projectStartDate: project.start_date,
-                            projectEndDate: project.end_date,
-                            description: project.description,
-                            location: undefined,
-                            participants: undefined,
-                            taskDueDate: undefined,
-                            taskAssigneeId: undefined,
-                            taskCost: undefined,
-                            taskStatus: undefined,
-                            status: undefined,
-                            displayStatus: project.display_status as 'online' | 'offline' | 'archived' | undefined,
-                            dependsOn: undefined,
-                        }
-                    }));
-
-                const allCalendarEvents = sortEventsForDisplay([
-                    ...projectEvents, 
-                    ...taskEvents
-                ]);
-                
-                setRawEvents(allCalendarEvents);
-            }
-            
+            // イベントはtasksとprojectsの更新時にuseEffectで自動的に再生成される
             setLoading(false);
+            
+            // バックグラウンドで最新データを取得
+            if (refreshGlobalData) {
+                console.log("[CalendarPage] Refreshing data in background...");
+                refreshGlobalData().then(() => {
+                    console.log("[CalendarPage] Background refresh completed");
+                });
+            }
             return;
         }
 
-        // 初回ロード時のみデータを取得（他のページが既に取得済みの場合はスキップ）
+        // 初回ロード時のみローディング表示してデータを取得
         if (isInitialLoad && (!globalData || !globalData.tasks || globalData.tasks.length === 0)) {
             console.log("[CalendarPage] Fetching data on initial load...");
             fetchData();
@@ -611,7 +537,7 @@ const CalendarPage: React.FC = () => {
             console.log("[CalendarPage] No data available, fetching...");
             fetchData();
         }
-    }, [isInitialLoad, globalData]); // fetchDataを依存関係から除外
+    }, [isInitialLoad, refreshGlobalData]); // refreshGlobalDataを依存関係に追加
 
     // ページ状態が復元されたらローカル状態を更新
     useEffect(() => {
@@ -906,6 +832,14 @@ const CalendarPage: React.FC = () => {
             setError(`イベントの保存に失敗しました: ${errorMessage}`);
         } finally {
             await fetchData();
+            
+            // グローバルデータを更新して他のページにも反映
+            if (refreshGlobalData) {
+                console.log('[CalendarPage] Refreshing global data after event save/update...');
+                await refreshGlobalData();
+                console.log('[CalendarPage] Global data refresh completed for event save/update');
+            }
+            
             // fetchData後、最新のrawEventsを取得して該当イベントをセット
             setTimeout(() => {
                 if (newEventId) {
@@ -959,29 +893,20 @@ const CalendarPage: React.FC = () => {
 
             // ★★★ フロントエンドの状態からも削除 ★★★
             setRawEvents(prevEvents => prevEvents.filter(ev => ev.id !== event.id));
+            
+            // バックエンドイベントの状態も更新（マイルストーンやイベントの場合）
+            if (event.extendedProps.type !== 'task' && event.extendedProps.type !== 'Task' && 
+                event.extendedProps.type !== 'project') {
+                setBackendEvents(prevEvents => prevEvents.filter(ev => ev.id !== event.id));
+            }
+            
             setSelectedEventDetails({ event: null }); // 詳細パネルをクリア
             
-            // ★★★ グローバルデータも更新してタブ切り替え時の復活を防ぐ ★★★
-            if (updateGlobalData && globalData) {
-                const updatedEvents = globalData.events.filter(ev => ev.id !== event.id);
-                let updatedGlobalData = {
-                    ...globalData,
-                    events: updatedEvents
-                };
-                
-                // タスクの場合はタスクリストも更新
-                if (event.extendedProps.type === 'task' || event.extendedProps.type === 'Task') {
-                    const numericIdMatch = event.id.match(/\d+$/);
-                    if (numericIdMatch) {
-                        const numericId = parseInt(numericIdMatch[0]);
-                        updatedGlobalData = {
-                            ...updatedGlobalData,
-                            tasks: globalData.tasks.filter(task => task.id !== numericId)
-                        };
-                    }
-                }
-                
-                updateGlobalData(updatedGlobalData);
+            // グローバルデータを更新して他のページにも反映
+            if (refreshGlobalData) {
+                console.log('[CalendarPage] Refreshing global data after event deletion...');
+                await refreshGlobalData();
+                console.log('[CalendarPage] Global data refresh completed for event deletion');
             }
 
         } catch (err) {
@@ -1043,10 +968,35 @@ const CalendarPage: React.FC = () => {
         const { type } = eventInfo.event.extendedProps;
         const title = eventInfo.event.title || '';
         
+        // プロジェクト（複数日にまたがるイベント）もタスクと同じようにシンプルに表示
+        if (type === 'project') {
+            return (
+                <div style={{ 
+                    width: '100%', 
+                    overflow: 'hidden',
+                    display: 'block'
+                }}>
+                    <span style={{
+                        display: 'block',
+                        width: '100%',
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                    }} title={title}>
+                        {title}
+                    </span>
+                </div>
+            );
+        }
+        
         // マイルストーン（Milestone）
         if (type === 'Milestone') {
             return (
-                <div className="milestone-event-wrapper">
+                <div style={{ 
+                    width: '100%', 
+                    overflow: 'hidden',
+                    display: 'block'
+                }}>
                     <span
                         className="milestone-event-content"
                         title={`[MS] ${title}`}
@@ -1060,7 +1010,11 @@ const CalendarPage: React.FC = () => {
         // 締切（Deadline）
         if (type === 'Deadline') {
             return (
-                <div className="deadline-event-wrapper">
+                <div style={{ 
+                    width: '100%', 
+                    overflow: 'hidden',
+                    display: 'block'
+                }}>
                     <span
                         className="deadline-event-content"
                         title={`[締切] ${title}`}
@@ -1071,16 +1025,23 @@ const CalendarPage: React.FC = () => {
             );
         }
         
-        // それ以外（デフォルト）
+        // タスクなど、単一日のイベント
         return (
-            <span style={{
-                maxWidth: '100%',
+            <div style={{ 
+                width: '100%', 
                 overflow: 'hidden',
-                whiteSpace: 'nowrap',
-                textOverflow: 'ellipsis',
+                display: 'block'
             }}>
-                {title}
-            </span>
+                <span style={{
+                    display: 'block',
+                    width: '100%',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                }} title={title}>
+                    {title}
+                </span>
+            </div>
         );
     };
 
@@ -1137,6 +1098,41 @@ const CalendarPage: React.FC = () => {
                     min-height: 20px !important;
                     height: 20px !important;
                 }
+                /* イベントが日付セル内に収まるようにする（プロジェクト以外） */
+                .fc-event.custom-event,
+                .fc-event.deadline-event-wrapper,
+                .fc-event.milestone-event-wrapper {
+                    max-width: 100%;
+                }
+                .fc-event.custom-event .fc-event-main,
+                .fc-event.deadline-event-wrapper .fc-event-main,
+                .fc-event.milestone-event-wrapper .fc-event-main {
+                    max-width: 100%;
+                }
+                .fc-event.custom-event .fc-event-title,
+                .fc-event.deadline-event-wrapper .fc-event-title,
+                .fc-event.milestone-event-wrapper .fc-event-title {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    display: block;
+                }
+                /* プロジェクトは通常通り表示（タスクと同じ高さ） */
+                .fc-daygrid-event.project-event,
+                .fc-event.project-event {
+                    height: auto !important;
+                    min-height: 1.5em !important;
+                }
+                .fc-event.project-event .fc-event-main {
+                    padding: 2px 4px !important;
+                }
+                .fc-event.project-event .fc-event-title {
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    line-height: 1.2 !important;
+                    font-size: 0.8rem !important;
+                }
                 /* 締切・マイルストーン共通で背景・枠を消す（親要素にクラスが付与される想定） */
                 .fc-event.deadline-event-wrapper,
                 .fc-daygrid-event.deadline-event-wrapper,
@@ -1153,11 +1149,12 @@ const CalendarPage: React.FC = () => {
                     background: none !important;
                     border: none !important;
                     font-weight: bold;
+                    width: 100%;
                     max-width: 100%;
                     overflow: hidden;
                     white-space: nowrap;
                     text-overflow: ellipsis;
-                    display: inline-block;
+                    display: block;
                 }
                 /* マイルストーンの赤背景＋白文字 */
                 .milestone-event-content {
@@ -1167,7 +1164,8 @@ const CalendarPage: React.FC = () => {
                     border-radius: 4px;
                     padding: 2px 6px;
                     font-weight: bold;
-                    display: inline-block;
+                    display: block;
+                    width: 100%;
                     max-width: 100%;
                     overflow: hidden;
                     white-space: nowrap;
@@ -1214,9 +1212,10 @@ const CalendarPage: React.FC = () => {
                     eventContent={renderEventContent} 
                         eventClassNames={(arg) => {
                             const type = arg.event.extendedProps.type;
+                            if (type === 'project') return ['project-event'];
                             if (type === 'Deadline') return ['deadline-event-wrapper'];
                             if (type === 'Milestone') return ['milestone-event-wrapper'];
-                            return [];
+                            return ['custom-event'];
                         }}
                         dayMaxEventRows={true}
                         dayCellDidMount={handleDayCellMount}

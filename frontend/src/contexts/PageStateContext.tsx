@@ -244,22 +244,20 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
       console.log('[PageStateContext] Starting global data refresh...');
       
       // データを再取得するためのAPI呼び出し
-      const { fetchTasks, fetchProjects, fetchUsers, fetchGroups, fetchEvents } = await import('../services/api');
+      const { fetchTasks, fetchProjects, fetchUsers, fetchGroups } = await import('../services/api');
       
-      const [tasks, projects, users, groups, events] = await Promise.all([
+      const [tasks, projects, users, groups] = await Promise.all([
         fetchTasks(),
         fetchProjects(),
         fetchUsers(),
-        fetchGroups(),
-        fetchEvents()
+        fetchGroups()
       ]);
 
       console.log('[PageStateContext] Fetched data:', {
         tasks: tasks.length,
         projects: projects.length,
         users: users.length,
-        groups: groups.length,
-        events: events.length
+        groups: groups.length
       });
 
       updateGlobalData({
@@ -267,7 +265,7 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
         projects,
         users,
         groups,
-        events,
+        events: [], // イベントは各ページで生成されるため空配列
         lastFetched: Date.now(),
       });
       
@@ -278,11 +276,10 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
         tasks: tasks.length,
         projects: projects.length,
         users: users.length,
-        groups: groups.length,
-        events: events.length
+        groups: groups.length
       });
       window.dispatchEvent(new CustomEvent('globalDataRefreshed', {
-        detail: { tasks, projects, users, groups, events }
+        detail: { tasks, projects, users, groups }
       }));
     } catch (error) {
       console.error('Failed to refresh global data:', error);

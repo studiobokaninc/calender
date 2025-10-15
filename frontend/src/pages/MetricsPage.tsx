@@ -106,24 +106,30 @@ const MetricsPage: React.FC = () => {
       }
     }, []); // 依存関係を空にして無限ループを防ぐ
 
-  // データ取得の統合（重複を防ぐ）
+  // タブを開いた時に最新データを取得（バックグラウンド）
   useEffect(() => {
-    // グローバルデータが既に存在する場合はスキップ
+    // グローバルデータが既に存在する場合は、それを使いつつバックグラウンドで更新
     if (globalData && globalData.tasks.length > 0 && globalData.projects.length > 0) {
       console.log("[MetricsPage] Using existing global data...");
       setTasks(globalData.tasks);
       setProjects(globalData.projects);
       setUsers(globalData.users);
       setLoading(false);
+      
+      // バックグラウンドで最新データを取得
+      console.log("[MetricsPage] Refreshing data in background...");
+      fetchData().then(() => {
+        console.log("[MetricsPage] Background refresh completed");
+      });
       return;
     }
 
-    // 初回ロード時のみデータを取得（他のページが既に取得済みの場合はスキップ）
+    // 初回ロード時のみローディング表示してデータを取得
     if (isInitialLoad && (!globalData || globalData.tasks.length === 0)) {
       console.log("[MetricsPage] Fetching data on initial load...");
       fetchData();
     }
-  }, [isInitialLoad, globalData]); // fetchDataを依存関係から除外
+  }, [isInitialLoad, fetchData]); // fetchDataを依存関係に追加
 
   // グローバルデータの変更を直接監視（より確実な方法）
   useEffect(() => {
@@ -141,6 +147,43 @@ const MetricsPage: React.FC = () => {
       setUsers(globalData.users);
     }
   }, [globalData.tasks, globalData.projects, globalData.users, globalData.lastFetched]);
+
+  // グローバルデータ更新イベントとCSVインポートイベントをリッスン
+  useEffect(() => {
+    const handleGlobalDataRefresh = (event: CustomEvent) => {
+      console.log("[MetricsPage] Global data refreshed event received");
+      const { tasks, projects, users } = event.detail;
+      if (tasks) setTasks(tasks);
+      if (projects) setProjects(projects);
+      if (users) setUsers(users);
+    };
+
+    const handleCsvImportCompleted = async (event: CustomEvent) => {
+      console.log("[MetricsPage] CSV import completed event received:", event.detail);
+    };
+
+    const handleProjectDeleted = async (event: CustomEvent) => {
+      console.log("[MetricsPage] Project deleted event received:", event.detail);
+    };
+
+    const handleProjectUpdated = async (event: CustomEvent) => {
+      console.log("[MetricsPage] Project updated event received:", event.detail);
+    };
+
+    console.log("[MetricsPage] Adding event listeners");
+    window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
+    window.addEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
+    window.addEventListener('projectDeleted', handleProjectDeleted as EventListener);
+    window.addEventListener('projectUpdated', handleProjectUpdated as EventListener);
+
+    return () => {
+      console.log("[MetricsPage] Removing event listeners");
+      window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
+      window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
+      window.removeEventListener('projectDeleted', handleProjectDeleted as EventListener);
+      window.removeEventListener('projectUpdated', handleProjectUpdated as EventListener);
+    };
+  }, []);
 
   // フィルター状態の変更をページ状態に反映（初期化完了後のみ）
   useEffect(() => {

@@ -96,7 +96,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # サーバー設定
 HOST=0.0.0.0
-PORT=8000
+PORT=8001
 ```
 
 ### 3.2 フロントエンド設定
@@ -107,7 +107,7 @@ cp frontend/.env.example frontend/.env
 
 2. 環境変数の設定
 ```
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8001
 ```
 
 ## 4. アプリケーションの起動
@@ -118,7 +118,7 @@ VITE_API_URL=http://localhost:8000
 source venv/bin/activate
 
 # サーバーの起動
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ### 4.2 フロントエンドの起動
@@ -132,7 +132,7 @@ npm run dev
 
 1. ブラウザで以下のURLにアクセス
    - フロントエンド: http://localhost:5173
-   - バックエンドAPI: http://localhost:8000
+   - バックエンドAPI: http://localhost:8001
 
 2. 以下の機能が正常に動作することを確認
    - ユーザー登録/ログイン
@@ -147,7 +147,7 @@ npm run dev
 #### ポートが使用中の場合
 ```bash
 # 使用中のポートを確認
-lsof -i :8000
+lsof -i :8001
 lsof -i :5173
 
 # プロセスの終了

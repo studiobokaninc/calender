@@ -470,7 +470,15 @@ const ProjectsPage: React.FC = () => {
             </Box>
 
             <Box sx={{ mb: 3 }}>
-                <CsvParser onImportComplete={fetchData} />
+                <CsvParser onImportComplete={async () => {
+                    await fetchData();
+                    // CSVインポート後にグローバルデータを更新
+                    if (refreshGlobalData) {
+                        console.log('[ProjectsPage] Refreshing global data after CSV import...');
+                        await refreshGlobalData();
+                        console.log('[ProjectsPage] Global data refresh completed after CSV import');
+                    }
+                }} />
             </Box>
 
             <Paper>

@@ -172,7 +172,7 @@ const Dashboard: React.FC = () => {
     })
 
     return () => { cleanups.forEach((fn) => fn()) }
-  }, [messages])
+  }, [messages, stateRestored])
 
   // Markdown -> HTML（GFMテーブル対応）
   const renderMarkdown = (md: string) => {

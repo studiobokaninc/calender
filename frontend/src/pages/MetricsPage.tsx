@@ -22,15 +22,18 @@ const MetricsPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedProjectIdForProgress, setSelectedProjectIdForProgress] = useState<string | 'all'>('all');
-
   // ページ状態管理の使用
   const { metricsState, updateMetricsState, isInitialLoad, globalData, updateGlobalData } = useMetricsPageState();
+
+  // グローバルデータが既に存在する場合は、loading=falseで開始
+  const hasInitialData = globalData && globalData.tasks.length > 0 && globalData.projects.length > 0;
+  
+  const [projects, setProjects] = useState<Project[]>(hasInitialData ? globalData.projects : []);
+  const [tasks, setTasks] = useState<Task[]>(hasInitialData ? globalData.tasks : []);
+  const [users, setUsers] = useState<User[]>(hasInitialData ? globalData.users : []);
+  const [loading, setLoading] = useState<boolean>(!hasInitialData);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedProjectIdForProgress, setSelectedProjectIdForProgress] = useState<string | 'all'>('all');
   
   // 状態を分離（初期化時はデフォルト値）
   const [selectedTab, setSelectedTab] = useState<number>(0);
@@ -39,7 +42,7 @@ const MetricsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedDisplayStatuses, setSelectedDisplayStatuses] = useState<string[]>([]);
 
-  // ページ状態が復元されたらローカル状態を更新
+  // ページ状態が復元されたらローカル状態を更新（初回のみ）
   useEffect(() => {
     if (!isInitialLoad) {
       setSelectedTab(metricsState.selectedTab);
@@ -48,21 +51,8 @@ const MetricsPage: React.FC = () => {
       setStatusFilter(metricsState.statusFilter);
       setSelectedDisplayStatuses(metricsState.selectedDisplayStatuses);
     }
-  }, [metricsState, isInitialLoad]);
-
-  // グローバルデータから初期値を設定
-  useEffect(() => {
-    if (globalData.tasks.length > 0) {
-      setTasks(globalData.tasks);
-    }
-    if (globalData.projects.length > 0) {
-      setProjects(globalData.projects);
-    }
-    if (globalData.users.length > 0) {
-      setUsers(globalData.users);
-    }
-    setLoading(false);
-  }, [globalData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialLoad]); // isInitialLoadが変わった時のみ実行
 
   // データ取得関数
   const fetchData = useCallback(async () => {
@@ -104,84 +94,58 @@ const MetricsPage: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    }, []); // 依存関係を空にして無限ループを防ぐ
+    }, [updateGlobalData]);
 
-  // タブを開いた時に最新データを取得（バックグラウンド）
+  // マウント時のデータ取得（データがない場合のみ）
   useEffect(() => {
-    // グローバルデータが既に存在する場合は、それを使いつつバックグラウンドで更新
-    if (globalData && globalData.tasks.length > 0 && globalData.projects.length > 0) {
-      console.log("[MetricsPage] Using existing global data...");
-      setTasks(globalData.tasks);
-      setProjects(globalData.projects);
-      setUsers(globalData.users);
-      setLoading(false);
-      
-      // バックグラウンドで最新データを取得
-      console.log("[MetricsPage] Refreshing data in background...");
-      fetchData().then(() => {
-        console.log("[MetricsPage] Background refresh completed");
-      });
-      return;
-    }
-
-    // 初回ロード時のみローディング表示してデータを取得
-    if (isInitialLoad && (!globalData || globalData.tasks.length === 0)) {
-      console.log("[MetricsPage] Fetching data on initial load...");
+    // グローバルデータが存在しない場合のみデータを取得
+    if (!hasInitialData) {
+      console.log("[MetricsPage] No initial data, fetching...");
       fetchData();
+    } else {
+      console.log("[MetricsPage] Using existing global data (already set in useState)");
     }
-  }, [isInitialLoad, fetchData]); // fetchDataを依存関係に追加
-
-  // グローバルデータの変更を直接監視（より確実な方法）
-  useEffect(() => {
-    if (globalData && globalData.tasks && globalData.tasks.length > 0) {
-      console.log("[MetricsPage] Global data updated, refreshing local state...");
-      console.log("[MetricsPage] Tasks count:", globalData.tasks.length);
-      setTasks(globalData.tasks);
-    }
-    if (globalData && globalData.projects && globalData.projects.length > 0) {
-      console.log("[MetricsPage] Projects count:", globalData.projects.length);
-      setProjects(globalData.projects);
-    }
-    if (globalData && globalData.users && globalData.users.length > 0) {
-      console.log("[MetricsPage] Users count:", globalData.users.length);
-      setUsers(globalData.users);
-    }
-  }, [globalData.tasks, globalData.projects, globalData.users, globalData.lastFetched]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 初回マウント時のみ実行
 
   // グローバルデータ更新イベントとCSVインポートイベントをリッスン
   useEffect(() => {
-    const handleGlobalDataRefresh = (event: CustomEvent) => {
+    const handleGlobalDataRefresh = (event: Event) => {
+      const customEvent = event as CustomEvent;
       console.log("[MetricsPage] Global data refreshed event received");
-      const { tasks, projects, users } = event.detail;
+      const { tasks, projects, users } = customEvent.detail;
       if (tasks) setTasks(tasks);
       if (projects) setProjects(projects);
       if (users) setUsers(users);
     };
 
-    const handleCsvImportCompleted = async (event: CustomEvent) => {
-      console.log("[MetricsPage] CSV import completed event received:", event.detail);
+    const handleCsvImportCompleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log("[MetricsPage] CSV import completed event received:", customEvent.detail);
     };
 
-    const handleProjectDeleted = async (event: CustomEvent) => {
-      console.log("[MetricsPage] Project deleted event received:", event.detail);
+    const handleProjectDeleted = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log("[MetricsPage] Project deleted event received:", customEvent.detail);
     };
 
-    const handleProjectUpdated = async (event: CustomEvent) => {
-      console.log("[MetricsPage] Project updated event received:", event.detail);
+    const handleProjectUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log("[MetricsPage] Project updated event received:", customEvent.detail);
     };
 
     console.log("[MetricsPage] Adding event listeners");
-    window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
-    window.addEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
-    window.addEventListener('projectDeleted', handleProjectDeleted as EventListener);
-    window.addEventListener('projectUpdated', handleProjectUpdated as EventListener);
+    window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh);
+    window.addEventListener('csvImportCompleted', handleCsvImportCompleted);
+    window.addEventListener('projectDeleted', handleProjectDeleted);
+    window.addEventListener('projectUpdated', handleProjectUpdated);
 
     return () => {
       console.log("[MetricsPage] Removing event listeners");
-      window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as EventListener);
-      window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as EventListener);
-      window.removeEventListener('projectDeleted', handleProjectDeleted as EventListener);
-      window.removeEventListener('projectUpdated', handleProjectUpdated as EventListener);
+      window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh);
+      window.removeEventListener('csvImportCompleted', handleCsvImportCompleted);
+      window.removeEventListener('projectDeleted', handleProjectDeleted);
+      window.removeEventListener('projectUpdated', handleProjectUpdated);
     };
   }, []);
 
@@ -196,7 +160,7 @@ const MetricsPage: React.FC = () => {
         selectedDisplayStatuses,
       });
     }
-  }, [selectedTab, dateRange, projectNameFilter, statusFilter, selectedDisplayStatuses, isInitialLoad]);
+  }, [selectedTab, dateRange, projectNameFilter, statusFilter, selectedDisplayStatuses, isInitialLoad, updateMetricsState]);
 
   // URLクエリパラメータに基づいて初期タブを設定（ブラウザ更新時のみ）
   useEffect(() => {

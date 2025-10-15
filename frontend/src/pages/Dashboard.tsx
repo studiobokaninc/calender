@@ -147,31 +147,43 @@ const Dashboard: React.FC = () => {
 
   // テーブル上でマウスホイールを横スクロールに変換
   useEffect(() => {
-    const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
-    const cleanups: Array<() => void> = []
+    // DOMのレンダリングを待つために遅延実行
+    const timeoutId = setTimeout(() => {
+      const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
+      const cleanups: Array<() => void> = []
 
-    containers.forEach((el) => {
-      if ((el as any)._wheelSetup) return
-      const onWheel = (e: WheelEvent) => {
-        // ピンチズームや修飾キー時は素通し
-        if (e.ctrlKey) return
-        // 横オーバーフローがない場合は素通し
-        if (el.scrollWidth <= el.clientWidth) return
-        // 垂直スクロール量が主であれば横スクロールに変換
-        const dominantDelta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
-        if (dominantDelta === 0) return
-        e.preventDefault()
-        el.scrollLeft += dominantDelta
-      }
-      el.addEventListener('wheel', onWheel, { passive: false })
-      ;(el as any)._wheelSetup = true
-      cleanups.push(() => {
-        el.removeEventListener('wheel', onWheel as any)
-        delete (el as any)._wheelSetup
+      containers.forEach((el) => {
+        // 既存のイベントリスナーをクリーンアップ
+        if ((el as any)._wheelHandler) {
+          el.removeEventListener('wheel', (el as any)._wheelHandler)
+          delete (el as any)._wheelHandler
+        }
+        
+        const onWheel = (e: WheelEvent) => {
+          // ピンチズームや修飾キー時は素通し
+          if (e.ctrlKey) return
+          // 横オーバーフローがない場合は素通し
+          if (el.scrollWidth <= el.clientWidth) return
+          // 垂直スクロール量が主であれば横スクロールに変換
+          const dominantDelta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+          if (dominantDelta === 0) return
+          e.preventDefault()
+          el.scrollLeft += dominantDelta
+        }
+        
+        el.addEventListener('wheel', onWheel, { passive: false })
+        ;(el as any)._wheelHandler = onWheel
+        
+        cleanups.push(() => {
+          el.removeEventListener('wheel', onWheel as any)
+          delete (el as any)._wheelHandler
+        })
       })
-    })
 
-    return () => { cleanups.forEach((fn) => fn()) }
+      return () => { cleanups.forEach((fn) => fn()) }
+    }, 100) // DOMレンダリング後に実行
+
+    return () => { clearTimeout(timeoutId) }
   }, [messages, stateRestored])
 
   // Markdown -> HTML（GFMテーブル対応）

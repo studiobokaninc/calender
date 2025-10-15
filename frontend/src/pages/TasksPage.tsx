@@ -352,6 +352,16 @@ const TasksPage: React.FC = () => {
         };
     }, [refreshGlobalData]);
 
+    // フィルター変更時にページをリセット
+    useEffect(() => {
+        if (stateRestored) {
+            setPaginationModel(prev => ({
+                ...prev,
+                page: 0
+            }));
+        }
+    }, [statusFilter, projectFilter, assigneeFilter, stateRestored]);
+
     // フィルター状態の変更をページ状態に反映（状態復元が完了した後のみ）
     useEffect(() => {
         if (stateRestored) {

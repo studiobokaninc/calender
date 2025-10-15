@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
@@ -112,6 +112,13 @@ const TasksPage: React.FC = () => {
     const [sortModel, setSortModel] = useState<GridSortModel>([]);
     const [stateRestored, setStateRestored] = useState(false);
 
+    // フィルターの前回値を記憶するためのref
+    const prevFiltersRef = useRef({
+        statusFilter: '',
+        projectFilter: '',
+        assigneeFilter: ''
+    });
+
     // ページ状態が復元されたらローカル状態を更新
     useEffect(() => {
         if (!isInitialLoad) {
@@ -120,6 +127,12 @@ const TasksPage: React.FC = () => {
             setAssigneeFilter(tasksState.assigneeFilter);
             setPaginationModel(tasksState.paginationModel);
             setSortModel(tasksState.sortModel);
+            // 状態復元時は前回値も更新（ページリセットを防ぐため）
+            prevFiltersRef.current = {
+                statusFilter: tasksState.statusFilter,
+                projectFilter: tasksState.projectFilter,
+                assigneeFilter: tasksState.assigneeFilter
+            };
             setStateRestored(true);
         }
     }, [tasksState, isInitialLoad]);
@@ -352,28 +365,63 @@ const TasksPage: React.FC = () => {
         };
     }, [refreshGlobalData]);
 
-    // フィルター変更時にページをリセット
+    // フィルター変更時にページをリセット（実際に値が変わった時のみ）
     useEffect(() => {
         if (stateRestored) {
-            setPaginationModel(prev => ({
-                ...prev,
-                page: 0
-            }));
+            const hasFilterChanged = 
+                prevFiltersRef.current.statusFilter !== statusFilter ||
+                prevFiltersRef.current.projectFilter !== projectFilter ||
+                prevFiltersRef.current.assigneeFilter !== assigneeFilter;
+            
+            if (hasFilterChanged) {
+                // ページをリセットした状態で状態を保存
+                const resetPaginationModel = {
+                    ...paginationModel,
+                    page: 0
+                };
+                
+                // 先に状態保存してから、UIを更新
+                updateTasksState({
+                    statusFilter,
+                    projectFilter,
+                    assigneeFilter,
+                    paginationModel: resetPaginationModel,
+                    sortModel,
+                });
+                
+                setPaginationModel(resetPaginationModel);
+                
+                // 前回値を更新
+                prevFiltersRef.current = {
+                    statusFilter,
+                    projectFilter,
+                    assigneeFilter
+                };
+            }
         }
-    }, [statusFilter, projectFilter, assigneeFilter, stateRestored]);
+    }, [statusFilter, projectFilter, assigneeFilter, stateRestored, paginationModel.pageSize, sortModel, updateTasksState]);
 
-    // フィルター状態の変更をページ状態に反映（状態復元が完了した後のみ）
+    // ページネーションとソートの変更をページ状態に反映（フィルター変更以外）
     useEffect(() => {
         if (stateRestored) {
-            updateTasksState({
-                statusFilter,
-                projectFilter,
-                assigneeFilter,
-                paginationModel,
-                sortModel,
-            });
+            // フィルター変更中でないことを確認
+            const hasFilterChanged = 
+                prevFiltersRef.current.statusFilter !== statusFilter ||
+                prevFiltersRef.current.projectFilter !== projectFilter ||
+                prevFiltersRef.current.assigneeFilter !== assigneeFilter;
+            
+            if (!hasFilterChanged) {
+                updateTasksState({
+                    statusFilter,
+                    projectFilter,
+                    assigneeFilter,
+                    paginationModel,
+                    sortModel,
+                });
+            }
         }
-    }, [statusFilter, projectFilter, assigneeFilter, paginationModel, sortModel, stateRestored, updateTasksState]);
+    // paginationModelとsortModelのみを監視（フィルターは監視しない）
+    }, [paginationModel.page, paginationModel.pageSize, sortModel, stateRestored]);
 
 
 

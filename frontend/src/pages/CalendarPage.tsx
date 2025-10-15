@@ -12,7 +12,7 @@ import EventDetailsPanel from '../components/EventDetailsPanel';
 import EventAddModal from '../components/EventAddModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useCalendarPageState, usePageState } from '../contexts/PageStateContext';
-import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns } from 'date-fns';
+import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays } from 'date-fns';
 import { Box, CircularProgress, Typography, useMediaQuery, Theme, SelectChangeEvent } from '@mui/material';
 import { debounce } from 'lodash';
 
@@ -27,8 +27,19 @@ const getEventColor = (type?: string): string => {
   }
 };
 
-const getProjectColor = (status?: string): string => { // ★ 引数を project -> status に変更 (データ構造による)
-  // if (project.color) return project.color; // color プロパティがあれば使う
+const getProjectColor = (project?: { status?: string | null; color?: string | null } | string): string => {
+  // プロジェクトオブジェクトの場合、ステータスに基づく色のみを使用（カスタム色は無視）
+  if (typeof project === 'object' && project) {
+    const status = project.status;
+    switch (status) {
+      case 'planning': return '#FF9800';
+      case 'in-progress': return '#4CAF50';
+      case 'completed': return '#9E9E9E';
+      default: return '#757575';
+    }
+  }
+  // ステータス文字列の場合（後方互換性）
+  const status = typeof project === 'string' ? project : undefined;
   switch (status) {
     case 'planning': return '#FF9800';
     case 'in-progress': return '#4CAF50';
@@ -186,10 +197,10 @@ const CalendarPage: React.FC = () => {
                     id: `proj-${project.id}`,
                     title: project.name,
                     start: project.start_date ? parseISO(project.start_date) : new Date(),
-                    end: project.end_date ? parseISO(project.end_date) : undefined, 
+                    end: project.end_date ? addDays(parseISO(project.end_date), 1) : undefined, // FullCalendarの終日イベントは排他的なので+1日
                     allDay: true, 
-                    backgroundColor: getProjectColor(project.status ?? 'planning'),
-                    borderColor: getProjectColor(project.status ?? 'planning'),
+                    backgroundColor: getProjectColor(project),
+                    borderColor: getProjectColor(project),
                     extendedProps: {
                         type: 'project',
                         projectId: String(project.id),
@@ -197,6 +208,7 @@ const CalendarPage: React.FC = () => {
                         projectDescription: project.description,
                         projectStartDate: project.start_date,
                         projectEndDate: project.end_date,
+                        projectColor: project.color,
                         description: project.description,
                         location: undefined,
                         participants: undefined,
@@ -469,10 +481,10 @@ const CalendarPage: React.FC = () => {
                     id: `proj-${project.id}`,
                     title: project.name || 'Untitled Project',
                     start: project.start_date ? parseISO(project.start_date) : new Date(),
-                    end: project.end_date ? parseISO(project.end_date) : undefined,
+                    end: project.end_date ? addDays(parseISO(project.end_date), 1) : undefined, // FullCalendarの終日イベントは排他的なので+1日
                     allDay: true,
-                    backgroundColor: getProjectColor(project.status ?? 'planning'),
-                    borderColor: getProjectColor(project.status ?? 'planning'),
+                    backgroundColor: getProjectColor(project),
+                    borderColor: getProjectColor(project),
                     extendedProps: {
                         type: 'project',
                         projectId: String(project.id),
@@ -480,6 +492,7 @@ const CalendarPage: React.FC = () => {
                         projectDescription: project.description,
                         projectStartDate: project.start_date,
                         projectEndDate: project.end_date,
+                        projectColor: project.color,
                         description: project.description,
                         location: undefined,
                         participants: undefined,
@@ -762,7 +775,6 @@ const CalendarPage: React.FC = () => {
         const eventId = modalId ? String(modalId) : selectedId;
         console.log(`Determining eventId: modalData.id=${modalId}, selectedEventDetails.event?.id=${selectedId}, final eventId=${eventId}`);
 
-        let newEventId: string | null = null;
         try {
             let response;
             const numericIdForApi = eventId ? eventId.replace(/^(proj-|task-|event-)/, '') : null;
@@ -786,6 +798,19 @@ const CalendarPage: React.FC = () => {
                     };
                     console.log(`Updating task (PUT) with numeric ID: ${numericIdForApi}`, taskData);
                     response = await api.put(`/tasks/${numericIdForApi}`, taskData);
+                } else if (normalizedType === 'Project') {
+                    const md: any = modalData;
+                    const projectData = {
+                        name: md.title,
+                        description: md.description || md.projectDescription || '',
+                        status: md.status || md.projectStatus || 'planning',
+                        start_date: md.projectStartDate || md.start_time,
+                        end_date: md.projectEndDate || md.end_time,
+                        display_status: md.display_status,
+                        color: md.color,
+                    };
+                    console.log(`Updating project (PUT) with numeric ID: ${numericIdForApi}`, projectData);
+                    response = await api.put(`/projects/${numericIdForApi}`, projectData);
                 } else {
                     console.log(`Updating event (PUT) with numeric ID: ${numericIdForApi}`, apiData);
                     response = await api.put(`/calendar/events/${numericIdForApi}`, apiData);
@@ -806,6 +831,19 @@ const CalendarPage: React.FC = () => {
                     };
                     console.log("[CalendarPage] Creating NEW TASK via POST /tasks with data:", JSON.stringify(taskData, null, 2));
                     response = await api.post('/tasks', taskData);
+                } else if (normalizedType === 'Project') {
+                    const md: any = modalData;
+                    const projectData = {
+                        name: md.title,
+                        description: md.description || md.projectDescription || '',
+                        status: md.status || md.projectStatus || 'planning',
+                        start_date: md.projectStartDate || md.start_time,
+                        end_date: md.projectEndDate || md.end_time,
+                        display_status: md.display_status || 'online',
+                        color: md.color,
+                    };
+                    console.log("[CalendarPage] Creating NEW PROJECT via POST /projects with data:", JSON.stringify(projectData, null, 2));
+                    response = await api.post('/projects', projectData);
                 } else {
                     console.log("[CalendarPage] Creating NEW GENERIC EVENT via POST /calendar/events with data:", apiData);
                 response = await api.post('/calendar/events', apiData); 
@@ -813,26 +851,12 @@ const CalendarPage: React.FC = () => {
             }
             console.log("Save/Update response:", response.data);
 
-            if (response.data && response.data.id) {
-                const savedEventData = response.data as (BackendEvent & Project & Task);
-                const eventTypeRaw = savedEventData.type || modalData.type || 'Generic';
-                const normalizedType = eventTypeRaw.charAt(0).toUpperCase() + eventTypeRaw.slice(1).toLowerCase();
-                let idPrefix = 'event-';
-                if (normalizedType === 'Project') {
-                    idPrefix = 'proj-';
-                } else if (normalizedType === 'Task') {
-                    idPrefix = 'task-';
-                }
-                newEventId = `${idPrefix}${savedEventData.id}`;
-            }
-
         } catch (err: any) {
             console.error("Failed to save event:", err);
             const errorMessage = err.response?.data?.detail || err.message || 'Unknown error';
             setError(`イベントの保存に失敗しました: ${errorMessage}`);
+            setLoading(false);
         } finally {
-            await fetchData();
-            
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
                 console.log('[CalendarPage] Refreshing global data after event save/update...');
@@ -840,18 +864,10 @@ const CalendarPage: React.FC = () => {
                 console.log('[CalendarPage] Global data refresh completed for event save/update');
             }
             
-            // fetchData後、最新のrawEventsを取得して該当イベントをセット
-            setTimeout(() => {
-                if (newEventId) {
-                    const found = rawEvents.find((ev: any) => ev.id === newEventId);
-                    if (found) {
-                        setSelectedEventDetails({ event: found, totalCost: found.extendedProps.type === 'Task' ? (found.extendedProps.taskCost ?? 0) : undefined });
-                        setIsPanelMinimized(false);
-                    }
-                }
-                handleCloseModal();
+            // モーダルを閉じて選択をクリア
+            handleCloseModal();
+            setSelectedEventDetails({ event: null });
             setLoading(false);
-            }, 0);
         }
     };
 
@@ -863,30 +879,23 @@ const CalendarPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            if (event.extendedProps.type === 'task' || event.extendedProps.type === 'Task') {
-                // ★★★ ID 文字列から数値部分を抽出 ★★★
-                const numericIdMatch = event.id.match(/\d+$/); // 末尾の数字部分を取得
-                if (!numericIdMatch) {
-                    console.error("Invalid event ID format for deletion:", event.id);
-                    setError("無効なイベントIDのため削除できませんでした。");
-                    return; // 数値 ID がなければ処理中断
-                }
-                const numericId = numericIdMatch[0]; // 抽出した数値文字列
-                console.log(`Extracted numeric ID: ${numericId}`); // 抽出結果をログ表示
+            // ★★★ ID 文字列から数値部分を抽出 ★★★
+            const numericIdMatch = event.id.match(/\d+$/); // 末尾の数字部分を取得
+            if (!numericIdMatch) {
+                console.error("Invalid event ID format for deletion:", event.id);
+                setError("無効なイベントIDのため削除できませんでした。");
+                return; // 数値 ID がなければ処理中断
+            }
+            const numericId = numericIdMatch[0]; // 抽出した数値文字列
+            console.log(`Extracted numeric ID: ${numericId}`); // 抽出結果をログ表示
 
+            if (event.extendedProps.type === 'task' || event.extendedProps.type === 'Task') {
                 await api.delete(`/tasks/${numericId}`);
                 console.log(`Task with numeric ID ${numericId} (original ID: ${event.id}) deleted successfully.`);
+            } else if (event.extendedProps.type === 'project' || event.extendedProps.type === 'Project') {
+                await api.delete(`/projects/${numericId}`);
+                console.log(`Project with numeric ID ${numericId} (original ID: ${event.id}) deleted successfully.`);
             } else {
-                // ★★★ ID 文字列から数値部分を抽出 ★★★
-                const numericIdMatch = event.id.match(/\d+$/); // 末尾の数字部分を取得
-                if (!numericIdMatch) {
-                    console.error("Invalid event ID format for deletion:", event.id);
-                    setError("無効なイベントIDのため削除できませんでした。");
-                    return; // 数値 ID がなければ処理中断
-                }
-                const numericId = numericIdMatch[0]; // 抽出した数値文字列
-                console.log(`Extracted numeric ID: ${numericId}`); // 抽出結果をログ表示
-
                 await api.delete(`/calendar/events/${numericId}`);
                 console.log(`Event with numeric ID ${numericId} (original ID: ${event.id}) deleted successfully.`);
             }

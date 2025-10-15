@@ -221,8 +221,9 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     if (open) {
       if (eventToEdit) {
         const eventTypeFromEditRaw = eventToEdit.extendedProps?.type;
-        const eventTypeFromEdit = (eventTypeFromEditRaw === 'Task' || eventTypeFromEditRaw === 'task') ? 'task' : (eventTypeFromEditRaw || 'Generic');
+        const eventTypeFromEdit = (eventTypeFromEditRaw === 'Task' || eventTypeFromEditRaw === 'task') ? 'task' : (eventTypeFromEditRaw === 'Project' || eventTypeFromEditRaw === 'project') ? 'project' : (eventTypeFromEditRaw || 'Generic');
         const isTask = eventTypeFromEdit === 'task';
+        const isProject = eventTypeFromEdit === 'project';
 
         let calculatedStartDateStr: string | undefined = undefined;
         let taskDueDateStr: string | undefined = undefined;
@@ -240,6 +241,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
               calculatedStartDateStr = format(startDateObj, 'yyyy-MM-dd');
             }
           }
+        } else if (isProject && eventToEdit.extendedProps?.projectStartDate) {
+          // プロジェクトの場合は、extendedPropsから元の開始日を取得
+          const projectStartDateObj = parseISO(eventToEdit.extendedProps.projectStartDate);
+          if (isDateValid(projectStartDateObj)) {
+            calculatedStartDateStr = format(projectStartDateObj, 'yyyy-MM-dd');
+          }
         } else if (eventToEdit.start) {
           const startObjTmp = (eventToEdit.start instanceof Date) ? eventToEdit.start : parseISO(eventToEdit.start as string);
           if (isDateValid(startObjTmp)) {
@@ -250,20 +257,31 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         const startObjForForm = eventToEdit.start ? ((eventToEdit.start instanceof Date) ? eventToEdit.start : parseISO(eventToEdit.start as string)) : undefined;
         const endObjForForm = eventToEdit.end ? ((eventToEdit.end instanceof Date) ? eventToEdit.end : parseISO(eventToEdit.end as string)) : undefined;
 
+        // プロジェクトの場合は、extendedPropsから元の終了日を取得（FullCalendar用に+1日されていない）
+        let endDateStr: string | undefined = undefined;
+        if (isProject && eventToEdit.extendedProps?.projectEndDate) {
+          const projectEndDateObj = parseISO(eventToEdit.extendedProps.projectEndDate);
+          if (isDateValid(projectEndDateObj)) {
+            endDateStr = format(projectEndDateObj, 'yyyy-MM-dd');
+          }
+        } else if (!isTask && endObjForForm && isDateValid(endObjForForm)) {
+          endDateStr = format(endObjForForm, 'yyyy-MM-dd');
+        }
+
         setFormData({
           type: eventTypeFromEdit,
           title: eventToEdit.title || '',
-          description: eventToEdit.extendedProps?.description || '',
+          description: isProject ? (eventToEdit.extendedProps?.projectDescription || eventToEdit.extendedProps?.description || '') : (eventToEdit.extendedProps?.description || ''),
           startDate: calculatedStartDateStr,
-          endDate: (isTask || !endObjForForm || !isDateValid(endObjForForm)) ? undefined : format(endObjForForm, 'yyyy-MM-dd'),
-          startTime: (isTask || !startObjForForm || !isDateValid(startObjForForm) || eventToEdit.allDay) ? undefined : format(startObjForForm, 'HH:mm'),
-          endTime: (isTask || !endObjForForm || !isDateValid(endObjForForm) || eventToEdit.allDay) ? undefined : format(endObjForForm, 'HH:mm'),
-          allDay: isTask ? true : (eventToEdit.allDay ?? false),
+          endDate: endDateStr,
+          startTime: (isTask || isProject || !startObjForForm || !isDateValid(startObjForForm) || eventToEdit.allDay) ? undefined : format(startObjForForm, 'HH:mm'),
+          endTime: (isTask || isProject || !endObjForForm || !isDateValid(endObjForForm) || eventToEdit.allDay) ? undefined : format(endObjForForm, 'HH:mm'),
+          allDay: (isTask || isProject) ? true : (eventToEdit.allDay ?? false),
           projectId: eventToEdit.extendedProps?.projectId?.toString() || null,
           taskDueDate: taskDueDateStr, // Use the parsed and formatted due date string for tasks
           taskAssigneeId: eventToEdit.extendedProps?.taskAssigneeId?.toString() || null,
           taskCost: eventToEdit.extendedProps?.taskCost || '',
-          taskStatus: eventToEdit.extendedProps?.taskStatus || 'todo',
+          taskStatus: isProject ? (eventToEdit.extendedProps?.projectStatus || 'planning') : (eventToEdit.extendedProps?.taskStatus || 'todo'),
           location: eventToEdit.extendedProps?.location || '',
           newProjectName: '',
           newProjectDescription: '',
@@ -441,6 +459,16 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         next.startDate = undefined;
         next.endDate = undefined;
   
+      } else if (newType === 'Project' || newType === 'project') {
+        // プロジェクトは終日・時間不要。開始日と終了日が必要。
+        next.allDay = true;
+        next.startTime = undefined;
+        next.endTime = undefined;
+  
+        // 開始日・終了日は既存値を優先
+        next.startDate = prev.startDate || prev.taskDueDate || '';
+        next.endDate = prev.endDate || '';
+  
       } else if (newType === 'Deadline' || newType === 'Milestone') {
         // これらは終日・時間不要。必要なのは期日に相当する startDate。
         next.allDay = true;
@@ -519,6 +547,14 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       // if (!formData.taskAssigneeId) newErrors.taskAssigneeId = '担当者を選択してください'; // 必須ではなくなった
       if (formData.taskCost && isNaN(Number(formData.taskCost))) newErrors.taskCost = 'コストには数値を入力してください';
 
+    } else if (formData.type === 'project' || formData.type === 'Project') {
+      // プロジェクトタイプの検証
+      if (!formData.startDate) newErrors.startDate = '開始日を入力してください';
+      if (!formData.endDate) newErrors.endDate = '終了日を入力してください';
+      // 日付の順序検証
+      if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
+        newErrors.endDate = '終了日は開始日より後に設定してください';
+      }
     } else if (formData.type) { // Generic, Meeting, Workshop, Deadline, Milestone
         if (!formData.startDate) {
             newErrors.startDate = (formData.type === 'Deadline' || formData.type === 'Milestone') ? '期日を入力してください' : '開始日を入力してください';
@@ -560,6 +596,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       const typeMap: Record<string, string> = {
         task: 'Task',
         Task: 'Task',
+        project: 'Project',
+        Project: 'Project',
         meeting: 'Meeting',
         Meeting: 'Meeting',
         deadline: 'Deadline',
@@ -575,7 +613,27 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       dataToSave.type = normalizedType;
 
 
-      if (normalizedType === 'Task') {
+      if (normalizedType === 'Project') {
+        // プロジェクトの場合
+        if (formData.startDate) {
+          const startDateObj = parseDateString(formData.startDate);
+          if (startDateObj && isDateValid(startDateObj)) {
+            dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
+            dataToSave.projectStartDate = format(startDateObj, 'yyyy-MM-dd');
+          }
+        }
+        if (formData.endDate) {
+          const endDateObj = parseDateString(formData.endDate);
+          if (endDateObj && isDateValid(endDateObj)) {
+            dataToSave.end_time = format(startOfDay(addDays(endDateObj, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
+            dataToSave.projectEndDate = format(endDateObj, 'yyyy-MM-dd');
+          }
+        }
+        dataToSave.allDay = true;
+        dataToSave.projectDescription = formData.description || '';
+        dataToSave.projectStatus = formData.taskStatus || 'planning'; // プロジェクトのステータス
+        dataToSave.status = formData.taskStatus || 'planning'; // APIに送信するステータス
+      } else if (normalizedType === 'Task') {
         if (formData.startDate) { // Check if calculated startDate exists
             const startDateObj = parseDateString(formData.startDate);
             if (startDateObj && isDateValid(startDateObj)) {
@@ -705,7 +763,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   // --- UI 表示制御ロジック ---
   const showProjectSelection = useMemo(() => {
     if (!formData?.type) return false;
-    // タスク、会議、ワークショップ、締切、マイルストーンで表示
+    // タスク、会議、ワークショップ、締切、マイルストーンで表示（プロジェクトは除外）
     return ['task', 'Task', 'Meeting', 'Workshop', 'Deadline', 'Milestone'].includes(formData.type);
   }, [formData?.type]);
 
@@ -757,21 +815,22 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
               <FormControl fullWidth required error={!!errors.type} size="small" sx={{ mb: 1.5 }}>
                  <InputLabel id="event-type-label">タイプ *</InputLabel>
                  <Select
-                    labelId="event-type-label"
-                    name="type"
-                    value={formData.type}
-                    label="タイプ *"
-                    onChange={handleTypeChange}
-                    size="small"
-                    disabled={!!eventToEdit} // 編集時はタイプ変更不可
-                 >
-                    <MenuItem value="Task">タスク</MenuItem>
-                   <MenuItem value="Meeting">会議</MenuItem>
-                   <MenuItem value="Workshop">ワークショップ</MenuItem>
-                   <MenuItem value="Generic">イベント (通常)</MenuItem>
-                   <MenuItem value="Deadline">締切</MenuItem>
-                   <MenuItem value="Milestone">マイルストーン</MenuItem>
-              </Select>
+                   labelId="event-type-label"
+                   name="type"
+                   value={formData.type}
+                   label="タイプ *"
+                   onChange={handleTypeChange}
+                   size="small"
+                   disabled={!!eventToEdit} // 編集時はタイプ変更不可
+                >
+                   <MenuItem value="Task">タスク</MenuItem>
+                  <MenuItem value="Project">プロジェクト</MenuItem>
+                  <MenuItem value="Meeting">会議</MenuItem>
+                  <MenuItem value="Workshop">ワークショップ</MenuItem>
+                  <MenuItem value="Generic">イベント (通常)</MenuItem>
+                  <MenuItem value="Deadline">締切</MenuItem>
+                  <MenuItem value="Milestone">マイルストーン</MenuItem>
+             </Select>
               {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
                </FormControl>
 
@@ -943,8 +1002,9 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                           >
                               <MenuItem value="todo">未着手</MenuItem>
                               <MenuItem value="in-progress">進行中</MenuItem>
+                              <MenuItem value="review">レビュー中</MenuItem>
                               <MenuItem value="completed">完了</MenuItem>
-                              <MenuItem value="pending">保留</MenuItem>
+                              <MenuItem value="delayed">遅延</MenuItem>
                           </Select>
             </FormControl>
           </Grid>
@@ -988,8 +1048,49 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
               </Grid>
             )}
 
+            {/* Project Specific Fields */}
+            {(formData.type === 'project' || formData.type === 'Project') && (
+              <Grid item xs={12} container spacing={1.5}>
+                  {/* Project Start Date */}
+                  <Grid item xs={6}>
+                      <DatePicker
+                          label="開始日 *"
+                          value={parseDateString(formData.startDate)}
+                          onChange={(newValue) => handleDateChange('startDate', newValue)}
+                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
+                      />
+                  </Grid>
+                  {/* Project End Date */}
+                  <Grid item xs={6}>
+                      <DatePicker
+                          label="終了日 *"
+                          value={parseDateString(formData.endDate)}
+                          onChange={(newValue) => handleDateChange('endDate', newValue)}
+                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endDate, helperText: errors.endDate } }}
+                      />
+                  </Grid>
+                  {/* Project Status */}
+                  <Grid item xs={12}>
+                      <FormControl fullWidth size="small">
+                          <InputLabel id="project-status-select-label">ステータス</InputLabel>
+                          <Select
+                              labelId="project-status-select-label"
+                              name="taskStatus"
+                              value={formData.taskStatus}
+                              label="ステータス"
+                              onChange={handleChange}
+                          >
+                              <MenuItem value="planning">計画中</MenuItem>
+                              <MenuItem value="in-progress">進行中</MenuItem>
+                              <MenuItem value="completed">完了</MenuItem>
+                          </Select>
+                      </FormControl>
+                  </Grid>
+              </Grid>
+            )}
+
             {/* Fields for Non-Task Event Types (Generic, Meeting, Workshop, Deadline, Milestone) */}
-            {formData.type && formData.type !== 'task' && formData.type !== 'Task' && (
+            {formData.type && formData.type !== 'task' && formData.type !== 'Task' && formData.type !== 'project' && formData.type !== 'Project' && (
               <Grid item xs={12} container spacing={1.5}>
                    {/* All Day Checkbox */}
                    {showAllDayCheckbox && (

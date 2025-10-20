@@ -192,8 +192,26 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
       }
       if (event.allDay) {
         const currentEventDayStart = startOfDay(eventStartObj);
-        const currentEventDayEnd = eventEndObj ? endOfDay(eventEndObj) : endOfDay(eventStartObj);
-        return currentEventDayStart <= selectedDayEnd && currentEventDayEnd >= selectedDayStart;
+        
+        if (eventEndObj) {
+          // FullCalendarの終日イベントは排他的終了日を使用（実際の終了日+1日）
+          // 期間イベント（プロジェクトなど）の場合、終了日は排他的
+          const currentEventDayEnd = startOfDay(eventEndObj);
+          
+          // 単一日イベントかどうかをチェック（start日とend日が同じまたは1日差）
+          const daysDiff = Math.floor((currentEventDayEnd.getTime() - currentEventDayStart.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (daysDiff <= 1) {
+            // 単一日イベント（マイルストーン、締切など）
+            return isSameDay(currentEventDayStart, selectedDate!);
+          } else {
+            // 期間イベント（プロジェクトなど）- 排他的終了日として扱う
+            return currentEventDayStart <= selectedDayEnd && currentEventDayEnd > selectedDayStart;
+          }
+        } else {
+          // endがない場合は単一日イベント
+          return isSameDay(currentEventDayStart, selectedDate!);
+        }
       } else {
         const currentEventActualEnd = eventEndObj || eventStartObj;
         return eventStartObj <= selectedDayEnd && currentEventActualEnd >= selectedDayStart;
@@ -274,7 +292,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     console.log("[EventDetailsPanel] getTitleBorderColor called with event:", event ? { type: event.extendedProps?.type, status: event.extendedProps?.taskStatus, projectStatus: event.extendedProps?.projectStatus } : null);
     if (!event) return 'transparent';
     const type = event.extendedProps?.type;
-    if (type === 'project') return getProjectColor(projectMap.get(String(event.extendedProps?.projectId)));
+    if (type === 'project') return getProjectColor({ status: event.extendedProps?.projectStatus });
     if (type === 'task') return getTaskColor(event.extendedProps?.taskStatus ?? 'todo');
     return getEventColor(type);
   };
@@ -282,16 +300,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   // カード色分け用関数
   const getCardColor = (ev: CalendarEvent) => {
     const type = ev.extendedProps?.type?.toLowerCase?.();
-    let projectId = ev.extendedProps?.projectId;
-    if (!projectId && type === 'project') {
-      let key = String(ev.id);
-      if (key.startsWith('proj-')) key = key.replace('proj-', '');
-      projectId = key;
-    } else if (typeof projectId === 'string' && projectId.startsWith('proj-')) {
-      projectId = projectId.replace('proj-', '');
-    }
     if (type === 'milestone') return '#d32f2f'; // マイルストーンは常に赤
-    if (type === 'project') return getProjectColor(projectMap.get(String(projectId)));
+    if (type === 'project') return getProjectColor({ status: ev.extendedProps?.projectStatus });
     if (type === 'task') return getTaskColor(ev.extendedProps?.taskStatus ?? 'todo');
     if (type === 'milestone' || type === 'deadline') return getEventColor(type);
     return getEventColor(type);
@@ -305,10 +315,11 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
         title: ev.title,
         type: ev.extendedProps?.type,
         color: getCardColor(ev),
-        project: projectMap.get(String(ev.extendedProps?.projectId))
+        projectStatus: ev.extendedProps?.projectStatus,
+        taskStatus: ev.extendedProps?.taskStatus
       });
     });
-  }, [dailyEvents, projectMap]);
+  }, [dailyEvents]);
 
   return (
     <Box sx={{ p: 1, pt: 4, overflowY: 'auto', flexGrow: 1, position: 'relative', height: '100%' }}>
@@ -324,59 +335,103 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
 
       {/* プルダウンを詳細欄の上部に表示（ミニマイズ時は非表示） */}
       {!isMinimized && (
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 2 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>表示イベント</Typography>
-          <FormControl size="small" sx={{ minWidth: 110, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
-            <Select
-              labelId="event-status-filter-label"
-              value={eventStatusFilter}
-              onChange={onEventStatusFilterChange}
-              displayEmpty
-              inputProps={{ 'aria-label': '表示イベント' }}
-              sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
-            >
-              <MenuItem value="all">すべて</MenuItem>
-              <MenuItem value="online">オンライン</MenuItem>
-              <MenuItem value="offline">オフライン</MenuItem>
-              <MenuItem value="archived">アーカイブ済み</MenuItem>
-            </Select>
-          </FormControl>
+        <Box sx={{ mb: 1 }}>
+          {selectedDate && (
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '1.15rem', color: 'primary.main', mb: 1 }}>
+              {formatDate(selectedDate)}
+            </Typography>
+          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>表示イベント</Typography>
+            <FormControl size="small" sx={{ minWidth: 110, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
+              <Select
+                labelId="event-status-filter-label"
+                value={eventStatusFilter}
+                onChange={onEventStatusFilterChange}
+                displayEmpty
+                inputProps={{ 'aria-label': '表示イベント' }}
+                sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
+              >
+                <MenuItem value="all">すべて</MenuItem>
+                <MenuItem value="online">オンライン</MenuItem>
+                <MenuItem value="offline">オフライン</MenuItem>
+                <MenuItem value="archived">アーカイブ済み</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
       )}
 
       {!isMinimized && (
         <>
           {selectedEvent && (
-            <Paper elevation={0} sx={{ p: 1.5, borderLeft: 5, borderColor: getTitleBorderColor(selectedEvent) }}>
+            <Paper 
+              elevation={2} 
+              sx={{ 
+                p: 2, 
+                borderLeft: 5, 
+                borderColor: getTitleBorderColor(selectedEvent),
+                backgroundColor: '#fafafa',
+                transition: 'box-shadow 0.2s',
+                '&:hover': { boxShadow: 4 }
+              }}
+            >
               {/* 1. タイトル（アイコン付き・青・ボールド・左詰め） */}
-              <Typography
-                variant="subtitle1"
-                sx={{
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: selectedEvent.extendedProps?.type === 'task' 
-                    ? getTaskColor(selectedEvent.extendedProps?.taskStatus ?? 'todo')
-                    : getEventColor(selectedEvent.extendedProps?.type ?? undefined),
-                  fontSize: '1.1rem',
-                  mb: 0.5,
-                  pl: 0,
-                }}
-              >
-                {getTypeIcon(selectedEvent.extendedProps?.type)} {selectedEvent.extendedProps?.type === 'task' ? `タスク: ${selectedEvent.title}` : selectedEvent.title}
-              </Typography>
+              <Box sx={{ mb: 1.5 }}>
+                {/* タイプ表示Chip */}
+                <Chip 
+                  label={(() => {
+                    const type = selectedEvent.extendedProps?.type;
+                    switch(type?.toLowerCase()) {
+                      case 'task': return 'タスク';
+                      case 'project': return 'プロジェクト';
+                      case 'milestone': return 'マイルストーン';
+                      case 'deadline': return '締切';
+                      case 'meeting': return '会議';
+                      case 'review': return 'レビュー';
+                      case 'generic': return 'イベント';
+                      default: return type || 'イベント';
+                    }
+                  })()} 
+                  size="small"
+                  sx={{ 
+                    mb: 1,
+                    fontWeight: 600,
+                    backgroundColor: selectedEvent.extendedProps?.type === 'task' 
+                      ? getTaskColor(selectedEvent.extendedProps?.taskStatus ?? 'todo')
+                      : selectedEvent.extendedProps?.type === 'project'
+                        ? getProjectColor({ status: selectedEvent.extendedProps?.projectStatus })
+                        : getEventColor(selectedEvent.extendedProps?.type ?? undefined),
+                    color: '#fff'
+                  }}
+                />
+                
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: 'text.primary',
+                    fontSize: '1.15rem',
+                    mb: 0.8,
+                    pl: 0,
+                  }}
+                >
+                  {getTypeIcon(selectedEvent.extendedProps?.type)} 
+                  {selectedEvent.title}
+                </Typography>
 
-              {/* 2. 時間 or 期日（アイコン付き） */}
-              <Typography
-                color="text.secondary"
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '0.95rem',
-                  mb: 0.5,
-                  pl: 0,
-                }}
-              >
+                {/* 2. 時間 or 期日（アイコン付き） */}
+                <Typography
+                  color="text.secondary"
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: '0.9rem',
+                    pl: 0,
+                  }}
+                >
                 <AccessTimeIcon fontSize="inherit" sx={{ mr: 0.5 }} />
                 {selectedEvent.extendedProps?.taskDueDate != null
                   ? `${formatDate(selectedEvent.extendedProps.taskDueDate)} (終日)`
@@ -406,176 +461,364 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                           return `${formatDate(selectedEvent.start)} ${formatTime(selectedEvent.start)} - ${formatTime(selectedEvent.end != null ? selectedEvent.end : '')}`;
                         })()
                       : '')}
-              </Typography>
+                </Typography>
+              </Box>
 
               {/* 3. その他の詳細（Chipや担当者など） */}
               {selectedEvent.extendedProps?.type === 'task' && (
                 <>
+                  {/* 関連プロジェクト（日付の下、説明の上に表示） */}
+                   {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) && (
+                      <Box sx={{ 
+                        mt: 1, 
+                        mb: 1.5, 
+                        p: 1, 
+                        backgroundColor: 'rgba(25, 118, 210, 0.08)', 
+                        borderRadius: 1,
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <FolderIcon sx={{ mr: 1, color: 'primary.main', fontSize: '1.1rem' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '0.95rem' }}>
+                          {(() => {
+                            const project = projectMap.get(String(selectedEvent.extendedProps.projectId));
+                            return project && 'name' in project ? project.name : '';
+                          })()}
+                        </Typography>
+                      </Box>
+                   )}
+                   
                   {/* タスクの説明 */}
                   {selectedEvent.extendedProps?.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.9rem', lineHeight: 1.4 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.9rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                       {selectedEvent.extendedProps.description}
                     </Typography>
                   )}
-                  {/* ステータスChip */}
-                  {selectedEvent.extendedProps?.taskStatus && (
-                    <Chip
-                      label={selectedEvent.extendedProps.taskStatus}
-                      size="small"
-                      sx={{ mt: 0, backgroundColor: getTaskColor(selectedEvent.extendedProps.taskStatus ?? 'todo'), color: '#fff' }}
-                    />
-                  )}
-                  {/* 担当者（ユーザーIDで表示） */}
-                  {selectedEvent.extendedProps?.taskAssigneeId != null && (() => {
-                    const assigneeIdStr = String(selectedEvent.extendedProps.taskAssigneeId);
-                    const assigneeIdNum = parseInt(assigneeIdStr, 10);
-                    const user = users.find(u => u.id === assigneeIdNum);
-                    if (user) {
-                      return (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                          担当者: {user.username || user.id}
-                  </Typography>
-                      );
-                    }
-                    return null;
-                  })()}
-                  {/* コスト */}
-                  {selectedEvent.extendedProps?.taskCost !== undefined && (
-                    <Typography variant="body2" color="text.secondary">
-                      コスト: {selectedEvent.extendedProps.taskCost ?? '未設定'}
-                    </Typography>
-                  )}
-                  {/* 依存関係 */}
-                  {(() => {
-                    const dependsOn = selectedEvent.extendedProps?.dependsOn || [];
-                    const thisTaskId = selectedEvent.extendedProps?.taskId;
-                    const toTasks = events.filter(e =>
-                      e.extendedProps?.type === 'task' &&
-                      Array.isArray(e.extendedProps?.dependsOn) &&
-                      e.extendedProps.dependsOn.includes(String(thisTaskId))
-                    );
-                    
-                    // 依存関係がある場合のみ表示
-                    if (dependsOn.length > 0 || toTasks.length > 0) {
-                      // 依存タスクをまとめて表示
-                      const allDependentTasks = [
-                        // このタスクが依存しているタスク
-                        ...dependsOn.map(id => {
-                          const t = events.find(e => e.extendedProps?.type === 'task' && String(e.extendedProps?.taskId) === String(id));
-                          return t ? t.title : id;
-                        }),
-                        // このタスクに依存しているタスク
-                        ...toTasks.map(t => t.title)
-                      ];
-                      
-                      return (
-                        <Typography variant="body2" color="text.secondary">
-                          依存タスク: {allDependentTasks.join(', ')}
+                  
+                  <Divider sx={{ my: 1.5 }} />
+                  
+                  {/* メタ情報セクション */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {/* ステータスChip */}
+                    {selectedEvent.extendedProps?.taskStatus && (
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500 }}>
+                          ステータス:
                         </Typography>
+                        <Chip
+                          label={selectedEvent.extendedProps.taskStatus}
+                          size="small"
+                          sx={{ backgroundColor: getTaskColor(selectedEvent.extendedProps.taskStatus ?? 'todo'), color: '#fff', fontWeight: 500 }}
+                        />
+                      </Box>
+                    )}
+                    
+                    {/* 担当者（ユーザーIDで表示） */}
+                    {selectedEvent.extendedProps?.taskAssigneeId != null && (() => {
+                      const assigneeIdStr = String(selectedEvent.extendedProps.taskAssigneeId);
+                      const assigneeIdNum = parseInt(assigneeIdStr, 10);
+                      const user = users.find(u => u.id === assigneeIdNum);
+                      if (user) {
+                        return (
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500 }}>
+                              担当者:
+                            </Typography>
+                            <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500 }}>
+                              {user.username || user.id}
+                            </Typography>
+                          </Box>
+                        );
+                      }
+                      return null;
+                    })()}
+                    
+                    {/* コスト */}
+                    {selectedEvent.extendedProps?.taskCost !== undefined && (
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500 }}>
+                          コスト:
+                        </Typography>
+                        <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500 }}>
+                          {selectedEvent.extendedProps.taskCost?.toLocaleString() ?? '未設定'}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* 依存関係 */}
+                    {(() => {
+                      const dependsOn = selectedEvent.extendedProps?.dependsOn || [];
+                      const thisTaskId = selectedEvent.extendedProps?.taskId;
+                      const toTasks = events.filter(e =>
+                        e.extendedProps?.type === 'task' &&
+                        Array.isArray(e.extendedProps?.dependsOn) &&
+                        e.extendedProps.dependsOn.includes(String(thisTaskId))
                       );
-                    }
-                    return null;
-                  })()}
-                  {/* 関連プロジェクト */}
-                   {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) && (
-                      <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1 }}>
-                        関連プロジェクト: {(() => {
-                          const project = projectMap.get(String(selectedEvent.extendedProps.projectId));
-                          return project && 'name' in project ? project.name : '';
-                        })()}
-                      </Typography>
-                   )}
+                      
+                      // このタスクが依存しているタスクを取得（実際に存在するもののみ）
+                      const fromTasks = dependsOn
+                        .map(id => events.find(e => e.extendedProps?.type === 'task' && String(e.extendedProps?.taskId) === String(id)))
+                        .filter(t => t !== undefined);
+                      
+                      // 依存関係がある場合のみ表示（実際にタスクが見つかった場合のみ）
+                      if (fromTasks.length > 0 || toTasks.length > 0) {
+                        // 依存タスクをまとめて表示
+                        const allDependentTasks = [
+                          ...fromTasks.map(t => t!.title),
+                          ...toTasks.map(t => t.title)
+                        ].filter(title => title); // 空文字列を除外
+                        
+                        // 実際に表示するタスクがある場合のみ表示
+                        if (allDependentTasks.length > 0) {
+                          return (
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                              <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500, pt: 0.25 }}>
+                                依存タスク:
+                              </Typography>
+                              <Typography variant="body2" color="text.primary" sx={{ flex: 1, fontSize: '0.875rem' }}>
+                                {allDependentTasks.join(', ')}
+                              </Typography>
+                            </Box>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
+                  </Box>
                 </>
               )}
               {selectedEvent.extendedProps?.type === 'project' && (
                 <>
                   {selectedEvent.extendedProps?.projectDescription && (
-                    <Typography variant="body2" sx={{ mt: 1, mb: 1, whiteSpace: 'pre-wrap' }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                       {selectedEvent.extendedProps.projectDescription}
                     </Typography>
                   )}
-                  {/* トータルコスト・タスク数・関係ユーザー */}
+                  
+                  <Divider sx={{ my: 1.5 }} />
+                  
+                  {/* プロジェクト統計情報 */}
                   {(() => {
                     const projectId = selectedEvent.extendedProps?.projectId;
                     const projectTasks = events.filter(e => e.extendedProps?.type === 'task' && String(e.extendedProps?.projectId) === String(projectId));
-                    const totalCost = projectTasks.reduce((sum, t) => sum + (t.extendedProps?.taskCost || 0), 0);
                     const taskCount = projectTasks.length;
                     const assigneeIds = Array.from(new Set(projectTasks.map(t => t.extendedProps?.taskAssigneeId).filter(Boolean)));
                     const assigneeNames = assigneeIds
                       .map(id => userMap.get(String(id ?? '')) ?? '')
                       .filter((name): name is string => !!name);
                     return (
-                      <Box sx={{ mt: 1, mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary">トータルコスト: {totalCost.toLocaleString()}（{taskCount}タスク）</Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="caption" sx={{ minWidth: 80, color: 'text.secondary', fontWeight: 500 }}>
+                            タスク数:
+                          </Typography>
+                          <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500 }}>
+                            {taskCount}
+                          </Typography>
+                        </Box>
                         {assigneeNames.length > 0 && (
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                            関係ユーザー: {assigneeNames.join(', ')}
-                    </Typography>
-                  )}
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                            <Typography variant="caption" sx={{ minWidth: 80, color: 'text.secondary', fontWeight: 500, pt: 0.25 }}>
+                              関係者:
+                            </Typography>
+                            <Typography variant="body2" color="text.primary" sx={{ flex: 1, fontSize: '0.875rem' }}>
+                              {assigneeNames.join(', ')}
+                            </Typography>
+                          </Box>
+                        )}
                       </Box>
                     );
                   })()}
+                  
+                  {/* ステータス */}
                   {selectedEvent.extendedProps?.projectStatus && (
-                     <Chip
-                       label={selectedEvent.extendedProps.projectStatus}
-                       size="small"
-                       sx={{ mt: 1, backgroundColor: getProjectColor(selectedEvent.extendedProps as any), color: '#fff' }}
-                     />
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Typography variant="caption" sx={{ minWidth: 80, color: 'text.secondary', fontWeight: 500 }}>
+                        ステータス:
+                      </Typography>
+                      <Chip
+                        label={selectedEvent.extendedProps.projectStatus}
+                        size="small"
+                        sx={{ 
+                          backgroundColor: getProjectColor({ status: selectedEvent.extendedProps.projectStatus }), 
+                          color: '#fff', 
+                          fontWeight: 500 
+                        }}
+                      />
+                    </Box>
                   )}
                 </>
               )}
               {!['task', 'project'].includes(selectedEvent.extendedProps?.type || '') && (
                  <>
-                   {selectedEvent.extendedProps?.location && (
-                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                      <LocationOnIcon fontSize="inherit" sx={{ mr: 0.5 }}/>{selectedEvent.extendedProps.location}
-                     </Typography>
-                   )}
+                   {/* 説明 */}
                    {selectedEvent.extendedProps?.description && (
-                     <Typography variant="body2" sx={{ mt: 1, mb: 1, whiteSpace: 'pre-wrap' }}>
+                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
                        {selectedEvent.extendedProps.description}
                      </Typography>
                    )}
-                   {selectedEvent.extendedProps?.participants && selectedEvent.extendedProps.participants.length > 0 && (
-                     <Box sx={{ mt: 1 }}>
-                       <Typography variant="caption" display="flex" alignItems="center" color="text.secondary">
-                         <GroupIcon fontSize="inherit" sx={{ mr: 0.5 }} /> 参加者:
-                       </Typography>
-                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-                        {(selectedEvent.extendedProps.participants as Participant[]).map((p, index) => {
-                          let groupId = String(p.id);
-                          if (
-                            p.type === 'group' &&
-                            typeof p.id === 'string' &&
-                            (p.id as string).startsWith('group-')
-                          ) {
-                            groupId = (p.id as string).replace('group-', '');
-                          }
-                          let groupName: string | undefined;
-                          groupName = groupMap.get(groupId);
-                          const name = p.type === 'user'
-                            ? (userMap.get(String(p.id ?? '')) ?? String(p.id ?? ''))
-                            : (groupName ?? String(p.id ?? ''));
-                          const key = `${p.type}-${String(p.id)}-${index}`;
-                          return (
-                            <Chip key={key} label={name} size="small" />
-                          );
-                        })}
-                       </Box>
-                     </Box>
+                   
+                   {/* 情報がある場合はDividerで区切る */}
+                   {(selectedEvent.extendedProps?.location || selectedEvent.extendedProps?.status || (selectedEvent.extendedProps?.participants && selectedEvent.extendedProps.participants.length > 0)) && (
+                     <Divider sx={{ my: 1.5 }} />
                    )}
+                   
+                   {/* メタ情報セクション */}
+                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
+                     {/* 時間情報（会議、ワークショップ、通常イベント用） */}
+                     {['meeting', 'workshop', 'generic'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && !selectedEvent.allDay && selectedEvent.start && (
+                       <Box sx={{ 
+                         p: 1.5, 
+                         backgroundColor: 'rgba(33, 150, 243, 0.08)', 
+                         borderRadius: 1,
+                         borderLeft: 3,
+                         borderColor: 'primary.main'
+                       }}>
+                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                           <AccessTimeIcon sx={{ mr: 0.5, color: 'primary.main', fontSize: '1.2rem' }} />
+                           <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                             時間
+                           </Typography>
+                         </Box>
+                         <Box sx={{ ml: 3 }}>
+                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                             <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                               {formatTime(selectedEvent.start)}
+                             </Typography>
+                             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                               〜
+                             </Typography>
+                             <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                               {selectedEvent.end ? formatTime(selectedEvent.end) : '未設定'}
+                             </Typography>
+                           </Box>
+                         </Box>
+                       </Box>
+                     )}
+                     
+                     {/* 場所情報 */}
+                     {selectedEvent.extendedProps?.location && (
+                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                         <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 70 }}>
+                           <LocationOnIcon sx={{ mr: 0.5, color: 'text.secondary', fontSize: '1rem' }} />
+                           <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                             場所:
+                           </Typography>
+                         </Box>
+                         <Typography variant="body2" color="text.primary" sx={{ fontWeight: 500 }}>
+                           {selectedEvent.extendedProps.location}
+                         </Typography>
+                       </Box>
+                     )}
+                     
+                     {/* ステータス（特定のイベントタイプでは非表示） */}
+                     {selectedEvent.extendedProps?.status && 
+                      !['meeting', 'milestone', 'deadline', 'workshop', 'generic'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && (
+                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                         <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500 }}>
+                           ステータス:
+                         </Typography>
+                         <Chip
+                           label={selectedEvent.extendedProps.status}
+                           size="small"
+                           sx={{ 
+                             backgroundColor: getStatusColor(selectedEvent.extendedProps.status), 
+                             color: '#fff', 
+                             fontWeight: 500 
+                           }}
+                         />
+                       </Box>
+                     )}
+                     
+                     {/* 参加者 */}
+                     {selectedEvent.extendedProps?.participants && selectedEvent.extendedProps.participants.length > 0 && (
+                       <Box>
+                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.8 }}>
+                           <GroupIcon sx={{ mr: 0.5, color: 'text.secondary', fontSize: '1rem' }} />
+                           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                             参加者
+                           </Typography>
+                         </Box>
+                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, ml: 3 }}>
+                          {(selectedEvent.extendedProps.participants as Participant[]).map((p, index) => {
+                            let groupId = String(p.id);
+                            if (
+                              p.type === 'group' &&
+                              typeof p.id === 'string' &&
+                              (p.id as string).startsWith('group-')
+                            ) {
+                              groupId = (p.id as string).replace('group-', '');
+                            }
+                            let groupName: string | undefined;
+                            groupName = groupMap.get(groupId);
+                            const name = p.type === 'user'
+                              ? (userMap.get(String(p.id ?? '')) ?? String(p.id ?? ''))
+                              : (groupName ?? String(p.id ?? ''));
+                            const key = `${p.type}-${String(p.id)}-${index}`;
+                            return (
+                              <Chip 
+                                key={key} 
+                                label={name} 
+                                size="small" 
+                                sx={{ 
+                                  fontWeight: 500,
+                                  backgroundColor: p.type === 'group' ? 'secondary.light' : 'primary.light',
+                                  color: p.type === 'group' ? 'secondary.dark' : 'primary.dark'
+                                }} 
+                              />
+                            );
+                          })}
+                         </Box>
+                       </Box>
+                     )}
+                     
+                     {/* 関連プロジェクト */}
+                     {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) && (
+                       <Box sx={{ 
+                         mt: 0.5,
+                         p: 1, 
+                         backgroundColor: 'rgba(25, 118, 210, 0.08)', 
+                         borderRadius: 1,
+                         display: 'flex',
+                         alignItems: 'center'
+                       }}>
+                         <FolderIcon sx={{ mr: 1, color: 'primary.main', fontSize: '1rem' }} />
+                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '0.9rem' }}>
+                           {(() => {
+                             const project = projectMap.get(String(selectedEvent.extendedProps.projectId));
+                             return project && 'name' in project ? project.name : '';
+                           })()}
+                         </Typography>
+                       </Box>
+                     )}
+                   </Box>
                  </>
               )}
               {/* 4. 編集・削除ボタン（右端） */}
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+              <Divider sx={{ my: 1.5 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                 <Tooltip title="編集">
-                  <IconButton size="small" onClick={handleEdit} sx={{ mr: 0.5 }}>
-                    <EditIcon fontSize="inherit" />
+                  <IconButton 
+                    size="small" 
+                    onClick={handleEdit} 
+                    sx={{ 
+                      backgroundColor: 'action.hover',
+                      '&:hover': { backgroundColor: 'primary.light', color: 'primary.main' }
+                    }}
+                  >
+                    <EditIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="削除">
-                  <IconButton size="small" onClick={handleDelete}>
-                    <DeleteIcon fontSize="inherit" />
+                  <IconButton 
+                    size="small" 
+                    onClick={handleDelete}
+                    sx={{ 
+                      backgroundColor: 'action.hover',
+                      '&:hover': { backgroundColor: 'error.light', color: 'error.main' }
+                    }}
+                  >
+                    <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </Box>
@@ -601,6 +844,32 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   }}
                   onClick={() => onEventSelect(ev)}
                 >
+                  {/* タイプ表示Chip */}
+                  <Chip 
+                    label={(() => {
+                      const type = ev.extendedProps?.type;
+                      switch(type?.toLowerCase()) {
+                        case 'task': return 'タスク';
+                        case 'project': return 'プロジェクト';
+                        case 'milestone': return 'マイルストーン';
+                        case 'deadline': return '締切';
+                        case 'meeting': return '会議';
+                        case 'review': return 'レビュー';
+                        case 'generic': return 'イベント';
+                        default: return type || 'イベント';
+                      }
+                    })()} 
+                    size="small"
+                    sx={{ 
+                      mb: 0.5,
+                      height: 20,
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      backgroundColor: getCardColor(ev),
+                      color: '#fff'
+                    }}
+                  />
+                  
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.3 }}>
                     <span style={{ color: getCardColor(ev), display: 'flex', alignItems: 'center' }}>
                       {getTypeIcon(ev.extendedProps?.type)}
@@ -609,36 +878,104 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       {ev.title}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ mb: 0.2, fontSize: '0.85rem' }}>
-                    {ev.allDay
-                      ? (() => {
-                          // 締切・マイルストーンの場合は、startを直接使用（タイムゾーン問題を回避）
-                          const eventType = ev.extendedProps?.type;
-                          if (eventType === 'Deadline' || eventType === 'Milestone') {
-                            return `${formatDate(ev.start)} (終日)`;
-                          }
-                          // 期間のある終日イベント（プロジェクトや通常イベント）は開始日と終了日を表示
-                          if (ev.end) {
-                            const startDate = typeof ev.start === 'string' ? parseISO(ev.start) : ev.start;
-                            const endDate = addDays((typeof ev.end === 'string' ? parseISO(ev.end) : ev.end), -1);
-                            // 開始日と終了日が同じ場合は終日のみ表示
-                            if (formatDate(startDate) === formatDate(endDate)) {
-                              return `${formatDate(startDate)} (終日)`;
-                            }
-                            // 異なる場合は期間を表示
-                            return `${formatDate(startDate)} - ${formatDate(endDate)} (終日)`;
-                          }
-                          // 終了日がない場合は開始日のみ
-                          console.log(`[EventDetailsPanel] No end date for event: ${ev.title}, type: ${ev.extendedProps?.type}, start: ${ev.start}`);
+                  {/* 日付・時刻表示 */}
+                  {ev.allDay ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.2, fontSize: '0.85rem' }}>
+                      {(() => {
+                        // 締切・マイルストーンの場合は、startを直接使用（タイムゾーン問題を回避）
+                        const eventType = ev.extendedProps?.type;
+                        if (eventType === 'Deadline' || eventType === 'Milestone') {
                           return `${formatDate(ev.start)} (終日)`;
-                        })()
-                      : `${formatDate(ev.start)} ${formatTime(ev.start)} - ${formatTime(ev.end)}`}
-                  </Typography>
-                  {ev.extendedProps?.location && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', mt: 0.2, fontSize: '0.8rem' }}>
-                      <LocationOnIcon fontSize="inherit" sx={{ mr: 0.5 }} />{ev.extendedProps.location}
+                        }
+                        // 期間のある終日イベント（プロジェクトや通常イベント）は開始日と終了日を表示
+                        if (ev.end) {
+                          const startDate = typeof ev.start === 'string' ? parseISO(ev.start) : ev.start;
+                          const endDate = addDays((typeof ev.end === 'string' ? parseISO(ev.end) : ev.end), -1);
+                          // 開始日と終了日が同じ場合は終日のみ表示
+                          if (formatDate(startDate) === formatDate(endDate)) {
+                            return `${formatDate(startDate)} (終日)`;
+                          }
+                          // 異なる場合は期間を表示
+                          return `${formatDate(startDate)} - ${formatDate(endDate)} (終日)`;
+                        }
+                        // 終了日がない場合は開始日のみ
+                        return `${formatDate(ev.start)} (終日)`;
+                      })()}
                     </Typography>
-              )}
+                  ) : (
+                    // 会議、ワークショップ、通常イベントの時刻表示を強調
+                    <Box sx={{ mb: 0.2 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block' }}>
+                        {formatDate(ev.start)}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.2 }}>
+                        <AccessTimeIcon sx={{ fontSize: '0.85rem', color: 'primary.main' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '0.9rem' }}>
+                          {formatTime(ev.start)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                          〜
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '0.9rem' }}>
+                          {ev.end ? formatTime(ev.end) : ''}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                  
+                  {/* 追加情報エリア */}
+                  <Box sx={{ mt: 0.5, display: 'flex', flexDirection: 'column', gap: 0.3 }}>
+                    {/* 場所 */}
+                    {ev.extendedProps?.location && (
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <LocationOnIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', mr: 0.3 }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }} noWrap>
+                          {ev.extendedProps.location}
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* 参加者数 */}
+                    {ev.extendedProps?.participants && ev.extendedProps.participants.length > 0 && (
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <GroupIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', mr: 0.3 }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                          参加者 {ev.extendedProps.participants.length}名
+                        </Typography>
+                      </Box>
+                    )}
+                    
+                    {/* ステータス（タスク・プロジェクト・特定イベントタイプ以外） */}
+                    {ev.extendedProps?.status && 
+                     !['task', 'project', 'meeting', 'milestone', 'deadline', 'workshop', 'generic'].includes(ev.extendedProps?.type?.toLowerCase() || '') && (
+                      <Chip
+                        label={ev.extendedProps.status}
+                        size="small"
+                        sx={{ 
+                          height: 18,
+                          fontSize: '0.65rem',
+                          mt: 0.2,
+                          backgroundColor: getStatusColor(ev.extendedProps.status), 
+                          color: '#fff', 
+                          fontWeight: 500,
+                          '& .MuiChip-label': { px: 0.8, py: 0 }
+                        }}
+                      />
+                    )}
+                    
+                    {/* 関連プロジェクト */}
+                    {ev.extendedProps?.projectId && projectMap.has(String(ev.extendedProps.projectId)) && (
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <FolderIcon sx={{ fontSize: '0.9rem', color: 'primary.main', mr: 0.3 }} />
+                        <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'primary.main', fontWeight: 500 }} noWrap>
+                          {(() => {
+                            const project = projectMap.get(String(ev.extendedProps.projectId));
+                            return project && 'name' in project ? project.name : '';
+                          })()}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
             </Paper>
               ))}
             </Box>

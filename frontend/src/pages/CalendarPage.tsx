@@ -336,6 +336,64 @@ const CalendarPage: React.FC = () => {
     // バックエンドイベント用の状態
     const [backendEvents, setBackendEvents] = useState<CalendarEvent[]>([]);
 
+    // バックエンドイベントを取得する専用のuseEffect（タブ切り替え時も実行）
+    useEffect(() => {
+        const fetchBackendEventsOnMount = async () => {
+            try {
+                console.log('[CalendarPage] Fetching backend events...');
+                const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
+                const backendEventsData = eventsResponse.data;
+                
+                const processedBackendEvents: CalendarEvent[] = backendEventsData
+                    .map((be): CalendarEvent | null => {
+                        const eventType = be.type;
+                        const originalStartTimeStr = be.start_time as string;
+                        const originalEndTimeStr = be.end_time as string;
+
+                        if (!originalStartTimeStr) {
+                            console.warn("Event without start_time skipped:", be);
+                            return null;
+                        }
+
+                        if (eventType === 'Task' || eventType === 'Project') {
+                            return null;
+                        } else {
+                            const project = projects.find(p => p.id === be.project_id);
+                            return {
+                                id: `event-${be.id}`,
+                                title: be.title,
+                                start: parseISO(originalStartTimeStr),
+                                end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
+                                allDay: be.allDay ?? false,
+                                backgroundColor: getEventColor(be.type ?? 'Generic'),
+                                borderColor: getEventColor(be.type ?? 'Generic'),
+                                extendedProps: {
+                                    type: be.type || 'Generic',
+                                    description: be.description ?? undefined,
+                                    location: be.location ?? undefined,
+                                    participants: be.participants ?? undefined,
+                                    projectId: be.project_id ? String(be.project_id) : undefined,
+                                    status: be.status ?? undefined,
+                                    displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                },
+                            };
+                        }
+                    })
+                    .filter((event): event is CalendarEvent => event !== null);
+                
+                console.log('[CalendarPage] Backend events loaded:', processedBackendEvents.length);
+                setBackendEvents(processedBackendEvents);
+            } catch (err) {
+                console.error('[CalendarPage] Failed to fetch backend events:', err);
+            }
+        };
+
+        // データが存在する場合のみ取得（初期化完了後）
+        if ((tasks.length > 0 || projects.length > 0) || !loading) {
+            fetchBackendEventsOnMount();
+        }
+    }, [tasks.length, projects.length, loading, globalData.lastFetched]); // タスク・プロジェクトのデータ変更時にも実行
+
     // グローバルデータの変更を直接監視（より確実な方法）
     useEffect(() => {
         if (globalData && globalData.tasks && globalData.tasks.length > 0) {
@@ -530,6 +588,63 @@ const CalendarPage: React.FC = () => {
             
             // イベントはtasksとprojectsの更新時にuseEffectで自動的に再生成される
             setLoading(false);
+            
+            // バックエンドイベントも再取得（通常のイベント用）
+            const fetchBackendEvents = async () => {
+                try {
+                    console.log('[CalendarPage] Fetching backend events...');
+                    const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
+                    const backendEventsData = eventsResponse.data;
+                    
+                    const processedBackendEvents: CalendarEvent[] = backendEventsData
+                        .map((be): CalendarEvent | null => {
+                            const eventType = be.type;
+                            const originalStartTimeStr = be.start_time as string;
+                            const originalEndTimeStr = be.end_time as string;
+
+                            if (!originalStartTimeStr) {
+                                console.warn("Event without start_time skipped:", be);
+                                return null;
+                            }
+
+                            if (eventType === 'Task') {
+                                console.warn("[CalendarPage] Task type event found in backendEventsData, should be handled by taskEvents. Skipping:", be);
+                                return null;
+                            } else if (eventType === 'Project') {
+                                console.warn("[CalendarPage] Project type event found in backendEventsData, should be handled by projectEvents. Skipping:", be);
+                                return null;
+                            } else {
+                                const project = be.project_id ? globalData.projects?.find(p => p.id === be.project_id) : undefined;
+                                return {
+                                    id: `event-${be.id}`,
+                                    title: be.title,
+                                    start: parseISO(originalStartTimeStr),
+                                    end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
+                                    allDay: be.allDay ?? false,
+                                    backgroundColor: getEventColor(be.type ?? 'Generic'),
+                                    borderColor: getEventColor(be.type ?? 'Generic'),
+                                    extendedProps: {
+                                        type: be.type || 'Generic',
+                                        description: be.description ?? undefined,
+                                        location: be.location ?? undefined,
+                                        participants: be.participants ?? undefined,
+                                        projectId: be.project_id ? String(be.project_id) : undefined,
+                                        status: be.status ?? undefined,
+                                        displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                    },
+                                };
+                            }
+                        })
+                        .filter((event): event is CalendarEvent => event !== null);
+                    
+                    console.log('[CalendarPage] Backend events loaded:', processedBackendEvents.length);
+                    setBackendEvents(processedBackendEvents);
+                } catch (err) {
+                    console.error('[CalendarPage] Failed to fetch backend events:', err);
+                }
+            };
+            
+            fetchBackendEvents();
             
             // バックグラウンドで最新データを取得
             if (refreshGlobalData) {
@@ -864,6 +979,59 @@ const CalendarPage: React.FC = () => {
                 console.log('[CalendarPage] Global data refresh completed for event save/update');
             }
             
+            // 通常のイベント（Milestone、Deadlineなど）も再取得
+            try {
+                console.log('[CalendarPage] Fetching backend events after save/update...');
+                const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
+                const backendEventsData = eventsResponse.data;
+                
+                const processedBackendEvents: CalendarEvent[] = backendEventsData
+                    .map((be): CalendarEvent | null => {
+                        const eventType = be.type;
+                        const originalStartTimeStr = be.start_time as string;
+                        const originalEndTimeStr = be.end_time as string;
+
+                        if (!originalStartTimeStr) {
+                            console.warn("Event without start_time skipped:", be);
+                            return null;
+                        }
+
+                        if (eventType === 'Task') {
+                            console.warn("[CalendarPage] Task type event found in backendEventsData, should be handled by taskEvents. Skipping in processedBackendEvents:", be);
+                            return null;
+                        } else if (eventType === 'Project') {
+                            console.warn("[CalendarPage] Project type event found in backendEventsData, should be handled by projectEvents. Skipping in processedBackendEvents:", be);
+                            return null;
+                        } else {
+                            const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
+                            return {
+                                id: `event-${be.id}`,
+                                title: be.title,
+                                start: parseISO(originalStartTimeStr),
+                                end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
+                                allDay: be.allDay ?? false,
+                                backgroundColor: getEventColor(be.type ?? 'Generic'),
+                                borderColor: getEventColor(be.type ?? 'Generic'),
+                                extendedProps: {
+                                    type: be.type || 'Generic',
+                                    description: be.description ?? undefined,
+                                    location: be.location ?? undefined,
+                                    participants: be.participants ?? undefined,
+                                    projectId: be.project_id ? String(be.project_id) : undefined,
+                                    status: be.status ?? undefined,
+                                    displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                },
+                            };
+                        }
+                    })
+                    .filter((event): event is CalendarEvent => event !== null);
+                
+                console.log('[CalendarPage] Backend events refreshed:', processedBackendEvents.length);
+                setBackendEvents(processedBackendEvents);
+            } catch (err) {
+                console.error('[CalendarPage] Failed to refresh backend events:', err);
+            }
+            
             // モーダルを閉じて選択をクリア
             handleCloseModal();
             setSelectedEventDetails({ event: null });
@@ -900,15 +1068,6 @@ const CalendarPage: React.FC = () => {
                 console.log(`Event with numeric ID ${numericId} (original ID: ${event.id}) deleted successfully.`);
             }
 
-            // ★★★ フロントエンドの状態からも削除 ★★★
-            setRawEvents(prevEvents => prevEvents.filter(ev => ev.id !== event.id));
-            
-            // バックエンドイベントの状態も更新（マイルストーンやイベントの場合）
-            if (event.extendedProps.type !== 'task' && event.extendedProps.type !== 'Task' && 
-                event.extendedProps.type !== 'project') {
-                setBackendEvents(prevEvents => prevEvents.filter(ev => ev.id !== event.id));
-            }
-            
             setSelectedEventDetails({ event: null }); // 詳細パネルをクリア
             
             // グローバルデータを更新して他のページにも反映
@@ -916,6 +1075,62 @@ const CalendarPage: React.FC = () => {
                 console.log('[CalendarPage] Refreshing global data after event deletion...');
                 await refreshGlobalData();
                 console.log('[CalendarPage] Global data refresh completed for event deletion');
+            }
+            
+            // 通常のイベント（Milestone、Deadlineなど）も再取得
+            if (event.extendedProps.type !== 'task' && event.extendedProps.type !== 'Task' && 
+                event.extendedProps.type !== 'project' && event.extendedProps.type !== 'Project') {
+                try {
+                    console.log('[CalendarPage] Fetching backend events after deletion...');
+                    const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
+                    const backendEventsData = eventsResponse.data;
+                    
+                    const processedBackendEvents: CalendarEvent[] = backendEventsData
+                        .map((be): CalendarEvent | null => {
+                            const eventType = be.type;
+                            const originalStartTimeStr = be.start_time as string;
+                            const originalEndTimeStr = be.end_time as string;
+
+                            if (!originalStartTimeStr) {
+                                console.warn("Event without start_time skipped:", be);
+                                return null;
+                            }
+
+                            if (eventType === 'Task') {
+                                console.warn("[CalendarPage] Task type event found in backendEventsData, should be handled by taskEvents. Skipping in processedBackendEvents:", be);
+                                return null;
+                            } else if (eventType === 'Project') {
+                                console.warn("[CalendarPage] Project type event found in backendEventsData, should be handled by projectEvents. Skipping in processedBackendEvents:", be);
+                                return null;
+                            } else {
+                                const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
+                                return {
+                                    id: `event-${be.id}`,
+                                    title: be.title,
+                                    start: parseISO(originalStartTimeStr),
+                                    end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
+                                    allDay: be.allDay ?? false,
+                                    backgroundColor: getEventColor(be.type ?? 'Generic'),
+                                    borderColor: getEventColor(be.type ?? 'Generic'),
+                                    extendedProps: {
+                                        type: be.type || 'Generic',
+                                        description: be.description ?? undefined,
+                                        location: be.location ?? undefined,
+                                        participants: be.participants ?? undefined,
+                                        projectId: be.project_id ? String(be.project_id) : undefined,
+                                        status: be.status ?? undefined,
+                                        displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                    },
+                                };
+                            }
+                        })
+                        .filter((event): event is CalendarEvent => event !== null);
+                    
+                    console.log('[CalendarPage] Backend events refreshed after deletion:', processedBackendEvents.length);
+                    setBackendEvents(processedBackendEvents);
+                } catch (err) {
+                    console.error('[CalendarPage] Failed to refresh backend events after deletion:', err);
+                }
             }
 
         } catch (err) {
@@ -977,8 +1192,25 @@ const CalendarPage: React.FC = () => {
         const { type } = eventInfo.event.extendedProps;
         const title = eventInfo.event.title || '';
         
-        // プロジェクト（複数日にまたがるイベント）もタスクと同じようにシンプルに表示
-        if (type === 'project') {
+        // 複数日にまたがるイベント判定（より厳密に）
+        const isMultiDay = eventInfo.event.allDay && 
+                           eventInfo.event.start && 
+                           eventInfo.event.end && 
+                           eventInfo.event.start.getTime() !== eventInfo.event.end.getTime();
+        
+        // デバッグ用ログ（開発時のみ）
+        if (process.env.NODE_ENV === 'development' && isMultiDay) {
+            console.log('renderEventContent - Multi-day event:', {
+                title: title,
+                type: type,
+                start: eventInfo.event.start,
+                end: eventInfo.event.end,
+                allDay: eventInfo.event.allDay
+            });
+        }
+        
+        // プロジェクトまたは複数日にまたがる通常イベント
+        if (type === 'project' || isMultiDay) {
             return (
                 <div style={{ 
                     width: '100%', 
@@ -1126,25 +1358,47 @@ const CalendarPage: React.FC = () => {
                     white-space: nowrap;
                     display: block;
                 }
+                /* 全てのイベントハーネスに基本的な間隔を追加 */
+                .fc-daygrid-event-harness {
+                    margin-bottom: 1px !important;
+                }
+                
+                /* 月の最後の週のイベント間隔を確保（より強く） */
+                .fc-daygrid-week:last-child .fc-daygrid-event-harness {
+                    margin-bottom: 2px !important;
+                }
+                
+                /* 最後の週の全てのイベントにも間隔を追加 */
+                .fc-daygrid-week:last-child .fc-daygrid-event {
+                    margin-bottom: 1px !important;
+                }
+                
                 /* プロジェクトは細めに表示（名前が読める程度） */
                 .fc-daygrid-event.project-event,
                 .fc-event.project-event {
                     height: auto !important;
                     min-height: 1.15em !important;
                     max-height: 1.3em !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    margin-bottom: 1px !important;
                 }
                 .fc-event.project-event .fc-event-main {
                     padding: 0 3px !important;
                     display: flex !important;
                     align-items: center !important;
                     height: 100% !important;
+                    width: 100% !important;
                 }
                 .fc-event.project-event .fc-event-title {
                     overflow: hidden;
                     text-overflow: ellipsis;
                     white-space: nowrap;
-                    line-height: 1 !important;
+                    line-height: 1.15em !important;
                     font-size: 0.72rem !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    height: 100% !important;
                 }
                 /* 締切・マイルストーン共通で背景・枠を消す（親要素にクラスが付与される想定） */
                 .fc-event.deadline-event-wrapper,
@@ -1222,13 +1476,45 @@ const CalendarPage: React.FC = () => {
                         dateClick={handleDateClick}
                         select={handleSelect}
                         eventClick={handleEventClick}
-                    eventContent={renderEventContent} 
+                        eventContent={renderEventContent} 
                         eventClassNames={(arg) => {
                             const type = arg.event.extendedProps.type;
                             if (type === 'project') return ['project-event'];
                             if (type === 'Deadline') return ['deadline-event-wrapper'];
                             if (type === 'Milestone') return ['milestone-event-wrapper'];
+                            
+                            // 複数日にまたがる通常イベントにもproject-eventスタイルを適用
+                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end && 
+                                               arg.event.start.getTime() !== arg.event.end.getTime();
+                            
+                            // デバッグ用ログ（開発時のみ）
+                            if (process.env.NODE_ENV === 'development' && isMultiDay) {
+                                console.log('Multi-day event detected:', {
+                                    title: arg.event.title,
+                                    start: arg.event.start,
+                                    end: arg.event.end,
+                                    allDay: arg.event.allDay,
+                                    type: type
+                                });
+                            }
+                            
+                            if (isMultiDay) return ['project-event', 'custom-event'];
+                            
                             return ['custom-event'];
+                        }}
+                        eventDidMount={(arg) => {
+                            // 複数日にまたがるイベントのクラスを動的に追加
+                            const type = arg.event.extendedProps.type;
+                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end && 
+                                               arg.event.start.getTime() !== arg.event.end.getTime();
+                            
+                            if (isMultiDay && type !== 'project') {
+                                arg.el.classList.add('project-event');
+                                // デバッグ用ログ
+                                if (process.env.NODE_ENV === 'development') {
+                                    console.log('Added project-event class to multi-day event:', arg.event.title);
+                                }
+                            }
                         }}
                         dayMaxEventRows={true}
                         dayCellDidMount={handleDayCellMount}

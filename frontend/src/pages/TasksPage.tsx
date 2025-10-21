@@ -3,7 +3,7 @@ import {
     Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    Snackbar, Alert, SelectChangeEvent
+    Snackbar, Alert, SelectChangeEvent, Tooltip
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon } from '@mui/icons-material';
 import api from '../services/api';
@@ -118,6 +118,9 @@ const TasksPage: React.FC = () => {
         projectFilter: '',
         assigneeFilter: ''
     });
+
+    // DataGridコンテナへの参照（マウスホイール横スクロール用）
+    const dataGridContainerRef = useRef<HTMLDivElement>(null);
 
     // ページ状態が復元されたらローカル状態を更新
     useEffect(() => {
@@ -364,6 +367,33 @@ const TasksPage: React.FC = () => {
             window.removeEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
         };
     }, [refreshGlobalData]);
+
+    // マウスホイールで横スクロールを実現
+    useEffect(() => {
+        const container = dataGridContainerRef.current;
+        if (!container) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            // 横スクロールが可能な場合のみ処理
+            const scrollableElement = container.querySelector('.MuiDataGrid-virtualScroller');
+            if (!scrollableElement) return;
+
+            // 既に横スクロールしている場合は通常の動作
+            if (e.deltaX !== 0) return;
+
+            // 縦スクロールの入力を横スクロールに変換
+            if (e.deltaY !== 0) {
+                e.preventDefault();
+                scrollableElement.scrollLeft += e.deltaY;
+            }
+        };
+
+        container.addEventListener('wheel', handleWheel, { passive: false });
+
+        return () => {
+            container.removeEventListener('wheel', handleWheel);
+        };
+    }, []);
 
     // フィルター変更時にページをリセット（実際に値が変わった時のみ）
     useEffect(() => {
@@ -725,10 +755,27 @@ const TasksPage: React.FC = () => {
 
     // DataGrid用のカラム定義
     const columns: GridColDef[] = useMemo(() => [
-        { field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1 },
+        { field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, renderCell: (params: GridRenderCellParams) => {
+            const row = params.row;
+            const text = row.name || '-';
+            return (
+                <Tooltip title={text} followCursor>
+                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {text}
+                    </Box>
+                </Tooltip>
+            );
+        } },
         { field: 'description', headerName: '説明', minWidth: 100, flex: 1, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
-            return row.description || '-';
+            const text = row.description || '-';
+            return (
+                <Tooltip title={text} followCursor>
+                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {text}
+                    </Box>
+                </Tooltip>
+            );
         } },
         { field: 'status', headerName: 'ステータス', minWidth: 80, width: 120, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
@@ -750,7 +797,7 @@ const TasksPage: React.FC = () => {
             minWidth: 100,
             width: 150,
             sortable: true,
-            renderCell: (params) => String(params.value ?? '-') ,
+            renderCell: (params) => String(params.value ?? '-'),
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
         { field: 'priority', headerName: '優先度', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
@@ -778,7 +825,14 @@ const TasksPage: React.FC = () => {
         } },
         { field: 'shotID', headerName: 'shot', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
-            return row.shotID || '-';
+            const text = row.shotID || '-';
+            return (
+                <Tooltip title={text} followCursor>
+                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {text}
+                    </Box>
+                </Tooltip>
+            );
         } },
         { field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
@@ -808,7 +862,14 @@ const TasksPage: React.FC = () => {
             renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const user = users.find(u => u.id === row.assigned_to);
-                return user ? user.username : '-';
+                const text = user ? user.username : '-';
+                return (
+                    <Tooltip title={text} followCursor>
+                        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {text}
+                        </Box>
+                    </Tooltip>
+                );
             } 
         },
         {
@@ -835,7 +896,16 @@ const TasksPage: React.FC = () => {
             minWidth: 80,
             width: 150,
             sortable: true,
-            renderCell: (params) => String(params.value ?? '-') ,
+            renderCell: (params) => {
+                const text = String(params.value ?? '-');
+                return (
+                    <Tooltip title={text} followCursor>
+                        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {text}
+                        </Box>
+                    </Tooltip>
+                );
+            },
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
         { field: 'cost', headerName: 'コスト', minWidth: 60, width: 90, renderCell: (params: GridRenderCellParams) => {
@@ -957,7 +1027,7 @@ const TasksPage: React.FC = () => {
 
 
             <Paper>
-                <Box sx={{ height: 600, width: '100%' }}>
+                <Box ref={dataGridContainerRef} sx={{ height: 600, width: '100%' }}>
                     <DataGrid
                         rows={rows}
                         columns={columns}

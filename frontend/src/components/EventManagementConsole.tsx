@@ -193,11 +193,13 @@ const EventManagementConsole: React.FC = () => {
   };
 
   return (
-    <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Typography variant="h6" gutterBottom>
-        プロジェクト別イベント総計
+    <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          プロジェクト別イベント総計
         </Typography>
-      <Divider sx={{ mb: 2 }} />
+        <Divider />
+      </Box>
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
           <CircularProgress />
@@ -205,35 +207,37 @@ const EventManagementConsole: React.FC = () => {
       ) : error ? (
         <Typography color="error">{error}</Typography>
       ) : (
-        <List>
-          {projects.map((project, idx) => {
-            const detail = projectEventDetails[project.id] || { total: 0, meeting: 0, deadline: 0, milestone: 0, workshop: 0 };
-            return (
-              <React.Fragment key={project.id}>
-                <ListItem alignItems="flex-start" sx={{ alignItems: 'flex-start', flexDirection: 'column', alignContent: 'flex-start' }}>
-                  <ListItemText
-                    primary={project.name}
-                    secondary={
-                      <>
-                        <span>イベント数: {detail.total}</span>
-                        <Typography variant="body2" component="span" sx={{ color: '#555', marginLeft: 1, display: 'block' }}>
-                          ・会議: {detail.meeting}　・締切: {detail.deadline}　・マイルストーン: {detail.milestone}　・ワークショップ: {detail.workshop}
-                        </Typography>
-                        <Typography variant="body2" component="span" sx={{ color: '#555', marginLeft: 1, display: 'block' }}>
-                          ・優先度: {project.priority || '未設定'}
-                        </Typography>
-                      </>
-                    }
-                  />
-                  <Button variant="outlined" size="small" sx={{ mt: 1 }} onClick={() => handleOpenModal(project)}>
-                    定例mtg作成
-                  </Button>
-                </ListItem>
-                {idx < projects.length - 1 && <Divider component="li" sx={{ my: 1 }} />}
-              </React.Fragment>
-            );
-          })}
-        </List>
+        <Box sx={{ flex: 1, overflowY: 'auto' }}>
+          <List sx={{ py: 0 }}>
+            {projects.map((project, idx) => {
+              const detail = projectEventDetails[project.id] || { total: 0, meeting: 0, deadline: 0, milestone: 0, workshop: 0 };
+              return (
+                <React.Fragment key={project.id}>
+                  <ListItem sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', py: 2 }}>
+                    <ListItemText
+                      primary={project.name}
+                      secondary={
+                        <>
+                          <span>イベント数: {detail.total}</span>
+                          <Typography variant="body2" component="span" sx={{ color: '#555', marginLeft: 1, display: 'block' }}>
+                            ・会議: {detail.meeting}　・締切: {detail.deadline}　・マイルストーン: {detail.milestone}　・ワークショップ: {detail.workshop}
+                          </Typography>
+                          <Typography variant="body2" component="span" sx={{ color: '#555', marginLeft: 1, display: 'block' }}>
+                            ・優先度: {project.priority || '未設定'}
+                          </Typography>
+                        </>
+                      }
+                    />
+                    <Button variant="outlined" size="small" sx={{ mt: 1 }} onClick={() => handleOpenModal(project)}>
+                      定例mtg作成
+                    </Button>
+                  </ListItem>
+                  {idx < projects.length - 1 && <Divider />}
+                </React.Fragment>
+              );
+            })}
+          </List>
+        </Box>
       )}
 
       {/* 定例mtg作成モーダル */}

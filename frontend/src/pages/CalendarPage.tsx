@@ -1192,22 +1192,11 @@ const CalendarPage: React.FC = () => {
         const { type } = eventInfo.event.extendedProps;
         const title = eventInfo.event.title || '';
         
-        // 複数日にまたがるイベント判定（より厳密に）
+        // 複数日にまたがるイベント判定
         const isMultiDay = eventInfo.event.allDay && 
                            eventInfo.event.start && 
                            eventInfo.event.end && 
                            eventInfo.event.start.getTime() !== eventInfo.event.end.getTime();
-        
-        // デバッグ用ログ（開発時のみ）
-        if (process.env.NODE_ENV === 'development' && isMultiDay) {
-            console.log('renderEventContent - Multi-day event:', {
-                title: title,
-                type: type,
-                start: eventInfo.event.start,
-                end: eventInfo.event.end,
-                allDay: eventInfo.event.allDay
-            });
-        }
         
         // プロジェクトまたは複数日にまたがる通常イベント
         if (type === 'project' || isMultiDay) {
@@ -1334,6 +1323,27 @@ const CalendarPage: React.FC = () => {
                 .fc {
                     font-size: 0.8rem;
                 }
+                /* 日付セル（日付コマ）の高さを全ての週で統一 */
+                .fc-daygrid-day-frame {
+                    min-height: 120px !important;
+                    height: 120px !important;
+                }
+                /* 週の行の高さも統一 */
+                .fc-daygrid-body tr {
+                    height: 120px !important;
+                }
+                /* イベントエリアの高さも統一（重要） */
+                .fc-daygrid-day-events {
+                    height: 120px !important;
+                    min-height: 120px !important;
+                    max-height: 120px !important;
+                }
+                /* 日付セルのトップ部分（日付番号）の高さを固定 */
+                .fc-daygrid-day-top {
+                    height: 20px !important;
+                    min-height: 20px !important;
+                    max-height: 20px !important;
+                }
                 /* 時間セルの高さを最低20pxに強制 */
                 .fc-timegrid-slot-lane {
                     min-height: 20px !important;
@@ -1358,18 +1368,8 @@ const CalendarPage: React.FC = () => {
                     white-space: nowrap;
                     display: block;
                 }
-                /* 全てのイベントハーネスに基本的な間隔を追加 */
+                /* 全てのイベントハーネスに統一した間隔を追加（少し広げて余裕を確保） */
                 .fc-daygrid-event-harness {
-                    margin-bottom: 1px !important;
-                }
-                
-                /* 月の最後の週のイベント間隔を確保（より強く） */
-                .fc-daygrid-week:last-child .fc-daygrid-event-harness {
-                    margin-bottom: 2px !important;
-                }
-                
-                /* 最後の週の全てのイベントにも間隔を追加 */
-                .fc-daygrid-week:last-child .fc-daygrid-event {
                     margin-bottom: 1px !important;
                 }
                 
@@ -1441,7 +1441,7 @@ const CalendarPage: React.FC = () => {
                 }
             `}</style>
 
-                <Box sx={{ flexGrow: 1, p: 1, overflow: 'auto', position: 'relative' }}>
+                <Box sx={{ flexGrow: 1, p: 0, overflow: 'auto', position: 'relative' }}>
                 {/* ... (Error/Loading display) ... */}
                     {error && <Typography color="error">{error}</Typography>}
                     {loading && (
@@ -1473,6 +1473,9 @@ const CalendarPage: React.FC = () => {
                     locale={'ja'}
                         timeZone={'Asia/Tokyo'}
                         height="100%"
+                        contentHeight="auto"
+                        fixedWeekCount={true}
+                        showNonCurrentDates={true}
                         dateClick={handleDateClick}
                         select={handleSelect}
                         eventClick={handleEventClick}
@@ -1487,17 +1490,6 @@ const CalendarPage: React.FC = () => {
                             const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end && 
                                                arg.event.start.getTime() !== arg.event.end.getTime();
                             
-                            // デバッグ用ログ（開発時のみ）
-                            if (process.env.NODE_ENV === 'development' && isMultiDay) {
-                                console.log('Multi-day event detected:', {
-                                    title: arg.event.title,
-                                    start: arg.event.start,
-                                    end: arg.event.end,
-                                    allDay: arg.event.allDay,
-                                    type: type
-                                });
-                            }
-                            
                             if (isMultiDay) return ['project-event', 'custom-event'];
                             
                             return ['custom-event'];
@@ -1510,13 +1502,9 @@ const CalendarPage: React.FC = () => {
                             
                             if (isMultiDay && type !== 'project') {
                                 arg.el.classList.add('project-event');
-                                // デバッグ用ログ
-                                if (process.env.NODE_ENV === 'development') {
-                                    console.log('Added project-event class to multi-day event:', arg.event.title);
-                                }
                             }
                         }}
-                        dayMaxEventRows={true}
+                        dayMaxEventRows={5}
                         dayCellDidMount={handleDayCellMount}
                         selectable={false}
                         selectMirror={true}

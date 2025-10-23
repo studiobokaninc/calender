@@ -1309,6 +1309,20 @@ const CalendarPage: React.FC = () => {
                 .fc .fc-daygrid-day[data-weekend="true"] {
                      background-color: #f8f8f8;
                 }
+                /* 土曜日の文字色を青に */
+                .fc .fc-col-header-cell.fc-day-sat,
+                .fc .fc-col-header-cell.fc-day-sat a,
+                .fc .fc-col-header-cell.fc-day-sat .fc-scrollgrid-sync-inner,
+                .fc .fc-daygrid-day.fc-day-sat .fc-daygrid-day-number {
+                    color: #1976d2 !important;
+                }
+                /* 日曜日の文字色を赤に */
+                .fc .fc-col-header-cell.fc-day-sun,
+                .fc .fc-col-header-cell.fc-day-sun a,
+                .fc .fc-col-header-cell.fc-day-sun .fc-scrollgrid-sync-inner,
+                .fc .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number {
+                    color: #d32f2f !important;
+                }
                 .fc .fc-button-primary {
                     background-color: #556cd6;
                     border-color: #556cd6;

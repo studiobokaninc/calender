@@ -381,17 +381,27 @@ const TasksPage: React.FC = () => {
             // 既に横スクロールしている場合は通常の動作
             if (e.deltaX !== 0) return;
 
-            // 縦スクロールの入力を横スクロールに変換
-            if (e.deltaY !== 0) {
+            // スクロール可能な範囲をチェック
+            const hasHorizontalScroll = scrollableElement.scrollWidth > scrollableElement.clientWidth;
+            
+            // 横スクロールバーが出ている場合は、マウスホイールで横スクロール
+            if (hasHorizontalScroll && e.deltaY !== 0) {
                 e.preventDefault();
                 scrollableElement.scrollLeft += e.deltaY;
             }
         };
 
-        container.addEventListener('wheel', handleWheel, { passive: false });
+        // より互換性の高いイベントリスナーの設定
+        // passive: false を明示的に設定（一部のブラウザで必要）
+        try {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+        } catch (e) {
+            // 古いブラウザの場合はフォールバック
+            container.addEventListener('wheel', handleWheel as EventListener);
+        }
 
         return () => {
-            container.removeEventListener('wheel', handleWheel);
+            container.removeEventListener('wheel', handleWheel as EventListener);
         };
     }, []);
 
@@ -1027,7 +1037,26 @@ const TasksPage: React.FC = () => {
 
 
             <Paper>
-                <Box ref={dataGridContainerRef} sx={{ height: 600, width: '100%' }}>
+                <Box 
+                    ref={dataGridContainerRef} 
+                    sx={{ 
+                        width: '100%',
+                        // 横スクロールのサポートを強化
+                        // タッチデバイスでの横スクロールをサポート
+                        WebkitOverflowScrolling: 'touch',
+                        // スクロールバーのスタイリング（横スクロールバーのみ）
+                        '&::-webkit-scrollbar': {
+                            height: '8px'
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                            backgroundColor: 'rgba(0,0,0,0.2)',
+                            borderRadius: '4px'
+                        },
+                        '&::-webkit-scrollbar-thumb:hover': {
+                            backgroundColor: 'rgba(0,0,0,0.3)'
+                        }
+                    }}
+                >
                     <DataGrid
                         rows={rows}
                         columns={columns}
@@ -1052,6 +1081,10 @@ const TasksPage: React.FC = () => {
                             },
                             '& .MuiDataGrid-footerContainer': {
                                 fontSize: '0.8rem'
+                            },
+                            // DataGrid内部の横スクロールサポート
+                            '& .MuiDataGrid-virtualScroller': {
+                                overflowX: 'auto !important'
                             }
                         }}
                     />

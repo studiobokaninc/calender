@@ -694,22 +694,39 @@ const GanttView: React.FC<GanttViewProps> = memo(
     };
     setupScrollContainers();
     const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
       const horizontalContainer = horizontalContainerRef.current;
       const verticalContainer = verticalContainerRef.current;
       if (!horizontalContainer || !verticalContainer) {
         setupScrollContainers();
         return;
       }
+      
       const horizontalStep = e.deltaX * 0.8;
       const verticalStep = e.deltaY * 0.8;
-      requestAnimationFrame(() => {
-        if (e.shiftKey) {
-          horizontalContainer.scrollLeft += verticalStep;
-        } else {
-          if (e.deltaX !== 0) horizontalContainer.scrollLeft += horizontalStep;
-          if (e.deltaY !== 0) verticalContainer.scrollTop += verticalStep;
+      
+      // Shiftキー + マウスホイールで横スクロール（確実な方法）
+      if (e.shiftKey && e.deltaY !== 0) {
+        try {
+          e.preventDefault();
+        } catch (err) {
+          // preventDefaultが失敗した場合は無視
         }
+        requestAnimationFrame(() => {
+          horizontalContainer.scrollLeft += verticalStep;
+        });
+        return;
+      }
+      
+      // 通常のスクロール処理
+      try {
+        e.preventDefault();
+      } catch (err) {
+        // preventDefaultが失敗した場合は無視
+      }
+      
+      requestAnimationFrame(() => {
+        if (e.deltaX !== 0) horizontalContainer.scrollLeft += horizontalStep;
+        if (e.deltaY !== 0) verticalContainer.scrollTop += verticalStep;
       });
     };
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -734,7 +751,15 @@ const GanttView: React.FC<GanttViewProps> = memo(
     window.scrollGanttUp = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop -= amount; }); };
     window.scrollGanttDown = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop += amount; }); };
     const ganttElement = document.querySelector('.gantt');
-    if (ganttElement) ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
+    if (ganttElement) {
+      // より互換性の高いイベントリスナーの設定
+      try {
+        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
+      } catch (err) {
+        // 古いブラウザやpassive: falseが使えない場合のフォールバック
+        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, true);
+      }
+    }
     document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('resize', handleResize);
     const cleanupData = { ganttElement, wheelHandler: handleWheel, keyHandler: handleKeyDown, resizeHandler: handleResize };
@@ -1071,7 +1096,13 @@ const GanttView: React.FC<GanttViewProps> = memo(
     // イベントリスナーの登録
     const ganttElement = document.querySelector('.gantt');
     if (ganttElement) {
-      ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
+      // より互換性の高いイベントリスナーの設定
+      try {
+        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
+      } catch (err) {
+        // 古いブラウザやpassive: falseが使えない場合のフォールバック
+        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, true);
+      }
     }
     document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('resize', handleResize);

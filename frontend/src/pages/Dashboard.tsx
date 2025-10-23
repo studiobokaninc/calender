@@ -147,16 +147,14 @@ const Dashboard: React.FC = () => {
 
   // テーブル上でマウスホイールを横スクロールに変換
   useEffect(() => {
-    // DOMのレンダリングを待つために遅延実行
-    const timeoutId = setTimeout(() => {
+    // イベントリスナーを設定する関数
+    const setupWheelHandlers = () => {
       const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
-      const cleanups: Array<() => void> = []
-
+      
       containers.forEach((el) => {
-        // 既存のイベントリスナーをクリーンアップ
+        // 既にイベントリスナーが設定されている場合はスキップ
         if ((el as any)._wheelHandler) {
-          el.removeEventListener('wheel', (el as any)._wheelHandler)
-          delete (el as any)._wheelHandler
+          return
         }
         
         const onWheel = (e: WheelEvent) => {
@@ -164,26 +162,49 @@ const Dashboard: React.FC = () => {
           if (e.ctrlKey) return
           // 横オーバーフローがない場合は素通し
           if (el.scrollWidth <= el.clientWidth) return
-          // 垂直スクロール量が主であれば横スクロールに変換
-          const dominantDelta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
-          if (dominantDelta === 0) return
-          e.preventDefault()
-          el.scrollLeft += dominantDelta
+          
+          // 横スクロールバーが出ている場合は、マウスホイールで横スクロール
+          if (e.deltaY !== 0) {
+            try {
+              e.preventDefault()
+            } catch (err) {
+              // preventDefaultが失敗した場合は無視
+            }
+            el.scrollLeft += e.deltaY
+          }
         }
         
-        el.addEventListener('wheel', onWheel, { passive: false })
+        // より互換性の高いイベントリスナーの設定
+        try {
+          el.addEventListener('wheel', onWheel, { passive: false })
+        } catch (err) {
+          // 古いブラウザやpassive: falseが使えない場合のフォールバック
+          el.addEventListener('wheel', onWheel as any)
+        }
         ;(el as any)._wheelHandler = onWheel
-        
-        cleanups.push(() => {
-          el.removeEventListener('wheel', onWheel as any)
-          delete (el as any)._wheelHandler
-        })
       })
+    }
 
-      return () => { cleanups.forEach((fn) => fn()) }
-    }, 100) // DOMレンダリング後に実行
-
-    return () => { clearTimeout(timeoutId) }
+    // 初回設定
+    const initialTimeoutId = setTimeout(setupWheelHandlers, 100)
+    
+    // 定期的にチェックしてイベントリスナーを設定（新しいテーブルが追加された場合に対応）
+    const intervalId = setInterval(setupWheelHandlers, 500)
+    
+    // クリーンアップ
+    return () => {
+      clearTimeout(initialTimeoutId)
+      clearInterval(intervalId)
+      
+      // すべてのイベントリスナーを削除
+      const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
+      containers.forEach((el) => {
+        if ((el as any)._wheelHandler) {
+          el.removeEventListener('wheel', (el as any)._wheelHandler)
+          delete (el as any)._wheelHandler
+        }
+      })
+    }
   }, [messages, stateRestored])
 
   // Markdown -> HTML（GFMテーブル対応）

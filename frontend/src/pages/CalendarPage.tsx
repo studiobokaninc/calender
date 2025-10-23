@@ -48,7 +48,12 @@ const getProjectColor = (project?: { status?: string | null; color?: string | nu
   }
 };
 
-const getTaskColor = (status?: string): string => {
+const getTaskColor = (status?: string, projectStatus?: string): string => {
+  // プロジェクトが完了している場合は、タスクのステータスに関わらずグレーにする
+  if (projectStatus === 'completed') {
+    return '#9E9E9E';
+  }
+  
   switch (status) {
     case 'todo': return '#2196F3';
     case 'in-progress': return '#FF9800';
@@ -123,7 +128,7 @@ const CalendarPage: React.FC = () => {
     // 状態を分離（初期化時はページ状態から取得）
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedEventDetails, setSelectedEventDetails] = useState<{ event: CalendarEvent | null; totalCost?: number; }>({ event: null });
-    const [eventStatusFilter, setEventStatusFilter] = useState<'all' | 'online' | 'offline' | 'archived'>(user?.role === 'admin' ? 'all' : 'online');
+    const [eventStatusFilter, setEventStatusFilter] = useState<string>('all'); // 'all' または プロジェクトID
     const [stateRestored, setStateRestored] = useState(false);
 
     const calendarRef = useRef<FullCalendar>(null);
@@ -233,8 +238,8 @@ const CalendarPage: React.FC = () => {
                         start: task.due_date ? parseISO(task.due_date) : new Date(),
                         end: undefined,
                         allDay: true,
-                        backgroundColor: getTaskColor(task.status ?? 'todo'),
-                        borderColor: getTaskColor(task.status ?? 'todo'),
+                        backgroundColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
+                        borderColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
                     extendedProps: {
                             type: 'task', // ★★★ 小文字に統一 ★★★
                             taskId: task.id,
@@ -273,14 +278,18 @@ const CalendarPage: React.FC = () => {
                         return null;
                     } else {
                         const project = be.project_id ? projectsData.find(p => p.id === be.project_id) : undefined;
+                        // プロジェクトが完了している場合はグレーにする
+                        const isCompletedProject = project?.status === 'completed';
+                        const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                        
                         return {
                     id: `event-${be.id}`,
                             title: be.title,
                             start: parseISO(originalStartTimeStr),
                             end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
                             allDay: be.allDay ?? false,
-                            backgroundColor: getEventColor(be.type ?? 'Generic'),
-                            borderColor: getEventColor(be.type ?? 'Generic'),
+                            backgroundColor: eventColor,
+                            borderColor: eventColor,
                     extendedProps: {
                                 type: be.type || 'Generic',
                         description: be.description ?? undefined,
@@ -359,14 +368,18 @@ const CalendarPage: React.FC = () => {
                             return null;
                         } else {
                             const project = projects.find(p => p.id === be.project_id);
+                            // プロジェクトが完了している場合はグレーにする
+                            const isCompletedProject = project?.status === 'completed';
+                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                            
                             return {
                                 id: `event-${be.id}`,
                                 title: be.title,
                                 start: parseISO(originalStartTimeStr),
                                 end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
                                 allDay: be.allDay ?? false,
-                                backgroundColor: getEventColor(be.type ?? 'Generic'),
-                                borderColor: getEventColor(be.type ?? 'Generic'),
+                                backgroundColor: eventColor,
+                                borderColor: eventColor,
                                 extendedProps: {
                                     type: be.type || 'Generic',
                                     description: be.description ?? undefined,
@@ -513,8 +526,8 @@ const CalendarPage: React.FC = () => {
                         start: task.due_date ? parseISO(task.due_date) : new Date(),
                         end: undefined,
                         allDay: true,
-                        backgroundColor: getTaskColor(task.status ?? 'todo'),
-                        borderColor: getTaskColor(task.status ?? 'todo'),
+                        backgroundColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
+                        borderColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
                         extendedProps: {
                             type: 'task',
                             taskId: task.id,
@@ -615,14 +628,18 @@ const CalendarPage: React.FC = () => {
                                 return null;
                             } else {
                                 const project = be.project_id ? globalData.projects?.find(p => p.id === be.project_id) : undefined;
+                                // プロジェクトが完了している場合はグレーにする
+                                const isCompletedProject = project?.status === 'completed';
+                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                                
                                 return {
                                     id: `event-${be.id}`,
                                     title: be.title,
                                     start: parseISO(originalStartTimeStr),
                                     end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
                                     allDay: be.allDay ?? false,
-                                    backgroundColor: getEventColor(be.type ?? 'Generic'),
-                                    borderColor: getEventColor(be.type ?? 'Generic'),
+                                    backgroundColor: eventColor,
+                                    borderColor: eventColor,
                                     extendedProps: {
                                         type: be.type || 'Generic',
                                         description: be.description ?? undefined,
@@ -677,7 +694,7 @@ const CalendarPage: React.FC = () => {
                 setSelectedEventDetails({ event: calendarState.selectedEvent });
             }
             if (calendarState.filterStatus) {
-                setEventStatusFilter(calendarState.filterStatus as 'all' | 'online' | 'offline' | 'archived');
+                setEventStatusFilter(calendarState.filterStatus);
             }
             setStateRestored(true);
         }
@@ -694,30 +711,32 @@ const CalendarPage: React.FC = () => {
         }
     }, [selectedDate, selectedEventDetails, eventStatusFilter, stateRestored, updateCalendarState]);
 
-    // ユーザーのロールが変わった時にフィルタの初期値を再設定
-    useEffect(() => {
-        setEventStatusFilter(user?.role === 'admin' ? 'all' : 'online');
-    }, [user?.role]);
-
     const filterEvents = useCallback((events: CalendarEvent[]) => {
         return events.filter(event => {
-            // プロジェクトのdisplay_statusに基づいてフィルタリング
-            const displayStatus = event.extendedProps.displayStatus;
-            if (!displayStatus) return true; // displayStatusが未設定の場合は表示
-
-            // イベントステータスフィルターの適用
-            if (eventStatusFilter !== 'all' && displayStatus !== eventStatusFilter) {
-                return false;
+            // フィルターが'all'の場合はすべて表示
+            if (eventStatusFilter === 'all') {
+                return true;
             }
 
-            // 一般ユーザーの場合は'online'のみ表示
-            if (user?.role !== 'admin' && displayStatus !== 'online') {
-                return false;
+            // プロジェクトIDに基づいてフィルタリング
+            // プロジェクト自体か、プロジェクトに紐づくイベント（タスク、マイルストーンなど）を表示
+            const eventProjectId = event.extendedProps?.projectId;
+            const eventType = event.extendedProps?.type?.toLowerCase();
+            const eventId = event.id;
+
+            // プロジェクト自体の場合
+            if (eventType === 'project' && String(eventId) === eventStatusFilter) {
+                return true;
             }
 
-            return true;
+            // プロジェクトに紐づくイベントの場合
+            if (eventProjectId && String(eventProjectId) === eventStatusFilter) {
+                return true;
+            }
+
+            return false;
         });
-    }, [eventStatusFilter, user?.role]);
+    }, [eventStatusFilter]);
 
     const filteredEvents = useMemo(() => {
         return filterEvents(rawEvents);
@@ -758,8 +777,8 @@ const CalendarPage: React.FC = () => {
         });
     }, [filteredEvents]);
 
-    const handleEventStatusFilterChange = (event: SelectChangeEvent<'all' | 'online' | 'offline' | 'archived'>) => {
-        setEventStatusFilter(event.target.value as 'all' | 'online' | 'offline' | 'archived');
+    const handleEventStatusFilterChange = (event: SelectChangeEvent<string>) => {
+        setEventStatusFilter(event.target.value);
     };
 
     // ★★★ calculateTotalCost は rawEvents を使うように修正 ★★★
@@ -1004,14 +1023,18 @@ const CalendarPage: React.FC = () => {
                             return null;
                         } else {
                             const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
+                            // プロジェクトが完了している場合はグレーにする
+                            const isCompletedProject = project?.status === 'completed';
+                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                            
                             return {
                                 id: `event-${be.id}`,
                                 title: be.title,
                                 start: parseISO(originalStartTimeStr),
                                 end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
                                 allDay: be.allDay ?? false,
-                                backgroundColor: getEventColor(be.type ?? 'Generic'),
-                                borderColor: getEventColor(be.type ?? 'Generic'),
+                                backgroundColor: eventColor,
+                                borderColor: eventColor,
                                 extendedProps: {
                                     type: be.type || 'Generic',
                                     description: be.description ?? undefined,
@@ -1104,14 +1127,18 @@ const CalendarPage: React.FC = () => {
                                 return null;
                             } else {
                                 const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
+                                // プロジェクトが完了している場合はグレーにする
+                                const isCompletedProject = project?.status === 'completed';
+                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                                
                                 return {
                                     id: `event-${be.id}`,
                                     title: be.title,
                                     start: parseISO(originalStartTimeStr),
                                     end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
                                     allDay: be.allDay ?? false,
-                                    backgroundColor: getEventColor(be.type ?? 'Generic'),
-                                    borderColor: getEventColor(be.type ?? 'Generic'),
+                                    backgroundColor: eventColor,
+                                    borderColor: eventColor,
                                     extendedProps: {
                                         type: be.type || 'Generic',
                                         description: be.description ?? undefined,
@@ -1255,6 +1282,33 @@ const CalendarPage: React.FC = () => {
             );
         }
         
+        // 会議（Meeting）・ワークショップ（Workshop）- 時間を表示
+        if (type === 'Meeting' || type === 'Workshop') {
+            // 時間を取得してフォーマット
+            const timeText = eventInfo.timeText || '';
+            const displayText = timeText ? `${timeText} ${title}` : title;
+            
+            return (
+                <div style={{ 
+                    width: '100%', 
+                    overflow: 'hidden',
+                    display: 'block'
+                }}>
+                    <span style={{
+                        display: 'block',
+                        width: '100%',
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                    }} title={displayText}>
+                        {timeText && <span style={{ fontWeight: 'bold' }}>{timeText}</span>}
+                        {timeText && ' '}
+                        {title}
+                    </span>
+                </div>
+            );
+        }
+        
         // タスクなど、単一日のイベント
         return (
             <div style={{ 
@@ -1308,6 +1362,29 @@ const CalendarPage: React.FC = () => {
                 }
                 .fc .fc-daygrid-day[data-weekend="true"] {
                      background-color: #f8f8f8;
+                }
+                /* 月曜日から金曜日の文字色を黒に */
+                .fc .fc-col-header-cell.fc-day-mon,
+                .fc .fc-col-header-cell.fc-day-mon a,
+                .fc .fc-col-header-cell.fc-day-mon .fc-scrollgrid-sync-inner,
+                .fc .fc-daygrid-day.fc-day-mon .fc-daygrid-day-number,
+                .fc .fc-col-header-cell.fc-day-tue,
+                .fc .fc-col-header-cell.fc-day-tue a,
+                .fc .fc-col-header-cell.fc-day-tue .fc-scrollgrid-sync-inner,
+                .fc .fc-daygrid-day.fc-day-tue .fc-daygrid-day-number,
+                .fc .fc-col-header-cell.fc-day-wed,
+                .fc .fc-col-header-cell.fc-day-wed a,
+                .fc .fc-col-header-cell.fc-day-wed .fc-scrollgrid-sync-inner,
+                .fc .fc-daygrid-day.fc-day-wed .fc-daygrid-day-number,
+                .fc .fc-col-header-cell.fc-day-thu,
+                .fc .fc-col-header-cell.fc-day-thu a,
+                .fc .fc-col-header-cell.fc-day-thu .fc-scrollgrid-sync-inner,
+                .fc .fc-daygrid-day.fc-day-thu .fc-daygrid-day-number,
+                .fc .fc-col-header-cell.fc-day-fri,
+                .fc .fc-col-header-cell.fc-day-fri a,
+                .fc .fc-col-header-cell.fc-day-fri .fc-scrollgrid-sync-inner,
+                .fc .fc-daygrid-day.fc-day-fri .fc-daygrid-day-number {
+                    color: #000000 !important;
                 }
                 /* 土曜日の文字色を青に */
                 .fc .fc-col-header-cell.fc-day-sat,
@@ -1453,6 +1530,71 @@ const CalendarPage: React.FC = () => {
                     text-overflow: ellipsis;
                     box-shadow: none;
                 }
+                
+                /* 完了プロジェクトのイベント - デフォルトはバーあり（タスク用） */
+                .fc-event.completed-project-event {
+                    background-color: #9E9E9E !important;
+                    border-color: #9E9E9E !important;
+                }
+                .fc-event.completed-project-event .fc-event-main,
+                .fc-event.completed-project-event .fc-event-title {
+                    color: #fff !important;
+                }
+                /* 完了プロジェクトの締切 - バーなし、文字色のみグレーに */
+                .fc-event.completed-project-event.deadline-event-wrapper {
+                    background: none !important;
+                    border: none !important;
+                }
+                .fc-event.completed-project-event .deadline-event-content {
+                    color: #757575 !important;
+                }
+                /* 完了プロジェクトの会議・ワークショップ - バーなし、文字色のみグレーに */
+                .fc-event.completed-project-event.meeting-event,
+                .fc-daygrid-event.completed-project-event.meeting-event,
+                .fc-event.completed-project-event.workshop-event,
+                .fc-daygrid-event.completed-project-event.workshop-event {
+                    background: none !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    outline: none !important;
+                }
+                .fc-event.completed-project-event.meeting-event,
+                .fc-daygrid-event.completed-project-event.meeting-event,
+                .fc-event.completed-project-event.workshop-event,
+                .fc-daygrid-event.completed-project-event.workshop-event,
+                .fc-event.completed-project-event.meeting-event *,
+                .fc-daygrid-event.completed-project-event.meeting-event *,
+                .fc-event.completed-project-event.workshop-event *,
+                .fc-daygrid-event.completed-project-event.workshop-event * {
+                    color: #757575 !important;
+                }
+                /* 完了プロジェクトのマイルストーン - 背景をグレーに */
+                .fc-event.completed-project-event .milestone-event-content {
+                    background: #9E9E9E !important;
+                    color: #fff !important;
+                }
+                
+                /* 会議・ワークショップのデフォルト表示（完了していないプロジェクト用） - 締切と同じようにバーなし */
+                .fc-event.meeting-event,
+                .fc-daygrid-event.meeting-event,
+                .fc-event.workshop-event,
+                .fc-daygrid-event.workshop-event {
+                    background: none !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    outline: none !important;
+                }
+                /* 完了していないプロジェクトの会議・ワークショップ - 青文字 */
+                .fc-event.meeting-event:not(.completed-project-event),
+                .fc-daygrid-event.meeting-event:not(.completed-project-event),
+                .fc-event.workshop-event:not(.completed-project-event),
+                .fc-daygrid-event.workshop-event:not(.completed-project-event),
+                .fc-event.meeting-event:not(.completed-project-event) *,
+                .fc-daygrid-event.meeting-event:not(.completed-project-event) *,
+                .fc-event.workshop-event:not(.completed-project-event) *,
+                .fc-daygrid-event.workshop-event:not(.completed-project-event) * {
+                    color: #1976d2 !important;
+                }
             `}</style>
 
                 <Box sx={{ flexGrow: 1, p: 0, overflow: 'auto', position: 'relative' }}>
@@ -1486,6 +1628,11 @@ const CalendarPage: React.FC = () => {
                         events={eventsForFullCalendar}
                     locale={'ja'}
                         timeZone={'Asia/Tokyo'}
+                        eventTimeFormat={{
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        }}
                         height="100%"
                         contentHeight="auto"
                         fixedWeekCount={true}
@@ -1496,17 +1643,44 @@ const CalendarPage: React.FC = () => {
                         eventContent={renderEventContent} 
                         eventClassNames={(arg) => {
                             const type = arg.event.extendedProps.type;
-                            if (type === 'project') return ['project-event'];
-                            if (type === 'Deadline') return ['deadline-event-wrapper'];
-                            if (type === 'Milestone') return ['milestone-event-wrapper'];
+                            const projectId = arg.event.extendedProps.projectId;
+                            const classes: string[] = [];
+                            
+                            // プロジェクトのステータスを確認
+                            const project = projectId ? projects.find(p => String(p.id) === String(projectId)) : undefined;
+                            const isCompletedProject = project?.status === 'completed';
+                            
+                            // 完了プロジェクトの場合は特別なクラスを追加
+                            if (isCompletedProject) {
+                                classes.push('completed-project-event');
+                            }
+                            
+                            // 既存のクラス設定
+                            if (type === 'project') {
+                                classes.push('project-event');
+                            } else if (type === 'Deadline') {
+                                classes.push('deadline-event-wrapper');
+                            } else if (type === 'Milestone') {
+                                classes.push('milestone-event-wrapper');
+                            } else if (type === 'Meeting') {
+                                classes.push('custom-event');
+                                classes.push('meeting-event');
+                            } else if (type === 'Workshop') {
+                                classes.push('custom-event');
+                                classes.push('workshop-event');
+                            } else {
+                                classes.push('custom-event');
+                            }
                             
                             // 複数日にまたがる通常イベントにもproject-eventスタイルを適用
                             const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end && 
                                                arg.event.start.getTime() !== arg.event.end.getTime();
                             
-                            if (isMultiDay) return ['project-event', 'custom-event'];
+                            if (isMultiDay && type !== 'project') {
+                                classes.push('project-event');
+                            }
                             
-                            return ['custom-event'];
+                            return classes;
                         }}
                         eventDidMount={(arg) => {
                             // 複数日にまたがるイベントのクラスを動的に追加

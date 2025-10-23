@@ -24895,3 +24895,8 @@ WHERE tasks.id = ?
 2025-10-21 11:56:30,630 - app.main - INFO - タスク情報（生データ）: ['T3', '2025/5/25', 'T3の説明', 'user3', '32', 'comp', 'SEQ002', 'SHOT001', 'T1,T2']
 2025-10-23 11:41:44,041 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
 2025-10-23 11:52:22,242 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
+2025-10-23 13:44:34,252 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
+2025-10-23 13:54:41,109 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
+2025-10-23 14:57:26,479 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
+2025-10-23 14:57:56,847 - httpx - INFO - HTTP Request: GET http://192.168.44.253/v1/messages/9a5c0e64-3a07-4c67-9963-be99d41f39cd/suggested?user=dify1%40studiobokan.com "HTTP/1.1 200 OK"
+2025-10-23 15:00:59,837 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"

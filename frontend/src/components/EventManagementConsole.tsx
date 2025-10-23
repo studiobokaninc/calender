@@ -165,11 +165,10 @@ const EventManagementConsole: React.FC = () => {
       for (let i = 0; i < dates.length; i++) {
         const date = dates[i];
         const eventTitle = `${title}（${i + 1}回目）`;
-        // カレンダー追加と同じ方式でUTC（Z付き）で送信
-        const startDateObj = dayjs.tz(date.format('YYYY-MM-DD') + 'T' + startTime, 'Asia/Tokyo').toDate();
-        const endDateObj = dayjs.tz(date.format('YYYY-MM-DD') + 'T' + endTime, 'Asia/Tokyo').toDate();
-        const startISO = startDateObj.toISOString();
-        const endISO = endDateObj.toISOString();
+        // 日本時間でタイムゾーンオフセット付きでフォーマット（EventAddModalと同じ方式）
+        const dateStr = date.format('YYYY-MM-DD');
+        const startISO = `${dateStr}T${startTime}:00+09:00`;
+        const endISO = `${dateStr}T${endTime}:00+09:00`;
         await api.post('/calendar/events', {
           project_id: modalProject.id,
           type: 'MEETING',

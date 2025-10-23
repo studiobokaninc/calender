@@ -292,7 +292,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     console.log("[EventDetailsPanel] getTitleBorderColor called with event:", event ? { type: event.extendedProps?.type, status: event.extendedProps?.taskStatus, projectStatus: event.extendedProps?.projectStatus } : null);
     if (!event) return 'transparent';
     const type = event.extendedProps?.type;
-    if (type === 'project') return getProjectColor({ status: event.extendedProps?.projectStatus });
+    if (type === 'project') return getProjectColor({ status: event.extendedProps?.projectStatus ?? undefined });
     if (type === 'task') return getTaskColor(event.extendedProps?.taskStatus ?? 'todo');
     return getEventColor(type);
   };
@@ -301,7 +301,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   const getCardColor = (ev: CalendarEvent) => {
     const type = ev.extendedProps?.type?.toLowerCase?.();
     if (type === 'milestone') return '#d32f2f'; // マイルストーンは常に赤
-    if (type === 'project') return getProjectColor({ status: ev.extendedProps?.projectStatus });
+    if (type === 'project') return getProjectColor({ status: ev.extendedProps?.projectStatus ?? undefined });
     if (type === 'task') return getTaskColor(ev.extendedProps?.taskStatus ?? 'todo');
     if (type === 'milestone' || type === 'deadline') return getEventColor(type);
     return getEventColor(type);
@@ -343,9 +343,9 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
           )}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>表示イベント</Typography>
-            <FormControl size="small" sx={{ minWidth: 110, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
+            <FormControl size="small" sx={{ minWidth: 160, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
               <Select
-                labelId="event-status-filter-label"
+                labelId="event-project-filter-label"
                 value={eventStatusFilter}
                 onChange={onEventStatusFilterChange}
                 displayEmpty
@@ -353,9 +353,11 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                 sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
               >
                 <MenuItem value="all">すべて</MenuItem>
-                <MenuItem value="online">オンライン</MenuItem>
-                <MenuItem value="offline">オフライン</MenuItem>
-                <MenuItem value="archived">アーカイブ済み</MenuItem>
+                {projects.map((project) => (
+                  <MenuItem key={project.id} value={String(project.id)}>
+                    {project.name}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Box>
@@ -400,7 +402,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     backgroundColor: selectedEvent.extendedProps?.type === 'task' 
                       ? getTaskColor(selectedEvent.extendedProps?.taskStatus ?? 'todo')
                       : selectedEvent.extendedProps?.type === 'project'
-                        ? getProjectColor({ status: selectedEvent.extendedProps?.projectStatus })
+                        ? getProjectColor({ status: selectedEvent.extendedProps?.projectStatus ?? undefined })
                         : getEventColor(selectedEvent.extendedProps?.type ?? undefined),
                     color: '#fff'
                   }}

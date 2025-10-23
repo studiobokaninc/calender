@@ -837,11 +837,9 @@ const TasksPage: React.FC = () => {
             const row = params.row;
             const text = row.shotID || '-';
             return (
-                <Tooltip title={text} followCursor>
-                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {text}
-                    </Box>
-                </Tooltip>
+                <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {text}
+                </Box>
             );
         } },
         { field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
@@ -874,11 +872,9 @@ const TasksPage: React.FC = () => {
                 const user = users.find(u => u.id === row.assigned_to);
                 const text = user ? user.username : '-';
                 return (
-                    <Tooltip title={text} followCursor>
-                        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {text}
-                        </Box>
-                    </Tooltip>
+                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {text}
+                    </Box>
                 );
             } 
         },

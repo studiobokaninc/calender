@@ -265,7 +265,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             endDateStr = format(projectEndDateObj, 'yyyy-MM-dd');
           }
         } else if (!isTask && endObjForForm && isDateValid(endObjForForm)) {
-          endDateStr = format(endObjForForm, 'yyyy-MM-dd');
+          // 終日イベントの場合、FullCalendarの排他的終了日から-1日して元の終了日に戻す
+          if (eventToEdit.allDay) {
+            endDateStr = format(addDays(endObjForForm, -1), 'yyyy-MM-dd');
+          } else {
+            endDateStr = format(endObjForForm, 'yyyy-MM-dd');
+          }
         }
 
         setFormData({

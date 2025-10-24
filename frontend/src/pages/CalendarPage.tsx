@@ -129,6 +129,7 @@ const CalendarPage: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedEventDetails, setSelectedEventDetails] = useState<{ event: CalendarEvent | null; totalCost?: number; }>({ event: null });
     const [eventStatusFilter, setEventStatusFilter] = useState<string>('all'); // 'all' または プロジェクトID
+    const [eventTypeFilter, setEventTypeFilter] = useState<string>('all'); // 'all' または イベントタイプ
     const [stateRestored, setStateRestored] = useState(false);
 
     const calendarRef = useRef<FullCalendar>(null);
@@ -713,30 +714,35 @@ const CalendarPage: React.FC = () => {
 
     const filterEvents = useCallback((events: CalendarEvent[]) => {
         return events.filter(event => {
-            // フィルターが'all'の場合はすべて表示
-            if (eventStatusFilter === 'all') {
-                return true;
-            }
-
-            // プロジェクトIDに基づいてフィルタリング
-            // プロジェクト自体か、プロジェクトに紐づくイベント（タスク、マイルストーンなど）を表示
             const eventProjectId = event.extendedProps?.projectId;
             const eventType = event.extendedProps?.type?.toLowerCase();
             const eventId = event.id;
 
-            // プロジェクト自体の場合
-            if (eventType === 'project' && String(eventId) === eventStatusFilter) {
-                return true;
+            // プロジェクトフィルターのチェック
+            let projectFilterPass = true;
+            if (eventStatusFilter !== 'all') {
+                // プロジェクト自体の場合
+                if (eventType === 'project' && String(eventId) === eventStatusFilter) {
+                    projectFilterPass = true;
+                }
+                // プロジェクトに紐づくイベントの場合
+                else if (eventProjectId && String(eventProjectId) === eventStatusFilter) {
+                    projectFilterPass = true;
+                } else {
+                    projectFilterPass = false;
+                }
             }
 
-            // プロジェクトに紐づくイベントの場合
-            if (eventProjectId && String(eventProjectId) === eventStatusFilter) {
-                return true;
+            // イベントタイプフィルターのチェック
+            let typeFilterPass = true;
+            if (eventTypeFilter !== 'all') {
+                typeFilterPass = eventType === eventTypeFilter.toLowerCase();
             }
 
-            return false;
+            // 両方のフィルターを通過したイベントのみ表示
+            return projectFilterPass && typeFilterPass;
         });
-    }, [eventStatusFilter]);
+    }, [eventStatusFilter, eventTypeFilter]);
 
     const filteredEvents = useMemo(() => {
         return filterEvents(rawEvents);
@@ -779,6 +785,10 @@ const CalendarPage: React.FC = () => {
 
     const handleEventStatusFilterChange = (event: SelectChangeEvent<string>) => {
         setEventStatusFilter(event.target.value);
+    };
+
+    const handleEventTypeFilterChange = (event: SelectChangeEvent<string>) => {
+        setEventTypeFilter(event.target.value);
     };
 
     // ★★★ calculateTotalCost は rawEvents を使うように修正 ★★★
@@ -1733,6 +1743,8 @@ const CalendarPage: React.FC = () => {
                             onDelete={handleDeleteEvent as (event: import('../types').CalendarEvent) => void}
                         eventStatusFilter={eventStatusFilter}
                         onEventStatusFilterChange={handleEventStatusFilterChange}
+                        eventTypeFilter={eventTypeFilter}
+                        onEventTypeFilterChange={handleEventTypeFilterChange}
                         projects={projects}
                         />
                     </Box>

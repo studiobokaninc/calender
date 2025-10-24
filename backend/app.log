@@ -24900,3 +24900,12 @@ WHERE tasks.id = ?
 2025-10-23 14:57:26,479 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
 2025-10-23 14:57:56,847 - httpx - INFO - HTTP Request: GET http://192.168.44.253/v1/messages/9a5c0e64-3a07-4c67-9963-be99d41f39cd/suggested?user=dify1%40studiobokan.com "HTTP/1.1 200 OK"
 2025-10-23 15:00:59,837 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
+2025-10-24 15:11:19,573 - app.main - INFO - プロジェクト情報（生データ）: ['プロジェクトX', '2025/3/1', '2025/5/31', 'プロジェクトXの説明', '', '', '', '', '']
+2025-10-24 15:11:19,718 - app.main - INFO - 新規プロジェクトを作成: プロジェクトX (ID: 40)
+2025-10-24 15:11:19,724 - app.main - INFO - タスク情報（生データ）: ['T1', '2025/4/15', 'T1の説明', 'user1', '16', 'fx', 'SEQ001', 'SHOT001', '']
+2025-10-24 15:11:19,724 - app.main - INFO - タスク情報（生データ）: ['T2', '2025/5/20', 'T2の説明', 'user2', '24', 'animation', 'SEQ001', 'SHOT002', 'T1']
+2025-10-24 15:11:19,725 - app.main - INFO - タスク情報（生データ）: ['T3', '2025/5/25', 'T3の説明', 'user3', '32', 'comp', 'SEQ002', 'SHOT001', 'T1,T2']
+2025-10-24 15:31:04,375 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
+2025-10-24 15:34:56,203 - httpx - INFO - HTTP Request: GET http://192.168.44.253/v1/messages/c6a99197-1636-453e-aa2c-02eb5c398183/suggested?user=dify1%40studiobokan.com "HTTP/1.1 200 OK"
+2025-10-24 15:44:02,861 - httpx - INFO - HTTP Request: GET http://192.168.44.253/v1/messages/c6a99197-1636-453e-aa2c-02eb5c398183/suggested?user=dify1%40studiobokan.com "HTTP/1.1 200 OK"
+2025-10-24 15:44:13,970 - httpx - INFO - HTTP Request: GET http://192.168.44.253/v1/messages/c6a99197-1636-453e-aa2c-02eb5c398183/suggested?user=dify1%40studiobokan.com "HTTP/1.1 200 OK"

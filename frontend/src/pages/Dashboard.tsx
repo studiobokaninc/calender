@@ -647,19 +647,20 @@ const Dashboard: React.FC = () => {
       setCurrentTaskId(null)
       // setCurrentMessageId(null) // message_idを保持して推奨質問取得に使用
       
+       // 自動表示は無効化（手動ボタンでのみ表示）
        // 推奨質問を取得
        // メッセージが存在し、推奨質問がまだ取得されていない場合
-       if (messages.length > 0 && suggestedQuestions.length === 0 && !isLoadingSuggestions) {
-         // refから直接message_idを取得
-         const messageIdToUse = messageIdRef.current || latestMessageId || messageIdFromEnd || currentMessageId
-         
-         if (messageIdToUse && messageIdToUse !== conversationId) {
-           // 少し遅延を入れてDB反映を待つ
-           setTimeout(() => {
-             fetchSuggestedQuestions(messageIdToUse)
-           }, 500)
-         }
-       }
+       // if (messages.length > 0 && suggestedQuestions.length === 0 && !isLoadingSuggestions) {
+       //   // refから直接message_idを取得
+       //   const messageIdToUse = messageIdRef.current || latestMessageId || messageIdFromEnd || currentMessageId
+       //   
+       //   if (messageIdToUse && messageIdToUse !== conversationId) {
+       //     // 少し遅延を入れてDB反映を待つ
+       //     setTimeout(() => {
+       //       fetchSuggestedQuestions(messageIdToUse)
+       //     }, 500)
+       //   }
+       // }
     })
 
     eventSource.onerror = (error) => {
@@ -994,7 +995,7 @@ const Dashboard: React.FC = () => {
 			    <div ref={listEndRef} />
 			  </Box>
 			  
-			  {/* 推奨質問：固定位置に表示 */}
+			  {/* 予測された質問：固定位置に表示 */}
 			  {showSuggestions && 
 			    suggestedQuestions.length > 0 && 
 			    !isLoadingSuggestions && (
@@ -1006,9 +1007,23 @@ const Dashboard: React.FC = () => {
 			      mt: 2,
 			      mb: 1,
 			    }}>
-				  <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontSize: '0.875rem' }}>
-				    推奨質問 ({suggestedQuestions.length}件):
-				  </Typography>
+				  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+				    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+				      予測された質問 ({suggestedQuestions.length}件):
+				    </Typography>
+				    <Button
+				      size="small"
+				      onClick={() => setShowSuggestions(false)}
+				      sx={{ 
+				        fontSize: '0.75rem',
+				        minWidth: 'auto',
+				        px: 1,
+				        py: 0,
+				      }}
+				    >
+				      非表示
+				    </Button>
+				  </Box>
 				  <Box sx={{ 
 				    display: 'flex', 
 				    gap: 1, 
@@ -1030,7 +1045,7 @@ const Dashboard: React.FC = () => {
 				      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1 }}>
 					    <CircularProgress size={16} />
 					    <Typography variant="body2" color="text.secondary">
-						    推奨質問を生成中...
+						    予測された質問を生成中...
 					    </Typography>
 					  </Box>
 				    ) : (
@@ -1078,6 +1093,30 @@ const Dashboard: React.FC = () => {
 			    display: 'flex', 
 			    gap: 1,
 			  }}>
+			    <Button
+			      variant="outlined"
+			      size="small"
+			      onClick={async () => {
+			        if (showSuggestions) {
+			          setShowSuggestions(false)
+			        } else {
+			          // 予測された質問を取得して表示
+			          const messageIdToUse = messageIdRef.current || currentMessageId
+			          if (messageIdToUse && messageIdToUse !== conversationId && messages.length > 1) {
+			            await fetchSuggestedQuestions(messageIdToUse)
+			          }
+			        }
+			      }}
+			      disabled={sending || isGenerating || messages.length <= 1}
+			      sx={{ 
+			        fontSize: '0.75rem',
+			        minWidth: 'auto',
+			        px: 1.5,
+			        whiteSpace: 'nowrap',
+			      }}
+			    >
+			      {showSuggestions ? '質問非表示' : '予測質問'}
+			    </Button>
 			    <TextField
 				  fullWidth
 				  size="small"
@@ -1085,17 +1124,6 @@ const Dashboard: React.FC = () => {
 				  value={chatInput}
 				  onChange={(e) => setChatInput(e.target.value)}
 				  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-				  onFocus={() => {
-				    // 推奨質問がまだ取得されていない場合（メッセージがある時）
-				    if (messages.length > 1 && suggestedQuestions.length === 0 && !isLoadingSuggestions) {
-				      // refから直接message_idを取得
-				      const messageIdToUse = messageIdRef.current || currentMessageId
-				      
-				      if (messageIdToUse && messageIdToUse !== conversationId) {
-				        fetchSuggestedQuestions(messageIdToUse)
-				      }
-				    }
-				  }}
 				  disabled={sending}
 			    />
 			    <Button 

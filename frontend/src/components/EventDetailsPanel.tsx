@@ -117,6 +117,8 @@ interface EventDetailsPanelProps {
   onDelete: (event: CalendarEvent) => void;
   eventStatusFilter: string;
   onEventStatusFilterChange: (event: any) => void;
+  eventTypeFilter: string;
+  onEventTypeFilterChange: (event: any) => void;
   projects: Project[];
 }
 
@@ -135,6 +137,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   onDelete,
   eventStatusFilter,
   onEventStatusFilterChange,
+  eventTypeFilter,
+  onEventTypeFilterChange,
   projects,
 }) => {
   console.log('EventDetailsPanel projects:', projects);
@@ -341,15 +345,17 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               {formatDate(selectedDate)}
             </Typography>
           )}
+          {/* フィルターラベル */}
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.1rem', mb: 0.5 }}>表示イベント</Typography>
+          {/* プロジェクトフィルターとイベントタイプフィルターを横並び */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>表示イベント</Typography>
-            <FormControl size="small" sx={{ minWidth: 160, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
+            <FormControl size="small" sx={{ minWidth: 140, flex: 1, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
               <Select
                 labelId="event-project-filter-label"
                 value={eventStatusFilter}
                 onChange={onEventStatusFilterChange}
                 displayEmpty
-                inputProps={{ 'aria-label': '表示イベント' }}
+                inputProps={{ 'aria-label': 'プロジェクトフィルター' }}
                 sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
               >
                 <MenuItem value="all">すべて</MenuItem>
@@ -358,6 +364,25 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     {project.name}
                   </MenuItem>
                 ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 120, flex: 1, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
+              <Select
+                labelId="event-type-filter-label"
+                value={eventTypeFilter}
+                onChange={onEventTypeFilterChange}
+                displayEmpty
+                inputProps={{ 'aria-label': 'イベント種類フィルター' }}
+                sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
+              >
+                <MenuItem value="all">すべて</MenuItem>
+                <MenuItem value="project">プロジェクト</MenuItem>
+                <MenuItem value="task">タスク</MenuItem>
+                <MenuItem value="milestone">マイルストーン</MenuItem>
+                <MenuItem value="deadline">締切</MenuItem>
+                <MenuItem value="meeting">会議</MenuItem>
+                <MenuItem value="workshop">ワークショップ</MenuItem>
+                <MenuItem value="generic">その他</MenuItem>
               </Select>
             </FormControl>
           </Box>

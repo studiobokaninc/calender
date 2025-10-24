@@ -554,7 +554,6 @@ const GanttView: React.FC<GanttViewProps> = memo(
     to: 20
   });
   const [listCellWidth, setListCellWidth] = useState("250px");
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("all");
   const [forceUpdateState, forceUpdate] = useState<object>({});
   const ganttContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollPositionRef = useRef<{left: number, top: number} | null>(null);
@@ -633,9 +632,13 @@ const GanttView: React.FC<GanttViewProps> = memo(
 
   // ★★★ initialTasks prop の変更を localTasks state に反映 ★★★
   useEffect(() => {
-    console.log("initialTasks prop changed, updating localTasks.");
+    console.log(`[GanttView] Props changed - Tasks: ${initialTasks.length}, Projects: ${projects.length}`);
+    if (initialTasks.length > 0) {
+      console.log(`[GanttView] Project IDs in tasks:`, [...new Set(initialTasks.map(t => t.project_id))]);
+      console.log(`[GanttView] Available project IDs:`, projects.map(p => p.id));
+    }
     setLocalTasks(initialTasks); // ★★★ setLocalTasks を使用 ★★★
-  }, [initialTasks]);
+  }, [initialTasks, projects]);
 
   // fetchData の成功時に setLocalTasks を呼ぶ (修正済み)
   const fetchData = useCallback(() => {
@@ -1156,11 +1159,6 @@ const GanttView: React.FC<GanttViewProps> = memo(
   //   selectedProjectIdRef.current = selectedProjectId;
   // }, [selectedProjectId]);
 
-  // プロジェクト選択ハンドラー
-  const handleProjectChange = (event: SelectChangeEvent<string>) => {
-    setSelectedProjectId(event.target.value);
-  };
-
   // ★★★ エラー/ローディング状態を追加 (必要に応じて) ★★★
   // ★★★ 移動済みのため削除 ★★★
   // const [isLoadingData, setIsLoadingData] = useState(false);
@@ -1177,11 +1175,18 @@ const GanttView: React.FC<GanttViewProps> = memo(
 
 
   // ★★★ マウント時に最新データを取得する useEffect を追加 ★★★
+  // ただし、親から既にタスクが渡されている場合（MetricsPageからの使用など）はfetchしない
   useEffect(() => {
-    console.log("GanttView マウント: 最新データを取得します...");
-    fetchData();
+    // 初期タスクが空の場合のみfetchData（独立ページとして使用される場合）
+    if (initialTasks.length === 0) {
+      console.log("GanttView マウント: initialTasksが空なので、最新データを取得します...");
+      fetchData();
+    } else {
+      console.log(`GanttView マウント: 親から${initialTasks.length}件のタスクを受け取りました。fetchDataはスキップします。`);
+      setIsGanttReady(true); // データは既にあるので準備完了
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchData]); // ★★★ fetchData を依存配列に追加 ★★★
+  }, []); // ★★★ マウント時のみ実行 ★★★
 
   // 既存の initialTasks 変更時の useEffect はコメントアウトまたは削除
   /*
@@ -1204,17 +1209,14 @@ const GanttView: React.FC<GanttViewProps> = memo(
       return [];
     }
 
-    console.log('gtrTasks生成: プロジェクトID = ', selectedProjectId, ', localTasks数 =', localTasks.length);
-    console.log("DEBUG: useMemo フィルタリング前: selectedProjectId=", selectedProjectId);
+    console.log('gtrTasks生成: localTasks数 =', localTasks.length);
     console.log("DEBUG: useMemo フィルタリング前: localTasks=", JSON.stringify(localTasks.map(t => ({id: t.id, name: t.name, project_id: t.project_id, start_date: t.start_date, due_date: t.due_date, dependsOn: t.dependsOn})), null, 2));
     console.log("DEBUG: useMemo フィルタリング前: projects=", JSON.stringify(projects, null, 2)); // projects確認用
     console.log("DEBUG: useMemo フィルタリング前: users=", JSON.stringify(users, null, 2)); // users確認用
 
-    // 1. プロジェクトフィルター
-    const projectFilteredTasks = selectedProjectId === "all"
-        ? localTasks
-        : localTasks.filter(task => String(task.project_id) === String(selectedProjectId));
-    console.log(`プロジェクトフィルタリング後 (${selectedProjectId}): ${projectFilteredTasks.length}個`);
+    // 1. 上位でフィルター済みのタスクをそのまま使用
+    const projectFilteredTasks = localTasks;
+    console.log(`フィルタリング後のタスク数: ${projectFilteredTasks.length}個`);
 
     // 2. GtrTask への変換と検証
     const mappedTasks = projectFilteredTasks
@@ -1314,14 +1316,14 @@ const GanttView: React.FC<GanttViewProps> = memo(
     // ★★★ ここまで ★★★
 
     // logEnabled の条件を削除し、常にログ出力
-    console.log(`[GanttView] gtrTasks useMemo: Mapped ${mappedTasks.length} tasks to GtrTasks, Final ${finalTasks.length} tasks after dependency validation.`, { selectedProjectId, localTasksLength: localTasks.length });
+    console.log(`[GanttView] gtrTasks useMemo: Mapped ${mappedTasks.length} tasks to GtrTasks, Final ${finalTasks.length} tasks after dependency validation.`, { localTasksLength: localTasks.length });
 
     if (finalTasks.length === 0 && projectFilteredTasks.length > 0) {
          console.warn('All tasks were filtered out during mapping/validation. Check date formats, start/end order, and dependencies.');
     }
 
     return finalTasks;
-  }, [localTasks, selectedProjectId, projects, users, readOnly]); // ★★★ 依存配列から logEnabled を削除 ★★★
+  }, [localTasks, projects, users, readOnly]); // ★★★ 依存配列から selectedProjectId を削除 ★★★
 
   // ★★★ フィルター処理用の useMemo (現状はダミー) ★★★
   const filteredTasks = useMemo(() => {
@@ -1807,16 +1809,6 @@ const GanttView: React.FC<GanttViewProps> = memo(
             ガントチャート
           </Typography>
           <Stack direction="row" spacing={1} alignItems="center">
-          {/* プロジェクトフィルター */}
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel sx={{ fontSize: '0.7rem' }}>プロジェクト</InputLabel>
-              <Select value={selectedProjectId} label="プロジェクト" onChange={handleProjectChange} sx={{ fontSize: '0.7rem' }}>
-                <MenuItem value="all" sx={{ fontSize: '0.7rem' }}>全プロジェクト</MenuItem>
-                {projects.map((project: Project) => (
-                  <MenuItem key={project.id} value={project.id} sx={{ fontSize: '0.7rem' }}>{project.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
             {/* 表示モード選択 */}
             <FormControl size="small" sx={{ minWidth: 90 }}>
               <InputLabel sx={{ fontSize: '0.7rem' }}>表示</InputLabel>

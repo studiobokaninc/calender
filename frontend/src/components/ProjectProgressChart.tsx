@@ -1,16 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Project, Task } from '../types'; // Adjust path if necessary
-import { Box, Typography, Tooltip as MuiTooltip, IconButton, Select, MenuItem, FormControl, InputLabel, Modal } from '@mui/material';
+import { Box, Typography, Tooltip as MuiTooltip, IconButton, Modal } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import CloseIcon from '@mui/icons-material/Close';
-import { parseISO, format, eachDayOfInterval, isBefore, isEqual, startOfDay, endOfDay, differenceInDays, min, max, startOfToday, addDays, isAfter, isValid } from 'date-fns'; // ★★★ date-fns をインポート ★★★
+import { parseISO, format, eachDayOfInterval, isBefore, isEqual, startOfDay, startOfToday, addDays, isAfter, isValid } from 'date-fns';
 
 interface ProjectProgressChartProps {
     projects: Project[];
     tasks: Task[];
-    selectedProjectId: string | 'all'; // 'all' or a specific project ID
-    onProjectChange: (projectId: string | 'all') => void;
 }
 
 // ★★★ データ型の定義を明確化 ★★★
@@ -19,30 +17,9 @@ interface ProgressDataPoint {
     [key: string]: number | string | null; // Allows for project_actual, project_planned keys + date
 }
 
-// ★★★ 引数に today を追加 ★★★
-const calculateProgressData = (projects: Project[], tasks: Task[], selectedProjectId: string | 'all', today: Date): ProgressDataPoint[] => {
-    console.log("=== 進捗データ計算開始 ===");
-    console.log("プロジェクト数:", projects.length);
-    console.log("タスク数:", tasks.length);
-    console.log("選択されたプロジェクトID:", selectedProjectId);
-
-    // タスクのステータス履歴を確認
-    tasks.forEach(task => {
-        if (task.status_history && task.status_history.length > 0) {
-            console.log(`タスク ${task.id} (${task.name}) のステータス履歴:`, {
-                現在のステータス: task.status,
-                履歴数: task.status_history.length,
-                履歴: task.status_history.map(h => ({
-                    ステータス: h.status,
-                    日時: h.changed_at
-                }))
-            });
-        }
-    });
-
-    const targetProjects = projects.filter(p => selectedProjectId === 'all' || String(p.id) === selectedProjectId);
+const calculateProgressData = (projects: Project[], tasks: Task[], today: Date): ProgressDataPoint[] => {
+    const targetProjects = projects;
     if (targetProjects.length === 0) {
-        console.log("対象プロジェクトが存在しません");
         return [];
     }
 
@@ -62,33 +39,72 @@ const calculateProgressData = (projects: Project[], tasks: Task[], selectedProje
                 latestProjectEndDate = projEndDate;
             }
         } catch (e) {
-            console.error(`プロジェクト ${p.id} の日付解析エラー:`, e);
+            // 日付解析エラーは無視
         }
     });
 
     // X軸の最終日を計算
+    // プロジェクト終了日+7日 と 今日+7日 の遅い方を採用（遅延プロジェクト対応）
     let chartAxisEndDate: Date;
+    const todayPlus7 = addDays(today, 7);
+    
     if (latestProjectEndDate) {
-        chartAxisEndDate = addDays(latestProjectEndDate, 7);
+        const projectEndPlus7 = addDays(latestProjectEndDate, 7);
+        chartAxisEndDate = isAfter(todayPlus7, projectEndPlus7) ? todayPlus7 : projectEndPlus7;
     } else {
-        chartAxisEndDate = addDays(today, 7);
-        console.warn("プロジェクト終了日が見つかりません。今日 + 7日を軸の終了日として使用します。");
+        chartAxisEndDate = todayPlus7;
     }
     
     // overallMinDateの検証
     if (!overallMinDate || !isValid(overallMinDate) || isBefore(chartAxisEndDate, overallMinDate)) {
-        console.warn("無効な開始日または終了日より後の日付です。開始日を調整します。");
         overallMinDate = startOfDay(new Date(chartAxisEndDate.getTime() - 30 * 24 * 60 * 60 * 1000));
         if (!isValid(overallMinDate) || isBefore(chartAxisEndDate, overallMinDate)) {
             overallMinDate = startOfDay(chartAxisEndDate);
         }
     }
 
-    console.log("計算期間:", format(overallMinDate, 'yyyy/MM/dd'), "～", format(chartAxisEndDate, 'yyyy/MM/dd'));
-
     // 日付間隔の計算
     const dateIntervals = eachDayOfInterval({ start: overallMinDate, end: chartAxisEndDate });
-    console.log("計算対象日数:", dateIntervals.length);
+
+    // 各プロジェクトの完了日を事前に計算
+    const projectCompletionDates = new Map<string, Date | null>();
+    
+    targetProjects.forEach(project => {
+        const projectTasks = tasks.filter(t => String(t.project_id) === String(project.id));
+        const allCompleted = projectTasks.length > 0 && projectTasks.every(t => t.status === 'completed');
+        
+        if (allCompleted) {
+            let latestCompletionDate: Date | null = null;
+            
+            projectTasks.forEach(t => {
+                let taskCompletionDate: Date | null = null;
+                
+                if (t.status_history && t.status_history.length > 0) {
+                    const completedEntries = t.status_history.filter(h => h.status === 'completed');
+                    
+                    if (completedEntries.length > 0) {
+                        const lastCompleted = completedEntries[completedEntries.length - 1];
+                        taskCompletionDate = startOfDay(parseISO(lastCompleted.changed_at));
+                    }
+                }
+                
+                // フォールバック: status_historyがない場合はupdated_atを使用
+                if (!taskCompletionDate && t.status === 'completed' && t.updated_at) {
+                    taskCompletionDate = startOfDay(parseISO(t.updated_at));
+                }
+                
+                if (taskCompletionDate && isValid(taskCompletionDate)) {
+                    if (!latestCompletionDate || isAfter(taskCompletionDate, latestCompletionDate)) {
+                        latestCompletionDate = taskCompletionDate;
+                    }
+                }
+            });
+            
+            if (latestCompletionDate) {
+                projectCompletionDates.set(project.name, latestCompletionDate);
+            }
+        }
+    });
 
     // 2. Calculate progress for each day
     const progressData: ProgressDataPoint[] = dateIntervals.map(currentDateRaw => {
@@ -102,8 +118,15 @@ const calculateProgressData = (projects: Project[], tasks: Task[], selectedProje
             const actualProgressKey = `${project.name}_actual`;
             const plannedProgressKey = `${project.name}_planned`;
 
+            // プロジェクト完了日以降は実績・計画をnullにする
+            const completionDate = projectCompletionDates.get(project.name);
+            const isAfterCompletion = completionDate && isAfter(currentDate, completionDate);
+
             // 実績進捗の計算
             if (isBefore(today, currentDate)) {
+                dailyProgress[actualProgressKey] = null;
+            } else if (isAfterCompletion) {
+                // プロジェクト完了日より後は表示しない
                 dailyProgress[actualProgressKey] = null;
             } else {
                 let actualWeightedSum = 0;
@@ -125,7 +148,6 @@ const calculateProgressData = (projects: Project[], tasks: Task[], selectedProje
                             for (const entry of sortedHistory) {
                                 try {
                                     if (!entry.changed_at) {
-                                        console.warn(`タスク ${t.id} (${t.name}) のステータス履歴に日付がありません:`, entry);
                                         continue;
                                     }
 
@@ -134,7 +156,7 @@ const calculateProgressData = (projects: Project[], tasks: Task[], selectedProje
                                         lastValidEntry = entry;
                                     }
                                 } catch (e) {
-                                    console.error(`日付解析エラー (タスク ${t.id}):`, e);
+                                    // 日付解析エラーは無視
                                 }
                             }
 
@@ -158,17 +180,6 @@ const calculateProgressData = (projects: Project[], tasks: Task[], selectedProje
                                     default:
                                         taskContribution = 0;
                                 }
-
-                                // 進捗貢献度が0より大きい場合のみログを出力
-                                if (taskContribution > 0) {
-                                    console.log(`タスク ${t.id} (${t.name}) の進捗貢献:`, {
-                                        ステータス: currentStatusEntry.status,
-                                        貢献度: taskContribution,
-                                        日時: currentStatusEntry.changed_at,
-                                        現在の日付: dateStr,
-                                        タスクID: t.id
-                                    });
-                                }
                             }
                         }
                         actualWeightedSum += taskContribution;
@@ -182,26 +193,30 @@ const calculateProgressData = (projects: Project[], tasks: Task[], selectedProje
             }
 
             // 計画進捗の計算
-            let plannedCompletedCount = 0;
-            if (totalTasksInProject > 0) {
-                plannedCompletedCount = projectTasks.filter(t => {
-                    try {
-                        const dueDate = t.due_date ? startOfDay(parseISO(t.due_date)) : null;
-                        return dueDate && isValid(dueDate) && (isBefore(dueDate, currentDate) || isEqual(dueDate, currentDate));
-                    } catch (e) {
-                        return false;
-                    }
-                }).length;
-                dailyProgress[plannedProgressKey] = Math.round((plannedCompletedCount / totalTasksInProject) * 100);
+            if (isAfterCompletion) {
+                // プロジェクト完了日より後は計画線も表示しない
+                dailyProgress[plannedProgressKey] = null;
             } else {
-                dailyProgress[plannedProgressKey] = 0;
+                let plannedCompletedCount = 0;
+                if (totalTasksInProject > 0) {
+                    plannedCompletedCount = projectTasks.filter(t => {
+                        try {
+                            const dueDate = t.due_date ? startOfDay(parseISO(t.due_date)) : null;
+                            return dueDate && isValid(dueDate) && (isBefore(dueDate, currentDate) || isEqual(dueDate, currentDate));
+                        } catch (e) {
+                            return false;
+                        }
+                    }).length;
+                    dailyProgress[plannedProgressKey] = Math.round((plannedCompletedCount / totalTasksInProject) * 100);
+                } else {
+                    dailyProgress[plannedProgressKey] = 0;
+                }
             }
         });
 
         return dailyProgress;
     });
 
-    console.log("=== 進捗データ計算完了 ===");
     return progressData;
 };
 
@@ -287,7 +302,7 @@ const modalStyle = {
   flexDirection: 'column' // 閉じるボタンを配置しやすくするため
 };
 
-const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, tasks, selectedProjectId, onProjectChange }) => {
+const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, tasks }) => {
     // ★★★ 今日をコンポーネントの state または定数として定義 ★★★
     const today = useMemo(() => startOfToday(), []);
     const todayFormatted = useMemo(() => format(today, 'MM/dd'), [today]);
@@ -299,14 +314,14 @@ const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, t
 
     const progressData = useMemo(
         // ★★★ calculateProgressData に today を渡す ★★★
-        () => calculateProgressData(projects, tasks, selectedProjectId, today),
-        [projects, tasks, selectedProjectId, today] // Add today to dependency array
+        () => calculateProgressData(projects, tasks, today),
+        [projects, tasks, today] // Add today to dependency array
     );
 
     // ★★★ 表示する線の定義を変更 (実績と計画) ★★★
     const projectLines = useMemo(() => {
         const lines: any[] = [];
-        const targetProjects = projects.filter(p => selectedProjectId === 'all' || String(p.id) === selectedProjectId);
+        const targetProjects = projects;
         const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#d0ed57', '#a4de6c', '#8dd1e1', '#83a6ed'];
 
         targetProjects.forEach((project, index) => {
@@ -325,7 +340,7 @@ const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, t
             });
         });
         return lines;
-    }, [projects, selectedProjectId]);
+    }, [projects]);
 
     // ★★★ Linter Error 対策: 条件付きでレンダリングするコンテンツを事前に定義 ★★★
     let chartContent;
@@ -379,23 +394,6 @@ const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, t
                 <Typography variant="subtitle1" sx={{ flexGrow: 1, fontWeight: 'bold', fontSize: '0.9rem' }}>
                     プロジェクト進捗状況 (計画 vs 実績)
                 </Typography>
-                <FormControl size="small" sx={{ minWidth: 150, mr: 1 }}>
-                    <InputLabel id="project-filter-label" sx={{ fontSize: '0.8rem' }}>プロジェクト</InputLabel>
-                    <Select
-                        labelId="project-filter-label"
-                        value={selectedProjectId}
-                        label="プロジェクト"
-                        onChange={(e) => onProjectChange(e.target.value as string)}
-                        sx={{ fontSize: '0.8rem' }}
-                    >
-                        <MenuItem value="all">すべてのプロジェクト</MenuItem>
-                        {projects.map((proj) => (
-                            <MenuItem key={proj.id} value={proj.id}>
-                                {proj.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
                 <MuiTooltip title="グラフをクリックして拡大表示します。計画（点線）: タスクが期日通りに完了した場合の理想進捗。実績（実線）: 完了タスク(100%)+進行中タスク(50%)で計算した実際の進捗（今日まで表示）。グラフはプロジェクト終了日+1週まで表示。今日の日付に赤線を表示。">
                     <IconButton size="small">
                         <HelpOutlineIcon fontSize="small" />
@@ -444,8 +442,4 @@ const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, t
     );
 };
 
-// export default ProjectProgressChart; // ★★★ 重複をコメントアウト ★★★
-
 export default ProjectProgressChart;
-// export default ProjectProgressChart; // ★★★ 重複をコメントアウト ★★★
-var _c, _c2, _c3;$RefreshReg$(_c, "CustomTooltip");$RefreshReg$(_c2, "ModalChartContent");$RefreshReg$(_c3, "ProjectProgressChart");

@@ -459,35 +459,8 @@ const calculateMetrics = (tasks: Task[]) => {
         delayedTasks
     });
 
-    // プロジェクト進捗の計算（期日に基づく）
-    const today = new Date();
-    const totalDays = tasks.reduce((acc, task) => {
-        if (task.due_date) {
-            const dueDate = new Date(task.due_date);
-            const days = Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-            console.log(`タスク ${task.name} の期日までの日数:`, days);
-            return acc + days;
-        }
-        return acc;
-    }, 0);
-
-    const completedDays = tasks.reduce((acc, task) => {
-        if (task.status === 'completed' && task.due_date) {
-            const dueDate = new Date(task.due_date);
-            const days = Math.max(0, Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-            console.log(`完了タスク ${task.name} の期日までの日数:`, days);
-            return acc + days;
-        }
-        return acc;
-    }, 0);
-
-    console.log('進捗計算:', {
-        totalDays,
-        completedDays,
-        today: today.toISOString()
-    });
-
-    const progress = totalDays > 0 ? (completedDays / totalDays) * 100 : 0;
+    // プロジェクト進捗の計算（完了タスク数 / 総タスク数）
+    const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
     console.log('最終メトリクス:', {
         totalTasks,

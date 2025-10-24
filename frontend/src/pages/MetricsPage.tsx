@@ -33,7 +33,6 @@ const MetricsPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>(hasInitialData ? globalData.users : []);
   const [loading, setLoading] = useState<boolean>(!hasInitialData);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProjectIdForProgress, setSelectedProjectIdForProgress] = useState<string | 'all'>('all');
   
   // 状態を分離（初期化時はデフォルト値）
   const [selectedTab, setSelectedTab] = useState<number>(0);
@@ -204,12 +203,16 @@ const MetricsPage: React.FC = () => {
 
   // データのフィルタリング
   const filteredTasks = useMemo(() => {
+    console.log(`[MetricsPage] Filtering tasks - Total tasks: ${tasks.length}, Total projects: ${projects.length}`);
+    console.log(`[MetricsPage] Filters - projectName: ${projectNameFilter}, status: ${statusFilter}, displayStatuses: ${selectedDisplayStatuses.join(',')}, dateRange: ${dateRange}`);
+    
     let result = tasks;
     let tempProjects = projects;
 
     // プロジェクト名でフィルタリング (プロジェクトリストを先に絞る)
     if (projectNameFilter) {
       tempProjects = tempProjects.filter(project => project.name === projectNameFilter);
+      console.log(`[MetricsPage] After project name filter: ${tempProjects.length} projects`);
     }
 
     // プロジェクトの status でフィルタリング (プロジェクトリストを絞る)
@@ -264,6 +267,11 @@ const MetricsPage: React.FC = () => {
       });
     }
     
+    console.log(`[MetricsPage] Filtered tasks result: ${result.length} tasks`);
+    if (result.length > 0) {
+      console.log(`[MetricsPage] Project IDs in filtered tasks:`, [...new Set(result.map(t => t.project_id))]);
+    }
+    
     return result;
   }, [tasks, projects, dateRange, projectNameFilter, statusFilter, selectedDisplayStatuses]);
 
@@ -283,6 +291,8 @@ const MetricsPage: React.FC = () => {
         project.display_status && selectedDisplayStatuses.includes(project.display_status)
       );
     }
+    
+    console.log(`[MetricsPage] Filtered projects result: ${result.length} projects`, result.map(p => ({ id: p.id, name: p.name })));
     
     return result;
   }, [projects, projectNameFilter, statusFilter, selectedDisplayStatuses]);
@@ -496,12 +506,10 @@ const MetricsPage: React.FC = () => {
              </Tabs>
              
              {selectedTab === 0 && (
-            <ProjectProgressChart
-                 projects={filteredProjects}
-                 tasks={filteredTasks}
-                 selectedProjectId={String(selectedProjectIdForProgress)}
-                 onProjectChange={setSelectedProjectIdForProgress}
-            />
+           <ProjectProgressChart
+                projects={filteredProjects}
+                tasks={filteredTasks}
+           />
              )}
              
              {selectedTab === 1 && (
@@ -520,7 +528,12 @@ const MetricsPage: React.FC = () => {
                <>
                 {filteredTasks.length > 0 ? (
                   <ErrorBoundary componentName="GanttChart">
-                    <GanttView tasks={filteredTasks} projects={filteredProjects} users={users} />
+                    <GanttView 
+                      key={`gantt-${filteredProjects.map(p => p.id).join('-')}`}
+                      tasks={filteredTasks} 
+                      projects={filteredProjects} 
+                      users={users} 
+                    />
                   </ErrorBoundary>
                 ) : (
                   <Box sx={{ p: 3, textAlign: 'center' }}>

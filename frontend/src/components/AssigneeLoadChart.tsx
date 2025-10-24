@@ -13,7 +13,7 @@ interface AssigneeLoadChartProps {
 }
 
 interface AssigneeLoadData {
-    assigneeId: string; // フィルター用にIDも保持
+    assigneeId: number; // フィルター用にIDも保持
     assigneeName: string;
     todoTasks: number;
     inProgressTasks: number;
@@ -28,16 +28,13 @@ interface AssigneeLoadData {
 // ★★★ データ計算ロジック変更: 新しい遅延定義を適用 ★★★
 const calculateAssigneeLoadData = (
     tasks: Task[], 
-    users: User[], 
-    selectedProjectId: string | 'all' // ★★★ プロジェクトIDを受け取る ★★★
+    users: User[]
 ): AssigneeLoadData[] => {
     const today = startOfDay(new Date()); // 今日の開始時刻
     const assignees = users.filter(u => u.role !== 'admin');
     
-    // ★★★ プロジェクトでタスクを絞り込む ★★★
-    const filteredTasks = selectedProjectId === 'all' 
-        ? tasks 
-        : tasks.filter(task => task.project_id === selectedProjectId);
+    // 渡されたtasksをそのまま使用（上位でフィルター済み）
+    const filteredTasks = tasks;
 
     const loadData = assignees.map(assignee => {
         const assignedTasks = filteredTasks.filter(task => task.assigned_to === assignee.id);
@@ -95,7 +92,7 @@ const calculateAssigneeLoadData = (
 
         return {
             assigneeId: assignee.id, // IDを追加
-            assigneeName: assignee.full_name || assignee.username, 
+            assigneeName: assignee.full_name || assignee.username || 'Unknown', 
             todoTasks,
             inProgressTasks,
             delayedTasks,
@@ -107,7 +104,7 @@ const calculateAssigneeLoadData = (
         };
     });
 
-    console.log(`Calculated Assignee Load Data (new delay def) for Project '${selectedProjectId}':`, loadData); 
+    console.log('Calculated Assignee Load Data:', loadData); 
     return loadData;
 };
 
@@ -149,14 +146,13 @@ const modalStyle = {
   flexDirection: 'column' 
 };
 
-const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, projects }) => { // ★★★ projects を受け取る ★★★
+const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) => { // projects は使用しないので削除
     // ★★★ フィルター用の State ★★★
-    const [selectedProjectId, setSelectedProjectId] = useState<string | 'all'>('all');
-    const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]); // 初期は空（=全員表示）
+    const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]); // 初期は空（=全員表示）
 
     const assigneeLoadDataAll = useMemo(
-        () => calculateAssigneeLoadData(tasks, users, selectedProjectId),
-        [tasks, users, selectedProjectId] // selectedProjectId に依存
+        () => calculateAssigneeLoadData(tasks, users),
+        [tasks, users] // selectedProjectId を削除
     );
 
     // ★★★ 担当者リスト（フィルター用）★★★
@@ -193,7 +189,6 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, pro
     const renderBarChart = (
         data: AssigneeLoadData[], 
         countOrCost: 'count' | 'cost',
-        title: string, 
         formatter: (value: any) => string, 
         isModal: boolean = false
     ) => {
@@ -263,22 +258,6 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, pro
                 </MuiTooltip>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                <FormControl size="small" sx={{ minWidth: 180 }}>
-                    <InputLabel sx={{fontSize: '0.8rem'}}>プロジェクト</InputLabel>
-                    <Select
-                        value={selectedProjectId}
-                        label="プロジェクト"
-                        onChange={(e) => setSelectedProjectId(e.target.value as string)}
-                         sx={{fontSize: '0.8rem'}}
-                    >
-                        <MenuItem value="all">すべてのプロジェクト</MenuItem>
-                        {projects.map((proj) => (
-                            <MenuItem key={proj.id} value={proj.id}>
-                                {proj.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
                  <FormControl size="small" sx={{ minWidth: 200 }}>
                     <InputLabel sx={{fontSize: '0.8rem'}}>担当者</InputLabel>
                     <Select
@@ -286,9 +265,9 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, pro
                         value={selectedAssigneeIds}
                         onChange={(e) => {
                             const value = e.target.value;
-                            // Ensure value is always an array of strings
-                            const newValue = typeof value === 'string' ? value.split(',') : (Array.isArray(value) ? value : []);
-                            setSelectedAssigneeIds(newValue.filter(id => id !== 'select-all')); // Filter out 'select-all' just in case
+                            // Ensure value is always an array of numbers
+                            const newValue = typeof value === 'string' ? value.split(',').map(Number) : (Array.isArray(value) ? value.map(v => typeof v === 'string' ? Number(v) : v) : []);
+                            setSelectedAssigneeIds(newValue.filter(id => typeof id === 'number' && !isNaN(id))); // Filter out invalid numbers
                         }}
                         input={<OutlinedInput label="担当者" />}
                         renderValue={(selected) => 
@@ -333,7 +312,7 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, pro
                              <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign:'center', fontSize: '0.8rem' }}>タスク数</Typography>
                               {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
                              <Box onClick={() => setIsTaskCountModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}> 
-                                {renderBarChart(filteredAssigneeLoadData, 'count', "タスク数", taskCountFormatter)}
+                                {renderBarChart(filteredAssigneeLoadData, 'count', taskCountFormatter)}
                               </Box>
                          </Paper>
                      </Grid>
@@ -342,7 +321,7 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, pro
                              <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign:'center', fontSize: '0.8rem' }}>タスクコスト</Typography>
                              {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
                              <Box onClick={() => setIsTaskCostModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}> 
-                                {renderBarChart(filteredAssigneeLoadData, 'cost', "タスクコスト", costFormatter)}
+                                {renderBarChart(filteredAssigneeLoadData, 'cost', costFormatter)}
                              </Box>
                          </Paper>
                      </Grid>
@@ -361,7 +340,7 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, pro
                      </Box>
                      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
                         {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
-                        {renderBarChart(filteredAssigneeLoadData, 'count', "タスク数", taskCountFormatter, true)} 
+                        {renderBarChart(filteredAssigneeLoadData, 'count', taskCountFormatter, true)} 
                      </Box>
                 </Box>
             </Modal>
@@ -378,7 +357,7 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, pro
                      </Box>
                      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
                          {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
-                        {renderBarChart(filteredAssigneeLoadData, 'cost', "タスクコスト", costFormatter, true)}
+                        {renderBarChart(filteredAssigneeLoadData, 'cost', costFormatter, true)}
                      </Box>
                  </Box>
             </Modal>

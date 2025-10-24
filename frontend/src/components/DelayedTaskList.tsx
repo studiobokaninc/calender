@@ -126,7 +126,6 @@ function stableSort(array: readonly DelayedTaskInfo[], comparator: (a: DelayedTa
 const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, projects }) => {
     const [order, setOrder] = useState<Order>('desc'); // デフォルトは遅延日数の降順
     const [orderBy, setOrderBy] = useState<OrderBy>('delayDays');
-    const [selectedProjectId, setSelectedProjectId] = useState<string | 'all'>('all');
     const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
 
     // 遅延タスクデータの計算 (初回のみ)
@@ -146,17 +145,13 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
     // フィルター適用後のデータ
     const filteredDelayedTasks = useMemo(() => {
         let filtered = allDelayedTasks;
-        // プロジェクトフィルター
-        if (selectedProjectId !== 'all') {
-            filtered = filtered.filter(task => task.projectId === selectedProjectId);
-        }
         // 担当者フィルター
         const isAllAssigneesSelected = selectedAssigneeIds.length === 0 || selectedAssigneeIds.length === allAssigneeIds.length;
         if (!isAllAssigneesSelected && allAssigneeIds.length > 0) {
             filtered = filtered.filter(task => selectedAssigneeIds.includes(task.assigneeId));
         }
         return filtered;
-    }, [allDelayedTasks, selectedProjectId, selectedAssigneeIds, allAssigneeIds]);
+    }, [allDelayedTasks, selectedAssigneeIds, allAssigneeIds]);
 
     // ソート適用後のデータ
     const sortedDelayedTasks = useMemo(() => {
@@ -201,23 +196,6 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
 
             {/* フィルター */}
             <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                <FormControl size="small" sx={{ minWidth: 180 }}>
-                    <InputLabel sx={{fontSize: '0.8rem'}}>プロジェクト</InputLabel>
-                    <Select
-                        value={selectedProjectId}
-                        label="プロジェクト"
-                        onChange={(e) => setSelectedProjectId(e.target.value as string)}
-                         sx={{fontSize: '0.8rem'}}
-                    >
-                        <MenuItem value="all">すべてのプロジェクト</MenuItem>
-                        {/* 遅延タスクが存在するプロジェクトのみ表示 */}
-                        {projects.filter(p => allDelayedTasks.some(task => task.projectId === p.id)).map((proj) => (
-                            <MenuItem key={proj.id} value={proj.id}>
-                                {proj.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
                  <FormControl size="small" sx={{ minWidth: 200 }}>
                     <InputLabel sx={{fontSize: '0.8rem'}}>担当者</InputLabel>
                     <Select

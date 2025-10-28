@@ -175,61 +175,144 @@ def get_task(db: Session, task_id: int) -> models.Task | None:
 def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None) -> list[dict]:
     """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)"""
     try:
-        query = db.query(models.Task)
-        if project_id is not None:
-            query = query.filter(models.Task.project_id == project_id)
-        if display_status_in is not None and display_status_in:
-            query = query.filter(models.Task.display_status.in_(display_status_in))
+        # SQLAlchemyを使わず、直接SQL文でデータ取得（Enum検証を回避）
+        from sqlalchemy import text
         
-        tasks = query.offset(skip).limit(limit).all()
+        query_parts = ["SELECT * FROM tasks"]
+        conditions = []
+        params = {}
+        
+        if project_id is not None:
+            conditions.append("project_id = :project_id")
+            params["project_id"] = project_id
+        
+        if display_status_in is not None and display_status_in:
+            placeholders = ','.join([f":status{i}" for i in range(len(display_status_in))])
+            conditions.append(f"display_status IN ({placeholders})")
+            for i, status in enumerate(display_status_in):
+                params[f"status{i}"] = status
+        
+        if conditions:
+            query_parts.append("WHERE " + " AND ".join(conditions))
+        
+        query_parts.append(f"LIMIT :limit OFFSET :skip")
+        params["limit"] = limit
+        params["skip"] = skip
+        
+        query_str = " ".join(query_parts)
+        result = db.execute(text(query_str), params)
+        rows = result.fetchall()
         
         # タスクを辞書に変換
         task_dicts = []
-        for task in tasks:
+        for row in rows:
+            # 日付フィールドの安全な処理（文字列の場合も対応）
+            def safe_date_format(date_value):
+                if date_value is None:
+                    return None
+                if isinstance(date_value, str):
+                    return date_value  # 既に文字列の場合はそのまま返す
+                if hasattr(date_value, 'isoformat'):
+                    return date_value.isoformat()
+                return str(date_value)
+            
+            # typeはどんな値でも許容（検証なし）
+            task_type = row.type
+            
+            # priorityの安全な処理
+            try:
+                priority_value = row.priority if row.priority and row.priority != '' else None
+            except:
+                priority_value = None
+            
+            # statusの安全な処理（大文字を小文字に変換）
+            try:
+                if hasattr(row, 'status') and row.status:
+                    # ステータス値のマッピング（大文字→小文字、アンダースコア→ハイフン）
+                    status_mapping = {
+                        'TODO': 'todo',
+                        'IN_PROGRESS': 'in-progress',
+                        'REVIEW': 'review',
+                        'COMPLETED': 'completed',
+                        'DELAYED': 'delayed',
+                        'todo': 'todo',
+                        'in-progress': 'in-progress',
+                        'review': 'review',
+                        'completed': 'completed',
+                        'delayed': 'delayed'
+                    }
+                    task_status = status_mapping.get(row.status, row.status.lower().replace('_', '-'))
+                else:
+                    task_status = 'todo'
+            except Exception as e:
+                logger.warning(f"タスク {row.id} のstatusの処理に失敗: {str(e)}")
+                task_status = 'todo'
+            
+            # dependsOnの安全な処理
+            try:
+                depends_on = row.dependsOn if row.dependsOn else []
+                if not isinstance(depends_on, list):
+                    if isinstance(depends_on, str):
+                        import json
+                        try:
+                            depends_on = json.loads(depends_on)
+                        except:
+                            depends_on = [depends_on] if depends_on else []
+                    else:
+                        depends_on = []
+            except:
+                depends_on = []
+            
             task_dict = {
-                'id': task.id,
-                'project_id': task.project_id,
-                'name': task.name,
-                'description': task.description,
-                'assigned_to': task.assigned_to,
-                'due_date': task.due_date.isoformat() if task.due_date else None,
-                'status': task.status,
-                'priority': task.priority.value if task.priority else None,  # 空の場合はNoneを返す
-                'type': task.type,
-                'start_date': task.start_date.isoformat() if task.start_date else None,
-                'progress': task.progress,
-                'cost': task.cost,
-                'dependsOn': task.dependsOn,
-                'shotID': task.shotID,
-                'seqID': task.seqID,
-                'created_at': task.created_at.isoformat() if task.created_at else None,
-                'display_status': task.display_status,
-                'updated_at': task.updated_at.isoformat() if task.updated_at else None,
+                'id': row.id,
+                'project_id': row.project_id,
+                'name': row.name,
+                'description': row.description,
+                'assigned_to': row.assigned_to,
+                'due_date': safe_date_format(row.due_date),
+                'status': task_status,
+                'priority': priority_value,
+                'type': task_type,  # 無効な値もそのまま保持
+                'start_date': safe_date_format(row.start_date),
+                'progress': row.progress if hasattr(row, 'progress') else 0,
+                'cost': row.cost if hasattr(row, 'cost') else 0,
+                'dependsOn': depends_on,
+                'shotID': row.shotID if hasattr(row, 'shotID') else None,
+                'seqID': row.seqID if hasattr(row, 'seqID') else None,
+                'created_at': safe_date_format(row.created_at),
+                'display_status': row.display_status if hasattr(row, 'display_status') else 'offline',
+                'updated_at': safe_date_format(row.updated_at),
                 'status_history': []
             }
             
             # ステータス履歴を取得して辞書に変換
-            history_entries = db.query(models.TaskStatusHistory).filter(
-                models.TaskStatusHistory.task_id == task.id
-            ).order_by(models.TaskStatusHistory.changed_at).all()
-            
-            task_dict['status_history'] = [
-                {
-                    'id': entry.id,
-                    'task_id': entry.task_id,
-                    'status': entry.status,
-                    'timestamp': entry.changed_at.isoformat() if entry.changed_at else None,
-                    'changed_at': entry.changed_at.isoformat() if entry.changed_at else None,
-                    'changed_by': entry.changed_by
-                }
-                for entry in history_entries
-            ]
+            try:
+                history_entries = db.query(models.TaskStatusHistory).filter(
+                    models.TaskStatusHistory.task_id == row.id
+                ).order_by(models.TaskStatusHistory.changed_at).all()
+                
+                task_dict['status_history'] = [
+                    {
+                        'id': entry.id,
+                        'task_id': entry.task_id,
+                        'status': entry.status,
+                        'timestamp': entry.changed_at.isoformat() if entry.changed_at else None,
+                        'changed_at': entry.changed_at.isoformat() if entry.changed_at else None,
+                        'changed_by': entry.changed_by
+                    }
+                    for entry in history_entries
+                ]
+            except Exception as e:
+                logger.warning(f"タスク ID {row.id} のステータス履歴取得に失敗: {str(e)}")
+                task_dict['status_history'] = []
             
             task_dicts.append(task_dict)
         
         return task_dicts
     except Exception as e:
         logger.error(f"タスクの取得に失敗: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"タスクの取得に失敗しました: {str(e)}"
@@ -303,8 +386,7 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             continue
         elif key == "priority" and value not in ['low', 'medium', 'high', None]:
             continue
-        elif key == "type" and value not in ['development', 'design', 'documentation', 'testing', 'maintenance', 'fx', 'asset', 'animation', 'lighting', 'comp', None]:
-            continue
+        # typeは任意の文字列を許容するため、検証を削除
 
         if hasattr(db_task, db_key):
             setattr(db_task, db_key, parsed_value)

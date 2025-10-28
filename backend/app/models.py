@@ -114,7 +114,7 @@ class Task(Base):
     due_date: Mapped[Optional[datetime]] = mapped_column()
     status: Mapped[Optional[TaskStatus]] = mapped_column()
     priority: Mapped[Optional[TaskPriority]] = mapped_column()
-    type: Mapped[Optional[TaskType]] = mapped_column()
+    type: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Enum → String に変更（任意の値を許容）
     start_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     progress: Mapped[Optional[int]] = mapped_column(nullable=True)
     cost: Mapped[Optional[float]] = mapped_column(nullable=True)

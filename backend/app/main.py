@@ -277,31 +277,68 @@ async def delete_project_endpoint(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """プロジェクトを削除"""
+    """プロジェクトを削除（無効なデータがあっても安全に削除）"""
+    from sqlalchemy import text
+    
     try:
-        # プロジェクトの存在確認
-        project = crud.get_project(db=db, project_id=project_id)
-        if not project:
+        # プロジェクトの存在確認（SQLで直接確認）
+        project_check = db.execute(
+            text("SELECT id, name FROM projects WHERE id = :project_id"),
+            {"project_id": project_id}
+        ).fetchone()
+        
+        if not project_check:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="プロジェクトが見つかりません"
             )
         
-        # 関連するタスクを削除
-        tasks = db.query(models.Task).filter(models.Task.project_id == project_id).all()
-        for task in tasks:
-            # タスクのステータス履歴を削除
-            db.query(models.TaskStatusHistory).filter(models.TaskStatusHistory.task_id == task.id).delete()
-            db.delete(task)
+        logger.info(f"プロジェクト削除開始: ID={project_id}, 名前={project_check.name}")
         
-        # 関連するイベントを削除
-        events = crud.get_events(db=db, project_id=project_id)
-        for event in events:
-            db.delete(event)
+        # 1. 関連するタスクのIDを取得（生SQLで無効なデータを回避）
+        task_ids_result = db.execute(
+            text("SELECT id FROM tasks WHERE project_id = :project_id"),
+            {"project_id": project_id}
+        ).fetchall()
         
-        # プロジェクトを削除
-        db.delete(project)
+        task_ids = [row.id for row in task_ids_result]
+        logger.info(f"削除対象タスク数: {len(task_ids)}")
+        
+        # 2. タスクのステータス履歴を削除
+        if task_ids:
+            # IN句用のプレースホルダーを作成
+            placeholders = ','.join([f":tid{i}" for i in range(len(task_ids))])
+            params = {f"tid{i}": tid for i, tid in enumerate(task_ids)}
+            
+            db.execute(
+                text(f"DELETE FROM task_status_history WHERE task_id IN ({placeholders})"),
+                params
+            )
+            logger.info(f"ステータス履歴を削除しました")
+        
+        # 3. タスクを削除（生SQLで）
+        db.execute(
+            text("DELETE FROM tasks WHERE project_id = :project_id"),
+            {"project_id": project_id}
+        )
+        logger.info(f"タスクを削除しました: {len(task_ids)}件")
+        
+        # 4. 関連するイベントを削除（生SQLで）
+        db.execute(
+            text("DELETE FROM events WHERE project_id = :project_id"),
+            {"project_id": project_id}
+        )
+        logger.info(f"イベントを削除しました")
+        
+        # 5. プロジェクトを削除（生SQLで）
+        db.execute(
+            text("DELETE FROM projects WHERE id = :project_id"),
+            {"project_id": project_id}
+        )
+        logger.info(f"プロジェクトを削除しました")
+        
         db.commit()
+        logger.info(f"プロジェクト ID {project_id} ({project_check.name}) の削除が完了しました")
         
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -311,6 +348,8 @@ async def delete_project_endpoint(
     except Exception as e:
         db.rollback()
         logger.error(f"プロジェクト削除エラー: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"プロジェクトの削除中にエラーが発生しました: {str(e)}"
@@ -336,22 +375,51 @@ def get_tasks_endpoint(
         
         # タスクの依存関係を処理
         for task in tasks:
-            if task.get('dependsOn'):
-                try:
-                    # 依存タスクの情報を取得
-                    depends_on_tasks = []
-                    for depends_on_id in task['dependsOn']:
-                        depends_on_task = crud.get_task(db, depends_on_id)
+            task['dependsOnTasks'] = []  # デフォルト値を設定
+            
+            try:
+                depends_on = task.get('dependsOn')
+                if not depends_on:
+                    continue
+                    
+                # dependsOnがリストでない場合はスキップ
+                if not isinstance(depends_on, list):
+                    logger.debug(f"タスク {task.get('id')} の dependsOn が不正な型です: {type(depends_on)}")
+                    continue
+                
+                # 依存タスクの情報を取得
+                depends_on_tasks = []
+                for depends_on_id in depends_on:
+                    try:
+                        # IDを整数に変換
+                        if isinstance(depends_on_id, str):
+                            task_id = int(depends_on_id)
+                        elif isinstance(depends_on_id, int):
+                            task_id = depends_on_id
+                        else:
+                            logger.debug(f"無効な依存タスクID: {depends_on_id} (type: {type(depends_on_id)})")
+                            continue
+                        
+                        # 依存タスクを取得
+                        depends_on_task = crud.get_task(db, task_id)
                         if depends_on_task:
                             depends_on_tasks.append({
                                 'id': depends_on_task.id,
                                 'name': depends_on_task.name,
                                 'status': depends_on_task.status
                             })
-                    task['dependsOnTasks'] = depends_on_tasks
-                except Exception as e:
-                    logger.error(f"依存タスクの取得に失敗: {str(e)}")
-                    task['dependsOnTasks'] = []
+                    except (ValueError, TypeError) as e:
+                        logger.debug(f"依存タスクID {depends_on_id} の変換に失敗: {str(e)}")
+                        continue
+                    except Exception as e:
+                        logger.debug(f"依存タスク {depends_on_id} の取得に失敗: {str(e)}")
+                        continue
+                
+                task['dependsOnTasks'] = depends_on_tasks
+                
+            except Exception as e:
+                logger.error(f"タスク {task.get('id')} の依存関係処理に失敗: {str(e)}")
+                task['dependsOnTasks'] = []
         
         return tasks
 
@@ -834,21 +902,94 @@ async def export_mock_data(current_user: models.User = Depends(get_current_activ
             detail=f"データエクスポート中にエラーが発生しました: {str(e)}"
         )
 
-def parse_date(date_str: str) -> Optional[datetime]:
-    """日付文字列をパースする関数"""
+def parse_date(date_str: str, project_start_date: Optional[datetime] = None, project_end_date: Optional[datetime] = None) -> Optional[datetime]:
+    """
+    日付文字列をパースする関数
+    
+    Args:
+        date_str: 日付文字列（例: "2025/11/14", "11月14日"）
+        project_start_date: プロジェクト開始日（年なし日付の推測に使用）
+        project_end_date: プロジェクト終了日（年なし日付の推測に使用）
+    """
     if not date_str:
         return None
+    
+    date_str = date_str.strip()
+    
     try:
-        # スラッシュ区切りの日付形式に対応
+        # 1. 「n月n日」形式の日付（日本語）
+        import re
+        japanese_date_pattern = r'(\d+)月(\d+)日'
+        match = re.match(japanese_date_pattern, date_str)
+        if match:
+            month = int(match.group(1))
+            day = int(match.group(2))
+            
+            # プロジェクト開始日から年を推測
+            if project_start_date:
+                # まずプロジェクト開始年で試す
+                candidate_year = project_start_date.year
+                try:
+                    candidate_date = datetime(candidate_year, month, day)
+                    
+                    # プロジェクト期間内または近辺かチェック
+                    if project_end_date:
+                        # プロジェクト開始の6ヶ月前から終了の6ヶ月後までを許容範囲とする
+                        from datetime import timedelta
+                        start_buffer = project_start_date - timedelta(days=180)
+                        end_buffer = project_end_date + timedelta(days=180)
+                        
+                        # 候補日付が範囲外の場合、翌年を試す
+                        if candidate_date < start_buffer:
+                            candidate_date = datetime(candidate_year + 1, month, day)
+                        elif candidate_date > end_buffer:
+                            candidate_date = datetime(candidate_year - 1, month, day)
+                    
+                    logger.info(f"日本語日付を変換: '{date_str}' -> {candidate_date.strftime('%Y-%m-%d')}")
+                    return candidate_date
+                except ValueError:
+                    # 無効な日付（例：2月30日）
+                    logger.warning(f"無効な日付: {date_str}")
+                    return None
+            else:
+                # プロジェクト日付がない場合は現在年を使用
+                current_year = datetime.now().year
+                try:
+                    result = datetime(current_year, month, day)
+                    logger.info(f"日本語日付を変換（現在年使用）: '{date_str}' -> {result.strftime('%Y-%m-%d')}")
+                    return result
+                except ValueError:
+                    logger.warning(f"無効な日付: {date_str}")
+                    return None
+        
+        # 2. スラッシュ区切りの日付形式
         if '/' in date_str:
-            year, month, day = map(int, date_str.split('/'))
-            return datetime(year, month, day)
-        # ハイフン区切りの日付形式に対応
-        elif '-' in date_str:
-            year, month, day = map(int, date_str.split('-'))
-            return datetime(year, month, day)
-        # ISO形式の日付にも対応
+            parts = date_str.split('/')
+            if len(parts) == 3:
+                year, month, day = map(int, parts)
+                return datetime(year, month, day)
+            elif len(parts) == 2 and project_start_date:
+                # 年なしの "11/14" 形式
+                month, day = map(int, parts)
+                year = project_start_date.year
+                candidate_date = datetime(year, month, day)
+                
+                if project_end_date and candidate_date < project_start_date:
+                    candidate_date = datetime(year + 1, month, day)
+                
+                logger.info(f"年なし日付を変換: '{date_str}' -> {candidate_date.strftime('%Y-%m-%d')}")
+                return candidate_date
+        
+        # 3. ハイフン区切りの日付形式
+        if '-' in date_str:
+            parts = date_str.split('-')
+            if len(parts) == 3:
+                year, month, day = map(int, parts)
+                return datetime(year, month, day)
+        
+        # 4. ISO形式の日付
         return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        
     except (ValueError, TypeError) as e:
         logger.error(f"日付形式が無効です: {date_str}, エラー: {str(e)}")
         return None
@@ -934,18 +1075,31 @@ def parse_dependencies(depends_str: str) -> List[str]:
     # カンマで分割して各要素の空白を除去
     return [dep.strip() for dep in depends_str.split(',') if dep.strip()]
 
-def parse_task_data(task_data: List[str], project_id: int, db: Session) -> dict:
-    """タスクデータをパースする関数"""
+def parse_task_data(task_data: List[str], project_id: int, db: Session, project_start_date: Optional[datetime] = None, project_end_date: Optional[datetime] = None) -> dict:
+    """
+    タスクデータをパースする関数
+    
+    Args:
+        task_data: CSVの1行分のタスクデータ
+        project_id: プロジェクトID
+        db: データベースセッション
+        project_start_date: プロジェクト開始日（年なし日付の推測に使用）
+        project_end_date: プロジェクト終了日（年なし日付の推測に使用）
+    """
     try:
         name = task_data[0].strip()
         if not name or name == "タスク名":  # ヘッダー行のチェック
             raise ValueError("タスク名が不正です")
 
-        due_date = parse_date(task_data[1]) if task_data[1].strip() else None
+        # プロジェクトの日付情報を使って期日をパース
+        due_date = parse_date(task_data[1], project_start_date, project_end_date) if task_data[1].strip() else None
         description = task_data[2].strip() if len(task_data) > 2 else ""
         assigned_to_username = task_data[3].strip() if len(task_data) > 3 else None
         cost = float(task_data[4]) if len(task_data) > 4 and task_data[4].strip() else 0
-        task_type = task_data[5].strip().upper() if len(task_data) > 5 and task_data[5].strip() else None
+        
+        # タスクタイプは任意の文字列を許容（そのまま保存）
+        task_type = task_data[5].strip() if len(task_data) > 5 and task_data[5].strip() else None
+        
         seq_id = task_data[6].strip() if len(task_data) > 6 and task_data[6].strip() else None
         shot_id = task_data[7].strip() if len(task_data) > 7 and task_data[7].strip() else None
         depends_on = parse_dependencies(task_data[8]) if len(task_data) > 8 and task_data[8].strip() else []
@@ -1049,6 +1203,7 @@ async def import_csv_data(
         if not project_name or project_name == "プロジェクト名" or len(project_name) > 100:  # ヘッダー行のチェックと長さ制限
             raise HTTPException(status_code=400, detail="プロジェクト名が不正です（空、ヘッダー行、または100文字を超えています）")
 
+        # プロジェクトの開始日・終了日をパース（年なし日付の推測には使えないが、まず取得）
         start_date = parse_date(project_data[1])
         if not start_date:
             raise HTTPException(status_code=400, detail=f"開始日の形式が不正です: {project_data[1]}")
@@ -1057,7 +1212,7 @@ async def import_csv_data(
         if not end_date:
             raise HTTPException(status_code=400, detail=f"終了日の形式が不正です: {project_data[2]}")
 
-        description = project_data[3].strip()
+        description = project_data[3].strip() if len(project_data) > 3 else ""
 
         # プロジェクトの作成
         project = models.Project(
@@ -1098,7 +1253,8 @@ async def import_csv_data(
         task_name_to_obj = {}
         for task_data in all_task_data:
             try:
-                task_dict = parse_task_data(task_data, project.id, db)
+                # プロジェクトの日付情報を渡して、年なし日付を推測できるようにする
+                task_dict = parse_task_data(task_data, project.id, db, start_date, end_date)
                 # dependsOnはタスク名リストのまま
                 task = models.Task(
                     name=task_dict["name"],
@@ -1330,8 +1486,8 @@ async def import_mock_data(
                     assigned_to_name = task_data.get("assigneeName") or task_data.get("assigned_to_name")
                     assigned_to_id = task_data.get("assigned_to")
                     cost = float(task_data.get("cost", 0) or 0)
-                    task_type_val = task_data.get("type")
-                    task_type = task_type_val.upper() if isinstance(task_type_val, str) else (task_type_val if task_type_val else None)
+                    # タスクタイプは任意の文字列を許容（そのまま保存）
+                    task_type = task_data.get("type")
                     seq_id = task_data.get("seqID") or task_data.get("seqId") or ""
                     shot_id = task_data.get("shotID") or task_data.get("shotId") or ""
                     depends_field = task_data.get("dependsOn") or task_data.get("dependent_tasks") or []
@@ -1345,7 +1501,8 @@ async def import_mock_data(
                     description = task_data[2]
                     assigned_to_name = task_data[3]
                     cost = float(task_data[4])
-                    task_type = task_data[5].upper() if task_data[5] else None
+                    # タスクタイプは任意の文字列を許容（そのまま保存）
+                    task_type = task_data[5] if task_data[5] else None
                     seq_id = task_data[6]
                     shot_id = task_data[7]
                     depends_on = task_data[8].split(',') if len(task_data) > 8 and task_data[8] else []

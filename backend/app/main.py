@@ -1250,7 +1250,11 @@ async def import_csv_data(
             logger.info(f"タスク情報（生データ）: {task_data}")
             all_task_data.append(task_data)
 
-        task_name_to_obj = {}
+        # タスク名だけでなく、seqID/shotIDも含めた複合キーで管理
+        task_name_to_obj = {}  # 後方互換性のため残す
+        task_key_to_obj = {}  # 複合キー: (name, seqID, shotID) -> task
+        all_tasks = []  # 全タスクのリスト
+        
         for task_data in all_task_data:
             try:
                 # プロジェクトの日付情報を渡して、年なし日付を推測できるようにする
@@ -1275,9 +1279,18 @@ async def import_csv_data(
                 db.add(task)
                 db.flush()  # IDを発番
                 db.refresh(task)
+                
+                # 複合キーで登録
+                task_key = (task.name, task.seqID or "", task.shotID or "")
+                task_key_to_obj[task_key] = task
+                
+                # 後方互換性のため、名前だけのマップも更新（最後のものが残る）
                 task_name_to_obj[task.name] = task
+                
+                all_tasks.append(task)
                 import_results["tasks"]["imported"] += 1
                 import_results["tasks"]["results"].append(f"作成: {task.name}")
+                
                 # ステータス履歴の作成
                 status_history = models.TaskStatusHistory(
                     task_id=task.id,
@@ -1294,17 +1307,39 @@ async def import_csv_data(
         db.commit()
 
         # 2. 依存関係をIDに変換して再保存
-        for task in task_name_to_obj.values():
+        for task in all_tasks:
             dependsOn_names = task.dependsOn if task.dependsOn else []
             dependsOn_ids = []
+            
             for dep_name in dependsOn_names:
-                dep_task = task_name_to_obj.get(dep_name)
-                if dep_task:
+                dep_task = None
+                
+                # ステップ1: タスク名で候補を検索
+                candidates = [t for t in all_tasks if t.name == dep_name]
+                
+                if len(candidates) == 0:
+                    # タスク名が見つからない
+                    logger.warning(f"依存タスクが見つかりません（タスク名不一致）: {dep_name} (タスク: {task.name})")
+                
+                elif len(candidates) == 1:
+                    # タスク名が1つだけ → それを使用
+                    dep_task = candidates[0]
+                    logger.info(f"依存タスク解決（タスク名一意）: {dep_name} -> {dep_task.id}")
                     dependsOn_ids.append(str(dep_task.id))
+                
                 else:
-                    logger.warning(f"依存タスクが見つかりません: {dep_name}")
-            if dependsOn_ids:
-                task.dependsOn = dependsOn_ids
+                    # タスク名が複数 → seqID + shotIDで絞り込む
+                    dep_key_same_shot = (dep_name, task.seqID or "", task.shotID or "")
+                    if dep_key_same_shot in task_key_to_obj:
+                        dep_task = task_key_to_obj[dep_key_same_shot]
+                        logger.info(f"依存タスク解決（同一seq/shot）: {dep_name} -> {dep_task.id} (seq={task.seqID}, shot={task.shotID})")
+                        dependsOn_ids.append(str(dep_task.id))
+                    else:
+                        # 同一seq+shotで見つからない場合は空欄
+                        logger.warning(f"依存タスクが見つかりません（複数候補あり、seq/shot不一致）: {dep_name} 候補数={len(candidates)} (タスク: {task.name}, seq={task.seqID}, shot={task.shotID})")
+            
+            # 依存関係を更新（空の場合は空リストが設定される）
+            task.dependsOn = dependsOn_ids if dependsOn_ids else []
         db.commit()
 
         return import_results

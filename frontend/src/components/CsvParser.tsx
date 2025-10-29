@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Button, Typography, Paper, Alert, CircularProgress } from '@mui/material';
-import { Upload as UploadIcon, Download as DownloadIcon } from '@mui/icons-material';
+import { Download as DownloadIcon } from '@mui/icons-material';
 import { mockDataApi } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { usePageState } from '../contexts/PageStateContext';
@@ -60,6 +60,7 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const navigate = useNavigate();
   const { refreshGlobalData } = usePageState();
 
@@ -68,6 +69,7 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
       setFile(event.target.files[0]);
       setError(null);
       setSuccess(null);
+      setWarnings([]);
     }
   };
 
@@ -80,13 +82,23 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setWarnings([]);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
       const result = await mockDataApi.importCsvData(formData);
-      setSuccess(result.message);
+      
+      // インポート結果サマリを表示
+      const projectsImported = result.projects?.imported || 0;
+      const tasksImported = result.tasks?.imported || 0;
+      setSuccess(`インポート完了: プロジェクト ${projectsImported}件、タスク ${tasksImported}件`);
+      
+      // 警告がある場合は表示
+      if (result.warnings && result.warnings.length > 0) {
+        setWarnings(result.warnings);
+      }
       
       // グローバルデータを更新
       console.log('[CsvParser] Refreshing global data after CSV import...');
@@ -153,6 +165,21 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
       {success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
           {success}
+        </Alert>
+      )}
+
+      {warnings.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setWarnings([])}>
+          <Typography variant="subtitle2" gutterBottom>
+            警告 ({warnings.length}件)
+          </Typography>
+          <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+            {warnings.map((warning, index) => (
+              <Typography key={index} variant="body2" sx={{ mt: 0.5 }}>
+                • {warning}
+              </Typography>
+            ))}
+          </Box>
         </Alert>
       )}
 

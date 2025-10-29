@@ -844,19 +844,8 @@ const TasksPage: React.FC = () => {
         } },
         { field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
             const row = params.row;
-            const typeLabels: { [key: string]: string } = {
-                'development': 'Development',
-                'design': 'Design',
-                'documentation': 'Documentation',
-                'testing': 'Testing',
-                'maintenance': 'Maintenance',
-                'fx': 'FX',
-                'asset': 'Asset',
-                'animation': 'Animation',
-                'lighting': 'Lighting',
-                'comp': 'Comp'
-            };
-            return typeLabels[row.type] || '-';
+            // データベースに保存されているタスクタイプを小文字化して表示
+            return row.type ? row.type.toLowerCase() : '-';
         } },
         { field: 'assigned_to', headerName: '担当者', minWidth: 80, width: 120, 
             sortable: true,

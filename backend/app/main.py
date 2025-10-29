@@ -1085,6 +1085,9 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session, project_
         db: データベースセッション
         project_start_date: プロジェクト開始日（年なし日付の推測に使用）
         project_end_date: プロジェクト終了日（年なし日付の推測に使用）
+    
+    Returns:
+        dict: パースされたタスクデータ（"warnings"キーに警告メッセージのリストを含む）
     """
     try:
         name = task_data[0].strip()
@@ -1104,12 +1107,27 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session, project_
         shot_id = task_data[7].strip() if len(task_data) > 7 and task_data[7].strip() else None
         depends_on = parse_dependencies(task_data[8]) if len(task_data) > 8 and task_data[8].strip() else []
 
+        # 警告メッセージを収集
+        warnings = []
+        
+        # タスクタイプのバリデーション（空欄は許容、推奨値チェック、大文字小文字を無視）
+        if task_type:  # 空欄（None）の場合はバリデーションをスキップ
+            valid_types = [t.value for t in models.TaskType]
+            # 小文字に変換して比較
+            task_type_lower = task_type.lower()
+            if task_type_lower not in valid_types:
+                warnings.append(f"タスクタイプ '{task_type}' は推奨値ではありません。推奨値: {', '.join(valid_types)} （空欄も可）")
+            else:
+                # 推奨値として認識された場合、正規化（小文字化）して保存
+                task_type = task_type_lower
+
         # 担当者IDを取得（改良された検索機能を使用）
         assigned_to_id = None
         if assigned_to_username:
             assigned_to_id = get_user_id_by_name(db, assigned_to_username)
             if assigned_to_id is None:
                 logger.warning(f"担当者 {assigned_to_username} が見つかりません")
+                warnings.append(f"担当者 '{assigned_to_username}' が見つかりません")
 
         # --- 開始日を自動計算 ---
         from math import ceil
@@ -1134,7 +1152,8 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session, project_
             "dependsOn": depends_on,
             "display_status": "offline",
             "priority": models.TaskPriority.MEDIUM,
-            "start_date": start_date  # ← 追加
+            "start_date": start_date,
+            "warnings": warnings  # 警告メッセージを追加
         }
     except Exception as e:
         logger.error(f"タスクデータのパースに失敗: {str(e)}")
@@ -1171,7 +1190,8 @@ async def import_csv_data(
     """CSVファイルからデータをインポートする"""
     import_results = {
         "projects": {"imported": 0, "skipped": 0, "results": []},
-        "tasks": {"imported": 0, "skipped": 0, "results": []}
+        "tasks": {"imported": 0, "skipped": 0, "results": []},
+        "warnings": []  # 警告メッセージを収集
     }
 
     try:
@@ -1259,6 +1279,14 @@ async def import_csv_data(
             try:
                 # プロジェクトの日付情報を渡して、年なし日付を推測できるようにする
                 task_dict = parse_task_data(task_data, project.id, db, start_date, end_date)
+                
+                # 警告メッセージがあれば収集
+                if task_dict.get("warnings"):
+                    for warning in task_dict["warnings"]:
+                        warning_msg = f"タスク '{task_dict['name']}': {warning}"
+                        import_results["warnings"].append(warning_msg)
+                        logger.warning(warning_msg)
+                
                 # dependsOnはタスク名リストのまま
                 task = models.Task(
                     name=task_dict["name"],

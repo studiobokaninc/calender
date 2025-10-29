@@ -44,6 +44,7 @@ class TaskType(str, enum.Enum):
     ANIMATION = "animation"
     LIGHTING = "lighting"
     COMP = "comp"
+    EDIT = "edit"
 
 class EventType(str, enum.Enum):
     MEETING = "Meeting"

@@ -16,7 +16,6 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -24,7 +23,7 @@ import {
   Delete as DeleteIcon,
   Image as ImageIcon,
   Close as CloseIcon,
-  ContentCopy as ContentCopyIcon,
+  SelectAll as SelectAllIcon,
 } from '@mui/icons-material';
 import { notesApi } from '../services/api';
 import { Note, NoteCreate, NoteUpdate } from '../types';
@@ -43,7 +42,9 @@ const NotesPage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
-  const [copySuccess, setCopySuccess] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<number | null>(null);
 
   // メモ一覧を取得
   const fetchNotes = async () => {
@@ -88,17 +89,26 @@ const NotesPage: React.FC = () => {
     setDialogOpen(true);
   };
 
-  // メモ削除
-  const handleDelete = async (noteId: number) => {
-    if (!window.confirm('このメモを削除しますか？')) {
-      return;
-    }
+  // メモ削除確認ダイアログを開く
+  const handleDeleteClick = (noteId: number) => {
+    setNoteToDelete(noteId);
+    setDeleteDialogOpen(true);
+  };
+
+  // メモ削除実行
+  const handleDeleteConfirm = async () => {
+    if (noteToDelete === null) return;
+    
     try {
-      await notesApi.deleteNote(noteId);
+      await notesApi.deleteNote(noteToDelete);
       await fetchNotes();
+      setDeleteDialogOpen(false);
+      setNoteToDelete(null);
     } catch (err: any) {
       console.error('メモの削除に失敗しました:', err);
       setError('メモの削除に失敗しました');
+      setDeleteDialogOpen(false);
+      setNoteToDelete(null);
     }
   };
 
@@ -224,7 +234,7 @@ const NotesPage: React.FC = () => {
         </Box>
       ) : (
         <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-          <Grid container spacing={2}>
+          <Grid container spacing={2} sx={{ pt: 1 }}>
             {notes.map((note) => (
               <Grid item xs={12} sm={6} md={4} lg={3} key={note.id}>
                 <Card
@@ -232,11 +242,16 @@ const NotesPage: React.FC = () => {
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
+                    backgroundColor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: 'divider',
                     transition: 'transform 0.2s, box-shadow 0.2s',
                     cursor: 'pointer',
+                    boxShadow: 1,
                     '&:hover': {
                       transform: 'translateY(-4px)',
                       boxShadow: 4,
+                      borderColor: 'primary.light',
                     },
                   }}
                   onClick={() => handleView(note)}
@@ -288,7 +303,10 @@ const NotesPage: React.FC = () => {
                     </IconButton>
                     <IconButton
                       size="small"
-                      onClick={() => handleDelete(note.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(note.id);
+                      }}
                       color="error"
                     >
                       <DeleteIcon />
@@ -314,51 +332,61 @@ const NotesPage: React.FC = () => {
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ flexGrow: 1 }}>{viewingNote?.title || 'メモ'}</Box>
           <IconButton
-            onClick={async () => {
-              if (viewingNote) {
-                // メモ本文のみをコピー
-                const textToCopy = viewingNote.content || '(内容なし)';
-                
-                try {
-                  await navigator.clipboard.writeText(textToCopy);
-                  setCopySuccess(true);
-                } catch (err) {
-                  console.error('コピーに失敗しました:', err);
-                  // フォールバック: 古い方法を試す
-                  const textArea = document.createElement('textarea');
-                  textArea.value = textToCopy;
-                  textArea.style.position = 'fixed';
-                  textArea.style.opacity = '0';
-                  document.body.appendChild(textArea);
-                  textArea.select();
-                  try {
-                    document.execCommand('copy');
-                    setCopySuccess(true);
-                  } catch (fallbackErr) {
-                    console.error('フォールバックコピーにも失敗しました:', fallbackErr);
-                  }
-                  document.body.removeChild(textArea);
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              // メモ本文を選択
+              if (contentRef.current) {
+                const range = document.createRange();
+                range.selectNodeContents(contentRef.current);
+                const selection = window.getSelection();
+                if (selection) {
+                  selection.removeAllRanges();
+                  selection.addRange(range);
                 }
               }
             }}
             color="primary"
             size="small"
-            title="メモ本文をコピー"
+            title="メモ本文を選択（Ctrl+Cでコピー）"
           >
-            <ContentCopyIcon />
+            <SelectAllIcon />
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
-          <Typography
-            variant="body1"
+          <Box
+            ref={contentRef}
+            component="pre"
             sx={{
+              fontFamily: 'inherit',
+              fontSize: '1rem',
+              lineHeight: 1.5,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               mb: 2,
+              p: 1,
+              border: '1px solid transparent',
+              borderRadius: 1,
+              cursor: 'text',
+              userSelect: 'text',
+              '&:hover': {
+                backgroundColor: 'action.hover',
+              },
+            }}
+            onClick={(e) => {
+              // クリック時にテキストを選択
+              const range = document.createRange();
+              range.selectNodeContents(e.currentTarget);
+              const selection = window.getSelection();
+              if (selection) {
+                selection.removeAllRanges();
+                selection.addRange(range);
+              }
             }}
           >
             {viewingNote?.content || '(内容なし)'}
-          </Typography>
+          </Box>
           
           {/* 画像表示 */}
           {viewingNote?.image_urls && viewingNote.image_urls.length > 0 && (
@@ -590,14 +618,38 @@ const NotesPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* コピー成功通知 */}
-      <Snackbar
-        open={copySuccess}
-        autoHideDuration={2000}
-        onClose={() => setCopySuccess(false)}
-        message="テキストをクリップボードにコピーしました"
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
+      {/* 削除確認ダイアログ */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => {
+          setDeleteDialogOpen(false);
+          setNoteToDelete(null);
+        }}
+      >
+        <DialogTitle>メモの削除</DialogTitle>
+        <DialogContent>
+          <Typography>
+            このメモを削除しますか？
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setNoteToDelete(null);
+            }}
+          >
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+          >
+            削除
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

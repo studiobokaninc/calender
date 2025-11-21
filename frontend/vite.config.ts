@@ -36,6 +36,11 @@ export default defineConfig({
   server: {
     port: 5175, // ★ ポート番号を 5175 に設定（実際に使用されているポート）
     proxy: {
+      // 静的ファイル配信: /static をそのまま転送
+      '/static': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: true,
+      },
       // Auth and User endpoints: Forward directly (includes /api)
       '/api/auth': {
         target: 'http://127.0.0.1:8001',

@@ -21,41 +21,42 @@ export const setAuthErrorCallback = (callback: AuthErrorCallback) => {
   globalAuthErrorCallback = callback;
 };
 
-// ★★★ リクエストインターセプター - ログを追加して認証を確認 ★★★
+// ★★★ リクエストインターセプター - 認証を確認 ★★★
 api.interceptors.request.use(
   (config) => {
-    // APIリクエスト情報をログ出力（デバッグ用）
-    console.log(`Request: ${config.method?.toUpperCase()} ${config.url}`);
+    // FormDataを使用する場合、Content-Typeを自動設定するため、手動で設定しない
+    if (config.data instanceof FormData) {
+      // FormDataの場合、Content-Typeヘッダーを削除（ブラウザが自動設定）
+      // axiosのheadersオブジェクトからContent-Typeを削除
+      if (config.headers) {
+        delete config.headers['Content-Type'];
+        // または、delete演算子で削除
+        if ('Content-Type' in config.headers) {
+          delete (config.headers as any)['Content-Type'];
+        }
+      }
+    }
     
     // トークンが存在すれば、リクエストヘッダーに追加
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-    } else {
-      console.warn('トークンがありません - 認証なしでリクエストを送信');
     }
     
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
 
-// ★★★ レスポンスインターセプター - より詳細なエラーログを追加 ★★★
+// ★★★ レスポンスインターセプター - エラー処理 ★★★
 api.interceptors.response.use(
   (response) => {
-    console.log(`Response: ${response.status} ${response.config.url}`);
     return response;
   },
   (error) => {
-    // エラーの詳細情報をログ出力
-    console.error('Response Error Interceptor:', error);
     if (error.response) {
-      console.error(`Status: ${error.response.status}`);
-      console.error('Response data:', error.response.data);
-      
       // 422エラーの場合、バリデーションエラーの詳細を表示
       if (error.response.status === 422) {
         const validationErrors = error.response.data.detail;
@@ -74,15 +75,11 @@ api.interceptors.response.use(
       
       // 401エラーの場合、ログアウト処理（トークン無効の場合）
       if (error.response.status === 401) {
-        console.warn('認証エラー - トークンを削除します');
         localStorage.removeItem('token');
         
         // グローバル認証エラーコールバックが設定されていれば呼び出し
         if (globalAuthErrorCallback) {
-          console.log('認証エラーコールバックを実行します');
           globalAuthErrorCallback();
-        } else {
-          console.warn('認証エラーが発生しましたが、グローバルコールバックが設定されていません');
         }
       }
     }
@@ -98,7 +95,6 @@ export const mockDataApi = {
       const response = await api.post('/admin/mock-data/export');
       return response.data;
     } catch (error) {
-      console.error('モックデータのエクスポートに失敗しました:', error);
       throw error;
     }
   },
@@ -109,7 +105,6 @@ export const mockDataApi = {
       const response = await api.post('/admin/mock-data/import', data);
       return response.data;
     } catch (error) {
-      console.error('モックデータのインポートに失敗しました:', error);
       throw error;
     }
   },
@@ -122,7 +117,6 @@ export const mockDataApi = {
       const { users } = response.data;
       return { users };
     } catch (error) {
-      console.error('ユーザーデータのエクスポートに失敗しました:', error);
       throw error;
     }
   },
@@ -135,7 +129,6 @@ export const mockDataApi = {
       const { events } = response.data;
       return { events };
     } catch (error) {
-      console.error('イベントデータのエクスポートに失敗しました:', error);
       throw error;
     }
   },
@@ -158,7 +151,6 @@ export const mockDataApi = {
       const response = await api.post('/admin/mock-data/import', combinedData);
       return response.data;
     } catch (error) {
-      console.error('データのインポートに失敗しました:', error);
       throw error;
     }
   },
@@ -173,7 +165,6 @@ export const mockDataApi = {
       });
       return response.data;
     } catch (error) {
-      console.error('CSVデータのインポートに失敗しました:', error);
       throw error;
     }
   },
@@ -184,7 +175,6 @@ export const mockDataApi = {
       const response = await api.get('/admin/projects/mapping');
       return response.data;
     } catch (error) {
-      console.error('プロジェクトマッピングの取得に失敗しました:', error);
       throw error;
     }
   },
@@ -195,7 +185,6 @@ export const mockDataApi = {
       const response = await api.delete(`/projects/${projectId}`);
       return response.data;
     } catch (error) {
-      console.error('プロジェクトの削除に失敗しました:', error);
       throw error;
     }
   },
@@ -212,7 +201,6 @@ export const exportMockData = async (): Promise<MockDataImport> => {
     const response = await api.post<MockDataImport>('/admin/mock-data/export');
     return response.data;
   } catch (error) {
-    console.error('Error exporting mock data:', error);
     throw error; // エラーを呼び出し元に伝える
   }
 };
@@ -228,7 +216,6 @@ export const importMockData = async (data: MockDataImport): Promise<any> => {
     const response = await api.post('/admin/mock-data/import', data);
     return response.data;
   } catch (error) {
-    console.error('Error importing mock data:', error);
     throw error;
   }
 };
@@ -265,5 +252,55 @@ export const chatApi = {
   send: async (query: string): Promise<{ answer: string; conversation_id?: string; message_id?: string }> => {
     const res = await api.post('/chat', { query })
     return res.data
+  },
+}
+
+// --- Notes API ---
+export const notesApi = {
+  // メモ一覧を取得
+  getNotes: async (skip: number = 0, limit: number = 100, createdBy?: number) => {
+    const params = new URLSearchParams({ skip: skip.toString(), limit: limit.toString() })
+    if (createdBy !== undefined) {
+      params.append('created_by', createdBy.toString())
+    }
+    const response = await api.get(`/notes?${params.toString()}`)
+    return response.data
+  },
+
+  // メモを取得
+  getNote: async (noteId: number) => {
+    const response = await api.get(`/notes/${noteId}`)
+    return response.data
+  },
+
+  // メモを作成
+  createNote: async (note: { title?: string | null; content?: string | null; image_urls?: string[] | null }) => {
+    const response = await api.post('/notes', note)
+    return response.data
+  },
+
+  // メモを更新
+  updateNote: async (noteId: number, note: { title?: string | null; content?: string | null; image_urls?: string[] | null }) => {
+    const response = await api.put(`/notes/${noteId}`, note)
+    return response.data
+  },
+
+  // メモを削除
+  deleteNote: async (noteId: number) => {
+    const response = await api.delete(`/notes/${noteId}`)
+    return response.data
+  },
+
+  // 画像をアップロード
+  uploadImage: async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    // FormDataを使用する場合、Content-Typeヘッダーはブラウザが自動設定するため削除
+    const headers: any = {}
+    // FormDataの場合、Content-Typeを削除（ブラウザが自動設定）
+    const response = await api.post('/notes/upload-image', formData, {
+      headers,
+    })
+    return response.data
   },
 }

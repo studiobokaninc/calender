@@ -243,4 +243,31 @@ class TaskResponse(TaskBase):
         orm_mode = True
         # Pydantic V2 の場合: model_config = ConfigDict(from_attributes=True) 
         from_attributes = True # orm_mode から変更 
-        from_attributes = True # orm_mode から変更 
+        from_attributes = True # orm_mode から変更
+
+# --- Note Schemas ---
+
+class NoteBase(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    image_urls: Optional[List[str]] = Field(default_factory=list)
+
+class NoteCreate(NoteBase):
+    pass
+
+class NoteUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    image_urls: Optional[List[str]] = None
+
+class NoteResponse(NoteBase):
+    id: int
+    created_by: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        } 

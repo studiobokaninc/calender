@@ -642,3 +642,72 @@ def get_status_change_metrics(
         models.Task.project_id,
         models.Project.name
     ).all()
+
+# --- Note CRUD ---
+
+def get_note(db: Session, note_id: int) -> models.Note | None:
+    """ID でメモを取得"""
+    return db.query(models.Note).filter(models.Note.id == note_id).first()
+
+def get_notes(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    created_by: int | None = None
+) -> list[models.Note]:
+    """メモリストを取得 (ページネーション対応、作成者フィルタ可能)"""
+    query = db.query(models.Note)
+    if created_by is not None:
+        query = query.filter(models.Note.created_by == created_by)
+    return query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+
+def create_note(db: Session, note: schemas.NoteCreate, created_by: int) -> models.Note:
+    """新規メモを作成"""
+    db_note = models.Note(
+        title=note.title,
+        content=note.content,
+        image_urls=note.image_urls or [],
+        created_by=created_by,
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_note)
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+def update_note(db: Session, db_note: models.Note, note_in: schemas.NoteUpdate) -> models.Note:
+    """メモ情報を更新"""
+    update_data = note_in.dict(exclude_unset=True)
+    
+    for key, value in update_data.items():
+        if hasattr(db_note, key):
+            setattr(db_note, key, value)
+    
+    db_note.updated_at = now_jst_naive()
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+def delete_note(db: Session, db_note: models.Note, upload_dir: str = None) -> models.Note:
+    """メモを削除（画像ファイルも削除）"""
+    import os
+    
+    # 画像ファイルを削除
+    if db_note.image_urls and upload_dir:
+        for image_url in db_note.image_urls:
+            if image_url and image_url.startswith('/static/uploads/'):
+                # URLからファイル名を抽出
+                filename = os.path.basename(image_url)
+                file_path = os.path.join(upload_dir, filename)
+                
+                # ファイルが存在する場合のみ削除
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        logger.warning(f"画像ファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
+    db.delete(db_note)
+    db.commit()
+    return db_note

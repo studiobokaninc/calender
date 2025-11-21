@@ -29357,3 +29357,51 @@ WHERE tasks.id = ?
 2025-10-29 16:45:27,984 - app.main - INFO - 依存タスク解決（タスク名一意）: T1 -> 2228
 2025-10-29 16:45:27,984 - app.main - INFO - 依存タスク解決（タスク名一意）: T1 -> 2228
 2025-10-29 16:45:27,986 - app.main - INFO - 依存タスク解決（タスク名一意）: T2 -> 2229
+2025-11-21 12:57:11,896 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"
+2025-11-21 13:18:03,583 - app.main - INFO - 画像アップロードリクエスト受信: filename=original_color_000427.png, content_type=image/png
+2025-11-21 13:18:03,584 - app.main - INFO - ファイル保存パス: E:\calender\backend\static\uploads\d811daeb-3596-467f-8d30-fe6730129331.png
+2025-11-21 13:18:03,586 - app.main - INFO - アップロードディレクトリ存在確認: True
+2025-11-21 13:18:03,588 - app.main - INFO - ファイルサイズ: 1079076 bytes
+2025-11-21 13:18:03,589 - app.main - INFO - ファイル保存成功: E:\calender\backend\static\uploads\d811daeb-3596-467f-8d30-fe6730129331.png
+2025-11-21 13:18:03,590 - app.main - INFO - 返却URL: /static/uploads/d811daeb-3596-467f-8d30-fe6730129331.png
+2025-11-21 13:18:43,958 - app.main - INFO - 画像アップロードリクエスト受信: filename=Stone_pcv_ref.000001.png, content_type=image/png
+2025-11-21 13:18:43,958 - app.main - INFO - ファイル保存パス: E:\calender\backend\static\uploads\353e5fdc-b5e1-4982-ad75-858d793ec366.png
+2025-11-21 13:18:43,959 - app.main - INFO - アップロードディレクトリ存在確認: True
+2025-11-21 13:18:43,963 - app.main - INFO - ファイルサイズ: 6882442 bytes
+2025-11-21 13:18:43,965 - app.main - INFO - ファイル保存成功: E:\calender\backend\static\uploads\353e5fdc-b5e1-4982-ad75-858d793ec366.png
+2025-11-21 13:18:43,965 - app.main - INFO - 返却URL: /static/uploads/353e5fdc-b5e1-4982-ad75-858d793ec366.png
+2025-11-21 13:22:11,620 - app.main - INFO - 画像アップロードリクエスト受信: filename=Stone_pcv_ref.000002.png, content_type=image/png
+2025-11-21 13:22:11,621 - app.main - INFO - ファイル保存パス: E:\calender\backend\static\uploads\18ff6d36-5810-4073-a9bd-8c6afce74919.png
+2025-11-21 13:22:11,622 - app.main - INFO - アップロードディレクトリ存在確認: True
+2025-11-21 13:22:11,625 - app.main - INFO - ファイルサイズ: 6932356 bytes
+2025-11-21 13:22:11,628 - app.main - INFO - ファイル保存成功: E:\calender\backend\static\uploads\18ff6d36-5810-4073-a9bd-8c6afce74919.png
+2025-11-21 13:22:11,628 - app.main - INFO - 返却URL: /static/uploads/18ff6d36-5810-4073-a9bd-8c6afce74919.png
+2025-11-21 13:22:15,334 - app.main - INFO - 画像アップロードリクエスト受信: filename=Stone_pcv_ref.000005.png, content_type=image/png
+2025-11-21 13:22:15,334 - app.main - INFO - ファイル保存パス: E:\calender\backend\static\uploads\dd184c30-51e9-488d-82bc-684643da5eb5.png
+2025-11-21 13:22:15,337 - app.main - INFO - アップロードディレクトリ存在確認: True
+2025-11-21 13:22:15,342 - app.main - INFO - ファイルサイズ: 6900015 bytes
+2025-11-21 13:22:15,345 - app.main - INFO - ファイル保存成功: E:\calender\backend\static\uploads\dd184c30-51e9-488d-82bc-684643da5eb5.png
+2025-11-21 13:22:15,346 - app.main - INFO - 返却URL: /static/uploads/dd184c30-51e9-488d-82bc-684643da5eb5.png
+2025-11-21 13:27:20,758 - app.crud - INFO - 画像ファイルを削除しました: E:\calender\backend\static\uploads\18ff6d36-5810-4073-a9bd-8c6afce74919.png
+2025-11-21 13:27:20,760 - app.crud - INFO - 画像ファイルを削除しました: E:\calender\backend\static\uploads\dd184c30-51e9-488d-82bc-684643da5eb5.png
+2025-11-21 13:32:44,422 - app.main - INFO - 画像アップロードリクエスト受信: filename=Stone_pcv_ref.000006.png, content_type=image/png
+2025-11-21 13:32:44,423 - app.main - INFO - ファイル保存パス: E:\calender\backend\static\uploads\6cf30916-a215-40d5-898e-227b86587179.png
+2025-11-21 13:32:44,425 - app.main - INFO - アップロードディレクトリ存在確認: True
+2025-11-21 13:32:44,429 - app.main - INFO - ファイルサイズ: 6906297 bytes
+2025-11-21 13:32:44,431 - app.main - INFO - ファイル保存成功: E:\calender\backend\static\uploads\6cf30916-a215-40d5-898e-227b86587179.png
+2025-11-21 13:32:44,431 - app.main - INFO - 返却URL: /static/uploads/6cf30916-a215-40d5-898e-227b86587179.png
+2025-11-21 13:35:03,298 - app.crud - INFO - 画像ファイルを削除しました: E:\calender\backend\static\uploads\6cf30916-a215-40d5-898e-227b86587179.png
+2025-11-21 13:46:39,752 - app.main - INFO - 画像アップロードリクエスト受信: filename=Stone_pcv_ref.000012.png, content_type=image/png
+2025-11-21 13:46:39,755 - app.main - INFO - ファイル保存パス: E:\calender\backend\static\uploads\a0dfcaa9-c069-4ae1-bfe1-e5b3bc9e2972.png
+2025-11-21 13:46:39,756 - app.main - INFO - アップロードディレクトリ存在確認: True
+2025-11-21 13:46:39,761 - app.main - INFO - ファイルサイズ: 6887107 bytes
+2025-11-21 13:46:39,763 - app.main - INFO - ファイル保存成功: E:\calender\backend\static\uploads\a0dfcaa9-c069-4ae1-bfe1-e5b3bc9e2972.png
+2025-11-21 13:46:39,764 - app.main - INFO - 返却URL: /static/uploads/a0dfcaa9-c069-4ae1-bfe1-e5b3bc9e2972.png
+2025-11-21 13:46:52,105 - app.main - INFO - 画像アップロードリクエスト受信: filename=white_000351.png, content_type=image/png
+2025-11-21 13:46:52,105 - app.main - INFO - ファイル保存パス: E:\calender\backend\static\uploads\5cbaca82-c6bf-4ca0-9361-5630ea48b170.png
+2025-11-21 13:46:52,106 - app.main - INFO - アップロードディレクトリ存在確認: True
+2025-11-21 13:46:52,107 - app.main - INFO - ファイルサイズ: 57344 bytes
+2025-11-21 13:46:52,107 - app.main - INFO - ファイル保存成功: E:\calender\backend\static\uploads\5cbaca82-c6bf-4ca0-9361-5630ea48b170.png
+2025-11-21 13:46:52,107 - app.main - INFO - 返却URL: /static/uploads/5cbaca82-c6bf-4ca0-9361-5630ea48b170.png
+2025-11-21 13:58:41,017 - app.crud - INFO - 画像ファイルを削除しました: E:\calender\backend\static\uploads\5cbaca82-c6bf-4ca0-9361-5630ea48b170.png
+2025-11-21 13:59:15,461 - httpx - INFO - HTTP Request: POST http://192.168.44.253/v1/chat-messages "HTTP/1.1 200 OK"

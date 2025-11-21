@@ -242,3 +242,26 @@ export interface MockDataImport {
   groups?: GroupCreate[] | null;
   user_groups?: UserGroupCreate[] | null;
 }
+
+// メモ用の型
+export interface Note {
+  id: number;
+  title?: string | null;
+  content?: string | null;
+  image_urls?: string[] | null;
+  created_by?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface NoteCreate {
+  title?: string | null;
+  content?: string | null;
+  image_urls?: string[] | null;
+}
+
+export interface NoteUpdate {
+  title?: string | null;
+  content?: string | null;
+  image_urls?: string[] | null;
+}

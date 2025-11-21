@@ -44,6 +44,7 @@ import {
   Storage as StorageIcon,
   People as PeopleIcon,
   EventNote as EventNoteIcon,
+  Note as NoteIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
 import { mockDataApi, importMockData } from '../services/api'
@@ -101,6 +102,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
     { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management' },
+    { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
     { text: 'ユーザー管理', icon: <UserIcon />, path: '/admin/users', isAdmin: true },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },

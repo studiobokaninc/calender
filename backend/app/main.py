@@ -22,7 +22,7 @@ import csv
 
 # ログの設定
 logging.basicConfig(
-    level=logging.INFO,  # DEBUGからINFOに変更
+    level=logging.WARNING,  # INFOからWARNINGに変更（ログを軽量化）
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),  # コンソール出力
@@ -180,16 +180,46 @@ async def get_dashboard_metrics(current_user: models.User = Depends(get_current_
         # エラーが発生した場合でも、他のメトリクスは表示できるようフォールバック
         num_tasks = -1 # エラーを示す値など
 
-    # 他のメトリクスも同様にDBから取得することを推奨します
-    # num_projects = len(crud.get_projects(db=db, limit=100000))
-    # num_events = len(crud.get_events(db=db, limit=100000))
-    # num_users = len(crud.get_users(db=db, limit=100000)) # crud.get_users があれば
+    # すべてのメトリクスをデータベースから取得
+    num_projects = 0
+    num_events = 0
+    num_users = 0
+    
+    try:
+        # プロジェクト数を取得（管理者は全件、一般ユーザーはonlineのみ）
+        if current_user.role == 'admin':
+            projects_from_db = crud.get_projects(db=db, skip=0, limit=100000, display_status_in=None)
+        else:
+            projects_from_db = crud.get_projects(db=db, skip=0, limit=100000, display_status_in=['online'])
+        if projects_from_db:
+            num_projects = len(projects_from_db)
+    except Exception as e:
+        print(f"Error counting projects for metrics: {e}")
+        num_projects = -1
+    
+    try:
+        # イベント数を取得
+        events_from_db = crud.get_events(db=db, skip=0, limit=100000)
+        if events_from_db:
+            num_events = len(events_from_db)
+    except Exception as e:
+        print(f"Error counting events for metrics: {e}")
+        num_events = -1
+    
+    try:
+        # ユーザー数を取得
+        users_from_db = crud.get_users(db=db, skip=0, limit=100000)
+        if users_from_db:
+            num_users = len(users_from_db)
+    except Exception as e:
+        print(f"Error counting users for metrics: {e}")
+        num_users = -1
 
     return {
-        "users": len(mock_data.users), # 現状維持 (DBからの取得を推奨)
+        "users": num_users,
         "tasks": num_tasks,
-        "projects": len(mock_data.projects), # 現状維持 (DBからの取得を推奨)
-        "events": len(mock_data.events)    # 現状維持 (DBからの取得を推奨)
+        "projects": num_projects,
+        "events": num_events
     }
     
 @app.get("/projects", response_model=List[schemas.ProjectResponse], tags=["Projects"])
@@ -293,8 +323,6 @@ async def delete_project_endpoint(
                 detail="プロジェクトが見つかりません"
             )
         
-        logger.info(f"プロジェクト削除開始: ID={project_id}, 名前={project_check.name}")
-        
         # 1. 関連するタスクのIDを取得（生SQLで無効なデータを回避）
         task_ids_result = db.execute(
             text("SELECT id FROM tasks WHERE project_id = :project_id"),
@@ -302,7 +330,6 @@ async def delete_project_endpoint(
         ).fetchall()
         
         task_ids = [row.id for row in task_ids_result]
-        logger.info(f"削除対象タスク数: {len(task_ids)}")
         
         # 2. タスクのステータス履歴を削除
         if task_ids:
@@ -314,31 +341,26 @@ async def delete_project_endpoint(
                 text(f"DELETE FROM task_status_history WHERE task_id IN ({placeholders})"),
                 params
             )
-            logger.info(f"ステータス履歴を削除しました")
         
         # 3. タスクを削除（生SQLで）
         db.execute(
             text("DELETE FROM tasks WHERE project_id = :project_id"),
             {"project_id": project_id}
         )
-        logger.info(f"タスクを削除しました: {len(task_ids)}件")
         
         # 4. 関連するイベントを削除（生SQLで）
         db.execute(
             text("DELETE FROM events WHERE project_id = :project_id"),
             {"project_id": project_id}
         )
-        logger.info(f"イベントを削除しました")
         
         # 5. プロジェクトを削除（生SQLで）
         db.execute(
             text("DELETE FROM projects WHERE id = :project_id"),
             {"project_id": project_id}
         )
-        logger.info(f"プロジェクトを削除しました")
         
         db.commit()
-        logger.info(f"プロジェクト ID {project_id} ({project_check.name}) の削除が完了しました")
         
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -945,7 +967,6 @@ def parse_date(date_str: str, project_start_date: Optional[datetime] = None, pro
                         elif candidate_date > end_buffer:
                             candidate_date = datetime(candidate_year - 1, month, day)
                     
-                    logger.info(f"日本語日付を変換: '{date_str}' -> {candidate_date.strftime('%Y-%m-%d')}")
                     return candidate_date
                 except ValueError:
                     # 無効な日付（例：2月30日）
@@ -956,7 +977,6 @@ def parse_date(date_str: str, project_start_date: Optional[datetime] = None, pro
                 current_year = datetime.now().year
                 try:
                     result = datetime(current_year, month, day)
-                    logger.info(f"日本語日付を変換（現在年使用）: '{date_str}' -> {result.strftime('%Y-%m-%d')}")
                     return result
                 except ValueError:
                     logger.warning(f"無効な日付: {date_str}")
@@ -977,7 +997,6 @@ def parse_date(date_str: str, project_start_date: Optional[datetime] = None, pro
                 if project_end_date and candidate_date < project_start_date:
                     candidate_date = datetime(year + 1, month, day)
                 
-                logger.info(f"年なし日付を変換: '{date_str}' -> {candidate_date.strftime('%Y-%m-%d')}")
                 return candidate_date
         
         # 3. ハイフン区切りの日付形式
@@ -1179,7 +1198,6 @@ def update_task_dependencies(task_name: str, depends_on: List[str], db: Session)
     if dependency_ids:
         task.dependsOn = dependency_ids
         db.commit()
-        logger.info(f"タスク {task_name} の依存関係を更新: {dependency_ids}")
 
 @app.post("/admin/mock-data/import-csv")
 async def import_csv_data(
@@ -1217,8 +1235,6 @@ async def import_csv_data(
         if not project_data or len(project_data) < 4:
             raise HTTPException(status_code=400, detail="プロジェクト情報が不正です")
 
-        logger.info(f"プロジェクト情報（生データ）: {project_data}")
-        
         project_name = project_data[0].strip()
         if not project_name or project_name == "プロジェクト名" or len(project_name) > 100:  # ヘッダー行のチェックと長さ制限
             raise HTTPException(status_code=400, detail="プロジェクト名が不正です（空、ヘッダー行、または100文字を超えています）")
@@ -1245,7 +1261,6 @@ async def import_csv_data(
         db.add(project)
         db.commit()
         db.refresh(project)
-        logger.info(f"新規プロジェクトを作成: {project_name} (ID: {project.id})")
         import_results["projects"]["imported"] += 1
         import_results["projects"]["results"].append(f"作成: {project_name}")
 
@@ -1267,7 +1282,6 @@ async def import_csv_data(
                 continue
             if task_data[0].strip() == "タスク名":
                 continue
-            logger.info(f"タスク情報（生データ）: {task_data}")
             all_task_data.append(task_data)
 
         # タスク名だけでなく、seqID/shotIDも含めた複合キーで管理
@@ -1352,7 +1366,6 @@ async def import_csv_data(
                 elif len(candidates) == 1:
                     # タスク名が1つだけ → それを使用
                     dep_task = candidates[0]
-                    logger.info(f"依存タスク解決（タスク名一意）: {dep_name} -> {dep_task.id}")
                     dependsOn_ids.append(str(dep_task.id))
                 
                 else:
@@ -1360,7 +1373,6 @@ async def import_csv_data(
                     dep_key_same_shot = (dep_name, task.seqID or "", task.shotID or "")
                     if dep_key_same_shot in task_key_to_obj:
                         dep_task = task_key_to_obj[dep_key_same_shot]
-                        logger.info(f"依存タスク解決（同一seq/shot）: {dep_name} -> {dep_task.id} (seq={task.seqID}, shot={task.shotID})")
                         dependsOn_ids.append(str(dep_task.id))
                     else:
                         # 同一seq+shotで見つからない場合は空欄
@@ -1765,4 +1777,104 @@ def update_task_priorities(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500,
             detail=f"タスクの優先度の更新に失敗しました: {str(e)}"
-        ) 
+        )
+
+# --- Note API Endpoints ---
+
+# 画像アップロード用の静的ファイルディレクトリ
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# 静的ファイル配信の設定
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")), name="static")
+
+@app.post("/notes", response_model=schemas.NoteResponse, tags=["Notes"])
+async def create_note(
+    note: schemas.NoteCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """新規メモを作成"""
+    return crud.create_note(db=db, note=note, created_by=current_user.id)
+
+@app.get("/notes", response_model=List[schemas.NoteResponse], tags=["Notes"])
+async def get_notes(
+    skip: int = 0,
+    limit: int = 100,
+    created_by: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """メモリストを取得"""
+    return crud.get_notes(db=db, skip=skip, limit=limit, created_by=created_by)
+
+@app.get("/notes/{note_id}", response_model=schemas.NoteResponse, tags=["Notes"])
+async def get_note(
+    note_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """IDでメモを取得"""
+    db_note = crud.get_note(db=db, note_id=note_id)
+    if db_note is None:
+        raise HTTPException(status_code=404, detail="メモが見つかりません")
+    return db_note
+
+@app.put("/notes/{note_id}", response_model=schemas.NoteResponse, tags=["Notes"])
+async def update_note(
+    note_id: int,
+    note: schemas.NoteUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """メモを更新"""
+    db_note = crud.get_note(db=db, note_id=note_id)
+    if db_note is None:
+        raise HTTPException(status_code=404, detail="メモが見つかりません")
+    return crud.update_note(db=db, db_note=db_note, note_in=note)
+
+@app.delete("/notes/{note_id}", tags=["Notes"])
+async def delete_note(
+    note_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """メモを削除（画像ファイルも削除）"""
+    db_note = crud.get_note(db=db, note_id=note_id)
+    if db_note is None:
+        raise HTTPException(status_code=404, detail="メモが見つかりません")
+    
+    # メモと関連する画像ファイルを削除
+    crud.delete_note(db=db, db_note=db_note, upload_dir=UPLOAD_DIR)
+    return {"message": "メモを削除しました"}
+
+@app.post("/notes/upload-image", tags=["Notes"])
+async def upload_note_image(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user)
+):
+    """メモ用の画像をアップロード"""
+    # 画像ファイルのみ許可
+    if not file.content_type or not file.content_type.startswith('image/'):
+        logger.warning(f"画像以外のファイルがアップロードされました: {file.content_type}")
+        raise HTTPException(status_code=400, detail="画像ファイルのみアップロード可能です")
+    
+    # ファイル名を生成（ユニークにする）
+    file_ext = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    
+    # ファイルを保存
+    try:
+        content = await file.read()
+        
+        with open(file_path, "wb") as buffer:
+            buffer.write(content)
+        
+        # URLを返す（フロントエンドからアクセスできるパス）
+        image_url = f"/static/uploads/{unique_filename}"
+        return {"url": image_url}
+    except Exception as e:
+        logger.error(f"画像のアップロードに失敗: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"画像のアップロードに失敗しました: {str(e)}") 

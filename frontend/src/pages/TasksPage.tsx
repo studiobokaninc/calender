@@ -221,106 +221,43 @@ const TasksPage: React.FC = () => {
 
 
 
-    // グローバルデータから初期値を設定
+    // 初回マウント時のみデータを取得
     useEffect(() => {
-        console.log("[TasksPage] Global data changed:", {
-            tasks: globalData?.tasks?.length || 0,
-            projects: globalData?.projects?.length || 0,
-            users: globalData?.users?.length || 0,
-            lastFetched: globalData?.lastFetched
-        });
-        
-        if (globalData && globalData.tasks && globalData.tasks.length > 0) {
-            console.log("[TasksPage] Updating tasks from global data");
-            setTasks(globalData.tasks);
-        }
-        if (globalData && globalData.projects && globalData.projects.length > 0) {
-            console.log("[TasksPage] Updating projects from global data");
-            setProjects(globalData.projects);
-        }
-        if (globalData && globalData.users && globalData.users.length > 0) {
-            console.log("[TasksPage] Updating users from global data");
-            setUsers(globalData.users);
-        }
-        if (globalData) {
-            setLoading(false);
-        }
-    }, [globalData]);
-
-    // タブを開いた時に最新データを取得（バックグラウンド）
-    useEffect(() => {
-        // グローバルデータが既に存在する場合は、それを使いつつバックグラウンドで更新
+        // グローバルデータが既に存在する場合は、それを使用
         if (globalData && globalData.tasks.length > 0 && globalData.projects.length > 0) {
-            console.log("[TasksPage] Using existing global data...");
             setTasks(globalData.tasks);
             setProjects(globalData.projects);
             setUsers(globalData.users);
             setLoading(false);
-            
-            // バックグラウンドで最新データを取得
-            if (refreshGlobalData) {
-                console.log("[TasksPage] Refreshing data in background...");
-                refreshGlobalData().then(() => {
-                    console.log("[TasksPage] Background refresh completed");
-                });
-            }
             return;
         }
 
-        // 初回ロード時のみローディング表示してデータを取得
-        if (isInitialLoad && (!globalData || globalData.tasks.length === 0)) {
-            console.log("[TasksPage] Fetching data on initial load...");
+        // グローバルデータが空または存在しない場合は、データを取得
+        if (!globalData || globalData.tasks.length === 0 || globalData.projects.length === 0) {
             fetchData();
         }
-    }, [isInitialLoad, refreshGlobalData]); // refreshGlobalDataを依存関係に追加
-
-    // グローバルデータの変更を直接監視（より確実な方法）
-    useEffect(() => {
-        if (globalData && globalData.tasks && globalData.tasks.length > 0) {
-            console.log("[TasksPage] Global data updated, refreshing local state...");
-            console.log("[TasksPage] Tasks count:", globalData.tasks.length);
-            setTasks(globalData.tasks);
-        }
-        if (globalData && globalData.projects && globalData.projects.length > 0) {
-            console.log("[TasksPage] Projects count:", globalData.projects.length);
-            setProjects(globalData.projects);
-        }
-        if (globalData && globalData.users && globalData.users.length > 0) {
-            console.log("[TasksPage] Users count:", globalData.users.length);
-            setUsers(globalData.users);
-        }
-    }, [globalData.tasks, globalData.projects, globalData.users, globalData.lastFetched]);
+    }, []); // 初回マウント時のみ実行
 
     // globalDataRefreshedイベントをリッスンしてデータを強制更新
     useEffect(() => {
         const handleGlobalDataRefresh = (event: CustomEvent) => {
-            console.log("[TasksPage] Global data refreshed event received, updating local state...");
-            console.log("[TasksPage] Received data:", {
-                tasks: event.detail.tasks?.length || 0,
-                projects: event.detail.projects?.length || 0,
-                users: event.detail.users?.length || 0
-            });
             const { tasks, projects, users } = event.detail;
-            setTasks(tasks);
-            setProjects(projects);
-            setUsers(users);
+            if (tasks) setTasks(tasks);
+            if (projects) setProjects(projects);
+            if (users) setUsers(users);
         };
 
-        const handleCsvImportCompleted = async (event: CustomEvent) => {
-            console.log("[TasksPage] CSV import completed event received:", event.detail);
+        const handleCsvImportCompleted = async () => {
             // CSVインポート完了時はグローバルデータの更新を待つ
             if (refreshGlobalData) {
-                console.log("[TasksPage] Refreshing global data after CSV import...");
                 await refreshGlobalData();
             }
         };
 
-        console.log("[TasksPage] Adding globalDataRefreshed and csvImportCompleted event listeners");
         window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
         window.addEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
         
         return () => {
-            console.log("[TasksPage] Removing globalDataRefreshed and csvImportCompleted event listeners");
             window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
             window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
         };
@@ -328,40 +265,32 @@ const TasksPage: React.FC = () => {
 
     // プロジェクト変更イベントをリッスンしてタスクデータを強制更新
     useEffect(() => {
-        const handleProjectDeleted = async (event: CustomEvent) => {
-            console.log("[TasksPage] Project deleted event received:", event.detail);
+        const handleProjectDeleted = async () => {
             // プロジェクト削除時はタスクも削除されるため、グローバルデータの更新を待つ
             if (refreshGlobalData) {
-                console.log("[TasksPage] Refreshing global data after project deletion...");
                 await refreshGlobalData();
             }
         };
 
-        const handleProjectUpdated = async (event: CustomEvent) => {
-            console.log("[TasksPage] Project updated event received:", event.detail);
+        const handleProjectUpdated = async () => {
             // プロジェクト更新時はタスクデータも再取得
             if (refreshGlobalData) {
-                console.log("[TasksPage] Refreshing global data after project update...");
                 await refreshGlobalData();
             }
         };
 
-        const handleProjectStatusUpdated = async (event: CustomEvent) => {
-            console.log("[TasksPage] Project status updated event received:", event.detail);
+        const handleProjectStatusUpdated = async () => {
             // プロジェクト表示ステータス更新時はタスクデータも再取得
             if (refreshGlobalData) {
-                console.log("[TasksPage] Refreshing global data after project status update...");
                 await refreshGlobalData();
             }
         };
 
-        console.log("[TasksPage] Adding project change event listeners");
         window.addEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
         window.addEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
         window.addEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
         
         return () => {
-            console.log("[TasksPage] Removing project change event listeners");
             window.removeEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
             window.removeEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
             window.removeEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
@@ -570,9 +499,7 @@ const TasksPage: React.FC = () => {
             
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
-                console.log('[TasksPage] Refreshing global data after task deletion...');
                 await refreshGlobalData();
-                console.log('[TasksPage] Global data refresh completed for task deletion');
             }
             
             setSnackbar({
@@ -581,7 +508,6 @@ const TasksPage: React.FC = () => {
                 severity: 'success'
             });
         } catch (error) {
-            console.error('タスクの削除に失敗しました:', error);
             setSnackbar({
                 open: true,
                 message: 'タスクの削除に失敗しました',
@@ -648,22 +574,15 @@ const TasksPage: React.FC = () => {
 
 
 
-            console.log('送信するタスクデータ:', taskData);  // デバッグログを追加
-
-
-
-
             if (isEditMode && currentTask.id !== null) {
-                const response = await api.put(`/tasks/${currentTask.id}`, taskData);
-                console.log('更新レスポンス:', response.data);  // デバッグログを追加
+                await api.put(`/tasks/${currentTask.id}`, taskData);
                 setSnackbar({
                     open: true,
                     message: 'タスクが更新されました',
                     severity: 'success'
                 });
             } else {
-                const response = await api.post('/tasks', taskData);
-                console.log('作成レスポンス:', response.data);  // デバッグログを追加
+                await api.post('/tasks', taskData);
                 setSnackbar({
                     open: true,
                     message: 'タスクが作成されました',
@@ -671,28 +590,13 @@ const TasksPage: React.FC = () => {
                 });
             }
 
-
-
-
             setOpenDialog(false);
             
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
-                if (isEditMode) {
-                    console.log('[TasksPage] Refreshing global data after task update...');
-                } else {
-                    console.log('[TasksPage] Refreshing global data after task creation...');
-                }
                 await refreshGlobalData();
-                console.log('[TasksPage] Global data refresh completed');
             }
         } catch (err: any) {
-            console.error('タスクの保存に失敗しました:', err);
-            console.error('エラーの詳細:', {
-                status: err.response?.status,
-                data: err.response?.data,
-                config: err.config
-            });  // より詳細なエラー情報をログ出力
            
             let errorMessage = 'タスクの保存に失敗しました';
            
@@ -945,7 +849,6 @@ const TasksPage: React.FC = () => {
             setSelectedTask(task);
             setHistoryDialogOpen(true);
         } catch (err) {
-            console.error('ステータス履歴の取得に失敗しました:', err);
             setSnackbar({
                 open: true,
                 message: 'ステータス履歴の取得に失敗しました',

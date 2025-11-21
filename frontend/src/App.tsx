@@ -15,6 +15,7 @@ import CalendarPage from './pages/CalendarPage'; // ★ Calendar -> CalendarPage
 import Dashboard from './pages/Dashboard';
 import ProjectDetailPage from './pages/ProjectDetailPage'; // ★ インポートを追加
 import EventManagementPage from './pages/EventManagementPage'; // ← 追加
+import NotesPage from './pages/NotesPage'; // ← メモページを追加
 // import Projects from './pages/Projects'; // ProjectsPageを使うためコメントアウト
 // import Tasks from './pages/Tasks'; // TasksPageを使うためコメントアウト
 // import UserProfile from './pages/UserProfile'; // Import UserProfile
@@ -80,6 +81,7 @@ const App: React.FC = () => {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="tasks" element={<TasksPage />} />
           <Route path="event-management" element={<EventManagementPage />} />
+          <Route path="notes" element={<NotesPage />} />
           {/* イベント管理ページをメトリクスページの該当タブにリダイレクト */}
           <Route path="events" element={<Navigate to="/metrics?tab=events" replace />} />
           {/* ★ プロジェクト詳細ページのルートを追加 ★ */}

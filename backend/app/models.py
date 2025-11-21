@@ -166,4 +166,15 @@ class UserGroup(Base):
     group_id: Mapped[int] = mapped_column(ForeignKey("groups.id"), primary_key=True)
     role: Mapped[Optional[GroupRole]] = mapped_column()
     created_at: Mapped[Optional[datetime]] = mapped_column()
-    updated_at: Mapped[Optional[datetime]] = mapped_column() 
+    updated_at: Mapped[Optional[datetime]] = mapped_column()
+
+class Note(Base):
+    __tablename__ = "notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    image_urls: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)  # 画像のパスをリストで保存
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive) 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Paper,
@@ -18,8 +19,12 @@ import {
 import api from '../services/api'
 import { DashboardMetrics } from '../types'
 import { useDashboardPageState } from '../contexts/PageStateContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -49,16 +54,6 @@ const Dashboard: React.FC = () => {
   // ページ状態が復元されたらローカル状態を更新
   useEffect(() => {
     if (!isInitialLoad && dashboardState.messages.length > 0) {
-      console.log('Restoring dashboard state:', {
-        messagesCount: dashboardState.messages.length,
-        conversationId: dashboardState.conversationId,
-        messages: dashboardState.messages.map(msg => ({
-          role: msg.role,
-          contentLength: msg.content.length,
-          contentPreview: msg.content.substring(0, 50) + (msg.content.length > 50 ? '...' : '')
-        }))
-      });
-      
       // 状態復元中は状態更新を無効化
       setStateRestored(false);
       
@@ -72,7 +67,6 @@ const Dashboard: React.FC = () => {
       
       // currentMessageIdも復元
       if (dashboardState.currentMessageId) {
-        console.log('[chat] Restoring currentMessageId:', dashboardState.currentMessageId);
         setCurrentMessageId(dashboardState.currentMessageId);
       }
       
@@ -88,7 +82,6 @@ const Dashboard: React.FC = () => {
         setMetrics(response.data)
       } catch (err) {
         setError('メトリクスの取得に失敗しました')
-        console.error('Failed to fetch metrics:', err)
       } finally {
         setLoading(false)
       }
@@ -122,14 +115,6 @@ const Dashboard: React.FC = () => {
       const hasConversationChanged = conversationId !== dashboardState.conversationId;
       
       if (hasMessagesChanged || hasConversationChanged) {
-        console.log('Updating dashboard state:', {
-          messagesCount: messages.length,
-          conversationId: conversationId,
-          isRestored: stateRestored,
-          hasMessagesChanged,
-          hasConversationChanged
-        });
-        
         // ストリーミング中は即座に更新、そうでなければデバウンス
         const delay = sending ? 0 : 100;
         const timeoutId = setTimeout(() => {
@@ -362,7 +347,7 @@ const Dashboard: React.FC = () => {
           user: 'default_user' // 環境変数から取得するか、固定値を使用
         })
       } catch (error) {
-        console.error('[chat] stop request failed:', error)
+        // Stop request failed - silently handle
         // エラーが発生してもローカルでの停止は実行
       }
     }
@@ -406,7 +391,6 @@ const Dashboard: React.FC = () => {
       setShowSuggestions(true)
       setLastSuggestedForMessageId(messageId)
     } catch (error) {
-      console.error('[chat] Failed to fetch suggestions:', error)
       // エラー時は推奨質問を表示しない
       setSuggestedQuestions([])
       setShowSuggestions(false)
@@ -446,32 +430,8 @@ const Dashboard: React.FC = () => {
     eventSource.addEventListener('message', (event) => {
       try {
         const data = JSON.parse(event.data)
-        console.log('[chat] received SSE data:', data)
-        console.log('[chat] event type:', data.event)
-        console.log('[chat] data.message_id:', data.message_id)
-        console.log('[chat] data.conversation_id:', data.conversation_id)
-        console.log('[chat] data keys:', Object.keys(data))
-        
-        // より詳細な構造分析
-        if (data.data) {
-          console.log('[chat] data.data keys:', Object.keys(data.data))
-          if (data.data.outputs) {
-            console.log('[chat] data.data.outputs keys:', Object.keys(data.data.outputs))
-            if (data.data.outputs.answer) {
-              console.log('[chat] data.data.outputs.answer keys:', Object.keys(data.data.outputs.answer))
-              console.log('[chat] data.data.outputs.answer.message_id:', data.data.outputs.answer.message_id)
-            }
-          }
-        }
-        
-        console.log('[chat] full data structure:', JSON.stringify(data, null, 2))
-        
-        if (data.conversation_id) {
-          console.debug('[chat] recv SSE', { conversation_id: data.conversation_id })
-        }
         
         if (data.task_id) {
-          console.log('[chat] received task_id:', data.task_id)
           setCurrentTaskId(data.task_id)
         }
         
@@ -481,37 +441,29 @@ const Dashboard: React.FC = () => {
         // 1. 直接message_idが含まれている場合
         if (data.message_id) {
           foundMessageId = data.message_id
-          console.log('[chat] received message_id directly:', data.message_id)
         }
         // 2. node_finishedイベントでdata.outputs.answerにmessage_idが含まれている場合
         else if (data.event === 'node_finished' && data.data && data.data.outputs && data.data.outputs.answer) {
           const answerData = data.data.outputs.answer
           if (answerData.message_id) {
             foundMessageId = answerData.message_id
-            console.log('[chat] received message_id from node_finished:', answerData.message_id)
           }
         }
         // 3. data.data.message_idが含まれている場合
         else if (data.data && data.data.message_id) {
           foundMessageId = data.data.message_id
-          console.log('[chat] received message_id from data.data:', data.data.message_id)
         }
         // 4. data.data.outputs.answer.message_idが含まれている場合
         else if (data.data && data.data.outputs && data.data.outputs.answer && data.data.outputs.answer.message_id) {
           foundMessageId = data.data.outputs.answer.message_id
-          console.log('[chat] received message_id from data.data.outputs.answer:', data.data.outputs.answer.message_id)
         }
         
          if (foundMessageId) {
-           console.log('[chat] Setting currentMessageId to:', foundMessageId)
            setCurrentMessageId(foundMessageId)
            messageIdRef.current = foundMessageId // refにも保存
            latestMessageId = foundMessageId // 直接変数にも保存
-           console.log('[chat] saved message_id to latestMessageId and ref:', foundMessageId)
-         } else {
-           console.log('[chat] No message_id found in any location')
          }
-        
+         
         if (data.conversation_id && !conversationId) {
           setConversationId(data.conversation_id)
         }
@@ -520,19 +472,10 @@ const Dashboard: React.FC = () => {
           // 累積コンテンツを更新
           accumulatedContent += data.answer
           
-          console.log('[chat] received answer chunk:', { 
-            chunk: data.answer, 
-            chunkLength: data.answer.length,
-            accumulatedLength: accumulatedContent.length,
-            aiStarted 
-          });
-          
           if (!aiStarted) {
             aiStarted = true
-            console.log('[chat] starting new assistant message with:', data.answer);
             setMessages((prev) => {
               const newMessages = [...prev, { role: 'assistant' as const, content: accumulatedContent }]
-              console.log('[chat] created new assistant message:', newMessages[newMessages.length - 1])
               return newMessages
             })
           } else {
@@ -547,18 +490,11 @@ const Dashboard: React.FC = () => {
                 const lastIdx = prev.length - 1
                 const last = prev[lastIdx]
                 if (last.role !== 'assistant') {
-                  console.log('[chat] creating new assistant message:', accumulatedContent);
                   return [...prev, { role: 'assistant' as const, content: accumulatedContent }]
                 }
                 // 既存のアシスタントメッセージを累積コンテンツで更新
                 const updated = [...prev]
-                console.log('[chat] updating existing message with accumulated content:', { 
-                  previousLength: last.content.length,
-                  accumulatedLength: accumulatedContent.length,
-                  contentPreview: accumulatedContent.substring(0, 100) + (accumulatedContent.length > 100 ? '...' : '')
-                });
                 updated[lastIdx] = { ...last, content: accumulatedContent }
-                console.log('[chat] updated message:', updated[lastIdx])
                 return updated
               })
             }, 50) // 50msのデバウンス
@@ -569,56 +505,37 @@ const Dashboard: React.FC = () => {
           eventSource.close()
         }
       } catch (e) {
-        console.error('SSE message parse error:', e)
+        // SSE message parse error - silently handle
       }
     })
 
     eventSource.addEventListener('message_end', (event) => {
       streamEnded = true
-      console.debug('[chat] stream ended, final accumulated content length:', accumulatedContent.length);
       
       // message_endイベントでもmessage_idを確認
       let messageIdFromEnd = null
       try {
         const data = JSON.parse(event.data)
-        console.log('[chat] message_end event data:', data)
-        console.log('[chat] message_end data keys:', Object.keys(data))
         
          // 複数の場所でmessage_idを探す
          if (data.message_id) {
-           console.log('[chat] received message_id in message_end:', data.message_id)
            messageIdFromEnd = data.message_id
-           console.log('[chat] Setting currentMessageId to:', data.message_id)
            setCurrentMessageId(data.message_id)
            messageIdRef.current = data.message_id // refにも保存
            latestMessageId = data.message_id // 直接変数にも保存
          } else if (data.data && data.data.message_id) {
-           console.log('[chat] received message_id in message_end data.data:', data.data.message_id)
            messageIdFromEnd = data.data.message_id
-           console.log('[chat] Setting currentMessageId to:', data.data.message_id)
            setCurrentMessageId(data.data.message_id)
            messageIdRef.current = data.data.message_id // refにも保存
            latestMessageId = data.data.message_id // 直接変数にも保存
          } else if (data.data && data.data.outputs && data.data.outputs.answer && data.data.outputs.answer.message_id) {
-           console.log('[chat] received message_id in message_end data.data.outputs.answer:', data.data.outputs.answer.message_id)
            messageIdFromEnd = data.data.outputs.answer.message_id
-           console.log('[chat] Setting currentMessageId to:', data.data.outputs.answer.message_id)
            setCurrentMessageId(data.data.outputs.answer.message_id)
            messageIdRef.current = data.data.outputs.answer.message_id // refにも保存
            latestMessageId = data.data.outputs.answer.message_id // 直接変数にも保存
-         } else {
-           console.log('[chat] No message_id found in message_end event')
-           console.log('[chat] message_end full data structure:', JSON.stringify(data, null, 2))
          }
-        
-        // message_idが取得できた場合の確認ログ
-        if (messageIdFromEnd) {
-          console.log('[chat] message_id successfully set in message_end:', messageIdFromEnd)
-        } else {
-          console.log('[chat] No message_id found in message_end event')
-        }
       } catch (error) {
-        console.error('[chat] Error parsing message_end data:', error)
+        // Error parsing message_end data - silently handle
       }
       
       // 残りの更新を即座に実行
@@ -756,66 +673,172 @@ const Dashboard: React.FC = () => {
       title: 'ユーザー',
       value: metrics?.users || 0,
       subValue: '登録済みユーザー',
-      icon: <PeopleIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
+      icon: <PeopleIcon sx={{ fontSize: 48 }} />,
+      color: 'primary',
+      bgGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      path: '/admin/users',
+      requiresAdmin: true, // 管理者専用ページ
     },
     {
       title: 'タスク',
       value: metrics?.tasks || 0,
       subValue: '登録済みタスク',
-      icon: <TaskIcon sx={{ fontSize: 40, color: 'secondary.main' }} />,
+      icon: <TaskIcon sx={{ fontSize: 48 }} />,
+      color: 'secondary',
+      bgGradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      path: '/tasks',
+      requiresAdmin: false,
     },
     {
       title: 'プロジェクト',
       value: metrics?.projects || 0,
       subValue: '登録済みプロジェクト',
-      icon: <ProjectIcon sx={{ fontSize: 40, color: 'success.main' }} />,
+      icon: <ProjectIcon sx={{ fontSize: 48 }} />,
+      color: 'success',
+      bgGradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      path: '/projects',
+      requiresAdmin: false,
     },
     {
       title: 'イベント',
       value: metrics?.events || 0,
       subValue: '登録済みイベント',
-      icon: <EventIcon sx={{ fontSize: 40, color: 'info.main' }} />,
+      icon: <EventIcon sx={{ fontSize: 48 }} />,
+      color: 'info',
+      bgGradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+      path: '/calendar',
+      requiresAdmin: false,
     },
   ]
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
+    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+      <Typography 
+        variant="h4" 
+        gutterBottom 
+        sx={{ 
+          mb: 4,
+          fontWeight: 600,
+          color: 'text.primary',
+        }}
+      >
         ダッシュボード
       </Typography>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-        {statCards.map((card, index) => (
-          <Box key={index} sx={{ flexGrow: 1, flexBasis: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(25% - 12px)' }, minWidth: { xs: '100%', sm: 'calc(50% - 12px)', md: 'calc(25% - 12px)' } }}>
-            <Paper sx={{ p: 2 }}>
-              <Box display="flex" alignItems="center" mb={1}>
-                {card.icon}
-                <Typography variant="h6" sx={{ ml: 1 }}>
-                  {card.title}
-                </Typography>
+      <Box 
+        sx={{ 
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(4, 1fr)',
+          },
+          gap: 3,
+          mb: 4,
+        }}
+      >
+        {statCards.map((card, index) => {
+          const canNavigate = !card.requiresAdmin || isAdmin
+          
+          return (
+            <Paper
+              key={index}
+              elevation={2}
+              onClick={() => {
+                if (canNavigate) {
+                  navigate(card.path)
+                }
+              }}
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'all 0.3s ease-in-out',
+                cursor: canNavigate ? 'pointer' : 'default',
+                opacity: canNavigate ? 1 : 0.7,
+                '&:hover': canNavigate ? {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 6,
+                } : {},
+              }}
+            >
+            {/* 背景グラデーション */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: '120px',
+                height: '120px',
+                background: card.bgGradient,
+                borderRadius: '50%',
+                transform: 'translate(30px, -30px)',
+                opacity: 0.1,
+              }}
+            />
+            
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+              {/* アイコン */}
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  p: 1.5,
+                  borderRadius: 2,
+                  background: card.bgGradient,
+                  mb: 2,
+                  boxShadow: 2,
+                }}
+              >
+                <Box sx={{ color: 'white' }}>
+                  {card.icon}
+                </Box>
               </Box>
-              <Typography variant="h4" gutterBottom>
-                {card.value}
+              
+              {/* タイトル */}
+              <Typography
+                variant="body1"
+                sx={{
+                  color: 'text.secondary',
+                  mb: 1,
+                  fontWeight: 500,
+                  fontSize: '0.875rem',
+                }}
+              >
+                {card.title}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              
+              {/* 数値 */}
+              <Typography
+                variant="h3"
+                sx={{
+                  fontWeight: 700,
+                  mb: 0.5,
+                  color: 'text.primary',
+                  lineHeight: 1.2,
+                }}
+              >
+                {typeof card.value === 'number' && card.value < 0 ? '-' : card.value.toLocaleString()}
+              </Typography>
+              
+              {/* サブタイトル */}
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.secondary',
+                  fontSize: '0.75rem',
+                }}
+              >
                 {card.subValue}
               </Typography>
-            </Paper>
-          </Box>
-        ))}
-
-        {/* プロジェクト概要 */}
-        <Box sx={{ flexGrow: 1, flexBasis: { xs: '100%', md: 'calc(50% - 12px)' }, minWidth: { xs: '100%', md: 'calc(50% - 12px)' } }}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              プロジェクト概要
-            </Typography>
-            {/* プロジェクト一覧のコンテンツ */}
+            </Box>
           </Paper>
-        </Box>
+          )
+        })}
+      </Box>
 
 		{/* チャット欄 */}
-		<Box sx={{ flexGrow: 1, flexBasis: '100%', minWidth: '100%' }}>
+		<Box sx={{ width: '100%', mt: 3 }}>
 		  <Paper sx={{ p: 2 }}>
 			<Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
 				<Typography variant="h6">
@@ -1138,7 +1161,6 @@ const Dashboard: React.FC = () => {
 			</Box>
 		  </Paper>
 		</Box>
-      </Box>
     </Box>
   )
 }

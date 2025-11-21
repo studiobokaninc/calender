@@ -29846,3 +29846,255 @@ WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_a
 [parameters: (1, 1, 0)]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
 
+2025-11-21 20:19:12,561 - app.main - ERROR - Error in get_notes: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-11-21 20:19:12,576 - app.main - ERROR - Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: no such column: notes.content_position
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\main.py", line 1819, in get_notes
+    notes = query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2857, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2251, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+2025-11-21 20:19:47,688 - app.main - ERROR - Error in get_notes: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-11-21 20:19:47,702 - app.main - ERROR - Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: no such column: notes.content_position
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\main.py", line 1819, in get_notes
+    notes = query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2857, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2251, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+2025-11-21 20:20:27,090 - app.main - ERROR - Error in get_notes: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-11-21 20:20:27,095 - app.main - ERROR - Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: no such column: notes.content_position
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\main.py", line 1819, in get_notes
+    notes = query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2857, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2251, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+2025-11-21 20:20:33,043 - app.main - ERROR - Error in get_notes: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-11-21 20:20:33,062 - app.main - ERROR - Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: no such column: notes.content_position
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\main.py", line 1819, in get_notes
+    notes = query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2857, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2251, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\context.py", line 306, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such column: notes.content_position
+[SQL: SELECT notes.id AS notes_id, notes.title AS notes_title, notes.content AS notes_content, notes.image_urls AS notes_image_urls, notes.image_positions AS notes_image_positions, notes.content_position AS notes_content_position, notes.project_id AS notes_project_id, notes.created_by AS notes_created_by, notes.created_at AS notes_created_at, notes.updated_at AS notes_updated_at 
+FROM notes 
+WHERE notes.created_by = ? AND notes.project_id IS NULL ORDER BY notes.created_at DESC
+ LIMIT ? OFFSET ?]
+[parameters: (1, 1, 0)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+

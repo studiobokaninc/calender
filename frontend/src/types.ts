@@ -247,9 +247,11 @@ export interface MockDataImport {
 export interface Note {
   id: number;
   title?: string | null;
-  content?: string | null;
+  content?: string | null; // 後方互換性のため残す
   image_urls?: string[] | null;
   image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  content_position?: { x: number; y: number; width: number; height: number } | null; // 後方互換性のため残す
+  text_boxes?: Array<{ id: string; content: string; x: number; y: number; width: number; height: number }> | null;
   project_id?: number | null;
   created_by: number;
   created_at?: string | null;
@@ -258,16 +260,20 @@ export interface Note {
 
 export interface NoteCreate {
   title?: string | null;
-  content?: string | null;
+  content?: string | null; // 後方互換性のため残す
   image_urls?: string[] | null;
   image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  content_position?: { x: number; y: number; width: number; height: number } | null; // 後方互換性のため残す
+  text_boxes?: Array<{ id: string; content: string; x: number; y: number; width: number; height: number }> | null;
   project_id?: number | null;
 }
 
 export interface NoteUpdate {
   title?: string | null;
-  content?: string | null;
+  content?: string | null; // 後方互換性のため残す
   image_urls?: string[] | null;
   image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  content_position?: { x: number; y: number; width: number; height: number } | null; // 後方互換性のため残す
+  text_boxes?: Array<{ id: string; content: string; x: number; y: number; width: number; height: number }> | null;
   project_id?: number | null;
 }

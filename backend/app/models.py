@@ -1,7 +1,7 @@
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, Text, Enum, JSON
 from sqlalchemy.orm import relationship, Mapped, mapped_column, selectinload
 import enum
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from .timezone import now_jst_naive
 from .database import Base
@@ -176,6 +176,8 @@ class Note(Base):
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image_urls: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)  # 画像のパスをリストで保存
     image_positions: Mapped[Optional[Dict[str, Dict[str, float]]]] = mapped_column(JSON, nullable=True)  # 画像の位置情報 {url: {x, y, width, height}}
+    content_position: Mapped[Optional[Dict[str, float]]] = mapped_column(JSON, nullable=True)  # テキストボックスの位置情報 {x, y, width, height}（後方互換性のため残す）
+    text_boxes: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), nullable=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)

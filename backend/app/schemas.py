@@ -249,9 +249,11 @@ class TaskResponse(TaskBase):
 
 class NoteBase(BaseModel):
     title: Optional[str] = None
-    content: Optional[str] = None
+    content: Optional[str] = None  # 後方互換性のため残す
     image_urls: Optional[List[str]] = Field(default_factory=list)
     image_positions: Optional[Dict[str, Dict[str, float]]] = Field(default_factory=dict)  # {url: {x, y, width, height}}
+    content_position: Optional[Dict[str, float]] = None  # {x, y, width, height}（後方互換性のため残す）
+    text_boxes: Optional[List[Dict[str, Any]]] = None  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Optional[int] = None
 
 class NoteCreate(NoteBase):
@@ -259,9 +261,11 @@ class NoteCreate(NoteBase):
 
 class NoteUpdate(BaseModel):
     title: Optional[str] = None
-    content: Optional[str] = None
+    content: Optional[str] = None  # 後方互換性のため残す
     image_urls: Optional[List[str]] = None
     image_positions: Optional[Dict[str, Dict[str, float]]] = None  # {url: {x, y, width, height}}
+    content_position: Optional[Dict[str, float]] = None  # {x, y, width, height}（後方互換性のため残す）
+    text_boxes: Optional[List[Dict[str, Any]]] = None  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Optional[int] = None
 
 class NoteResponse(NoteBase):

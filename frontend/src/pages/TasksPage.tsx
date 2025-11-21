@@ -881,14 +881,34 @@ const TasksPage: React.FC = () => {
 
 
     return (
-        <Box sx={{ p: 2 }}>
-            <Paper sx={{ mb: 2, p: 2 }}>
-                <Grid container spacing={2} alignItems="center">
+        <Box sx={{ p: { xs: 2, sm: 3 } }}>
+            <Paper 
+                elevation={2}
+                sx={{ 
+                    mb: 3, 
+                    p: 3,
+                    borderRadius: 3,
+                    transition: 'all 0.3s ease-in-out',
+                }}
+            >
+                <Grid container spacing={3} alignItems="center">
                     <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth variant="standard" size="small">
-                            <InputLabel shrink>ステータス</InputLabel>
-                            <Select displayEmpty value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as string)} sx={{ fontSize: '0.8rem' }}>
-                                <MenuItem value=""><em>全て</em></MenuItem>
+                        <FormControl fullWidth variant="outlined" size="small">
+                            <InputLabel id="status-filter-label" shrink>ステータス</InputLabel>
+                            <Select 
+                                labelId="status-filter-label"
+                                label="ステータス"
+                                displayEmpty 
+                                value={statusFilter || 'all'} 
+                                onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                                renderValue={(selected) => {
+                                    if (!selected || selected === 'all' || selected === '') {
+                                        return '全て';
+                                    }
+                                    return selected;
+                                }}
+                            >
+                                <MenuItem value="all">全て</MenuItem>
                                 {uniqueStatuses.map(status => (
                                     <MenuItem key={status} value={status}>{status}</MenuItem>
                                 ))}
@@ -896,10 +916,23 @@ const TasksPage: React.FC = () => {
                         </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth variant="standard" size="small">
-                            <InputLabel shrink>プロジェクト</InputLabel>
-                            <Select displayEmpty value={projectFilter} onChange={(e) => setProjectFilter(e.target.value as string)} sx={{ fontSize: '0.8rem' }}>
-                                <MenuItem value=""><em>全て</em></MenuItem>
+                        <FormControl fullWidth variant="outlined" size="small">
+                            <InputLabel id="project-filter-label" shrink>プロジェクト</InputLabel>
+                            <Select 
+                                labelId="project-filter-label"
+                                label="プロジェクト"
+                                displayEmpty 
+                                value={projectFilter || 'all'} 
+                                onChange={(e) => setProjectFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                                renderValue={(selected) => {
+                                    if (!selected || selected === 'all' || selected === '') {
+                                        return '全て';
+                                    }
+                                    const project = projects.find(p => String(p.id) === selected);
+                                    return project ? project.name : selected;
+                                }}
+                            >
+                                <MenuItem value="all">全て</MenuItem>
                                 {projects.map(project => (
                                     <MenuItem key={project.id} value={String(project.id)}>{project.name}</MenuItem>
                                 ))}
@@ -907,10 +940,26 @@ const TasksPage: React.FC = () => {
                         </FormControl>
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth variant="standard" size="small">
-                            <InputLabel shrink>担当者</InputLabel>
-                            <Select displayEmpty value={assigneeFilter} onChange={(e) => setAssigneeFilter(e.target.value as string)} sx={{ fontSize: '0.8rem' }}>
-                                <MenuItem value=""><em>全て</em></MenuItem>
+                        <FormControl fullWidth variant="outlined" size="small">
+                            <InputLabel id="assignee-filter-label" shrink>担当者</InputLabel>
+                            <Select 
+                                labelId="assignee-filter-label"
+                                label="担当者"
+                                displayEmpty 
+                                value={assigneeFilter || 'all'} 
+                                onChange={(e) => setAssigneeFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                                renderValue={(selected) => {
+                                    if (!selected || selected === 'all' || selected === '') {
+                                        return '全て';
+                                    }
+                                    if (selected === 'unassigned') {
+                                        return '未割当';
+                                    }
+                                    const user = users.find(u => String(u.id) === selected);
+                                    return user ? (user.username || user.email) : selected;
+                                }}
+                            >
+                                <MenuItem value="all">全て</MenuItem>
                                 <MenuItem value="unassigned">未割当</MenuItem>
                                 {users.map(user => (
                                     <MenuItem key={user.id} value={String(user.id)}>{user.username || user.email}</MenuItem>
@@ -924,7 +973,13 @@ const TasksPage: React.FC = () => {
 
 
 
-            <Paper>
+            <Paper
+                elevation={2}
+                sx={{
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                }}
+            >
                 <Box 
                     ref={dataGridContainerRef} 
                     sx={{ 

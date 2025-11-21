@@ -1362,7 +1362,15 @@ const CalendarPage: React.FC = () => {
     };
 
     return (
-        <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }} ref={containerRef}>
+        <Box 
+            sx={{ 
+                display: 'flex', 
+                height: 'calc(100vh - 64px)', 
+                overflow: 'hidden',
+                p: { xs: 2, sm: 3 },
+            }} 
+            ref={containerRef}
+        >
             <style>{`
                 .fc .fc-daygrid-day.fc-day-today {
                     background-color: #e3f2fd; /* 今日: 薄い青 */
@@ -1607,7 +1615,15 @@ const CalendarPage: React.FC = () => {
                 }
             `}</style>
 
-                <Box sx={{ flexGrow: 1, p: 0, overflow: 'auto', position: 'relative' }}>
+                <Box sx={{ 
+                    flexGrow: 1, 
+                    p: 2, 
+                    overflow: 'auto', 
+                    position: 'relative',
+                    backgroundColor: 'background.paper',
+                    borderRadius: 3,
+                    boxShadow: 2,
+                }}>
                 {/* ... (Error/Loading display) ... */}
                     {error && <Typography color="error">{error}</Typography>}
                     {loading && (

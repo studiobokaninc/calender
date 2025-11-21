@@ -464,7 +464,7 @@ const NotesPage: React.FC = () => {
         </DialogTitle>
         <DialogContent dividers>
           <TextField
-            label="タイトル"
+            label="タイトル（任意）"
             fullWidth
             value={title}
             onChange={(e) => setTitle(e.target.value)}

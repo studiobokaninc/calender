@@ -3,4 +3,4 @@
 *.db-journal
 backend/*.db
 backend/*.db-journal 
-*.png
+backend/static/uploads/*

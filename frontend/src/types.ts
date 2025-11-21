@@ -249,7 +249,9 @@ export interface Note {
   title?: string | null;
   content?: string | null;
   image_urls?: string[] | null;
-  created_by?: number | null;
+  image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  project_id?: number | null;
+  created_by: number;
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -258,10 +260,14 @@ export interface NoteCreate {
   title?: string | null;
   content?: string | null;
   image_urls?: string[] | null;
+  image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  project_id?: number | null;
 }
 
 export interface NoteUpdate {
   title?: string | null;
   content?: string | null;
   image_urls?: string[] | null;
+  image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  project_id?: number | null;
 }

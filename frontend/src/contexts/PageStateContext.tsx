@@ -36,6 +36,9 @@ interface PageStates {
     conversationId: string | null;
     currentMessageId: string | null;
   };
+  notes: {
+    selectedProjectId: number | null | 'other';
+  };
 }
 
 // デフォルト状態
@@ -70,6 +73,9 @@ const defaultStates: PageStates = {
     messages: [{ role: 'assistant', content: 'ようこそ！何かお聞きになりたいことはありますか？' }],
     conversationId: null,
     currentMessageId: null,
+  },
+  notes: {
+    selectedProjectId: 'other',
   },
 };
 

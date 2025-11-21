@@ -257,12 +257,17 @@ export const chatApi = {
 
 // --- Notes API ---
 export const notesApi = {
-  // メモ一覧を取得
-  getNotes: async (skip: number = 0, limit: number = 100, createdBy?: number) => {
+  // メモ一覧を取得（プロジェクトフィルター対応）
+  getNotes: async (skip: number = 0, limit: number = 100, projectId?: number | null) => {
     const params = new URLSearchParams({ skip: skip.toString(), limit: limit.toString() })
-    if (createdBy !== undefined) {
-      params.append('created_by', createdBy.toString())
+    if (projectId !== undefined && projectId !== null && typeof projectId === 'number') {
+      // 数値のプロジェクトIDの場合
+      params.append('project_id', projectId.toString())
+    } else if (projectId === null) {
+      // projectIdが明示的にnullの場合、「その他」（project_idがnullのメモ）を取得
+      params.append('project_id_is_null', 'true')
     }
+    // projectIdがundefinedの場合は何も追加しない（全件取得）
     const response = await api.get(`/notes?${params.toString()}`)
     return response.data
   },

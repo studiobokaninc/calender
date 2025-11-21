@@ -1802,12 +1802,30 @@ async def create_note(
 async def get_notes(
     skip: int = 0,
     limit: int = 100,
-    created_by: Optional[int] = None,
+    project_id: Optional[int] = Query(None, description="プロジェクトIDでフィルタ"),
+    project_id_is_null: Optional[bool] = Query(None, description="project_idがnullのメモのみを取得する場合にtrue"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """メモリストを取得"""
-    return crud.get_notes(db=db, skip=skip, limit=limit, created_by=created_by)
+    """メモリストを取得（作成者のみ）"""
+    try:
+        # project_id_is_nullがTrueの場合、project_idがnullのメモのみを取得
+        if project_id_is_null:
+            query = db.query(models.Note).filter(
+                models.Note.created_by == current_user.id
+            ).filter(
+                models.Note.project_id.is_(None)
+            )
+            notes = query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+            return notes
+        
+        # 作成者のみ取得
+        return crud.get_notes(db=db, skip=skip, limit=limit, created_by=current_user.id, project_id=project_id)
+    except Exception as e:
+        import traceback
+        logger.error(f"Error in get_notes: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"メモの取得に失敗しました: {str(e)}")
 
 @app.get("/notes/{note_id}", response_model=schemas.NoteResponse, tags=["Notes"])
 async def get_note(
@@ -1815,10 +1833,13 @@ async def get_note(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """IDでメモを取得"""
+    """IDでメモを取得（作成者のみ）"""
     db_note = crud.get_note(db=db, note_id=note_id)
     if db_note is None:
         raise HTTPException(status_code=404, detail="メモが見つかりません")
+    # 作成者のみアクセス可能
+    if db_note.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="このメモにアクセスする権限がありません")
     return db_note
 
 @app.put("/notes/{note_id}", response_model=schemas.NoteResponse, tags=["Notes"])
@@ -1828,11 +1849,14 @@ async def update_note(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """メモを更新"""
+    """メモを更新（作成者のみ）"""
     db_note = crud.get_note(db=db, note_id=note_id)
     if db_note is None:
         raise HTTPException(status_code=404, detail="メモが見つかりません")
-    return crud.update_note(db=db, db_note=db_note, note_in=note)
+    # 作成者のみ更新可能
+    if db_note.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="このメモを編集する権限がありません")
+    return crud.update_note(db=db, db_note=db_note, note_in=note, upload_dir=UPLOAD_DIR)
 
 @app.delete("/notes/{note_id}", tags=["Notes"])
 async def delete_note(
@@ -1840,11 +1864,13 @@ async def delete_note(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """メモを削除（画像ファイルも削除）"""
+    """メモを削除（画像ファイルも削除、作成者のみ）"""
     db_note = crud.get_note(db=db, note_id=note_id)
     if db_note is None:
         raise HTTPException(status_code=404, detail="メモが見つかりません")
-    
+    # 作成者のみ削除可能
+    if db_note.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="このメモを削除する権限がありません")
     # メモと関連する画像ファイルを削除
     crud.delete_note(db=db, db_note=db_note, upload_dir=UPLOAD_DIR)
     return {"message": "メモを削除しました"}

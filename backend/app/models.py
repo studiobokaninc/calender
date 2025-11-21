@@ -1,7 +1,7 @@
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, Text, Enum, JSON
 from sqlalchemy.orm import relationship, Mapped, mapped_column, selectinload
 import enum
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from .timezone import now_jst_naive
 from .database import Base
@@ -175,6 +175,11 @@ class Note(Base):
     title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image_urls: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)  # 画像のパスをリストで保存
-    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    image_positions: Mapped[Optional[Dict[str, Dict[str, float]]]] = mapped_column(JSON, nullable=True)  # 画像の位置情報 {url: {x, y, width, height}}
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
-    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive) 
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+    owner: Mapped["User"] = relationship("User")
+    project: Mapped[Optional["Project"]] = relationship("Project") 

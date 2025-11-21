@@ -1,219 +1,548 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Typography,
-  Button,
   TextField,
-  Card,
-  CardContent,
-  CardActions,
-  Grid,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  IconButton,
+  CircularProgress,
+  Alert,
+  Paper,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
-  Chip,
-  CircularProgress,
-  Alert,
+  Button,
 } from '@mui/material';
 import {
-  Add as AddIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
-  Image as ImageIcon,
   Close as CloseIcon,
-  SelectAll as SelectAllIcon,
 } from '@mui/icons-material';
 import { notesApi } from '../services/api';
-import { Note, NoteCreate, NoteUpdate } from '../types';
+import api from '../services/api';
+import { Note, NoteCreate, NoteUpdate, Project } from '../types';
+import { usePageState } from '../contexts/PageStateContext';
+
+interface ImageItem {
+  url: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  aspectRatio?: number; // 画像のアスペクト比（幅/高さ）
+}
 
 const NotesPage: React.FC = () => {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const { pageStates, updatePageState, isInitialLoad } = usePageState();
+  const [currentNote, setCurrentNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [viewingNote, setViewingNote] = useState<Note | null>(null);
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [images, setImages] = useState<ImageItem[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null | 'other'>('other');
+  const [stateRestored, setStateRestored] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [expandedImage, setExpandedImage] = useState<string | null>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [draggingImageIndex, setDraggingImageIndex] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [resizingImageIndex, setResizingImageIndex] = useState<number | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [noteToDelete, setNoteToDelete] = useState<number | null>(null);
 
-  // メモ一覧を取得
-  const fetchNotes = async () => {
+  // プロジェクト一覧を取得
+  const fetchProjects = async () => {
     try {
+      const response = await api.get<Project[]>('/projects');
+      setProjects(response.data.filter((p: Project) => p.display_status === 'online'));
+    } catch (err: any) {
+      console.error('プロジェクトの取得に失敗しました:', err);
+    }
+  };
+
+  // メモを取得（プロジェクトフィルター適用）
+  const fetchNote = useCallback(async (projectId: number | null | 'other' | undefined) => {
+    try {
+      console.log('fetchNote called with projectId:', projectId);
       setLoading(true);
       setError(null);
-      const data = await notesApi.getNotes(0, 100);
-      setNotes(data);
+      
+      // projectIdが'other'の場合はnullに変換（project_id_is_null=trueを送信）
+      // projectIdがnullの場合はnullのまま（project_id_is_null=trueを送信）
+      // projectIdがundefinedの場合はundefinedのまま（全件取得）
+      // projectIdがnullの場合、「その他」（project_id_is_null=true）として扱う
+      const apiProjectId = projectId === 'other' || projectId === null ? null : projectId;
+      const shouldFetchOther = projectId === 'other' || projectId === null;
+      console.log('Calling notesApi.getNotes with project_id:', apiProjectId, 'shouldFetchOther:', shouldFetchOther);
+      const data = await notesApi.getNotes(0, 1, shouldFetchOther ? null : apiProjectId);
+      console.log('Notes data received:', data);
+      
+      if (data && data.length > 0) {
+        const note = data[0];
+        console.log('Setting note:', note);
+        setCurrentNote(note);
+        setContent(note.content || '');
+        // 画像データを変換（既存のURLからImageItemに変換、位置情報も読み込み）
+        const imageItems: ImageItem[] = await Promise.all(
+          (note.image_urls || []).map(async (url: string, index: number) => {
+            const position = note.image_positions?.[url];
+            let aspectRatio: number;
+            
+            // 位置情報にアスペクト比が保存されている場合はそれを使用、なければ画像から取得
+            if (position?.width && position?.height) {
+              aspectRatio = position.width / position.height;
+            } else {
+              try {
+                aspectRatio = await getImageAspectRatio(url);
+              } catch {
+                aspectRatio = 1; // デフォルト値
+              }
+            }
+            
+            let width: number;
+            let height: number;
+            
+            if (position?.width && position?.height) {
+              // 保存された位置情報がある場合はそれを使用
+              width = position.width;
+              height = position.height;
+            } else {
+              // 新規読み込み時：アスペクト比に合わせてサイズを計算
+              const baseWidth = 200;
+              if (aspectRatio >= 1) {
+                // 横長または正方形：幅を基準にする
+                width = baseWidth;
+                height = width / aspectRatio;
+              } else {
+                // 縦長：高さを基準にする
+                height = baseWidth;
+                width = height * aspectRatio;
+              }
+            }
+            
+            return {
+              url,
+              width,
+              height,
+              x: position?.x ?? (50 + (index % 3) * 250),
+              y: position?.y ?? (50 + Math.floor(index / 3) * 250),
+              aspectRatio,
+            };
+          })
+        );
+        setImages(imageItems);
+        // projectIdがnullの場合は「その他」として表示
+        setSelectedProjectId(projectId === undefined ? 'other' : (projectId === null ? 'other' : projectId));
+      } else {
+        console.log('No note found, setting to new note mode');
+        // メモが存在しない場合は新規作成モード
+        setCurrentNote(null);
+        setContent('');
+        setImages([]);
+        setSelectedProjectId(projectId === undefined ? null : projectId);
+      }
     } catch (err: any) {
       console.error('メモの取得に失敗しました:', err);
-      setError('メモの取得に失敗しました');
+      console.error('Error details:', err.response?.data || err.message);
+      setError(`メモの取得に失敗しました: ${err.response?.data?.detail || err.message || '不明なエラー'}`);
     } finally {
+      console.log('fetchNote completed, setting loading to false');
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchNotes();
   }, []);
 
-  // 新規メモ作成
-  const handleCreate = () => {
-    setEditingNote(null);
-    setTitle('');
-    setContent('');
-    setImageUrls([]);
-    setDialogOpen(true);
-  };
-
-  // メモ全文表示
-  const handleView = (note: Note) => {
-    setViewingNote(note);
-    setViewDialogOpen(true);
-  };
-
-  // メモ編集
-  const handleEdit = (note: Note) => {
-    setEditingNote(note);
-    setTitle(note.title || '');
-    setContent(note.content || '');
-    setImageUrls(note.image_urls || []);
-    setDialogOpen(true);
-  };
-
-  // メモ削除確認ダイアログを開く
-  const handleDeleteClick = (noteId: number) => {
-    setNoteToDelete(noteId);
-    setDeleteDialogOpen(true);
-  };
-
-  // メモ削除実行
-  const handleDeleteConfirm = async () => {
-    if (noteToDelete === null) return;
-    
-    try {
-      await notesApi.deleteNote(noteToDelete);
-      await fetchNotes();
-      setDeleteDialogOpen(false);
-      setNoteToDelete(null);
-    } catch (err: any) {
-      console.error('メモの削除に失敗しました:', err);
-      setError('メモの削除に失敗しました');
-      setDeleteDialogOpen(false);
-      setNoteToDelete(null);
+  // ページ状態から選択されたプロジェクトIDを復元
+  useEffect(() => {
+    if (!isInitialLoad && !stateRestored && pageStates.notes?.selectedProjectId !== undefined) {
+      const savedProjectId = pageStates.notes.selectedProjectId;
+      setSelectedProjectId(savedProjectId);
+      setStateRestored(true);
+    } else if (isInitialLoad) {
+      // 初回ロード時はデフォルト値を使用
+      setStateRestored(true);
     }
+  }, [isInitialLoad, pageStates.notes, stateRestored]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const initialize = async () => {
+      try {
+        await fetchProjects();
+        // プロジェクト一覧取得後、保存された状態があればそれを使用、なければ「その他」を取得
+        if (isMounted) {
+          const projectIdToFetch = !isInitialLoad && pageStates.notes?.selectedProjectId !== undefined
+            ? pageStates.notes.selectedProjectId
+            : 'other';
+          await fetchNote(projectIdToFetch);
+        }
+      } catch (err) {
+        console.error('初期化エラー:', err);
+      }
+    };
+    initialize();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchNote, isInitialLoad, pageStates.notes]);
+
+  // プロジェクトフィルター変更時
+  const handleProjectChange = (projectId: number | null | 'other') => {
+    setSelectedProjectId(projectId);
+    // ページ状態に保存
+    updatePageState('notes', { selectedProjectId: projectId });
+    fetchNote(projectId);
+  };
+
+  // ドラッグアンドドロップ処理
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    // 複数の画像を並列でアップロード
+    const uploadPromises = files.map(file => handleImageUpload(file));
+    await Promise.all(uploadPromises);
+  };
+
+  // 画像のアスペクト比を取得
+  const getImageAspectRatio = (url: string): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const aspectRatio = img.width / img.height;
+        resolve(aspectRatio);
+      };
+      img.onerror = () => {
+        reject(new Error('画像の読み込みに失敗しました'));
+      };
+      img.src = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+    });
   };
 
   // 画像アップロード
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // 画像ファイルのみ許可
-    if (!file.type.startsWith('image/')) {
-      setError('画像ファイルのみアップロード可能です');
-      return;
-    }
-
+  const handleImageUpload = async (file: File) => {
     try {
       setUploadingImage(true);
       setError(null);
-      console.log('画像アップロード開始:', file.name, file.type, file.size);
       const result = await notesApi.uploadImage(file);
-      console.log('画像アップロード成功:', result);
       if (result && result.url) {
-        setImageUrls([...imageUrls, result.url]);
-      } else {
-        throw new Error('アップロード結果にURLが含まれていません');
+        // 画像のアスペクト比を取得
+        const aspectRatio = await getImageAspectRatio(result.url);
+        // 幅を200pxに固定し、アスペクト比に合わせて高さを計算（アスペクト比が1より大きい場合は横長、小さい場合は縦長）
+        const baseWidth = 200;
+        let width: number;
+        let height: number;
+        
+        if (aspectRatio >= 1) {
+          // 横長または正方形：幅を基準にする
+          width = baseWidth;
+          height = width / aspectRatio;
+        } else {
+          // 縦長：高さを基準にする
+          height = baseWidth;
+          width = height * aspectRatio;
+        }
+        
+        // 現在の画像数を取得して、重ならないように配置
+        setImages(prevImages => {
+          const currentCount = prevImages.length;
+          const spacing = 250; // 画像間の間隔
+          const cols = 3; // 1行あたりの画像数
+          const x = 50 + (currentCount % cols) * spacing;
+          const y = 50 + Math.floor(currentCount / cols) * spacing;
+          
+          const newImage: ImageItem = {
+            url: result.url,
+            width,
+            height,
+            x,
+            y,
+            aspectRatio,
+          };
+          return [...prevImages, newImage];
+        });
       }
     } catch (err: any) {
       console.error('画像のアップロードに失敗しました:', err);
-      let errorMessage = '画像のアップロードに失敗しました';
-      if (err?.response?.data?.detail) {
-        // バリデーションエラーの場合、detailを適切に処理
-        const detail = err.response.data.detail;
-        if (Array.isArray(detail)) {
-          errorMessage = detail.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
-        } else if (typeof detail === 'string') {
-          errorMessage = detail;
-        } else {
-          errorMessage = JSON.stringify(detail);
-        }
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-      setError(errorMessage);
+      setError('画像のアップロードに失敗しました');
     } finally {
       setUploadingImage(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+    }
+  };
+
+  // 画像削除（データベースからも削除）
+  const handleRemoveImage = async (index: number) => {
+    const newImages = images.filter((_, i) => i !== index);
+    setImages(newImages);
+    
+    if (selectedImageIndex === index) {
+      setSelectedImageIndex(null);
+    } else if (selectedImageIndex !== null && selectedImageIndex > index) {
+      setSelectedImageIndex(selectedImageIndex - 1);
+    }
+    
+    // メモが存在する場合、データベースを更新
+    if (currentNote) {
+      try {
+        const imageUrls = newImages.map(img => img.url);
+        // 画像の位置情報を保存
+        const imagePositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        newImages.forEach(img => {
+          imagePositions[img.url] = {
+            x: img.x,
+            y: img.y,
+            width: img.width,
+            height: img.height,
+          };
+        });
+        
+        const noteData: NoteUpdate = {
+          title: null,
+          content: content.trim() || null,
+          image_urls: imageUrls.length > 0 ? imageUrls : null,
+          image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
+          project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
+        };
+        await notesApi.updateNote(currentNote.id, noteData);
+        // 再取得して最新状態を反映
+        await fetchNote(selectedProjectId);
+      } catch (err: any) {
+        console.error('画像の削除に失敗しました:', err);
+        setError('画像の削除に失敗しました');
+        // エラー時は元に戻す
+        setImages(images);
       }
     }
   };
 
-  // 画像削除
-  const handleRemoveImage = (index: number) => {
-    setImageUrls(imageUrls.filter((_, i) => i !== index));
-  };
-
-  // メモ保存
-  const handleSave = async () => {
-    try {
-      setError(null);
-      const noteData: NoteCreate | NoteUpdate = {
-        title: title.trim() || null,
-        content: content.trim() || null,
-        image_urls: imageUrls.length > 0 ? imageUrls : null,
-      };
-
-      if (editingNote) {
-        await notesApi.updateNote(editingNote.id, noteData);
-      } else {
-        await notesApi.createNote(noteData);
-      }
-
-      setDialogOpen(false);
-      await fetchNotes();
-    } catch (err: any) {
-      console.error('メモの保存に失敗しました:', err);
-      setError('メモの保存に失敗しました');
+  // 画像ドラッグ開始
+  const handleImageDragStart = (index: number, e: React.MouseEvent) => {
+    // リサイズハンドルをクリックした場合はドラッグしない
+    if ((e.target as HTMLElement).classList.contains('resize-handle')) {
+      return;
     }
-  };
-
-  // 日時フォーマット
-  const formatDateTime = (dateString: string | null | undefined) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleString('ja-JP', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+    
+    if (selectedImageIndex !== index) {
+      setSelectedImageIndex(index);
+    }
+    setDraggingImageIndex(index);
+    const container = dropZoneRef.current;
+    if (!container) return;
+    // 画像の左上角を基準にドラッグオフセットを計算
+    const imageRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setDragOffset({
+      x: e.clientX - imageRect.left,
+      y: e.clientY - imageRect.top,
     });
   };
+
+  // 画像ドラッグ中
+  const handleImageDrag = (e: React.MouseEvent) => {
+    if (draggingImageIndex === null || dragOffset === null) return;
+    e.preventDefault();
+    
+    const container = dropZoneRef.current;
+    if (!container) return;
+    
+    const rect = container.getBoundingClientRect();
+    // ドラッグオフセットを考慮して画像の位置を計算
+    const newX = e.clientX - rect.left - dragOffset.x;
+    const newY = e.clientY - rect.top - dragOffset.y;
+    
+    setImages(images.map((img, i) => 
+      i === draggingImageIndex 
+        ? { ...img, x: Math.max(0, Math.min(newX, rect.width - img.width)), y: Math.max(0, Math.min(newY, rect.height - img.height)) }
+        : img
+    ));
+  };
+
+  // 画像ドラッグ終了
+  const handleImageDragEnd = () => {
+    setDraggingImageIndex(null);
+    setDragOffset(null);
+  };
+
+  // 画像リサイズ開始
+  const handleImageResizeStart = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setResizingImageIndex(index);
+    const image = images[index];
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: image.width,
+      height: image.height,
+    });
+  };
+
+  // 画像リサイズ中
+  const handleImageResize = (e: React.MouseEvent) => {
+    if (resizingImageIndex === null || resizeStart === null) return;
+    e.preventDefault();
+    
+    const image = images[resizingImageIndex];
+    const aspectRatio = image.aspectRatio || (resizeStart.width / resizeStart.height);
+    
+    const deltaX = e.clientX - resizeStart.x;
+    const deltaY = e.clientY - resizeStart.y;
+    // 対角線方向の移動量を計算
+    const delta = Math.sqrt(deltaX * deltaX + deltaY * deltaY) * (deltaX > 0 || deltaY > 0 ? 1 : -1);
+    
+    const newWidth = Math.max(50, Math.min(800, resizeStart.width + delta));
+    const newHeight = newWidth / aspectRatio; // アスペクト比を維持
+    
+    setImages(images.map((img, i) => 
+      i === resizingImageIndex 
+        ? { ...img, width: newWidth, height: newHeight }
+        : img
+    ));
+  };
+
+  // 画像リサイズ終了
+  const handleImageResizeEnd = () => {
+    setResizingImageIndex(null);
+    setResizeStart(null);
+  };
+
+
+  // メモ削除
+  const handleDelete = async () => {
+    if (!currentNote) return;
+    
+    try {
+      await notesApi.deleteNote(currentNote.id);
+      setCurrentNote(null);
+      setContent('');
+      setImages([]);
+      setSelectedProjectId(null);
+    } catch (err: any) {
+      console.error('メモの削除に失敗しました:', err);
+      setError('メモの削除に失敗しました');
+    } finally {
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  // 自動保存（デバウンス付き）
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
+  
+  useEffect(() => {
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+    
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // 初回ロード時は保存しない
+    if (loading) return;
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (currentNote || content || images.length > 0) {
+        try {
+          setError(null);
+          
+          const imageUrls = images.map(img => img.url);
+          // 画像の位置情報を保存
+          const imagePositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+          images.forEach(img => {
+            imagePositions[img.url] = {
+              x: img.x,
+              y: img.y,
+              width: img.width,
+              height: img.height,
+            };
+          });
+          
+          const noteData: NoteCreate | NoteUpdate = {
+            title: null, // タイトルは不要
+            content: content.trim() || null,
+            image_urls: imageUrls.length > 0 ? imageUrls : null,
+            image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
+            project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
+          };
+
+          if (currentNote) {
+            await notesApi.updateNote(currentNote.id, noteData);
+          } else {
+            await notesApi.createNote(noteData);
+            // 新規作成後は再取得
+            await fetchNote(selectedProjectId);
+          }
+        } catch (err: any) {
+          console.error('メモの自動保存に失敗しました:', err);
+          setError('メモの自動保存に失敗しました');
+        }
+      }
+    }, 2000); // 2秒後に自動保存
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [content, images, selectedProjectId, currentNote?.id]);
 
   return (
     <Box sx={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', p: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4" component="h1">
-          メモ
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreate}
-        >
-          新規メモ
-        </Button>
+        <Box>
+          <Typography variant="h4" component="h1">
+            メモ
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            個人メモ（作成者のみ閲覧・編集可能）
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel>プロジェクト</InputLabel>
+            <Select
+              value={selectedProjectId === null || selectedProjectId === 'other' ? 'other' : selectedProjectId}
+              label="プロジェクト"
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === 'other') {
+                  handleProjectChange('other');
+                } else if (value === '') {
+                  handleProjectChange(null);
+                } else {
+                  handleProjectChange(Number(value));
+                }
+              }}
+            >
+              {projects.map((project) => (
+                <MenuItem key={project.id} value={project.id}>
+                  {project.name}
+                </MenuItem>
+              ))}
+              <MenuItem value="other">その他</MenuItem>
+            </Select>
+          </FormControl>
+          {currentNote && (
+            <IconButton
+              onClick={() => setDeleteDialogOpen(true)}
+              color="error"
+              size="small"
+            >
+              <DeleteIcon />
+            </IconButton>
+          )}
+        </Box>
       </Box>
 
       {error && (
@@ -226,311 +555,157 @@ const NotesPage: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1 }}>
           <CircularProgress />
         </Box>
-      ) : notes.length === 0 ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1 }}>
-          <Typography variant="body1" color="text.secondary">
-            メモがありません。新規メモを作成してください。
-          </Typography>
-        </Box>
       ) : (
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-          <Grid container spacing={2} sx={{ pt: 1 }}>
-            {notes.map((note) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={note.id}>
-                <Card
-                  sx={{
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    backgroundColor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                    cursor: 'pointer',
-                    boxShadow: 1,
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: 4,
-                      borderColor: 'primary.light',
-                    },
-                  }}
-                  onClick={() => handleView(note)}
-                >
-                  <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                    {note.title && (
-                      <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
-                        {note.title}
-                      </Typography>
-                    )}
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        flexGrow: 1,
-                        mb: 1,
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                      }}
-                    >
-                      {note.content || '(内容なし)'}
-                    </Typography>
-                    {note.image_urls && note.image_urls.length > 0 && (
-                      <Box sx={{ mb: 1 }}>
-                        <Chip
-                          icon={<ImageIcon />}
-                          label={`${note.image_urls.length}枚の画像`}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </Box>
-                    )}
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDateTime(note.created_at)}
-                    </Typography>
-                  </CardContent>
-                  <CardActions sx={{ justifyContent: 'flex-end', pt: 0 }} onClick={(e) => e.stopPropagation()}>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEdit(note)}
-                      color="primary"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(note.id);
-                      }}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </CardActions>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      )}
-
-      {/* メモ全文表示ダイアログ */}
-      <Dialog
-        open={viewDialogOpen}
-        onClose={() => setViewDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { maxHeight: '90vh' },
-        }}
-      >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ flexGrow: 1 }}>{viewingNote?.title || 'メモ'}</Box>
-          <IconButton
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              
-              // メモ本文を選択
-              if (contentRef.current) {
-                const range = document.createRange();
-                range.selectNodeContents(contentRef.current);
-                const selection = window.getSelection();
-                if (selection) {
-                  selection.removeAllRanges();
-                  selection.addRange(range);
-                }
-              }
-            }}
-            color="primary"
-            size="small"
-            title="メモ本文を選択（Ctrl+Cでコピー）"
-          >
-            <SelectAllIcon />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Box
-            ref={contentRef}
-            component="pre"
-            sx={{
-              fontFamily: 'inherit',
-              fontSize: '1rem',
-              lineHeight: 1.5,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              mb: 2,
-              p: 1,
-              border: '1px solid transparent',
-              borderRadius: 1,
-              cursor: 'text',
-              userSelect: 'text',
-              '&:hover': {
-                backgroundColor: 'action.hover',
-              },
-            }}
-            onClick={(e) => {
-              // クリック時にテキストを選択
-              const range = document.createRange();
-              range.selectNodeContents(e.currentTarget);
-              const selection = window.getSelection();
-              if (selection) {
-                selection.removeAllRanges();
-                selection.addRange(range);
-              }
-            }}
-          >
-            {viewingNote?.content || '(内容なし)'}
-          </Box>
-          
-          {/* 画像表示 */}
-          {viewingNote?.image_urls && viewingNote.image_urls.length > 0 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 2 }}>
-              {viewingNote.image_urls.map((url, index) => {
-                const imageUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
-                return (
-                  <Box
-                    key={index}
-                    onClick={() => setExpandedImage(imageUrl)}
-                    sx={{
-                      position: 'relative',
-                      maxWidth: 300,
-                      maxHeight: 300,
-                      border: '1px solid #ddd',
-                      borderRadius: 1,
-                      overflow: 'hidden',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s',
-                      '&:hover': {
-                        transform: 'scale(1.05)',
-                        borderColor: 'primary.main',
-                      },
-                    }}
-                  >
-                    <img
-                      src={imageUrl}
-                      alt={`メモ画像 ${index + 1}`}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain',
-                      }}
-                    />
-                  </Box>
-                );
-              })}
-            </Box>
-          )}
-          
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-            作成日時: {formatDateTime(viewingNote?.created_at)}
-            {viewingNote?.updated_at && viewingNote.updated_at !== viewingNote?.created_at && (
-              <> / 更新日時: {formatDateTime(viewingNote.updated_at)}</>
-            )}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            if (viewingNote) {
-              handleEdit(viewingNote);
-              setViewDialogOpen(false);
+        <Paper
+          ref={dropZoneRef}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          onClick={(e) => {
+            // 画像やその子要素をクリックした場合は何もしない
+            const target = e.target as HTMLElement;
+            if (target.closest('[data-image-box]')) {
+              return;
             }
-          }} startIcon={<EditIcon />}>
-            編集
-          </Button>
-          <Button onClick={() => setViewDialogOpen(false)} variant="contained">
-            閉じる
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* メモ作成/編集ダイアログ */}
-      <Dialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { maxHeight: '90vh' },
-        }}
-      >
-        <DialogTitle>
-          {editingNote ? 'メモを編集' : '新規メモを作成'}
-        </DialogTitle>
-        <DialogContent dividers>
+            
+            // 背景（Paper）またはテキストエリアをクリックしたときのみ画像の選択を解除
+            if (e.target === e.currentTarget || target.tagName === 'TEXTAREA' || target.closest('textarea')) {
+              setSelectedImageIndex(null);
+            }
+          }}
+          sx={{
+            flexGrow: 1,
+            position: 'relative',
+            overflow: 'auto',
+            p: 3,
+            backgroundColor: '#ffffff',
+            minHeight: 'calc(100vh - 200px)',
+            cursor: draggingImageIndex !== null ? 'grabbing' : 'text',
+          }}
+          onMouseMove={(e) => {
+            if (draggingImageIndex !== null) {
+              handleImageDrag(e);
+            } else if (resizingImageIndex !== null) {
+              handleImageResize(e);
+            }
+          }}
+          onMouseUp={(e) => {
+            // 背景のonClickが発火しないようにstopPropagation
+            if (draggingImageIndex !== null) {
+              e.stopPropagation();
+            }
+            handleImageResizeEnd();
+          }}
+          onMouseLeave={() => {
+            handleImageResizeEnd();
+          }}
+        >
+          {/* 本文入力（ページ全体がメモエディタ） */}
           <TextField
-            label="タイトル（任意）"
-            fullWidth
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            margin="normal"
-            placeholder="メモのタイトル（任意）"
-          />
-          <TextField
-            label="内容"
             fullWidth
             multiline
-            rows={8}
+            variant="standard"
+            placeholder="メモの内容を入力してください..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            margin="normal"
-            placeholder="メモの内容を入力してください"
+            onClick={() => setSelectedImageIndex(null)} // テキストエリアをクリックしたときに画像の選択を解除
+            sx={{ 
+              position: 'relative',
+              zIndex: 1,
+              '& .MuiInput-underline:before': { borderBottom: 'none' },
+              '& .MuiInput-underline:after': { borderBottom: 'none' },
+              '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottom: 'none' },
+              '& .MuiInputBase-input': {
+                padding: 0,
+              },
+              '& textarea': { 
+                minHeight: 'calc(100vh - 250px)',
+                fontSize: '1rem',
+                lineHeight: 1.6,
+                padding: 0,
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                backgroundColor: 'transparent',
+              },
+              '& .MuiInputBase-root': {
+                padding: 0,
+                border: 'none',
+                backgroundColor: 'transparent',
+                '&:before': { borderBottom: 'none' },
+                '&:after': { borderBottom: 'none' },
+                '&:hover:not(.Mui-disabled):before': { borderBottom: 'none' },
+              },
+              '& fieldset': { border: 'none' },
+            }}
           />
-          
-          {/* 画像アップロード */}
-          <Box sx={{ mt: 2 }}>
-            <input
-              type="file"
-              accept="image/*"
-              ref={fileInputRef}
-              onChange={handleImageUpload}
-              style={{ display: 'none' }}
-            />
-            <Button
-              variant="outlined"
-              startIcon={<ImageIcon />}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingImage}
-              sx={{ mb: 2 }}
-            >
-              {uploadingImage ? 'アップロード中...' : '画像を添付'}
-            </Button>
 
-            {/* 画像プレビュー */}
-            {imageUrls.length > 0 && (
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
-                {imageUrls.map((url, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      position: 'relative',
-                      width: 150,
-                      height: 150,
-                      border: '1px solid #ddd',
-                      borderRadius: 1,
-                      overflow: 'hidden',
+          {/* 画像表示エリア */}
+          {images.map((image, index) => {
+            const imageUrl = image.url.startsWith('http') ? image.url : `${window.location.origin}${image.url}`;
+            const isSelected = selectedImageIndex === index;
+            
+            return (
+              <Box
+                key={index}
+                data-image-box
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  handleImageDragStart(index, e);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // クリック時は選択のみ（解除はしない）
+                  setSelectedImageIndex(index);
+                }}
+                onMouseUp={(e) => {
+                  e.stopPropagation();
+                  handleImageDragEnd();
+                }}
+                sx={{
+                  position: 'absolute',
+                  left: `${image.x}px`,
+                  top: `${image.y}px`,
+                  width: `${image.width}px`,
+                  height: `${image.height}px`,
+                  border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
+                  borderRadius: 1,
+                  overflow: 'visible', // 削除ボタンとリサイズハンドルが見えるように
+                  cursor: draggingImageIndex === index ? 'grabbing' : 'move',
+                  backgroundColor: 'transparent',
+                  boxShadow: isSelected ? 4 : 2,
+                  zIndex: 2,
+                  transition: (draggingImageIndex === index || resizingImageIndex === index) ? 'none' : 'box-shadow 0.2s',
+                  '&:hover': {
+                    boxShadow: 4,
+                    borderColor: isSelected ? '#1976d2' : '#bdbdbd',
+                  },
+                }}
+              >
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    overflow: 'hidden', // 画像だけはボックス内に収める
+                    borderRadius: 1,
+                  }}
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`画像 ${index + 1}`}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain', // 画像全体を表示（アスペクト比を維持、余白は許容）
+                      pointerEvents: 'none',
+                      userSelect: 'none',
+                      backgroundColor: 'transparent',
                     }}
-                  >
-                    <img
-                      src={url.startsWith('http') ? url : `${window.location.origin}${url}`}
-                      alt={`アップロード画像 ${index + 1}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const imageUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
-                        setExpandedImage(imageUrl);
-                      }}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        cursor: 'pointer',
-                      }}
-                    />
+                    draggable={false}
+                  />
+                </Box>
+                {isSelected && (
+                  <>
+                    {/* 削除ボタン */}
                     <IconButton
                       size="small"
                       onClick={(e) => {
@@ -539,92 +714,73 @@ const NotesPage: React.FC = () => {
                       }}
                       sx={{
                         position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        bgcolor: 'rgba(0,0,0,0.5)',
+                        top: -12,
+                        right: -12,
+                        backgroundColor: 'error.main',
                         color: 'white',
+                        width: 24,
+                        height: 24,
+                        boxShadow: 2,
                         '&:hover': {
-                          bgcolor: 'rgba(0,0,0,0.7)',
+                          backgroundColor: 'error.dark',
                         },
                       }}
                     >
                       <CloseIcon fontSize="small" />
                     </IconButton>
-                  </Box>
-                ))}
+                    
+                    {/* リサイズハンドル（右下） */}
+                    <Box
+                      className="resize-handle"
+                      onMouseDown={(e) => handleImageResizeStart(index, e)}
+                      sx={{
+                        position: 'absolute',
+                        bottom: -6,
+                        right: -6,
+                        width: 16,
+                        height: 16,
+                        backgroundColor: '#1976d2',
+                        border: '2px solid white',
+                        borderRadius: '50%',
+                        cursor: 'nwse-resize',
+                        boxShadow: 2,
+                        zIndex: 10,
+                        '&:hover': {
+                          backgroundColor: '#1565c0',
+                          transform: 'scale(1.2)',
+                        },
+                      }}
+                    />
+                  </>
+                )}
               </Box>
-            )}
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>キャンセル</Button>
-          <Button onClick={handleSave} variant="contained">
-            保存
-          </Button>
-        </DialogActions>
-      </Dialog>
+            );
+          })}
 
-      {/* 画像拡大表示ダイアログ */}
-      <Dialog
-        open={!!expandedImage}
-        onClose={() => setExpandedImage(null)}
-        maxWidth={false}
-        PaperProps={{
-          sx: {
-            maxWidth: '95vw',
-            maxHeight: '95vh',
-            m: 2,
-          },
-        }}
-      >
-        <DialogContent
-          sx={{
-            p: 0,
-            position: 'relative',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minWidth: 'min(90vw, 800px)',
-            minHeight: 'min(90vh, 600px)',
-            bgcolor: 'rgba(0, 0, 0, 0.9)',
-          }}
-        >
-          <IconButton
-            onClick={() => setExpandedImage(null)}
-            sx={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              bgcolor: 'rgba(255, 255, 255, 0.9)',
-              zIndex: 1,
-              '&:hover': {
-                bgcolor: 'rgba(255, 255, 255, 1)',
-              },
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
-          {expandedImage && (
-            <img
-              src={expandedImage}
-              alt="拡大画像"
-              style={{
-                maxWidth: '100%',
-                maxHeight: '95vh',
-                objectFit: 'contain',
+
+          {uploadingImage && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
               }}
-            />
+            >
+              <CircularProgress />
+              <Typography variant="body2" sx={{ mt: 2 }}>
+                アップロード中...
+              </Typography>
+            </Box>
           )}
-        </DialogContent>
-      </Dialog>
+        </Paper>
+      )}
 
       {/* 削除確認ダイアログ */}
       <Dialog
         open={deleteDialogOpen}
-        onClose={() => {
-          setDeleteDialogOpen(false);
-          setNoteToDelete(null);
-        }}
+        onClose={() => setDeleteDialogOpen(false)}
       >
         <DialogTitle>メモの削除</DialogTitle>
         <DialogContent>
@@ -633,19 +789,10 @@ const NotesPage: React.FC = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => {
-              setDeleteDialogOpen(false);
-              setNoteToDelete(null);
-            }}
-          >
+          <Button onClick={() => setDeleteDialogOpen(false)}>
             キャンセル
           </Button>
-          <Button
-            onClick={handleDeleteConfirm}
-            color="error"
-            variant="contained"
-          >
+          <Button onClick={handleDelete} color="error" variant="contained">
             削除
           </Button>
         </DialogActions>
@@ -655,4 +802,3 @@ const NotesPage: React.FC = () => {
 };
 
 export default NotesPage;
-

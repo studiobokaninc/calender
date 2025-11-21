@@ -251,6 +251,8 @@ class NoteBase(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     image_urls: Optional[List[str]] = Field(default_factory=list)
+    image_positions: Optional[Dict[str, Dict[str, float]]] = Field(default_factory=dict)  # {url: {x, y, width, height}}
+    project_id: Optional[int] = None
 
 class NoteCreate(NoteBase):
     pass
@@ -259,10 +261,13 @@ class NoteUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     image_urls: Optional[List[str]] = None
+    image_positions: Optional[Dict[str, Dict[str, float]]] = None  # {url: {x, y, width, height}}
+    project_id: Optional[int] = None
 
 class NoteResponse(NoteBase):
     id: int
-    created_by: Optional[int] = None
+    created_by: int
+    project_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

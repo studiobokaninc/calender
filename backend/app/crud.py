@@ -653,12 +653,24 @@ def get_notes(
     db: Session,
     skip: int = 0,
     limit: int = 100,
-    created_by: int | None = None
+    created_by: int | None = None,
+    project_id: int | None = None
 ) -> list[models.Note]:
-    """メモリストを取得 (ページネーション対応、作成者フィルタ可能)"""
+    """メモリストを取得 (ページネーション対応、作成者・プロジェクトフィルタ可能)
+    
+    project_idがNoneの場合:
+    - フロントエンドからproject_idパラメータが送られてこない場合 → フィルタリングしない（全件取得）
+    - フロントエンドからproject_id=nullが明示的に送られてきた場合 → project_id IS NULLでフィルタリング
+    """
+    from sqlalchemy import or_
     query = db.query(models.Note)
     if created_by is not None:
         query = query.filter(models.Note.created_by == created_by)
+    # project_idはOptional[int]なので、Noneの場合はフィルタリングしない
+    # ただし、明示的にnullを指定したい場合は別の方法が必要
+    # 現在の実装では、project_idがNoneの場合はフィルタリングしない
+    if project_id is not None:
+        query = query.filter(models.Note.project_id == project_id)
     return query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
 
 def create_note(db: Session, note: schemas.NoteCreate, created_by: int) -> models.Note:
@@ -667,6 +679,7 @@ def create_note(db: Session, note: schemas.NoteCreate, created_by: int) -> model
         title=note.title,
         content=note.content,
         image_urls=note.image_urls or [],
+        project_id=note.project_id,
         created_by=created_by,
         created_at=now_jst_naive(),
         updated_at=now_jst_naive()
@@ -676,8 +689,28 @@ def create_note(db: Session, note: schemas.NoteCreate, created_by: int) -> model
     db.refresh(db_note)
     return db_note
 
-def update_note(db: Session, db_note: models.Note, note_in: schemas.NoteUpdate) -> models.Note:
-    """メモ情報を更新"""
+def update_note(db: Session, db_note: models.Note, note_in: schemas.NoteUpdate, upload_dir: str = None) -> models.Note:
+    """メモ情報を更新（削除された画像ファイルも削除）"""
+    import os
+    
+    # 画像URLが更新される場合、削除された画像ファイルを削除
+    if 'image_urls' in note_in.dict(exclude_unset=True) and upload_dir:
+        old_image_urls = set(db_note.image_urls or [])
+        new_image_urls = set(note_in.image_urls or [])
+        deleted_urls = old_image_urls - new_image_urls
+        
+        # 削除された画像ファイルを物理的に削除
+        for image_url in deleted_urls:
+            if image_url and image_url.startswith('/static/uploads/'):
+                filename = os.path.basename(image_url)
+                file_path = os.path.join(upload_dir, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"画像ファイルを削除しました: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"画像ファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
     update_data = note_in.dict(exclude_unset=True)
     
     for key, value in update_data.items():

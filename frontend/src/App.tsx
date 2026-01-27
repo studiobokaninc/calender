@@ -80,7 +80,6 @@ const App: React.FC = () => {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="tasks" element={<TasksPage />} />
-          <Route path="event-management" element={<EventManagementPage />} />
           <Route path="notes" element={<NotesPage />} />
           {/* イベント管理ページをメトリクスページの該当タブにリダイレクト */}
           <Route path="events" element={<Navigate to="/metrics?tab=events" replace />} />
@@ -103,8 +102,9 @@ const App: React.FC = () => {
             </AdminRoute>
           }
         >
-          <Route path="metrics" element={<MetricsPage />} />
-          <Route path="admin/users" element={<UserManagementPage />} /> 
+          <Route path="event-management" element={<EventManagementPage />} />
+          <Route path="admin/users" element={<UserManagementPage />} />
+          <Route path="metrics" element={<MetricsPage />} /> 
           <Route path="admin/groups" element={<GroupManagementPage />} />
           <Route path="admin/data" element={<MockDataConsole />} />
           {/* Optional: Catch-all for admin paths to redirect to metrics or dashboard */}

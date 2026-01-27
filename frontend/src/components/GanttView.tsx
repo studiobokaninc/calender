@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, createContext, useContext, useRef, useCallback, memo, forwardRef } from 'react';
-import { Task as GtrTask, Gantt as ReactGantt, ViewMode, StylingOption, DisplayOption } from 'gantt-task-react'; // ★★★ Gantt を ReactGantt としてインポート ★★★
-import "gantt-task-react/dist/index.css"; // ★★★ ライブラリのCSSをインポート ★★★
+import { Task as GtrTask, Gantt as ReactGantt, ViewMode, StylingOption, DisplayOption } from 'gantt-task-react'; // ★★★ Gantt を ReactGantt としてインポート ★★★、Ganttとは、ガントチャートを表示するためのライブラリです。
+import "gantt-task-react/dist/index.css"; // ★★★ ライブラリのCSSをインポート ★★★、gantt-task-react/dist/index.cssとは、ガントチャートのライブラリのCSSです。CSSとは、ウェブページの見た目を作成するための言語です。
 import { 
   Paper, 
   Typography, 
@@ -99,12 +99,12 @@ interface CustomGtrTask extends GtrTask {
   fullName?: string; // ★ 元のフルネームを保持するプロパティ
 }
 
-// イベントハンドラの型を拡張
+// イベントハンドラの型を拡張、イベントハンドラとは、イベントが発生した時に呼び出される関数です。
 type CustomTaskEventHandler = (
   task: GtrTask,
   start: Date,
   end: Date
-) => void;
+) => void;//voidとは、何も返さないことを意味する型です。これが無いと、エラーが発生します。
 
 type CustomProgressEventHandler = (
   task: GtrTask,
@@ -140,7 +140,9 @@ const calculateProgress = (task: Task): number => {
     return 0;
 };
 
-// ステータスに基づいてタスクのスタイルを決定する関数
+
+
+// ステータスに基づいてタスクのスタイルを決定する関数、ガントチャートの色を決定するための関数です。
 const getTaskStyle = (task: Task) => {
   switch(task.status) { // ★★★ Fix: taskStatus -> status ★★★
     case 'todo':
@@ -190,18 +192,21 @@ const getTaskStyle = (task: Task) => {
   }
 };
 
-// 列幅の状態を共有するためのコンテキスト
+// 列幅の状態を共有するためのコンテキスト、コンテキストとは、どこからでもアクセスできるようにするためのオブジェクトです。関数の外で宣言して、他の関数でも使用できるようにするために使用します。
 const ColumnWidthContext = createContext<{
   colWidths: { project: number, name: number, from: number, to: number };
   setColWidths: React.Dispatch<React.SetStateAction<{ project: number, name: number, from: number, to: number }>>;
   listCellWidth: string;
   setListCellWidth: React.Dispatch<React.SetStateAction<string>>;
 }>({
-  colWidths: { project: 25, name: 35, from: 20, to: 20 },
-  setColWidths: () => {},
-  listCellWidth: "250px",
+  colWidths: { project: 40, name: 35, from: 20, to: 20 },//colWidthsとは、列幅の状態を管理するオブジェクトです。
+  setColWidths: () => {},//setColWidthsとは、列幅の状態を設定するための関数です。
+  listCellWidth: "500px",
   setListCellWidth: () => {}
 });
+
+
+
 
 // ★★★ カスタムタスクリストヘッダー with リサイズハンドル ★★★
 const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
@@ -220,7 +225,7 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
       
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const deltaX = moveEvent.pageX - startX;
-        const newWidth = Math.max(150, Math.min(600, startListWidth + deltaX)); // 最大幅調整
+        const newWidth = Math.max(200, Math.min(600, startListWidth + deltaX)); // 最大幅調整
         setListCellWidth(`${newWidth}px`);
       };
       
@@ -385,13 +390,15 @@ const trimProjectSuffix = (projectName: string | undefined): string => {
   return projectName; // 接尾辞がなければそのまま返す
 };
 
-// ★★★ カスタムタスクリスト (プロジェクト名を表示) ★★★
+
+
+// ★★★ カスタムタスクリスト (プロジェクト名を表示) ★★★、ガントチャートのタスクリストを表示するためのコンポーネントです。
 const CustomTaskList: React.FC<any> = ({ 
   tasks, 
   rowHeight, 
   // rowWidth, // rowWidth は listCellWidth から計算されるため、直接は使わないことが多い
-  selectedTaskId, 
-  setSelectedTask,
+  selectedTaskId, //selectedTaskIdとは、選択されたタスクのIDです。
+  setSelectedTask, //setSelectedTaskとは、選択されたタスクを設定するための関数です。
   // onExpanderClick, // 現在未使用
   projectsData 
 }) => {

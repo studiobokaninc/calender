@@ -413,9 +413,8 @@ const TasksPage: React.FC = () => {
 
 
 
-    const uniqueStatuses = useMemo(() =>
-        [...new Set(tasks.map(task => task.status).filter(Boolean))] as string[]
-    , [tasks]);
+    // タスクステータスの定義（編集モーダルと一致）
+    const statusOptions = ['todo', 'in-progress', 'review', 'completed', 'delayed'];
 
 
 
@@ -909,7 +908,7 @@ const TasksPage: React.FC = () => {
                                 }}
                             >
                                 <MenuItem value="all">全て</MenuItem>
-                                {uniqueStatuses.map(status => (
+                                {statusOptions.map(status => (
                                     <MenuItem key={status} value={status}>{status}</MenuItem>
                                 ))}
                             </Select>

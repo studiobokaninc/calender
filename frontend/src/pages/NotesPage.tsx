@@ -21,6 +21,7 @@ import {
   Delete as DeleteIcon,
   Close as CloseIcon,
   Add as AddIcon,
+  Image as ImageIcon,
 } from '@mui/icons-material';
 import { notesApi } from '../services/api';
 import api from '../services/api';
@@ -68,6 +69,52 @@ const NotesPage: React.FC = () => {
   const resizeMouseUpRef = useRef<((e?: MouseEvent) => void) | null>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [maxZIndex, setMaxZIndex] = useState(10); // z-indexの最大値を管理
+  const [elementZIndices, setElementZIndices] = useState<{ [key: string]: number }>({}); // 各要素のz-indexを管理
+  
+  // コンテナの最小高さを計算（テキストボックスと画像の最大のbottom位置を計算）
+  const calculateMinHeight = useCallback(() => {
+    let maxBottom = 0;
+    
+    // テキストボックスの最大bottom位置を計算
+    textBoxes.forEach(tb => {
+      const bottom = tb.y + tb.height;
+      if (bottom > maxBottom) {
+        maxBottom = bottom;
+      }
+    });
+    
+    // 画像の最大bottom位置を計算
+    images.forEach(img => {
+      const bottom = img.y + img.height;
+      if (bottom > maxBottom) {
+        maxBottom = bottom;
+      }
+    });
+    
+    // 最小高さは、最大bottom位置 + 余白（100px）と、画面高さの大きい方
+    return Math.max(maxBottom + 100, window.innerHeight - 200);
+  }, [textBoxes, images]);
+  
+  // 要素を前面に表示する関数
+  const bringToFront = useCallback((key: string) => {
+    setMaxZIndex(prev => {
+      const newZIndex = prev + 1;
+      setElementZIndices(prevIndices => ({
+        ...prevIndices,
+        [key]: newZIndex,
+      }));
+      return newZIndex;
+    });
+  }, []);
+  
+  // 要素のz-indexを取得する関数
+  const getZIndex = useCallback((key: string, defaultZIndex: number, isSelected: boolean) => {
+    if (isSelected && elementZIndices[key]) {
+      return elementZIndices[key];
+    }
+    return defaultZIndex;
+  }, [elementZIndices]);
   
   // コンポーネントのクリーンアップ時にイベントリスナーを削除
   useEffect(() => {
@@ -438,6 +485,8 @@ const NotesPage: React.FC = () => {
     
     if (selectedImageIndex !== index) {
       setSelectedImageIndex(index);
+      setSelectedTextBoxId(null);
+      bringToFront(`image-${index}`);
     }
     setDraggingImageIndex(index);
     const container = dropZoneRef.current;
@@ -695,6 +744,31 @@ const NotesPage: React.FC = () => {
           >
             <AddIcon />
           </IconButton>
+          <input
+            accept="image/*"
+            style={{ display: 'none' }}
+            id="image-upload-button"
+            type="file"
+            multiple
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []).filter(file => file.type.startsWith('image/'));
+              if (files.length > 0) {
+                files.forEach(file => handleImageUpload(file));
+              }
+              // 同じファイルを再度選択できるようにリセット
+              e.target.value = '';
+            }}
+          />
+          <label htmlFor="image-upload-button">
+            <IconButton
+              component="span"
+              color="primary"
+              size="small"
+              title="画像をアップロード"
+            >
+              <ImageIcon />
+            </IconButton>
+          </label>
           {currentNote && (
             <IconButton
               onClick={() => setDeleteDialogOpen(true)}
@@ -741,7 +815,7 @@ const NotesPage: React.FC = () => {
             overflow: 'auto',
             p: 3,
             backgroundColor: '#ffffff',
-            minHeight: 'calc(100vh - 200px)',
+            minHeight: `${calculateMinHeight()}px`,
             cursor: (draggingImageIndex !== null || draggingTextBoxId) ? 'grabbing' : 'text',
           }}
           onMouseMove={(e) => {
@@ -780,6 +854,7 @@ const NotesPage: React.FC = () => {
                     e.stopPropagation();
                     setSelectedTextBoxId(textBox.id);
                     setSelectedImageIndex(null);
+                    bringToFront(`textbox-${textBox.id}`);
                   }
                 }}
                 onMouseUp={(e) => {
@@ -844,6 +919,7 @@ const NotesPage: React.FC = () => {
                     e.stopPropagation();
                     setSelectedTextBoxId(textBox.id);
                     setSelectedImageIndex(null);
+                    bringToFront(`textbox-${textBox.id}`);
                   }}
                   sx={{ 
                     '& .MuiInput-underline:before': { borderBottom: 'none' },
@@ -887,6 +963,8 @@ const NotesPage: React.FC = () => {
                   e.stopPropagation();
                   // クリック時は選択のみ（解除はしない）
                   setSelectedImageIndex(index);
+                  setSelectedTextBoxId(null);
+                  bringToFront(`image-${index}`);
                 }}
                 onMouseUp={(e) => {
                   e.stopPropagation();
@@ -904,7 +982,7 @@ const NotesPage: React.FC = () => {
                   cursor: draggingImageIndex === index ? 'grabbing' : 'move',
                   backgroundColor: 'transparent',
                   boxShadow: isSelected ? 4 : 2,
-                  zIndex: 2,
+                  zIndex: getZIndex(`image-${index}`, 2, isSelected),
                   transition: (draggingImageIndex === index || resizingImageIndex === index) ? 'none' : 'box-shadow 0.2s',
                   '&:hover': {
                     boxShadow: 4,

@@ -19,6 +19,7 @@ const GanttView: React.FC<GanttViewProps> = ({ projects, tasks: originalTasks, o
     const [view, setView] = useState<ViewMode>(ViewMode.Day);
     const [isChecked, setIsChecked] = useState(true); // isChecked はリスト表示の有無に使われているようなので残す
     const [columnWidth, setColumnWidth] = useState(60); // カラム幅も残す
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const ganttRef = useRef<HTMLDivElement>(null);
     // 他の State や Ref (ViewSwitcher や helpers に関連するものは削除または修正が必要な場合あり)
 
@@ -67,11 +68,36 @@ const GanttView: React.FC<GanttViewProps> = ({ projects, tasks: originalTasks, o
 
     const handleSelect = (task: GanttTask, isSelected: boolean) => {
         console.log(task.name + " has " + (isSelected ? "selected" : "unselected"));
+        if (isSelected) {
+            setSelectedTaskId(task.id);
+        } else {
+            setSelectedTaskId(null);
+        }
     };
 
     const handleExpanderClick = (task: GanttTask) => {
         console.log("On expander click Id:" + task.id);
     };
+
+    useEffect(() => {
+        const highlightArrows = () => {
+            document.querySelectorAll('.gantt-dependency-highlight').forEach(el => el.classList.remove('gantt-dependency-highlight'));
+
+            if (selectedTaskId) {
+                const arrows = document.querySelectorAll('.gantt path, .gantt line');
+                arrows.forEach(el => {
+                    const from = el.getAttribute('data-from');
+                    const to = el.getAttribute('data-to');
+
+                    if (from === selectedTaskId || to === selectedTaskId) {
+                        el.classList.add('gantt-dependency-highlight');
+                    }
+                });
+            }
+        };
+
+        highlightArrows();
+    }, [selectedTaskId]);
     // --- (省略ここまで) ---
 
     return (
@@ -115,4 +141,4 @@ const GanttView: React.FC<GanttViewProps> = ({ projects, tasks: originalTasks, o
 
 // const CustomTooltipContent = ... // 存在しないため削除
 
-export default GanttView; 
+export default GanttView;

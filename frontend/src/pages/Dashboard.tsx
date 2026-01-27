@@ -9,6 +9,14 @@ import {
   CircularProgress,
   TextField,
   Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material'
 import {
   People as PeopleIcon,
@@ -18,7 +26,7 @@ import {
 } from '@mui/icons-material'
 import api from '../services/api'
 import { DashboardMetrics } from '../types'
-import { useDashboardPageState } from '../contexts/PageStateContext'
+import { useDashboardPageState, usePageState } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
 
 const Dashboard: React.FC = () => {
@@ -40,9 +48,22 @@ const Dashboard: React.FC = () => {
   const [lastSuggestedForMessageId, setLastSuggestedForMessageId] = useState<string | null>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
+  // アクション確認ダイアログ用の状態
+  interface PendingAction {
+    action_type: 'update_task' | 'create_task' | 'delete_task';
+    task_id?: number;
+    task_data?: any;
+    description: string;
+  }
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [isExecutingAction, setIsExecutingAction] = useState(false);
+  const [projectsForAction, setProjectsForAction] = useState<Array<{ id: number; name: string }>>([]);
+  const [selectedProjectIdForAction, setSelectedProjectIdForAction] = useState<number | ''>('');
+  
   
   // ページ状態管理の使用
   const { dashboardState, updateDashboardState, isInitialLoad } = useDashboardPageState();
+  const { refreshGlobalData } = usePageState();
   
   // 状態を分離（初期化時はページ状態から取得）
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
@@ -408,6 +429,156 @@ const Dashboard: React.FC = () => {
     }, 100)
   }
 
+  // アクションJSONを検出する関数
+  const detectActionFromContent = (content: string): any | null => {
+    try {
+      // JSON形式のアクションを検出（複数のパターンに対応）
+      const jsonPatterns = [
+        /\{[\s\S]*?"action_type"[\s\S]*?\}/,  // 基本的なJSONパターン
+        /\{[\s\S]*?"action_type":\s*"(update_task|create_task|delete_task)"[\s\S]*?\}/,  // より具体的なパターン
+      ];
+      
+      for (const pattern of jsonPatterns) {
+        const match = content.match(pattern);
+        if (match) {
+          try {
+            const action = JSON.parse(match[0]);
+            if (['update_task', 'create_task', 'delete_task'].includes(action.action_type)) {
+              return action;
+            }
+          } catch (e) {
+            // JSON解析エラーは次のパターンを試す
+            continue;
+          }
+        }
+      }
+      
+      // コードブロック内のJSONも検出
+      const codeBlockPattern = /```(?:json)?\s*(\{[\s\S]*?"action_type"[\s\S]*?\})\s*```/;
+      const codeMatch = content.match(codeBlockPattern);
+      if (codeMatch) {
+        try {
+          const action = JSON.parse(codeMatch[1]);
+          if (['update_task', 'create_task', 'delete_task'].includes(action.action_type)) {
+            return action;
+          }
+        } catch (e) {
+          // JSON解析エラーは無視
+        }
+      }
+    } catch (e) {
+      // エラーは無視
+      console.debug('Action detection error:', e);
+    }
+    
+    return null;
+  };
+
+  // アクションの説明を生成
+  const generateActionDescription = (action: any): string => {
+    switch (action.action_type) {
+      case 'update_task':
+        const updates: string[] = [];
+        if (action.task_data?.status) updates.push(`ステータス: ${action.task_data.status}`);
+        if (action.task_data?.name) updates.push(`名前: ${action.task_data.name}`);
+        if (action.task_data?.due_date) updates.push(`期日: ${action.task_data.due_date}`);
+        if (action.task_data?.assigned_to) updates.push(`担当者ID: ${action.task_data.assigned_to}`);
+        if (action.task_data?.description) updates.push(`説明: ${action.task_data.description}`);
+        return `タスクID ${action.task_id} を更新します。\n変更内容: ${updates.length > 0 ? updates.join(', ') : 'その他の更新'}`;
+      
+      case 'create_task':
+        const details: string[] = [];
+        if (action.task_data?.name) details.push(`名前: ${action.task_data.name}`);
+        if (action.task_data?.description) details.push(`説明: ${action.task_data.description}`);
+        if (action.task_data?.status) details.push(`ステータス: ${action.task_data.status}`);
+        if (action.task_data?.due_date) details.push(`期日: ${action.task_data.due_date}`);
+        if (action.task_data?.assigned_to) details.push(`担当者ID: ${action.task_data.assigned_to}`);
+        return `新しいタスクを作成します。\n${details.length > 0 ? details.join('\n') : '詳細は未設定'}`;
+      
+      case 'delete_task':
+        return `タスクID ${action.task_id} を削除します。\nこの操作は取り消せません。`;
+      
+      default:
+        return 'アクションを実行します。';
+    }
+  };
+
+  // アクション確認ダイアログ用に、タスク作成時のプロジェクト一覧を取得
+  useEffect(() => {
+    const fetchProjectsForAction = async () => {
+      if (pendingAction?.action_type !== 'create_task') return;
+      try {
+        const res = await api.get('/projects');
+        if (Array.isArray(res.data)) {
+          const list = res.data.map((p: any) => ({ id: p.id, name: p.name }));
+          setProjectsForAction(list);
+        }
+      } catch (e) {
+        console.debug('プロジェクト一覧の取得に失敗しました', e);
+      }
+    };
+    fetchProjectsForAction();
+  }, [pendingAction]);
+
+  // アクションを実行
+  const executeAction = async () => {
+    if (!pendingAction) return;
+    
+    setIsExecutingAction(true);
+    try {
+      // 送信前にペイロードを構築（必要に応じてproject_idを付与）
+      const payload: any = {
+        action_type: pendingAction.action_type,
+        task_id: pendingAction.task_id,
+        task_data: pendingAction.task_data ? { ...pendingAction.task_data } : {},
+      };
+
+      // タスク作成時にユーザーがプロジェクトを選択していれば、そのIDを付与
+      if (
+        pendingAction.action_type === 'create_task' &&
+        selectedProjectIdForAction !== ''
+      ) {
+        payload.task_data.project_id = selectedProjectIdForAction;
+      }
+
+      const response = await api.post('/chat/actions/task', payload);
+      
+      if (response.data.success) {
+        // 成功メッセージをチャットに追加
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `✅ ${response.data.message}`
+        }]);
+        
+        // グローバルデータを更新（タスク一覧を再取得）
+        if (refreshGlobalData) {
+          await refreshGlobalData();
+        }
+      } else {
+        // エラーメッセージをチャットに追加
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `❌ エラー: ${response.data.error}`
+        }]);
+      }
+    } catch (error: any) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `❌ エラーが発生しました: ${error.response?.data?.error || error.message}`
+      }]);
+    } finally {
+      setIsExecutingAction(false);
+      setPendingAction(null);
+      setSelectedProjectIdForAction('');
+    }
+  };
+
+  // アクションをキャンセル
+  const cancelAction = () => {
+    setPendingAction(null);
+    setSelectedProjectIdForAction('');
+  };
+
   const handleStreamingMessage = async (text: string) => {
     const url = new URL('/api/chat/stream', window.location.origin)
     url.searchParams.append('query', text)
@@ -509,6 +680,25 @@ const Dashboard: React.FC = () => {
       }
     })
 
+    // バックエンドからのタスクアクション候補イベントを受信
+    eventSource.addEventListener('task_action', (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data?.type === 'task_action_candidate' && data.action) {
+          const action = data.action
+          const description = generateActionDescription(action)
+          setPendingAction({
+            action_type: action.action_type,
+            task_id: action.task_id,
+            task_data: action.task_data,
+            description,
+          })
+        }
+      } catch (e) {
+        console.debug('Failed to handle task_action event:', e)
+      }
+    })
+
     eventSource.addEventListener('message_end', (event) => {
       streamEnded = true
       
@@ -556,6 +746,26 @@ const Dashboard: React.FC = () => {
         }
         return prev
       })
+      
+      // まだサーバー側から task_action イベントが来ていない場合のみ、
+      // テキストからアクションJSONを検出するフォールバックを実行
+      if (!pendingAction) {
+        try {
+          const action = detectActionFromContent(accumulatedContent);
+          if (action) {
+            const description = generateActionDescription(action);
+            setPendingAction({
+              action_type: action.action_type,
+              task_id: action.task_id,
+              task_data: action.task_data,
+              description: description
+            });
+          }
+        } catch (e) {
+          // アクション検出エラーは無視
+          console.debug('Action detection error:', e);
+        }
+      }
       
       eventSource.close()
       eventSourceRef.current = null
@@ -1161,8 +1371,70 @@ const Dashboard: React.FC = () => {
 			</Box>
 		  </Paper>
 		</Box>
-    </Box>
-  )
-}
+      
+      {/* アクション確認ダイアログ */}
+      <Dialog
+        open={pendingAction !== null}
+        onClose={cancelAction}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          {pendingAction?.action_type === 'delete_task' ? 'タスクの削除' : 
+           pendingAction?.action_type === 'create_task' ? 'タスクの作成' : 
+           'タスクの更新'}
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2, whiteSpace: 'pre-line' }}>
+            {pendingAction?.description}
+          </Typography>
+          {pendingAction?.action_type === 'create_task' && (
+            <Box sx={{ mt: 2 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="action-project-select-label">プロジェクト（任意）</InputLabel>
+                <Select
+                  labelId="action-project-select-label"
+                  value={selectedProjectIdForAction}
+                  label="プロジェクト（任意）"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedProjectIdForAction(
+                      typeof value === 'number' ? value : value === '' ? '' : Number(value)
+                    );
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>未指定（プロジェクトに紐づけない）</em>
+                  </MenuItem>
+                  {projectsForAction.map((p) => (
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+          <Typography variant="body2" color="text.secondary">
+            この操作を実行しますか？
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cancelAction} disabled={isExecutingAction}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={executeAction}
+            variant="contained"
+            color={pendingAction?.action_type === 'delete_task' ? 'error' : 'primary'}
+            disabled={isExecutingAction}
+          >
+            {isExecutingAction ? '実行中...' : '実行する'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      </Box>
+    )
+  }
 
 export default Dashboard 

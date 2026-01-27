@@ -5,7 +5,7 @@
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Query, HTTPException, Request
+from fastapi import APIRouter, Query, HTTPException, Request, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pathlib import Path
@@ -13,6 +13,10 @@ from dotenv import load_dotenv
 import json
 
 from ..dify_client import DifyClient
+from ..database import get_db
+from .. import crud, schemas, models
+from ..security import get_current_user
+from sqlalchemy.orm import Session
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,13 +26,13 @@ router = APIRouter()
 # DifyClientの初期化（main.pyでload_dotenv()後に初期化）
 """Dify クライアントのシングルトン管理。環境変数が変わったら差し替える。"""
 dify_client = None
-_cached_env: dict[str, str] = {"DIFY_API_KEY": "", "DIFY_API_URL": "", "DIFY_USER": ""}
+_cached_env: dict[str, str] = {"DIFY_API_KEY": "", "DIFY_API_URL": "", "DIFY_USER": ""}#キャッシュ用の環境変数
 
 def get_dify_client():
     """常に backend/.env を再読込し、変更があればクライアントを作り直す。"""
-    global dify_client, _cached_env
+    global dify_client, _cached_env#グローバル変数を使用
 
-    # backend/.env を明示して再読込（既存環境より .env を優先）
+    # backend/.env を明示して再読込（既存環境より .env を優先）#backend/.env を読み込む
     env_path = Path(__file__).resolve().parent.parent / ".env"
     load_dotenv(dotenv_path=str(env_path), override=True)
 
@@ -81,6 +85,7 @@ async def stream_chat(
     query: str = Query(..., description="ユーザーの質問"),
     conversation_id: Optional[str] = Query(None, description="会話ID"),
     request: Request = None,
+    db: Session = Depends(get_db),
 ):
     """
     ストリーミングチャットエンドポイント
@@ -110,6 +115,9 @@ async def stream_chat(
         "inputs": {},
     }
 
+    # ストリーミング中のメッセージ本文を蓄積するバッファ
+    message_buffer = {"text": ""}
+
     async def eventgen():
         try:
             logger.debug("[SSE] start proxy to Dify /chat-messages")
@@ -137,12 +145,65 @@ async def stream_chat(
                             continue
                         # Dify APIからのレスポンスをログ出力
                         if line.startswith("data: "):
+                            raw_json = line[6:]
+                            # デバッグ用に生データをWARNINGレベルで一部ログ出力（本番でうるさければ削除/レベル変更）
+                            logger.warning(f"[SSE-RAW] {raw_json[:300]}...")
                             try:
-                                data = json.loads(line[6:])
+                                data = json.loads(raw_json)
                                 logger.debug(f"[SSE] Dify response data: {data}")
                                 if 'message_id' in data:
                                     logger.debug(f"[SSE] Found message_id: {data['message_id']}")
+
+                                event_type = data.get("event")
+
+                                # answer がトークン単位でストリームされてくるので、バッファに蓄積する
+                                answer_chunk = data.get("answer")
+                                if isinstance(answer_chunk, str):
+                                    message_buffer["text"] += answer_chunk
+
+                                # メッセージ終了時に、全文からタスクアクション用JSONを抽出し、
+                                # 直接DB更新せずにクライアントへ通知する（フロント側で確認ポップアップ → /chat/actions/task 実行を想定）
+                                if event_type == "message_end":
+                                    full_answer = message_buffer["text"]
+                                    # 次のメッセージに備えてバッファをクリア
+                                    message_buffer["text"] = ""
+
+                                    cleaned = full_answer.strip()
+                                    # ``` や ```json フェンスを除去
+                                    if cleaned.startswith("```"):
+                                        cleaned = cleaned[3:]
+                                        cleaned = cleaned.lstrip()
+                                        # 先頭に言語指定があればスキップ（例: json, JSON）
+                                        if cleaned.lower().startswith("json"):
+                                            cleaned = cleaned[4:]
+                                        cleaned = cleaned.lstrip()
+                                        if cleaned.endswith("```"):
+                                            cleaned = cleaned[:-3]
+                                    cleaned = cleaned.strip()
+
+                                    # 純粋なJSONオブジェクトっぽければパースして「タスクアクション候補」として通知
+                                    if cleaned.startswith("{") and cleaned.endswith("}"):
+                                        try:
+                                            action_obj = json.loads(cleaned)
+                                        except json.JSONDecodeError:
+                                            action_obj = None
+
+                                        if isinstance(action_obj, dict) and "action_type" in action_obj:
+                                            # バックエンド側では即時実行せず、SSEのカスタムイベントとしてクライアントに通知する
+                                            # フロントエンド側でユーザー確認後に /chat/actions/task へ POST する想定
+                                            notification = {
+                                                "type": "task_action_candidate",
+                                                "action": action_obj,
+                                            }
+                                            logger.info(f"[SSE] Detected task action candidate: {notification}")
+                                            # EventSource のカスタムイベントとして送信（既存の message イベントはそのまま）
+                                            yield (
+                                                "event: task_action\n"
+                                                f"data: {json.dumps(notification, ensure_ascii=False)}\n\n"
+                                            ).encode("utf-8")
+
                             except json.JSONDecodeError:
+                                # SSEの制御メッセージなど、JSONでない行は無視
                                 pass
                         # そのまま 1 行 + 改行を転送（SSE の確定は空行）
                         yield (line + "\n").encode("utf-8")
@@ -168,31 +229,7 @@ async def stream_chat(
     )
 
 
-@router.post("/chat", response_model=ChatResponse)
-async def block_chat(request: ChatRequest):
-    """
-    ブロッキングチャットエンドポイント
-    一度に完全な回答を返す
-    """
-    if not request.query.strip():
-        raise HTTPException(status_code=400, detail="queryが必要です")
-    
-    try:
-        # Dify APIからブロッキングレスポンスを取得
-        client = get_dify_client()
-        response = await client.block_chat(request.query, request.conversation_id)
-        
-        return ChatResponse(
-            answer=response.get("answer", ""),
-            conversation_id=response.get("conversation_id", request.conversation_id),
-            message_id=response.get("message_id", "")
-        )
-        
-    except HTTPException as he:
-        # DifyClient からの詳細エラーをそのまま返却
-        raise HTTPException(status_code=he.status_code, detail=he.detail)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail={"message": "チャットエラー", "error": str(e)})
+
 
 
 @router.post("/conversation/reset")
@@ -476,5 +513,137 @@ async def get_suggested_questions(message_id: str, user: str = Query(..., descri
     
     # ここには到達しないはずだが、念のため
     raise HTTPException(status_code=500, detail={"message": "予期しないエラー"})
+
+
+@router.post("/chat/actions/task")
+async def execute_task_action(
+    action: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    Difyワークフローから呼び出されるタスク管理アクションエンドポイント
+    3つのアクションのみ対応: update_task, create_task, delete_task
+    """
+    return _execute_task_action_internal(action=action, db=db, current_user=current_user)
+
+
+def _execute_task_action_internal(
+    action: dict,
+    db: Session,
+    current_user: Optional[models.User] = None,
+):
+    """
+    タスク管理アクションの共通実装。
+    - /chat/actions/task エンドポイント
+    - /chat/stream 内での自動実行
+    から呼び出される。
+    """
+    action_type = action.get("action_type")
+
+    try:
+        if action_type == "update_task":
+            task_id = action.get("task_id")
+            task_data_dict = action.get("task_data", {})
+
+            if not task_id:
+                return {"success": False, "error": "task_idが必要です"}
+
+            db_task = crud.get_task(db=db, task_id=task_id)
+            if not db_task:
+                return {"success": False, "error": f"タスクID {task_id} が見つかりません"}
+
+            # 更新可能なフィールドのみを抽出
+            update_data = {}
+            if "name" in task_data_dict:
+                update_data["name"] = task_data_dict["name"]
+            if "description" in task_data_dict:
+                update_data["description"] = task_data_dict["description"]
+            if "status" in task_data_dict:
+                update_data["status"] = task_data_dict["status"]
+            if "priority" in task_data_dict:
+                update_data["priority"] = task_data_dict["priority"]
+            if "due_date" in task_data_dict:
+                update_data["due_date"] = task_data_dict["due_date"]
+            if "start_date" in task_data_dict:
+                update_data["start_date"] = task_data_dict["start_date"]
+            if "assigned_to" in task_data_dict:
+                update_data["assigned_to"] = task_data_dict["assigned_to"]
+            if "project_id" in task_data_dict:
+                update_data["project_id"] = task_data_dict["project_id"]
+            if "cost" in task_data_dict:
+                update_data["cost"] = task_data_dict["cost"]
+
+            task_data = schemas.TaskUpdate(**update_data)
+            updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data)
+
+            return {
+                "success": True,
+                "message": f"タスク '{updated_task.name}' を更新しました",
+                "task_id": updated_task.id,
+                "task_name": updated_task.name,
+            }
+
+        elif action_type == "create_task":
+            task_data_dict = action.get("task_data", {})
+
+            if not task_data_dict.get("name"):
+                return {"success": False, "error": "タスク名が必要です"}
+
+            # 必須フィールドの設定
+            task_data = schemas.TaskCreate(
+                name=task_data_dict.get("name"),
+                description=task_data_dict.get("description", ""),
+                status=task_data_dict.get("status", "todo"),
+                priority=task_data_dict.get("priority", "medium"),
+                project_id=task_data_dict.get("project_id"),
+                assigned_to=task_data_dict.get("assigned_to"),
+                due_date=task_data_dict.get("due_date"),
+                start_date=task_data_dict.get("start_date"),
+                cost=task_data_dict.get("cost", 0),
+                type=task_data_dict.get("type", ""),
+                seqID=task_data_dict.get("seqID", ""),
+                shotID=task_data_dict.get("shotID", ""),
+                dependsOn=task_data_dict.get("dependsOn", []),
+                display_status="online",
+            )
+
+            created_task = crud.create_task(db=db, task=task_data)
+
+            return {
+                "success": True,
+                "message": f"タスク '{created_task.name}' を作成しました",
+                "task_id": created_task.id,
+                "task_name": created_task.name,
+            }
+
+        elif action_type == "delete_task":
+            task_id = action.get("task_id")
+
+            if not task_id:
+                return {"success": False, "error": "task_idが必要です"}
+
+            db_task = crud.get_task(db=db, task_id=task_id)
+            if not db_task:
+                return {"success": False, "error": f"タスクID {task_id} が見つかりません"}
+
+            task_name = db_task.name
+            crud.delete_task(db=db, db_task=db_task)
+
+            return {
+                "success": True,
+                "message": f"タスク '{task_name}' を削除しました",
+                "task_id": task_id,
+            }
+
+        else:
+            return {
+                "success": False,
+                "error": f"不明なアクションタイプ: {action_type}。対応しているのは update_task, create_task, delete_task のみです。",
+            }
+
+    except Exception as e:
+        logger.error(f"アクション実行エラー: {str(e)}", exc_info=True)
+        return {"success": False, "error": f"エラーが発生しました: {str(e)}"}
 
 

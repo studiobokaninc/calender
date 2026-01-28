@@ -76,7 +76,7 @@ const ProjectsPage: React.FC = () => {
         color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'),
         display_status: 'online'
     });
-    const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success' | 'error'}>({
+    const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({
         open: false,
         message: '',
         severity: 'success'
@@ -132,7 +132,7 @@ const ProjectsPage: React.FC = () => {
                             return sum + cost * 0.0;
                     }
                 }, 0);
-                
+
                 const progress = totalCost > 0 ? Math.round((completedCost / totalCost) * 100) : 0;
 
                 return {
@@ -155,7 +155,7 @@ const ProjectsPage: React.FC = () => {
 
     const uniqueProjectStatuses = useMemo(() =>
         [...new Set(projects.map(p => p.status).filter(Boolean))] as string[]
-    , [projects]);
+        , [projects]);
 
     const filteredProjects: ProjectWithProgress[] = useMemo(() => {
         return projects.filter(project => {
@@ -317,7 +317,7 @@ const ProjectsPage: React.FC = () => {
     };
 
     const handleCloseSnackbar = () => {
-        setSnackbar({...snackbar, open: false});
+        setSnackbar({ ...snackbar, open: false });
     };
 
     const handleDeleteClick = (project: ProjectWithProgress) => {
@@ -338,51 +338,61 @@ const ProjectsPage: React.FC = () => {
         { field: 'id', headerName: 'ID', width: 80 },
         { field: 'name', headerName: 'プロジェクト名', width: 180, flex: 1 },
         { field: 'description', headerName: '説明', width: 200, flex: 1 },
-        { field: 'status', headerName: '進捗', width: 120, renderCell: (params) => (
-            <Chip label={params.value as string} style={{ background: getProjectStatusColor(params.value as string), color: '#fff' }} />
-        )},
-        { field: 'priority', headerName: '優先度', width: 120, renderCell: (params) => (
-            <Chip label={params.value || '未設定'} style={{ background: getPriorityColor(params.value as string), color: '#fff' }} />
-        )},
-        { field: 'start_date', headerName: '開始日', width: 120, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-            const row = params.row;
-            if (!row || !row.start_date) return '-';
-            try {
-                const date = new Date(row.start_date);
-                return date.toLocaleDateString('ja-JP', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit'
-                });
-            } catch {
-                return '-';
+        {
+            field: 'status', headerName: '進捗', width: 120, renderCell: (params) => (
+                <Chip label={params.value as string} style={{ background: getProjectStatusColor(params.value as string), color: '#fff' }} />
+            )
+        },
+        {
+            field: 'priority', headerName: '優先度', width: 120, renderCell: (params) => (
+                <Chip label={params.value || '未設定'} style={{ background: getPriorityColor(params.value as string), color: '#fff' }} />
+            )
+        },
+        {
+            field: 'start_date', headerName: '開始日', width: 120, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
+                const row = params.row;
+                if (!row || !row.start_date) return '-';
+                try {
+                    const date = new Date(row.start_date);
+                    return date.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                } catch {
+                    return '-';
+                }
             }
-        } },
-        { field: 'end_date', headerName: '終了日', width: 120, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-            const row = params.row;
-            if (!row || !row.end_date) return '-';
-            try {
-                const date = new Date(row.end_date);
-                return date.toLocaleDateString('ja-JP', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit'
-                });
-            } catch {
-                return '-';
+        },
+        {
+            field: 'end_date', headerName: '終了日', width: 120, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
+                const row = params.row;
+                if (!row || !row.end_date) return '-';
+                try {
+                    const date = new Date(row.end_date);
+                    return date.toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+                } catch {
+                    return '-';
+                }
             }
-        } },
-        { field: 'progress', headerName: '進捗率(%)', width: 140, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-            const value = Number(params.value) || 0;
-            return (
-                <Box sx={{ position: 'relative', width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <LinearProgress variant="determinate" value={value} sx={{ height: 20, borderRadius: 4, width: '100%' }} />
-                    <Typography variant="body2" sx={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: value > 50 ? '#fff' : '#333', fontSize: '0.8rem' }}>
-                        {value}%
-                    </Typography>
-                </Box>
-            );
-        } },
+        },
+        {
+            field: 'progress', headerName: '進捗率(%)', width: 140, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
+                const value = Number(params.value) || 0;
+                return (
+                    <Box sx={{ position: 'relative', width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <LinearProgress variant="determinate" value={value} sx={{ height: 20, borderRadius: 4, width: '100%' }} />
+                        <Typography variant="body2" sx={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: value > 50 ? '#fff' : '#333', fontSize: '0.8rem' }}>
+                            {value}%
+                        </Typography>
+                    </Box>
+                );
+            }
+        },
         {
             field: 'display_status',
             headerName: '表示ステータス',

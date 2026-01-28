@@ -22,17 +22,17 @@ const sortEventsForDisplay = (eventsToSort: CalendarEvent[]): CalendarEvent[] =>
     const bSortKey = typeOrder[bType] ?? 9;
     if (aSortKey !== bSortKey) { return aSortKey - bSortKey; }
     const getProjectStartDate = (event: CalendarEvent): number => {
-      const projStartDate = event.extendedProps?.project_start_date;
+      const projStartDate = event.extendedProps?.projectStartDate;
       return projStartDate ? new Date(projStartDate).getTime() : Infinity;
     };
     const aProjectStart = getProjectStartDate(a);
     const bProjectStart = getProjectStartDate(b);
     if (aProjectStart !== bProjectStart) { return aProjectStart - bProjectStart; }
-    const aStart = a.start?.getTime() ?? Infinity;
-    const bStart = b.start?.getTime() ?? Infinity;
+    const aStart = a.start ? new Date(a.start).getTime() : 0;
+    const bStart = b.start ? new Date(b.start).getTime() : 0;
     if (aStart !== bStart) { return aStart - bStart; }
-    const aEnd = a.end?.getTime() ?? -Infinity;
-    const bEnd = b.end?.getTime() ?? -Infinity;
+    const aEnd = a.end ? new Date(a.end).getTime() : 0;
+    const bEnd = b.end ? new Date(b.end).getTime() : 0;
     if (aEnd !== bEnd) { return bEnd - aEnd; }
     return (a.title ?? '').localeCompare(b.title ?? '');
   });
@@ -108,8 +108,8 @@ const Calendar: React.FC = () => {
       const projectEvents: CalendarEvent[] = projectsData.map((project) => ({
         id: `project-${project.id}`,
         title: project.name,
-        start: parseISO(project.start_date),
-        end: parseISO(project.end_date),
+        start: project.start_date ? parseISO(project.start_date) : new Date(),
+        end: project.end_date ? parseISO(project.end_date) : new Date(),
         allDay: true,
         backgroundColor: getProjectColor(project),
         borderColor: getProjectColor(project),
@@ -129,11 +129,11 @@ const Calendar: React.FC = () => {
         return {
           id: `task-${task.id}`,
           title: task.name,
-          start: parseISO(task.due_date),
-          end: parseISO(task.due_date),
+          start: task.due_date ? parseISO(task.due_date) : new Date(),
+          end: task.due_date ? parseISO(task.due_date) : new Date(),
           allDay: true,
-          backgroundColor: getTaskColor(task.status),
-          borderColor: getTaskColor(task.status),
+          backgroundColor: getTaskColor(task.status ?? 'todo'),
+          borderColor: getTaskColor(task.status ?? 'todo'),
           classNames: ['task-event'],
           extendedProps: {
             task_id: String(task.id),
@@ -150,23 +150,23 @@ const Calendar: React.FC = () => {
         const relatedProject = projectsData.find(p => p.id === event.project_id);
         return {
           id: String(event.id),
-          title: event.name,
+          title: event.title ?? 'Untitled Event',
           description: event.description,
-          start: parseISO(event.start_time),
-          end: parseISO(event.end_time),
+          start: event.start_time ? parseISO(event.start_time) : new Date(),
+          end: event.end_time ? parseISO(event.end_time) : new Date(),
           allDay: false,
           location: event.location,
-          backgroundColor: getEventColor(event.type),
-          borderColor: getEventColor(event.type),
+          backgroundColor: getEventColor(event.type ?? 'event'),
+          borderColor: getEventColor(event.type ?? 'event'),
           classNames: ['timed-event'],
           extendedProps: {
-            project_id: String(event.project_id),
-            task_id: String(event.task_id),
-            status: event.status,
-            source: event.source,
-            type: event.type || 'event',
-            location: event.location,
-            project_start_date: relatedProject?.start_date
+            projectId: event.project_id ? String(event.project_id) : undefined,
+            taskId: event.id ? Number(event.id) : undefined,
+            status: event.status ?? undefined,
+            type: event.type ?? 'event',
+            location: event.location ?? undefined,
+            projectStartDate: relatedProject?.start_date,
+            projectEndDate: relatedProject?.end_date
           }
         };
       });
@@ -206,7 +206,7 @@ const Calendar: React.FC = () => {
               start: eventOrClickInfo.event.start ?? new Date(),
               end: eventOrClickInfo.event.end ?? eventOrClickInfo.event.start ?? new Date(),
               allDay: eventOrClickInfo.event.allDay,
-              extendedProps: eventOrClickInfo.event.extendedProps,
+              extendedProps: eventOrClickInfo.event.extendedProps as CalendarEvent['extendedProps'],
           };
       }
     } else {
@@ -401,7 +401,15 @@ const Calendar: React.FC = () => {
                 center: 'title',
                 right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
               }}
-              events={eventsForDisplay}
+              events={eventsForDisplay.map(event => ({
+                id: event.id,
+                title: event.title,
+                start: event.start,
+                end: event.end as Date | undefined,
+                allDay: event.allDay,
+                backgroundColor: event.backgroundColor,
+                borderColor: event.borderColor,
+              }))}
               height="100%"
               dateClick={handleDateClick}
               eventClick={handleEventClick}
@@ -463,11 +471,31 @@ const Calendar: React.FC = () => {
           borderColor: 'divider',
         }}>
           <EventDetailsPanel
-            selectedDate={selectedDate}
-            selectedEvent={selectedEvent}
-            events={eventsForDisplay}
-            onEventSelect={handleEventClick}
-          />
+            selectedDate={selectedDate ?? null}
+            selectedEvent={selectedEvent ?? null}
+            events={eventsForDisplay.map(event => ({
+              id: event.id,
+              title: event.title,
+              start: event.start as Date,
+              end: event.end as Date | undefined,
+              allDay: event.allDay,
+              backgroundColor: event.backgroundColor,
+              borderColor: event.borderColor,
+              extendedProps: event.extendedProps as CalendarEvent['extendedProps'],
+            }))}
+            onEventSelect={handleEventClick as (eventOrClickInfo: CalendarEvent | EventClickArg) => void} isMinimized={false} onToggleMinimize={function (): void {
+              throw new Error('Function not implemented.');
+            } } onOpenAddModal={function (): void {
+              throw new Error('Function not implemented.');
+            } } users={[]} groups={[]} onEdit={function (event: CalendarEvent): void {
+              throw new Error('Function not implemented.');
+            } } onDelete={function (event: CalendarEvent): void {
+              throw new Error('Function not implemented.');
+            } } eventStatusFilter={''} onEventStatusFilterChange={function (event: any): void {
+              throw new Error('Function not implemented.');
+            } } eventTypeFilter={''} onEventTypeFilterChange={function (event: any): void {
+              throw new Error('Function not implemented.');
+            } } projects={[]}          />
         </Box>
 
       </Box>

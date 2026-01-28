@@ -41,6 +41,7 @@ const Tasks: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [openDialog, setOpenDialog] = useState(false)
+  const [dependencySelectOpen, setDependencySelectOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -50,6 +51,7 @@ const Tasks: React.FC = () => {
     due_date: '',
     project_id: '',
     cost: 0,
+    dependsOn: [] as string[],
   })
 
   useEffect(() => {
@@ -81,6 +83,7 @@ const Tasks: React.FC = () => {
         due_date: task.due_date || '',
         project_id: task.project_id?.toString() || '',
         cost: task.cost || 0,
+        dependsOn: task.dependsOn || [],
       })
     } else {
       setSelectedTask(null)
@@ -92,6 +95,7 @@ const Tasks: React.FC = () => {
         due_date: '',
         project_id: '',
         cost: 0,
+        dependsOn: [],
       })
     }
     setOpenDialog(true)
@@ -287,6 +291,75 @@ const Tasks: React.FC = () => {
               margin="normal"
               InputLabelProps={{ shrink: true }}
             />
+            <FormControl fullWidth margin="normal">
+              <InputLabel>依存元タスク</InputLabel>
+              <Select
+                multiple
+                value={formData.dependsOn}
+                label="依存元タスク"
+                open={dependencySelectOpen}
+                onOpen={() => setDependencySelectOpen(true)}
+                onClose={() => setDependencySelectOpen(false)}
+                onChange={(e) => {
+                  const { value } = e.target
+                  setFormData({
+                    ...formData,
+                    dependsOn: typeof value === 'string' ? value.split(',') : (value as string[]),
+                  })
+                }}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const id = parseInt(value.replace('task-', ''), 10)
+                      const task = tasks.find((t) => t.id === id)
+                      return <Chip key={value} label={task ? task.name : value} size="small" />
+                    })}
+                  </Box>
+                )}
+              >
+                {tasks
+                  .filter((t) => (!selectedTask || t.id !== selectedTask.id) && String(t.project_id ?? '') === formData.project_id)
+                  .map((task) => (
+                    <MenuItem
+                      key={task.id}
+                      value={`task-${task.id}`}
+                      sx={{
+                        '&.Mui-selected': {
+                          backgroundColor: 'rgba(25, 118, 210, 0.2) !important',
+                          '&:hover': {
+                            backgroundColor: 'rgba(25, 118, 210, 0.3) !important',
+                          }
+                        },
+                        '&.Mui-selected.Mui-focusVisible': {
+                          backgroundColor: 'rgba(25, 118, 210, 0.3) !important',
+                        }
+                      }}
+                    >
+                      {task.name}
+                    </MenuItem>
+                  ))}
+                <Box
+                  sx={{
+                    p: 1,
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    position: 'sticky',
+                    bottom: 0,
+                    bgcolor: 'background.paper',
+                    zIndex: 1
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button
+                    onClick={() => setDependencySelectOpen(false)}
+                    variant="contained"
+                    size="small"
+                  >
+                    完了
+                  </Button>
+                </Box>
+              </Select>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions>

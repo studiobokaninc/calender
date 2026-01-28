@@ -3,7 +3,7 @@ import {
     Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    Snackbar, Alert, SelectChangeEvent, Tooltip
+    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon } from '@mui/icons-material';
 import api from '../services/api';
@@ -100,7 +100,7 @@ const TasksPage: React.FC = () => {
     // ページ状態管理の使用
     const { tasksState, updateTasksState, isInitialLoad, globalData, updateGlobalData } = useTasksPageState();
     const { refreshGlobalData } = usePageState();
-    
+
     // 状態を分離（初期化時はページ状態から取得）
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [projectFilter, setProjectFilter] = useState<string>('');
@@ -144,6 +144,7 @@ const TasksPage: React.FC = () => {
 
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
@@ -195,11 +196,11 @@ const TasksPage: React.FC = () => {
             const tasksData = tasksResponse.data;
             const projectsData = projectsResponse.data;
             const usersData = usersResponse.data;
-            
+
             setTasks(tasksData);
             setProjects(projectsData);
             setUsers(usersData);
-            
+
             // グローバルデータも更新
             if (updateGlobalData) {
                 updateGlobalData({
@@ -208,7 +209,7 @@ const TasksPage: React.FC = () => {
                     users: usersData,
                 });
             }
-            
+
             setError(null);
         } catch (err) {
             console.error('データの取得に失敗しました:', err);
@@ -256,7 +257,7 @@ const TasksPage: React.FC = () => {
 
         window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
         window.addEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
-        
+
         return () => {
             window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
             window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
@@ -289,7 +290,7 @@ const TasksPage: React.FC = () => {
         window.addEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
         window.addEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
         window.addEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
-        
+
         return () => {
             window.removeEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
             window.removeEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
@@ -312,7 +313,7 @@ const TasksPage: React.FC = () => {
 
             // スクロール可能な範囲をチェック
             const hasHorizontalScroll = scrollableElement.scrollWidth > scrollableElement.clientWidth;
-            
+
             // 横スクロールバーが出ている場合は、マウスホイールで横スクロール
             if (hasHorizontalScroll && e.deltaY !== 0) {
                 e.preventDefault();
@@ -337,18 +338,18 @@ const TasksPage: React.FC = () => {
     // フィルター変更時にページをリセット（実際に値が変わった時のみ）
     useEffect(() => {
         if (stateRestored) {
-            const hasFilterChanged = 
+            const hasFilterChanged =
                 prevFiltersRef.current.statusFilter !== statusFilter ||
                 prevFiltersRef.current.projectFilter !== projectFilter ||
                 prevFiltersRef.current.assigneeFilter !== assigneeFilter;
-            
+
             if (hasFilterChanged) {
                 // ページをリセットした状態で状態を保存
                 const resetPaginationModel = {
                     ...paginationModel,
                     page: 0
                 };
-                
+
                 // 先に状態保存してから、UIを更新
                 updateTasksState({
                     statusFilter,
@@ -357,9 +358,9 @@ const TasksPage: React.FC = () => {
                     paginationModel: resetPaginationModel,
                     sortModel,
                 });
-                
+
                 setPaginationModel(resetPaginationModel);
-                
+
                 // 前回値を更新
                 prevFiltersRef.current = {
                     statusFilter,
@@ -374,11 +375,11 @@ const TasksPage: React.FC = () => {
     useEffect(() => {
         if (stateRestored) {
             // フィルター変更中でないことを確認
-            const hasFilterChanged = 
+            const hasFilterChanged =
                 prevFiltersRef.current.statusFilter !== statusFilter ||
                 prevFiltersRef.current.projectFilter !== projectFilter ||
                 prevFiltersRef.current.assigneeFilter !== assigneeFilter;
-            
+
             if (!hasFilterChanged) {
                 updateTasksState({
                     statusFilter,
@@ -389,7 +390,7 @@ const TasksPage: React.FC = () => {
                 });
             }
         }
-    // paginationModelとsortModelのみを監視（フィルターは監視しない）
+        // paginationModelとsortModelのみを監視（フィルターは監視しない）
     }, [paginationModel.page, paginationModel.pageSize, sortModel, stateRestored]);
 
 
@@ -397,18 +398,18 @@ const TasksPage: React.FC = () => {
 
     const projectMap = useMemo(() =>
         new Map(projects.map(p => [p.id, p.name]))
-    , [projects]);
-   
+        , [projects]);
+
     const userMap = useMemo(() =>
         new Map(users.map(u => [u.id, u.name || u.email]))
-    , [users]);
+        , [users]);
 
 
 
 
     const taskMap = useMemo(() =>
         new Map(tasks.map(t => [t.id, t.name]))
-    , [tasks]);
+        , [tasks]);
 
 
 
@@ -492,15 +493,15 @@ const TasksPage: React.FC = () => {
     const handleDeleteTask = async (taskId: number) => {
         try {
             await api.delete(`/tasks/${taskId}`);
-            
+
             // ローカルの状態を更新
             setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
-            
+
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
                 await refreshGlobalData();
             }
-            
+
             setSnackbar({
                 open: true,
                 message: 'タスクを削除しました',
@@ -548,6 +549,16 @@ const TasksPage: React.FC = () => {
         }
     };
 
+    const handleMultiSelectChange = (e: SelectChangeEvent<string[]>) => {
+        const { name, value } = e.target;
+        if (name) {
+            setCurrentTask(prev => ({
+                ...prev,
+                [name]: typeof value === 'string' ? value.split(',') : value
+            }));
+        }
+    };
+
 
 
 
@@ -590,15 +601,15 @@ const TasksPage: React.FC = () => {
             }
 
             setOpenDialog(false);
-            
+
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
                 await refreshGlobalData();
             }
         } catch (err: any) {
-           
+
             let errorMessage = 'タスクの保存に失敗しました';
-           
+
             if (err.response?.data?.detail) {
                 if (Array.isArray(err.response.data.detail)) {
                     errorMessage = err.response.data.detail
@@ -626,7 +637,7 @@ const TasksPage: React.FC = () => {
 
 
     const handleCloseSnackbar = () => {
-        setSnackbar({...snackbar, open: false});
+        setSnackbar({ ...snackbar, open: false });
     };
 
 
@@ -635,75 +646,81 @@ const TasksPage: React.FC = () => {
     const rows = useMemo(() => {
         const nameByProjectId = new Map(projects.map(p => [p.id, p.name ?? '']));
         const nameByTaskId = new Map(tasks.map(t => [t.id, t.name ?? '']));
-    
+
         const dependsText = (row: Task) => {
-        if (!row.dependsOn?.length) return '';
-        return row.dependsOn
-            .map((id) => {
-            const n = parseInt(String(id).replace('task-',''), 10);
-            return nameByTaskId.get(n) ?? '';
-            })
-            .filter(Boolean)
-            .join(', ');
+            if (!row.dependsOn?.length) return '';
+            return row.dependsOn
+                .map((id) => {
+                    const n = parseInt(String(id).replace('task-', ''), 10);
+                    return nameByTaskId.get(n) ?? '';
+                })
+                .filter(Boolean)
+                .join(', ');
         };
-    
+
         const toTs = (v: unknown) => {
-        if (!v) return 0;
-        try {
-            const d = typeof v === 'string' ? parseISO(v) : new Date(v as any);
-            return isValid(d) ? d.getTime() : 0;
-        } catch { return 0; }
+            if (!v) return 0;
+            try {
+                const d = typeof v === 'string' ? parseISO(v) : new Date(v as any);
+                return isValid(d) ? d.getTime() : 0;
+            } catch { return 0; }
         };
-    
+
         return (filteredTasks ?? []).map(t => ({
-        ...t,
-        _projectName: nameByProjectId.get(t.project_id as any) ?? '',
-        _startTs: toTs(t.start_date),
-        _dueTs: toTs(t.due_date),
-        _dependsText: dependsText(t),
-        _actionsSortKey: t.id ?? 0,
+            ...t,
+            _projectName: nameByProjectId.get(t.project_id as any) ?? '',
+            _startTs: toTs(t.start_date),
+            _dueTs: toTs(t.due_date),
+            _dependsText: dependsText(t),
+            _actionsSortKey: t.id ?? 0,
         }));
     }, [filteredTasks, projects, tasks]);
-    
+
 
     // DataGrid用のカラム定義
     const columns: GridColDef[] = useMemo(() => [
-        { field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            const text = row.name || '-';
-            return (
-                <Tooltip title={text} followCursor>
-                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {text}
-                    </Box>
-                </Tooltip>
-            );
-        } },
-        { field: 'description', headerName: '説明', minWidth: 100, flex: 1, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            const text = row.description || '-';
-            return (
-                <Tooltip title={text} followCursor>
-                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {text}
-                    </Box>
-                </Tooltip>
-            );
-        } },
-        { field: 'status', headerName: 'ステータス', minWidth: 80, width: 120, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            return (
-                <Chip
-                    label={row.status || '未設定'}
-                    size="small"
-                    sx={{
-                        backgroundColor: getTaskStatusColor(row.status),
-                        color: 'white',
-                        '& .MuiChip-label': { px: 1 }
-                    }}
-                />
-            );
-        } },
+        {
+            field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                const text = row.name || '-';
+                return (
+                    <Tooltip title={text} followCursor>
+                        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {text}
+                        </Box>
+                    </Tooltip>
+                );
+            }
+        },
+        {
+            field: 'description', headerName: '説明', minWidth: 100, flex: 1, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                const text = row.description || '-';
+                return (
+                    <Tooltip title={text} followCursor>
+                        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {text}
+                        </Box>
+                    </Tooltip>
+                );
+            }
+        },
+        {
+            field: 'status', headerName: 'ステータス', minWidth: 80, width: 120, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                return (
+                    <Chip
+                        label={row.status || '未設定'}
+                        size="small"
+                        sx={{
+                            backgroundColor: getTaskStatusColor(row.status),
+                            color: 'white',
+                            '& .MuiChip-label': { px: 1 }
+                        }}
+                    />
+                );
+            }
+        },
         {
             field: '_projectName',
             headerName: 'プロジェクト',
@@ -713,44 +730,53 @@ const TasksPage: React.FC = () => {
             renderCell: (params) => String(params.value ?? '-'),
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
-        { field: 'priority', headerName: '優先度', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            const priorityColors = {
-                'high': '#f44336',
-                'medium': '#ff9800',
-                'low': '#4caf50'
-            };
-            return (
-                <Chip
-                    label={row.priority || '未設定'}
-                    size="small"
-                    sx={{
-                        backgroundColor: priorityColors[row.priority as keyof typeof priorityColors] || '#9e9e9e',
-                        color: 'white',
-                        '& .MuiChip-label': { px: 1 }
-                    }}
-                />
-            );
-        } },
-        { field: 'seqID', headerName: 'seq', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            return row.seqID || '-';
-        } },
-        { field: 'shotID', headerName: 'shot', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            const text = row.shotID || '-';
-            return (
-                <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {text}
-                </Box>
-            );
-        } },
-        { field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            // データベースに保存されているタスクタイプを小文字化して表示
-            return row.type ? row.type.toLowerCase() : '-';
-        } },
-        { field: 'assigned_to', headerName: '担当者', minWidth: 80, width: 120, 
+        {
+            field: 'priority', headerName: '優先度', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                const priorityColors = {
+                    'high': '#f44336',
+                    'medium': '#ff9800',
+                    'low': '#4caf50'
+                };
+                return (
+                    <Chip
+                        label={row.priority || '未設定'}
+                        size="small"
+                        sx={{
+                            backgroundColor: priorityColors[row.priority as keyof typeof priorityColors] || '#9e9e9e',
+                            color: 'white',
+                            '& .MuiChip-label': { px: 1 }
+                        }}
+                    />
+                );
+            }
+        },
+        {
+            field: 'seqID', headerName: 'seq', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                return row.seqID || '-';
+            }
+        },
+        {
+            field: 'shotID', headerName: 'shot', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                const text = row.shotID || '-';
+                return (
+                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {text}
+                    </Box>
+                );
+            }
+        },
+        {
+            field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                // データベースに保存されているタスクタイプを小文字化して表示
+                return row.type ? row.type.toLowerCase() : '-';
+            }
+        },
+        {
+            field: 'assigned_to', headerName: '担当者', minWidth: 80, width: 120,
             sortable: true,
             sortComparator: (a, b) => {
                 const userA = users.find(u => u.id === a);
@@ -768,7 +794,7 @@ const TasksPage: React.FC = () => {
                         {text}
                     </Box>
                 );
-            } 
+            }
         },
         {
             field: '_startTs',
@@ -806,10 +832,12 @@ const TasksPage: React.FC = () => {
             },
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
-        { field: 'cost', headerName: 'コスト', minWidth: 60, width: 90, renderCell: (params: GridRenderCellParams) => {
-            const row = params.row;
-            return row.cost ?? '-';
-        } },
+        {
+            field: 'cost', headerName: 'コスト', minWidth: 60, width: 90, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                return row.cost ?? '-';
+            }
+        },
         {
             field: '_actionsSortKey',
             headerName: '操作',
@@ -817,22 +845,22 @@ const TasksPage: React.FC = () => {
             sortable: true,
             sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
             renderCell: (params) => {
-              const row = params.row as Task;
-              return (
-                <Box>
-                  <Button size="small" onClick={() => handleViewHistory(row)} sx={{ mr: 1 }}>
-                    <HistoryIcon />
-                  </Button>
-                  <Button size="small" onClick={() => handleEditTask(row)} sx={{ mr: 1 }}>
-                    <EditIcon />
-                  </Button>
-                  <Button size="small" color="error" onClick={() => handleDeleteTask(row.id)}>
-                    <DeleteIcon />
-                  </Button>
-                </Box>
-              );
+                const row = params.row as Task;
+                return (
+                    <Box>
+                        <Button size="small" onClick={() => handleViewHistory(row)} sx={{ mr: 1 }}>
+                            <HistoryIcon />
+                        </Button>
+                        <Button size="small" onClick={() => handleEditTask(row)} sx={{ mr: 1 }}>
+                            <EditIcon />
+                        </Button>
+                        <Button size="small" color="error" onClick={() => handleDeleteTask(row.id)}>
+                            <DeleteIcon />
+                        </Button>
+                    </Box>
+                );
             },
-          },
+        },
     ], [users, projects, taskMap]);
 
 
@@ -881,10 +909,10 @@ const TasksPage: React.FC = () => {
 
     return (
         <Box sx={{ p: { xs: 2, sm: 3 } }}>
-            <Paper 
+            <Paper
                 elevation={2}
-                sx={{ 
-                    mb: 3, 
+                sx={{
+                    mb: 3,
                     p: 3,
                     borderRadius: 3,
                     transition: 'all 0.3s ease-in-out',
@@ -894,11 +922,11 @@ const TasksPage: React.FC = () => {
                     <Grid item xs={12} sm={4}>
                         <FormControl fullWidth variant="outlined" size="small">
                             <InputLabel id="status-filter-label" shrink>ステータス</InputLabel>
-                            <Select 
+                            <Select
                                 labelId="status-filter-label"
                                 label="ステータス"
-                                displayEmpty 
-                                value={statusFilter || 'all'} 
+                                displayEmpty
+                                value={statusFilter || 'all'}
                                 onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value as string)}
                                 renderValue={(selected) => {
                                     if (!selected || selected === 'all' || selected === '') {
@@ -917,11 +945,11 @@ const TasksPage: React.FC = () => {
                     <Grid item xs={12} sm={4}>
                         <FormControl fullWidth variant="outlined" size="small">
                             <InputLabel id="project-filter-label" shrink>プロジェクト</InputLabel>
-                            <Select 
+                            <Select
                                 labelId="project-filter-label"
                                 label="プロジェクト"
-                                displayEmpty 
-                                value={projectFilter || 'all'} 
+                                displayEmpty
+                                value={projectFilter || 'all'}
                                 onChange={(e) => setProjectFilter(e.target.value === 'all' ? '' : e.target.value as string)}
                                 renderValue={(selected) => {
                                     if (!selected || selected === 'all' || selected === '') {
@@ -941,11 +969,11 @@ const TasksPage: React.FC = () => {
                     <Grid item xs={12} sm={4}>
                         <FormControl fullWidth variant="outlined" size="small">
                             <InputLabel id="assignee-filter-label" shrink>担当者</InputLabel>
-                            <Select 
+                            <Select
                                 labelId="assignee-filter-label"
                                 label="担当者"
-                                displayEmpty 
-                                value={assigneeFilter || 'all'} 
+                                displayEmpty
+                                value={assigneeFilter || 'all'}
                                 onChange={(e) => setAssigneeFilter(e.target.value === 'all' ? '' : e.target.value as string)}
                                 renderValue={(selected) => {
                                     if (!selected || selected === 'all' || selected === '') {
@@ -979,9 +1007,9 @@ const TasksPage: React.FC = () => {
                     overflow: 'hidden',
                 }}
             >
-                <Box 
-                    ref={dataGridContainerRef} 
-                    sx={{ 
+                <Box
+                    ref={dataGridContainerRef}
+                    sx={{
                         width: '100%',
                         // 横スクロールのサポートを強化
                         // タッチデバイスでの横スクロールをサポート
@@ -1004,7 +1032,7 @@ const TasksPage: React.FC = () => {
                         columns={columns}
                         getRowId={(row) => row.id}
                         sortingMode="client"
-                        sortingOrder={['asc','desc']}
+                        sortingOrder={['asc', 'desc']}
                         sortModel={sortModel}
                         onSortModelChange={setSortModel}
                         paginationModel={paginationModel}
@@ -1045,21 +1073,21 @@ const TasksPage: React.FC = () => {
                             <Table size="small" aria-label="task details table">
                                 <TableBody>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ width: '30%', fontWeight: 'bold', borderBottom: 'none', pl:0 }}>プロジェクト:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ width: '30%', fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>プロジェクト:</TableCell>
                                         <TableCell sx={{ borderBottom: 'none' }}>{projectMap.get(selectedTask.project_id || 0) || '-'}</TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl:0 }}>担当者:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>担当者:</TableCell>
                                         <TableCell sx={{ borderBottom: 'none' }}>{userMap.get(selectedTask.assigned_to || 0) || '未割り当て'}</TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', verticalAlign: 'top', borderBottom: 'none', pl:0 }}>説明:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', verticalAlign: 'top', borderBottom: 'none', pl: 0 }}>説明:</TableCell>
                                         <TableCell sx={{ whiteSpace: 'pre-line', borderBottom: 'none' }}>
                                             {selectedTask.description || '-'}
                                         </TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl:0 }}>ステータス:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>ステータス:</TableCell>
                                         <TableCell sx={{ borderBottom: 'none' }}>
                                             <Chip
                                                 label={selectedTask.status || '-'}
@@ -1069,15 +1097,15 @@ const TasksPage: React.FC = () => {
                                         </TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl:0 }}>開始日:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>開始日:</TableCell>
                                         <TableCell sx={{ borderBottom: 'none' }}>{formatDate(selectedTask.start_date)}</TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl:0 }}>期日:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>期日:</TableCell>
                                         <TableCell sx={{ borderBottom: 'none' }}>{formatDate(selectedTask.due_date)}</TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', verticalAlign: 'top', borderBottom: 'none', pl:0 }}>依存元タスク:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', verticalAlign: 'top', borderBottom: 'none', pl: 0 }}>依存元タスク:</TableCell>
                                         <TableCell sx={{ borderBottom: 'none' }}>
                                             {selectedTask.dependsOn && selectedTask.dependsOn.length > 0
                                                 ? selectedTask.dependsOn
@@ -1093,7 +1121,7 @@ const TasksPage: React.FC = () => {
                                         </TableCell>
                                     </TableRow>
                                     <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl:0 }}>コスト:</TableCell>
+                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>コスト:</TableCell>
                                         <TableCell sx={{ borderBottom: 'none' }}>{selectedTask.cost?.toLocaleString() ?? '-'}</TableCell>
                                     </TableRow>
                                 </TableBody>
@@ -1237,6 +1265,75 @@ const TasksPage: React.FC = () => {
                                 <MenuItem value="animation">Animation</MenuItem>
                                 <MenuItem value="lighting">Lighting</MenuItem>
                                 <MenuItem value="comp">Comp</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>依存元タスク</InputLabel>
+                            <Select
+                                multiple
+                                name="dependsOn"
+                                value={currentTask.dependsOn || []}
+                                label="依存元タスク"
+                                open={dependencySelectOpen}
+                                onOpen={() => setDependencySelectOpen(true)}
+                                onClose={() => setDependencySelectOpen(false)}
+                                onChange={handleMultiSelectChange}
+                                renderValue={(selected) => (
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                        {selected.map((value) => {
+                                            const id = parseInt(value.replace('task-', ''), 10);
+                                            const name = taskMap.get(id);
+                                            return (
+                                                <Chip key={value} label={name || value} size="small" />
+                                            );
+                                        })}
+                                    </Box>
+                                )}
+                            >
+                                {tasks
+                                    .filter(t => t.id !== currentTask.id && t.project_id === currentTask.project_id)
+                                    .map((task) => (
+                                        <MenuItem
+                                            key={task.id}
+                                            value={`task-${task.id}`}
+                                            sx={{
+                                                '&.Mui-selected': {
+                                                    backgroundColor: 'rgba(25, 118, 210, 0.2) !important',
+                                                    '&:hover': {
+                                                        backgroundColor: 'rgba(25, 118, 210, 0.3) !important',
+                                                    }
+                                                },
+                                                '&.Mui-selected.Mui-focusVisible': {
+                                                    backgroundColor: 'rgba(25, 118, 210, 0.3) !important',
+                                                }
+                                            }}
+                                        >
+                                            {task.name}
+                                        </MenuItem>
+                                    ))}
+                                <Divider />
+                                <Box
+                                    sx={{
+                                        position: 'sticky',
+                                        bottom: 0,
+                                        bgcolor: 'background.paper',
+                                        zIndex: 1,
+                                        width: '100%',
+                                        display: 'flex',
+                                        justifyContent: 'flex-end',
+                                        py: 1,
+                                        px: 1
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <Button
+                                        onClick={() => setDependencySelectOpen(false)}
+                                        size="small"
+                                        variant="contained"
+                                    >
+                                        完了
+                                    </Button>
+                                </Box>
                             </Select>
                         </FormControl>
                     </Stack>

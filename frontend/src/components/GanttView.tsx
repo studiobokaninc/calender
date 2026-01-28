@@ -1,14 +1,14 @@
 import React, { useMemo, useState, useEffect, createContext, useContext, useRef, useCallback, memo, forwardRef } from 'react';
 import { Task as GtrTask, Gantt as ReactGantt, ViewMode, StylingOption, DisplayOption } from 'gantt-task-react'; // ★★★ Gantt を ReactGantt としてインポート ★★★、Ganttとは、ガントチャートを表示するためのライブラリです。
 import "gantt-task-react/dist/index.css"; // ★★★ ライブラリのCSSをインポート ★★★、gantt-task-react/dist/index.cssとは、ガントチャートのライブラリのCSSです。CSSとは、ウェブページの見た目を作成するための言語です。
-import { 
-  Paper, 
-  Typography, 
-  Box, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem, 
+import {
+  Paper,
+  Typography,
+  Box,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   SelectChangeEvent,
   Stack,
   Tooltip,
@@ -130,52 +130,52 @@ type TaskDateChangeHandler = (
 
 // Helper function to calculate progress (can be reused or adapted)
 const calculateProgress = (task: Task): number => {
-    if (task.status === 'completed') { // ★★★ Fix: taskStatus -> status, 'done' -> 'completed' ★★★
-        return 100;
-    }
-    if (task.progress) { // ★★★ Fix: taskProgress -> progress ★★★
-        return task.progress; // ★★★ Fix: taskProgress -> progress ★★★
-    }
-    if (task.status === 'in-progress') return 50; // 仮 ★★★ Fix: taskStatus -> status ★★★
-    return 0;
+  if (task.status === 'completed') { // ★★★ Fix: taskStatus -> status, 'done' -> 'completed' ★★★
+    return 100;
+  }
+  if (task.progress) { // ★★★ Fix: taskProgress -> progress ★★★
+    return task.progress; // ★★★ Fix: taskProgress -> progress ★★★
+  }
+  if (task.status === 'in-progress') return 50; // 仮 ★★★ Fix: taskStatus -> status ★★★
+  return 0;
 };
 
 
 
 // ステータスに基づいてタスクのスタイルを決定する関数、ガントチャートの色を決定するための関数です。
 const getTaskStyle = (task: Task) => {
-  switch(task.status) { // ★★★ Fix: taskStatus -> status ★★★
+  switch (task.status) { // ★★★ Fix: taskStatus -> status ★★★
     case 'todo':
-      return { 
-        backgroundColor: '#4dabf5', 
+      return {
+        backgroundColor: '#4dabf5',
         backgroundSelectedColor: '#2196f3',
         progressColor: '#1769aa',
         progressSelectedColor: '#115293'
       };
     case 'in-progress':
-      return { 
-        backgroundColor: '#ffb74d', 
+      return {
+        backgroundColor: '#ffb74d',
         backgroundSelectedColor: '#ff9800',
         progressColor: '#f57c00',
         progressSelectedColor: '#e65100'
       };
     case 'review':      // ★ 'review' ケースを追加 ★
-      return { 
+      return {
         backgroundColor: '#ba68c8', // 例: 紫系
         backgroundSelectedColor: '#ab47bc',
         progressColor: '#8e24aa',
         progressSelectedColor: '#6a1b9a'
       };
     case 'delayed': // ★★★ Add 'delayed' case if needed, or handle in default ★★★
-      return { 
-        backgroundColor: '#f6685e', 
+      return {
+        backgroundColor: '#f6685e',
         backgroundSelectedColor: '#f44336',
         progressColor: '#aa2e25',
         progressSelectedColor: '#7f1f1a'
       };
     case 'completed': // ★★★ Fix: 'done' -> 'completed' ★★★
-      return { 
-        backgroundColor: '#81c784', 
+      return {
+        backgroundColor: '#81c784',
         backgroundSelectedColor: '#4caf50',
         progressColor: '#357a38',
         progressSelectedColor: '#1b5e20'
@@ -183,8 +183,8 @@ const getTaskStyle = (task: Task) => {
     default:
       // null や予期せぬステータスの場合
       console.warn(`Unknown task status for styling: ${task.status}`); // ★ 警告ログ追加
-      return { 
-        backgroundColor: '#9e9e9e', 
+      return {
+        backgroundColor: '#9e9e9e',
         backgroundSelectedColor: '#757575',
         progressColor: '#616161',
         progressSelectedColor: '#424242'
@@ -200,9 +200,9 @@ const ColumnWidthContext = createContext<{
   setListCellWidth: React.Dispatch<React.SetStateAction<string>>;
 }>({
   colWidths: { project: 40, name: 35, from: 20, to: 20 },//colWidthsとは、列幅の状態を管理するオブジェクトです。
-  setColWidths: () => {},//setColWidthsとは、列幅の状態を設定するための関数です。
+  setColWidths: () => { },//setColWidthsとは、列幅の状態を設定するための関数です。
   listCellWidth: "500px",
-  setListCellWidth: () => {}
+  setListCellWidth: () => { }
 });
 
 
@@ -211,83 +211,83 @@ const ColumnWidthContext = createContext<{
 // ★★★ カスタムタスクリストヘッダー with リサイズハンドル ★★★
 const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
   const { colWidths, setColWidths, listCellWidth, setListCellWidth } = useContext(ColumnWidthContext);
-  
+
   const startResize = (
-    e: React.MouseEvent, 
+    e: React.MouseEvent,
     column: 'project' | 'name' | 'from' | 'to' | 'gantt'
   ) => {
     e.preventDefault();
     const startX = e.pageX;
-    
+
     if (column === 'gantt') {
       // ガントチャート部分とリスト部分のバランス調整
       const startListWidth = parseInt(listCellWidth);
-      
+
       const handleMouseMove = (moveEvent: MouseEvent) => {
         const deltaX = moveEvent.pageX - startX;
         const newWidth = Math.max(200, Math.min(600, startListWidth + deltaX)); // 最大幅調整
         setListCellWidth(`${newWidth}px`);
       };
-      
+
       const handleMouseUp = () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
       };
-      
+
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       return;
     }
-    
+
     // リスト内の列幅調整
     const startWidths = { ...colWidths }; // 現在の幅をコピー
     const totalWidth = 100; // 合計%
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-        const currentX = moveEvent.pageX;
-        const deltaXPercentage = ((currentX - startX) / (document.body.clientWidth * (parseInt(listCellWidth) / 100))) * totalWidth; // デルタを%に変換
+      const currentX = moveEvent.pageX;
+      const deltaXPercentage = ((currentX - startX) / (document.body.clientWidth * (parseInt(listCellWidth) / 100))) * totalWidth; // デルタを%に変換
 
-        let newWidths = { ...startWidths };
-        let changed = false;
+      let newWidths = { ...startWidths };
+      let changed = false;
 
-        switch (column) {
-            case 'project':
-                newWidths.project = Math.max(10, Math.min(70, startWidths.project + deltaXPercentage));
-                newWidths.name = Math.max(10, startWidths.name - deltaXPercentage);
-                break;
-            case 'name':
-                newWidths.name = Math.max(10, Math.min(70, startWidths.name + deltaXPercentage));
-                newWidths.from = Math.max(10, startWidths.from - deltaXPercentage);
-                break;
-            case 'from':
-                newWidths.from = Math.max(10, Math.min(70, startWidths.from + deltaXPercentage));
-                newWidths.to = Math.max(10, startWidths.to - deltaXPercentage);
-                break;
-        }
+      switch (column) {
+        case 'project':
+          newWidths.project = Math.max(10, Math.min(70, startWidths.project + deltaXPercentage));
+          newWidths.name = Math.max(10, startWidths.name - deltaXPercentage);
+          break;
+        case 'name':
+          newWidths.name = Math.max(10, Math.min(70, startWidths.name + deltaXPercentage));
+          newWidths.from = Math.max(10, startWidths.from - deltaXPercentage);
+          break;
+        case 'from':
+          newWidths.from = Math.max(10, Math.min(70, startWidths.from + deltaXPercentage));
+          newWidths.to = Math.max(10, startWidths.to - deltaXPercentage);
+          break;
+      }
 
-        // 合計が100%になるように正規化 (project+name+from+to)
-        let currentTotal = newWidths.project + newWidths.name + newWidths.from + newWidths.to;
-        if (currentTotal > totalWidth) {
-            // はみ出した分を調整（ここでは単純に最後の要素から引く）
-            newWidths.to -= (currentTotal - totalWidth);
-            newWidths.to = Math.max(10, newWidths.to); // 最小幅保証
-            // 再度合計を計算し、必要なら前の要素も調整
-            currentTotal = newWidths.project + newWidths.name + newWidths.from + newWidths.to;
-            if(currentTotal > totalWidth) newWidths.from -= (currentTotal - totalWidth);
-             // ... 必要に応じて name, project も調整
-        } else if (currentTotal < totalWidth) {
-             // 足りない分を調整（ここでは最後の要素に追加）
-             newWidths.to += (totalWidth - currentTotal);
-        }
+      // 合計が100%になるように正規化 (project+name+from+to)
+      let currentTotal = newWidths.project + newWidths.name + newWidths.from + newWidths.to;
+      if (currentTotal > totalWidth) {
+        // はみ出した分を調整（ここでは単純に最後の要素から引く）
+        newWidths.to -= (currentTotal - totalWidth);
+        newWidths.to = Math.max(10, newWidths.to); // 最小幅保証
+        // 再度合計を計算し、必要なら前の要素も調整
+        currentTotal = newWidths.project + newWidths.name + newWidths.from + newWidths.to;
+        if (currentTotal > totalWidth) newWidths.from -= (currentTotal - totalWidth);
+        // ... 必要に応じて name, project も調整
+      } else if (currentTotal < totalWidth) {
+        // 足りない分を調整（ここでは最後の要素に追加）
+        newWidths.to += (totalWidth - currentTotal);
+      }
 
-        // 最小幅を再度保証
-        newWidths.project = Math.max(10, newWidths.project);
-        newWidths.name = Math.max(10, newWidths.name);
-        newWidths.from = Math.max(10, newWidths.from);
-        newWidths.to = Math.max(10, newWidths.to);
+      // 最小幅を再度保証
+      newWidths.project = Math.max(10, newWidths.project);
+      newWidths.name = Math.max(10, newWidths.name);
+      newWidths.from = Math.max(10, newWidths.from);
+      newWidths.to = Math.max(10, newWidths.to);
 
 
-        setColWidths(newWidths);
+      setColWidths(newWidths);
     };
 
     const handleMouseUp = () => {
@@ -302,9 +302,9 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
   return (
     <div
       className="widget-task-list-header"
-      style={{ 
-        height: headerHeight, 
-        display: 'flex', 
+      style={{
+        height: headerHeight,
+        display: 'flex',
         alignItems: 'center',
         fontSize: '0.7rem',
         width: listCellWidth,
@@ -315,22 +315,22 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
     >
       {/* プロジェクト */}
       <div style={{ width: `${colWidths.project}%`, textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', boxSizing: 'border-box', padding: '0 2px' }}>Project</div>
-      
+
       {/* リサイズハンドル */}
-      <div 
+      <div
         style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
         onMouseDown={(e) => startResize(e, 'project')}
       />
-      
+
       {/* タスク名 */}
       <div style={{ width: `${colWidths.name}%`, textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', boxSizing: 'border-box', padding: '0 2px' }}>Name</div>
-      
+
       {/* リサイズハンドル */}
-      <div 
+      <div
         style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
         onMouseDown={(e) => startResize(e, 'name')}
       />
-      
+
       {/* 開始日 */}
       <div style={{ width: `${colWidths.from}%`, textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', boxSizing: 'border-box', padding: '0 2px' }}>
         From
@@ -338,13 +338,13 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
           <IconButton size="small" sx={{ ml: 0.2, p: 0 }}><HelpOutlineIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
         </Tooltip>
       </div>
-      
+
       {/* リサイズハンドル */}
-      <div 
+      <div
         style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
         onMouseDown={(e) => startResize(e, 'from')}
       />
-      
+
       {/* 終了日 */}
       <div style={{ width: `${colWidths.to}%`, textAlign: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', boxSizing: 'border-box', padding: '0 2px' }}>
         To
@@ -352,9 +352,9 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
           <IconButton size="small" sx={{ ml: 0.2, p: 0 }}><HelpOutlineIcon sx={{ fontSize: '0.8rem' }} /></IconButton>
         </Tooltip>
       </div>
-      
+
       {/* ガントチャート部分との境界リサイズハンドル */}
-      <div 
+      <div
         style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#ccc', flexShrink: 0, marginLeft: 'auto' }}
         onMouseDown={(e) => startResize(e, 'gantt')}
       />
@@ -370,12 +370,12 @@ const getCoreTaskName = (fullName: string | undefined): string => {
   const parts = fullName.split(separator).map(p => p.trim()).filter(p => p !== '');
   if (parts.length > 1) {
     // Try returning the last part first, as it's likely the core name
-    return parts[parts.length - 1]; 
+    return parts[parts.length - 1];
     // If the above isn't desired, use the previous logic:
     // return parts.slice(1).join(separator);
   }
   // If splitting didn't work as expected, return the original (trimmed)
-  return fullName.trim(); 
+  return fullName.trim();
 };
 
 // Helper function to trim suffixes (★ 追加)
@@ -391,110 +391,523 @@ const trimProjectSuffix = (projectName: string | undefined): string => {
 };
 
 
+// ★★★ 依存関係を考慮したスマートソート関数 ★★★
+// Start Dateを優先しつつ、依存関係がある場合は「親→子」の順で並べ、かつ親子を近くに配置する
+const smartSortTasks = (tasks: CustomGtrTask[]): CustomGtrTask[] => {
+  // 1. ID -> Task マップとIDセット
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+  const taskIds = new Set(tasks.map(t => t.id));
+
+  // 2. 隣接リスト (親 -> 子) と 入次数 (In-Degree) マップの構築
+  const adj = new Map<string, string[]>();
+  const inDegree = new Map<string, number>();
+
+  // 初期化
+  tasks.forEach(t => {
+    adj.set(t.id, []);
+    inDegree.set(t.id, 0);
+  });
+
+  // データ構築
+  tasks.forEach(t => {
+    if (t.dependencies) {
+      t.dependencies.forEach(depId => {
+        if (taskIds.has(depId)) {
+          // depId -> t.id (Edge from Dependency to Task)
+          adj.get(depId)?.push(t.id);
+          inDegree.set(t.id, (inDegree.get(t.id) || 0) + 1);
+        }
+      });
+    }
+  });
+
+  // 3. 入次数0のタスクをキューに入れる (処理可能タスク)
+  let readyQueue: CustomGtrTask[] = tasks.filter(t => (inDegree.get(t.id) || 0) === 0);
+
+  const result: CustomGtrTask[] = [];
+  let lastProcessedId: string | null = null;
+
+  while (readyQueue.length > 0) {
+    // 戦略:
+    // 1. readyQueue の中で「最も早い開始日」を見つける
+    // 2. その日付(Same Day)のタスク郡を候補とする
+    // 3. 候補の中で、直前に処理したタスク(lastProcessedId)の子があればそれを優先する (チェーンをつなぐ)
+    // 4. なければ候補の中で最も早いもの(or ID順)を選ぶ
+
+    // 最も早い時間を探す
+    let minTime = Infinity;
+    readyQueue.forEach(t => {
+      const tTime = t.start.getTime();
+      if (tTime < minTime) minTime = tTime;
+    });
+
+    // 日付 (0:00:00) でグルーピングするための基準
+    // minTime がある日のタスクをすべて候補にする
+    // ※ 厳密には「minTimeの日」と「それ以前の未処理タスク」も候補に含めるべきだが、
+    //   readyQueueは常に更新されるので、minTimeは常に現存する中で最古。
+    const minDateStartOfDay = new Date(minTime).setHours(0, 0, 0, 0);
+
+    // 候補のフィルタリング (同じ日のもの)
+    const candidates = readyQueue.filter(t => {
+      return new Date(t.start).setHours(0, 0, 0, 0) === minDateStartOfDay;
+    });
+
+    // もしタイムゾーン等の関係で空なら、厳密一致でフォールバック
+    if (candidates.length === 0) {
+      candidates.push(...readyQueue.filter(t => t.start.getTime() === minTime));
+    }
+
+    let bestTask: CustomGtrTask | undefined;
+
+    // ヒューリスティック: 直前のタスクの子が候補にいればそれを優先
+    if (lastProcessedId) {
+      bestTask = candidates.find(t =>
+        lastProcessedId &&
+        t.dependencies &&
+        t.dependencies.includes(lastProcessedId)
+      );
+    }
+
+    // いなければ、標準的な優先順位 (時間 -> ID)
+    if (!bestTask) {
+      bestTask = candidates.reduce((prev, curr) => {
+        if (prev.start.getTime() < curr.start.getTime()) return prev;
+        if (curr.start.getTime() < prev.start.getTime()) return curr;
+        // 時間が同じならID/名前で安定ソート
+        return prev.name.localeCompare(curr.name) < 0 ? prev : curr;
+      });
+    }
+
+    // 確定したタスクをresultに追加
+    result.push(bestTask);
+    lastProcessedId = bestTask.id;
+
+    // Queueから削除
+    readyQueue = readyQueue.filter(t => t.id !== bestTask!.id);
+
+    // 依存関係の更新 (子タスクの入次数を減らす)
+    const children = adj.get(bestTask.id);
+    if (children) {
+      children.forEach(childId => {
+        const currentDeg = inDegree.get(childId) || 0;
+        inDegree.set(childId, currentDeg - 1);
+
+        // 入次数が0になったらReadyQueueへ
+        if (currentDeg - 1 === 0) {
+          const childTask = taskMap.get(childId);
+          if (childTask) readyQueue.push(childTask);
+        }
+      });
+    }
+  }
+
+  // 循環参照などで残ったタスクがあれば末尾に追加
+  if (result.length !== tasks.length) {
+    console.warn("SmartSort: Cycle detected or unreachable tasks. Appending dependencies.");
+    const processedIds = new Set(result.map(t => t.id));
+    const remaining = tasks.filter(t => !processedIds.has(t.id));
+    // 残りは開始日順で並べる
+    remaining.sort((a, b) => a.start.getTime() - b.start.getTime());
+    result.push(...remaining);
+  }
+
+  return result;
+};
+
+// ★★★ 依存関係を再帰的に取得するヘルパー関数 ★★★
+const getAllRelatedTaskIds = (rootId: string, tasks: CustomGtrTask[]): Set<string> => {
+  const related = new Set<string>();
+  const queue = [rootId];
+  related.add(rootId);
+
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+
+  // 逆引き用マップ (Dependants)
+  const dependantsMap = new Map<string, string[]>();
+  tasks.forEach(t => {
+    t.dependencies?.forEach(depId => {
+      if (!dependantsMap.has(depId)) dependantsMap.set(depId, []);
+      dependantsMap.get(depId)?.push(t.id);
+    });
+  });
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    const task = taskMap.get(currentId); // taskMapから取得
+
+    // 1. 上流 (Dependencies)
+    if (task && task.dependencies) {
+      task.dependencies.forEach(depId => {
+        if (!related.has(depId)) {
+          related.add(depId);
+          queue.push(depId);
+        }
+      });
+    }
+
+    // 2. 下流 (Dependants)
+    const children = dependantsMap.get(currentId);
+    if (children) {
+      children.forEach(childId => {
+        if (!related.has(childId)) {
+          related.add(childId);
+          queue.push(childId);
+        }
+      });
+    }
+  }
+
+  return related;
+};
+
+// ★★★ 依存関係ハイライト用オーバーレイコンポーネント ★★★
+const DependencyHighlighter: React.FC<{
+  tasks: CustomGtrTask[];
+  selectedTaskId: string | null;
+  columnWidth: number;
+  rowHeight: number;
+  currentStartDate: Date;
+  viewMode: ViewMode;
+  listCellWidth: string;
+}> = ({ tasks, selectedTaskId, columnWidth, rowHeight, currentStartDate, viewMode, listCellWidth }) => {
+  const [lines, setLines] = useState<React.ReactNode[]>([]);
+  const [scrollX, setScrollX] = useState(0);
+
+  // 横スクロールの追従
+  useEffect(() => {
+    const findContainer = () => {
+      // gantt-task-reactの構造上、横スクロールは内部divで管理されている可能性が高い
+      // ヘッダーとボディが同期する場合、ボディ側のスクロールを取得する
+      // クラス名に頼らず、横スクロールを持つ要素を探す
+      const allDivs = document.querySelectorAll('.gantt-container div');
+      for (let i = 0; i < allDivs.length; i++) {
+        const div = allDivs[i] as HTMLElement;
+        if (div.scrollWidth > div.clientWidth && div.style.overflowX !== 'hidden') {
+          return div;
+        }
+      }
+      return null;
+    };
+
+    const scrollContainer = findContainer();
+
+    if (scrollContainer) {
+      const handleScroll = () => {
+        setScrollX(scrollContainer.scrollLeft);
+      };
+      // 初期値設定
+      setScrollX(scrollContainer.scrollLeft);
+      scrollContainer.addEventListener('scroll', handleScroll);
+      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    } else {
+      console.warn("DependencyHighlighter: Could not find scroll container.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      setLines([]);
+      return;
+    }
+
+    const selectedTask = tasks.find(t => t.id === selectedTaskId);
+    if (!selectedTask) return;
+
+    // 関連タスク全体を取得(再帰的)
+    const relatedIds = getAllRelatedTaskIds(selectedTaskId, tasks);
+
+    const newLines: React.ReactNode[] = [];
+    const listWidth = parseInt(listCellWidth);
+
+    // 座標計算ヘルパー
+    const getTaskCoordinates = (task: CustomGtrTask) => {
+      // Y座標: DOMから取得 (リストの行を探す)
+      const listRow = document.querySelector(`.widget-task-list-item[data-task-id="${task.id}"]`);
+      if (!listRow) return null;
+
+      const listRect = listRow.getBoundingClientRect();
+      const container = document.querySelector('.gantt-container');
+      if (!container) return null;
+      const containerRect = container.getBoundingClientRect();
+
+      // コンテナ相対Y座標
+      const y = listRect.top - containerRect.top + (listRect.height / 2);
+
+      // X座標: 日付から計算
+      const diffStart = differenceInCalendarDays(task.start, currentStartDate);
+      const diffEnd = differenceInCalendarDays(task.end, currentStartDate);
+
+      const xOffset = diffStart * columnWidth;
+      const width = (diffEnd - diffStart) * columnWidth;
+
+      const adjustedX = listWidth + xOffset - scrollX;
+      const adjustedXEnd = listWidth + xOffset + width - scrollX;
+
+      return { x: adjustedX, y, width: width, xEnd: adjustedXEnd };
+    };
+
+    // 描画済みエッジの追跡（重複防止）
+    const processedEdges = new Set<string>();
+
+    // ハイライトされたチェーン内の全ての依存関係について矢印を描画
+    tasks.forEach(task => {
+      // ターゲットタスク（子）が関連グループ内に無いならスキップ
+      if (!relatedIds.has(task.id)) return;
+
+      task.dependencies?.forEach(depId => {
+        // ソースタスク（親）も関連グループ内にあれば矢印を描画
+        if (relatedIds.has(depId)) {
+          const edgeKey = `${depId}-${task.id}`;
+          if (processedEdges.has(edgeKey)) return;
+          processedEdges.add(edgeKey);
+
+          const sourceTask = tasks.find(t => t.id === depId);
+          const targetTask = task;
+
+          if (sourceTask && targetTask) {
+            const start = getTaskCoordinates(sourceTask);
+            const end = getTaskCoordinates(targetTask);
+
+            if (start && end) {
+              const p1 = { x: start.xEnd, y: start.y };
+              const p2 = { x: end.x, y: end.y };
+
+              // 直線 (Straight Line)
+              const path = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+
+              newLines.push(
+                <g key={edgeKey}>
+                  <path d={path} stroke="white" strokeWidth="4" fill="none" opacity="0.8" />
+                  <path
+                    d={path}
+                    stroke="#e91e63"
+                    strokeWidth="2.5"
+                    fill="none"
+                    markerEnd="url(#arrowhead)"
+                  />
+                  <circle cx={p1.x} cy={p1.y} r="3" fill="#e91e63" />
+                </g>
+              );
+            }
+          }
+        }
+      });
+    });
+
+    setLines(newLines);
+  }, [selectedTaskId, tasks, columnWidth, rowHeight, currentStartDate, viewMode, listCellWidth, scrollX]);
+
+  return (
+    <svg
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 99999, // ★★★ 最前面に表示 (以前は 100) ★★★
+        overflow: 'visible'
+      }}
+    >
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#e91e63" />
+        </marker>
+      </defs>
+      {lines}
+    </svg>
+  );
+};
+
+// ★★★ 依存関係チェーンごとのスタッガリング関数 ★★★
+const applyDependencyStaggering = (tasks: CustomGtrTask[]): CustomGtrTask[] => {
+  // 1. 全タスクのIDマップと無向グラフ（双方向関係）の構築
+  const taskMap = new Map(tasks.map(t => [t.id, t]));
+  const adj = new Map<string, string[]>(); // ID -> Neighbor IDs
+
+  // 初期化
+  tasks.forEach(t => adj.set(t.id, []));
+
+  // エッジの追加
+  tasks.forEach(t => {
+    if (t.dependencies) {
+      t.dependencies.forEach(depId => {
+        if (taskMap.has(depId)) {
+          // A depends on B -> Connect A and B
+          adj.get(t.id)?.push(depId);
+          adj.get(depId)?.push(t.id);
+        }
+      });
+    }
+  });
+
+  // 2. 連結成分（Chain）の検出とグループ化
+  const visited = new Set<string>();
+  const groups: string[][] = [];
+
+  tasks.forEach(t => {
+    if (t.id && !visited.has(t.id)) {
+      const group: string[] = [];
+      const queue: string[] = [t.id];
+      visited.add(t.id);
+
+      while (queue.length > 0) {
+        const currId = queue.shift()!;
+        group.push(currId);
+
+        const neighbors = adj.get(currId) || [];
+        neighbors.forEach(neighborId => {
+          if (!visited.has(neighborId)) {
+            visited.add(neighborId);
+            queue.push(neighborId);
+          }
+        });
+      }
+      groups.push(group);
+    }
+  });
+
+  // 3. グループごとにオフセットを割り当てて時間をずらす
+  // 同時に並走するチェーンが重ならないように、グループIDに基づいてオフセットを決定
+  const STAGGER_MINUTES = 20; // 20分ずつずらす
+  const MAX_OFFSETS = 5; // 最大5段階（0~80分）
+
+  // タスクID -> オフセット値 のマップを作成
+  const offsetMap = new Map<string, number>();
+
+  groups.forEach((group, index) => {
+    // 孤立したタスク（グループサイズ1で依存関係なし）はオフセット0にする
+    const leaderTask = taskMap.get(group[0]);
+    const isIsolated = group.length === 1 && (!leaderTask?.dependencies || leaderTask.dependencies.length === 0);
+
+    // グループインデックスに基づいてオフセットを計算 (孤立してなければ)
+    const offsetLevel = isIsolated ? 0 : (index % MAX_OFFSETS);
+    const offsetTime = offsetLevel * STAGGER_MINUTES * 60 * 1000; // ミリ秒
+
+    group.forEach(taskId => {
+      offsetMap.set(taskId, offsetTime);
+    });
+  });
+
+  // 4. 新しいタスクリストを生成（ソート順は維持）
+  return tasks.map(t => {
+    const offset = offsetMap.get(t.id) || 0;
+    if (offset === 0) return t;
+
+    return {
+      ...t,
+      // 開始日と終了日をオフセット分ずらす
+      start: new Date(t.start.getTime() + offset),
+      end: new Date(t.end.getTime() + offset)
+    };
+  });
+};
 
 // ★★★ カスタムタスクリスト (プロジェクト名を表示) ★★★、ガントチャートのタスクリストを表示するためのコンポーネントです。
-const CustomTaskList: React.FC<any> = ({ 
-  tasks, 
-  rowHeight, 
+const CustomTaskList: React.FC<any> = ({
+  tasks,
+  rowHeight,
   // rowWidth, // rowWidth は listCellWidth から計算されるため、直接は使わないことが多い
   selectedTaskId, //selectedTaskIdとは、選択されたタスクのIDです。
   setSelectedTask, //setSelectedTaskとは、選択されたタスクを設定するための関数です。
   // onExpanderClick, // 現在未使用
-  projectsData 
+  projectsData
 }) => {
   const { colWidths, listCellWidth } = useContext(ColumnWidthContext);
 
   return (
-    <div 
-      className="widget-task-list" 
-      style={{ 
+    <div
+      className="widget-task-list"
+      style={{
         width: listCellWidth, // ヘッダーと合わせる
-        overflow: 'hidden', 
+        overflow: 'hidden',
         flexShrink: 0,
         boxSizing: 'border-box',
       }}
     >
       {tasks.map((task: CustomGtrTask) => {
-        const displayName = getCoreTaskName(task.name); 
+        const displayName = getCoreTaskName(task.name);
         const displayProjectName = trimProjectSuffix(projectsData.find((p: Project) => String(p.id) === task.projectId)?.name);
 
         return (
-        <div
-          key={task.id}
-          className={`widget-task-list-item ${selectedTaskId === task.id ? 'selected' : ''}`}
-          style={{ 
-            height: rowHeight, 
-            display: 'flex', 
-            alignItems: 'center',
-            backgroundColor: selectedTaskId === task.id ? 'rgba(0, 0, 0, 0.05)' : undefined,
-            fontSize: '0.7rem',
+          <div
+            key={task.id}
+            data-task-id={task.id} // ★★★ 座標計算用にIDを追加 ★★★
+            className={`widget-task-list-item ${selectedTaskId === task.id ? 'selected' : ''}`}
+            style={{
+              height: rowHeight,
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: selectedTaskId === task.id ? 'rgba(0, 0, 0, 0.05)' : undefined,
+              fontSize: '0.7rem',
               borderBottom: '1px solid #eee',
-            cursor: 'pointer',
+              cursor: 'pointer',
               boxSizing: 'border-box', // 各行も border-box
-          }}
-          onClick={() => setSelectedTask(task)}
-        >
-          {/* プロジェクト名 */}
-            <div style={{ 
-                width: `${colWidths.project}%`, 
-                padding: '0 2px', // ヘッダーに合わせる
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
-                whiteSpace: 'nowrap', 
-                boxSizing: 'border-box' // 必須
+            }}
+            onClick={() => setSelectedTask(task)}
+          >
+            {/* プロジェクト名 */}
+            <div style={{
+              width: `${colWidths.project}%`,
+              padding: '0 2px', // ヘッダーに合わせる
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box' // 必須
             }}>
               {displayProjectName}
-          </div>
-          
+            </div>
+
             {/* スペーサー (リサイズハンドルに対応する箇所) */}
             {/* <div style={{ width: '5px', flexShrink: 0, backgroundColor: 'transparent' }} /> */} {/* ← 一旦コメントアウトまたは幅0 */}
-          
+
             {/* タスク名 (Tooltipなしのバージョン) */}
-            <div style={{ 
-                width: `${colWidths.name}%`, 
-                padding: '0 2px', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
-                whiteSpace: 'nowrap', 
-                boxSizing: 'border-box',
-                textAlign: 'center' // ★ 中央揃えを追加
+            <div style={{
+              width: `${colWidths.name}%`,
+              padding: '0 2px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box',
+              textAlign: 'center' // ★ 中央揃えを追加
             }}>
-              {displayName} 
-          </div>
-          
+              {displayName}
+            </div>
+
             {/* スペーサー */}
             {/* <div style={{ width: '5px', flexShrink: 0, backgroundColor: 'transparent' }} /> */} {/* ← 一旦コメントアウトまたは幅0 */}
-          
-          {/* 開始日 */}
-            <div style={{ 
-                width: `${colWidths.from}%`, 
-                padding: '0 2px', // ヘッダーに合わせる
-                textAlign: 'center', // ヘッダーに合わせる
-                overflow: 'hidden', 
-                whiteSpace: 'nowrap', 
-                boxSizing: 'border-box' // 必須
+
+            {/* 開始日 */}
+            <div style={{
+              width: `${colWidths.from}%`,
+              padding: '0 2px', // ヘッダーに合わせる
+              textAlign: 'center', // ヘッダーに合わせる
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box' // 必須
             }}>
-            {task.start ? formatDate(task.start, 'MM/dd') : ''}
-          </div>
-          
+              {task.start ? formatDate(task.start, 'MM/dd') : ''}
+            </div>
+
             {/* スペーサー */}
             {/* <div style={{ width: '5px', flexShrink: 0, backgroundColor: 'transparent' }} /> */} {/* ← 一旦コメントアウトまたは幅0 */}
-          
-          {/* 終了日 */}
-            <div style={{ 
-                width: `${colWidths.to}%`, 
-                padding: '0 2px', // ヘッダーに合わせる
-                textAlign: 'center', // ヘッダーに合わせる
-                overflow: 'hidden', 
-                whiteSpace: 'nowrap', 
-                boxSizing: 'border-box' // 必須
+
+            {/* 終了日 */}
+            <div style={{
+              width: `${colWidths.to}%`,
+              padding: '0 2px', // ヘッダーに合わせる
+              textAlign: 'center', // ヘッダーに合わせる
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box' // 必須
             }}>
-            {task.end ? formatDate(task.end, 'MM/dd') : ''}
-          </div>
-          
+              {task.end ? formatDate(task.end, 'MM/dd') : ''}
+            </div>
+
             {/* 右端のスペーサー (ガントチャート部分との境界ハンドルに対応) */}
             {/* <div style={{ width: '5px', marginLeft: 'auto', flexShrink: 0, backgroundColor: 'transparent' }} /> */} {/* ← 一旦コメントアウトまたは幅0 */}
-        </div>
+          </div>
         );
       })}
     </div>
@@ -553,885 +966,1060 @@ const TooltipWrapper = forwardRef<HTMLSpanElement, { children: React.ReactNode }
 const GanttView: React.FC<GanttViewProps> = memo(
   ({ tasks: initialTasks, initialViewMode = ViewMode.Week, onTaskSelect, handleOpenCreateTask, readOnly = false, projects, users }) => {
 
-  // ================= HOOKS =================
-  const [colWidths, setColWidths] = useState({
-    project: 25,
-    name: 35,
-    from: 20,
-    to: 20
-  });
-  const [listCellWidth, setListCellWidth] = useState("250px");
-  const [forceUpdateState, forceUpdate] = useState<object>({});
-  const ganttContainerRef = useRef<HTMLDivElement | null>(null);
-  const scrollPositionRef = useRef<{left: number, top: number} | null>(null);
-  const [isMountedState, setIsMountedState] = useState(false);
-  const horizontalContainerRef = useRef<HTMLElement | null>(null);
-  const verticalContainerRef = useRef<HTMLElement | null>(null);
-  const renderCountRef = useRef(0);
-  const [isLoadingData, setIsLoadingData] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [authErrorOpen, setAuthErrorOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [editedTask, setEditedTask] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || ViewMode.Week);
-  const [currentStartDate, setCurrentStartDate] = useState<Date>(new Date());
-  const [currentColumnWidth, setCurrentColumnWidth] = useState<number>(60);
-  const debounceTimeoutRef = useRef<number | null>(null);
+    // ================= HOOKS =================
+    const [colWidths, setColWidths] = useState({
+      project: 25,
+      name: 35,
+      from: 20,
+      to: 20
+    });
+    const [listCellWidth, setListCellWidth] = useState("250px");
+    // タスク選択用のState
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [forceUpdateState, forceUpdate] = useState<object>({});
+    const ganttContainerRef = useRef<HTMLDivElement | null>(null);
+    const scrollPositionRef = useRef<{ left: number, top: number } | null>(null);
+    const [isMountedState, setIsMountedState] = useState(false);
+    const horizontalContainerRef = useRef<HTMLElement | null>(null);
+    const verticalContainerRef = useRef<HTMLElement | null>(null);
+    const renderCountRef = useRef(0);
+    const [isLoadingData, setIsLoadingData] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [authErrorOpen, setAuthErrorOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [editedTask, setEditedTask] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || ViewMode.Week);
+    const [currentStartDate, setCurrentStartDate] = useState<Date>(new Date());
+    const [currentColumnWidth, setCurrentColumnWidth] = useState<number>(60);
+    const debounceTimeoutRef = useRef<number | null>(null);
 
-  const [isGanttReady, setIsGanttReady] = useState(false); // ★ 新しいstate
+    const [isGanttReady, setIsGanttReady] = useState(false); // ★ 新しいstate
 
-  // ★★★ tasksRef の代わりに localTasks state を使用 ★★★
-  const [localTasks, setLocalTasks] = useState<Task[]>(initialTasks);
-  // ★★★ tasksRef は削除 ★★★
-  // const tasksRef = useRef<Task[]>(initialTasks);
+    // ★★★ tasksRef の代わりに localTasks state を使用 ★★★
+    const [localTasks, setLocalTasks] = useState<Task[]>(initialTasks);
+    // ★★★ tasksRef は削除 ★★★
+    // const tasksRef = useRef<Task[]>(initialTasks);
 
-  // ★★★ viewMode変更時に列幅をリセットするuseEffect ★★★
-  useEffect(() => {
-    const defaultWidth = viewMode === ViewMode.Day ? 30 : 60;
-    console.log(`ビューモード変更: 列幅をデフォルト (${defaultWidth}) にリセット`);
-    setCurrentColumnWidth(defaultWidth);
-  }, [viewMode]);
-  // ★★★ ここまで ★★★
+    // ★★★ viewMode変更時に列幅をリセットするuseEffect ★★★
+    useEffect(() => {
+      const defaultWidth = viewMode === ViewMode.Day ? 30 : 60;
+      console.log(`ビューモード変更: 列幅をデフォルト (${defaultWidth}) にリセット`);
+      setCurrentColumnWidth(defaultWidth);
+    }, [viewMode]);
+    // ★★★ ここまで ★★★
 
-  // useCallback フック
-  const saveScrollPosition = useCallback(() => {
-    const ganttContainer = document.querySelector('.gantt-scroll-container') as HTMLElement;
-    if (ganttContainer) {
-      scrollPositionRef.current = {
-        left: ganttContainer.scrollLeft,
-        top: ganttContainer.scrollTop
+    // useCallback フック
+    // useCallback フック
+    const saveScrollPosition = useCallback(() => {
+      const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
+      const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
+
+      if (hContainer || vContainer) {
+        scrollPositionRef.current = {
+          left: hContainer?.scrollLeft || 0,
+          top: vContainer?.scrollTop || 0
+        };
+        console.log(`[GanttView] Saved scroll position: L=${scrollPositionRef.current.left}, T=${scrollPositionRef.current.top}`);
+      }
+    }, []);
+
+    const restoreScrollPosition = useCallback(() => {
+      const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
+      const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
+
+      if (scrollPositionRef.current) {
+        const savedLeft = scrollPositionRef.current.left;
+        const savedTop = scrollPositionRef.current.top;
+
+        // スクロール復元中フラグを設定
+        (window as any).__ganttIsRestoringScroll = true;
+
+        // 複数回試行して確実にスクロール位置を復元する
+        const restore = () => {
+          if (hContainer && savedLeft !== undefined) {
+            // 現在のスクロール位置と保存された位置が異なる場合のみ復元
+            if (Math.abs(hContainer.scrollLeft - savedLeft) > 1) {
+              hContainer.scrollLeft = savedLeft;
+              console.log(`[GanttView] Restored horizontal scroll: ${hContainer.scrollLeft} -> ${savedLeft}`);
+            }
+          }
+          if (vContainer && savedTop !== undefined) {
+            if (Math.abs(vContainer.scrollTop - savedTop) > 1) {
+              vContainer.scrollTop = savedTop;
+              console.log(`[GanttView] Restored vertical scroll: ${vContainer.scrollTop} -> ${savedTop}`);
+            }
+          }
+        };
+
+        // 即座に復元
+        restore();
+        
+        // requestAnimationFrameで復元（ブラウザの描画後に確実に復元）
+        requestAnimationFrame(() => {
+          restore();
+          // さらに少し遅延させて復元（ライブラリの再レンダリング後に確実に復元）
+          setTimeout(restore, 10);
+          setTimeout(() => {
+            restore();
+            // 復元完了後にフラグを解除
+            setTimeout(() => {
+              (window as any).__ganttIsRestoringScroll = false;
+            }, 50);
+          }, 50);
+        });
+      }
+    }, []);
+
+    // タスク選択変更時にスクロール位置を復元する
+    // useLayoutEffect を使用して、ブラウザが描画する前にスクロール位置を戻すことでちらつきを防ぐ
+    React.useLayoutEffect(() => {
+      // スクロール位置が保存されている場合のみ復元
+      if (scrollPositionRef.current) {
+        const savedLeft = scrollPositionRef.current.left;
+        const savedTop = scrollPositionRef.current.top;
+        
+        const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
+        const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
+
+        if (!hContainer && !vContainer) {
+          return;
+        }
+
+        // スクロール位置を復元する関数
+        const restore = () => {
+          if (hContainer && savedLeft !== undefined) {
+            const currentLeft = hContainer.scrollLeft;
+            if (Math.abs(currentLeft - savedLeft) > 1) {
+              hContainer.scrollLeft = savedLeft;
+              console.log(`[GanttView] useLayoutEffect restored horizontal: ${currentLeft} -> ${savedLeft}`);
+            }
+          }
+          if (vContainer && savedTop !== undefined) {
+            const currentTop = vContainer.scrollTop;
+            if (Math.abs(currentTop - savedTop) > 1) {
+              vContainer.scrollTop = savedTop;
+              console.log(`[GanttView] useLayoutEffect restored vertical: ${currentTop} -> ${savedTop}`);
+            }
+          }
+        };
+
+        // 即座に復元
+        restore();
+
+        // 複数回試行して確実に復元
+        requestAnimationFrame(() => {
+          restore();
+          setTimeout(restore, 10);
+          setTimeout(restore, 50);
+          setTimeout(restore, 100);
+          setTimeout(restore, 200);
+          setTimeout(restore, 300);
+        });
+
+        // MutationObserverでDOMの変更を監視
+        const observer = new MutationObserver(() => {
+          restore();
+        });
+
+        if (hContainer) {
+          observer.observe(hContainer, { attributes: true, attributeFilter: ['style'], childList: false, subtree: false });
+        }
+        if (vContainer) {
+          observer.observe(vContainer, { attributes: true, attributeFilter: ['style'], childList: false, subtree: false });
+        }
+
+        // クリーンアップ
+        return () => {
+          observer.disconnect();
+        };
+      }
+    }, [selectedTaskId]);
+
+    const handleAuthError = useCallback(() => {
+      setAuthErrorOpen(true);
+    }, []);
+
+    // ★★★ ズームインハンドラ ★★★
+    const handleZoomIn = useCallback(() => {
+      setCurrentColumnWidth(prev => Math.min(prev + 10, 200)); // 上限200px
+    }, []);
+
+    // ★★★ ズームアウトハンドラ ★★★
+    const handleZoomOut = useCallback(() => {
+      setCurrentColumnWidth(prev => Math.max(prev - 10, 20)); // 下限20px
+    }, []);
+
+    const handleRelogin = useCallback(() => {
+      setAuthErrorOpen(false);
+      localStorage.removeItem('token');
+      navigate('/login', { state: { from: location.pathname } });
+    }, [navigate, location.pathname]);
+
+    // ★★★ initialTasks prop の変更を localTasks state に反映 ★★★
+    useEffect(() => {
+      console.log(`[GanttView] Props changed - Tasks: ${initialTasks.length}, Projects: ${projects.length}`);
+      if (initialTasks.length > 0) {
+        console.log(`[GanttView] Project IDs in tasks:`, [...new Set(initialTasks.map(t => t.project_id))]);
+        console.log(`[GanttView] Available project IDs:`, projects.map(p => p.id));
+      }
+      setLocalTasks(initialTasks); // ★★★ setLocalTasks を使用 ★★★
+    }, [initialTasks, projects]);
+
+    // fetchData の成功時に setLocalTasks を呼ぶ (修正済み)
+    const fetchData = useCallback(() => {
+      setIsLoadingData(true);
+      setFetchError(null);
+      console.log("fetchData 実行: 最新データを取得します...");
+      Promise.all([
+        api.get<Task[]>('/tasks'),
+      ])
+        .then(([tasksResponse]) => {
+          const loadedTasks = tasksResponse.data;
+          console.log("DEBUG: APIから取得したタスクデータ:", JSON.stringify(loadedTasks, null, 2));
+          // ★ 追加: APIから取得したデータで dependsOn を持つものをログ出力
+          console.log("DEBUG: API tasks with dependsOn:", JSON.stringify(loadedTasks.filter(task => task.dependsOn && task.dependsOn.length > 0), null, 2));
+          console.log("DEBUG: APIから取得したプロジェクトデータ:", JSON.stringify(projects, null, 2));
+          console.log("DEBUG: APIから取得したユーザーデータ:", JSON.stringify(users, null, 2));
+          console.log(`最新データ取得成功: Tasks=${loadedTasks.length}`);
+          setLocalTasks(loadedTasks); // ★★★ setLocalTasks を使用 ★★★
+          if (loadedTasks && loadedTasks.length > 0) { // ★ データがあれば準備完了
+            setIsGanttReady(true);
+          } else {
+            setIsGanttReady(false); // データが空なら準備未完了（またはエラー表示など）
+          }
+        })
+        .catch((error) => {
+          console.error('データ読み込みエラー:', error);
+          setFetchError('データの読み込みに失敗しました。');
+          if (error.response && error.response.status === 401) {
+            handleAuthError();
+          }
+        })
+        .finally(() => {
+          setIsLoadingData(false);
+        });
+    }, [handleAuthError, projects, users]); // ★★★ 依存配列修正 ★★★
+
+    const initializeScrollHandlers = useCallback(() => {
+      console.log('初期化: スクロールハンドラー');
+      const setupScrollContainers = () => {
+        const horizontalContainer = document.querySelector('.gantt-horizontal-container');
+        const verticalContainer = document.querySelector('.gantt-vertical-scroll-container');
+        if (horizontalContainer) {
+          const hContainer = horizontalContainer as HTMLElement;
+          horizontalContainerRef.current = hContainer;
+          window.ganttScrollRef.horizontal = hContainer;
+          hContainer.style.overflowX = 'auto';
+          hContainer.style.touchAction = 'pan-x';
+        }
+        if (verticalContainer) {
+          const vContainer = verticalContainer as HTMLElement;
+          verticalContainerRef.current = vContainer;
+          window.ganttScrollRef.vertical = vContainer;
+          vContainer.style.overflowY = 'auto';
+          vContainer.style.touchAction = 'pan-y';
+        }
       };
-    }
-  }, []);
-
-  const restoreScrollPosition = useCallback(() => {
-    const ganttContainer = document.querySelector('.gantt-scroll-container') as HTMLElement;
-    if (ganttContainer && scrollPositionRef.current) {
-      setTimeout(() => {
-        ganttContainer.scrollLeft = scrollPositionRef.current?.left || 0;
-        ganttContainer.scrollTop = scrollPositionRef.current?.top || 0;
-      }, 50);
-    }
-  }, []);
-
-  const handleAuthError = useCallback(() => {
-    setAuthErrorOpen(true);
-  }, []);
-
-  // ★★★ ズームインハンドラ ★★★
-  const handleZoomIn = useCallback(() => {
-    setCurrentColumnWidth(prev => Math.min(prev + 10, 200)); // 上限200px
-  }, []);
-
-  // ★★★ ズームアウトハンドラ ★★★
-  const handleZoomOut = useCallback(() => {
-    setCurrentColumnWidth(prev => Math.max(prev - 10, 20)); // 下限20px
-  }, []);
-
-  const handleRelogin = useCallback(() => {
-    setAuthErrorOpen(false);
-    localStorage.removeItem('token');
-    navigate('/login', { state: { from: location.pathname } });
-  }, [navigate, location.pathname]);
-
-  // ★★★ initialTasks prop の変更を localTasks state に反映 ★★★
-  useEffect(() => {
-    console.log(`[GanttView] Props changed - Tasks: ${initialTasks.length}, Projects: ${projects.length}`);
-    if (initialTasks.length > 0) {
-      console.log(`[GanttView] Project IDs in tasks:`, [...new Set(initialTasks.map(t => t.project_id))]);
-      console.log(`[GanttView] Available project IDs:`, projects.map(p => p.id));
-    }
-    setLocalTasks(initialTasks); // ★★★ setLocalTasks を使用 ★★★
-  }, [initialTasks, projects]);
-
-  // fetchData の成功時に setLocalTasks を呼ぶ (修正済み)
-  const fetchData = useCallback(() => {
-    setIsLoadingData(true);
-    setFetchError(null);
-    console.log("fetchData 実行: 最新データを取得します...");
-    Promise.all([
-      api.get<Task[]>('/tasks'),
-    ])
-      .then(([tasksResponse]) => {
-        const loadedTasks = tasksResponse.data;
-        console.log("DEBUG: APIから取得したタスクデータ:", JSON.stringify(loadedTasks, null, 2));
-        // ★ 追加: APIから取得したデータで dependsOn を持つものをログ出力
-        console.log("DEBUG: API tasks with dependsOn:", JSON.stringify(loadedTasks.filter(task => task.dependsOn && task.dependsOn.length > 0), null, 2));
-        console.log("DEBUG: APIから取得したプロジェクトデータ:", JSON.stringify(projects, null, 2));
-        console.log("DEBUG: APIから取得したユーザーデータ:", JSON.stringify(users, null, 2));
-        console.log(`最新データ取得成功: Tasks=${loadedTasks.length}`);
-        setLocalTasks(loadedTasks); // ★★★ setLocalTasks を使用 ★★★
-        if (loadedTasks && loadedTasks.length > 0) { // ★ データがあれば準備完了
-          setIsGanttReady(true);
-        } else {
-          setIsGanttReady(false); // データが空なら準備未完了（またはエラー表示など）
+      setupScrollContainers();
+      const handleWheel = (e: WheelEvent) => {
+        const horizontalContainer = horizontalContainerRef.current;
+        const verticalContainer = verticalContainerRef.current;
+        if (!horizontalContainer || !verticalContainer) {
+          setupScrollContainers();
+          return;
         }
-      })
-      .catch((error) => {
-        console.error('データ読み込みエラー:', error);
-        setFetchError('データの読み込みに失敗しました。');
-        if (error.response && error.response.status === 401) {
-          handleAuthError();
-        }
-      })
-      .finally(() => {
-        setIsLoadingData(false);
-      });
-  }, [handleAuthError, projects, users]); // ★★★ 依存配列修正 ★★★
 
-  const initializeScrollHandlers = useCallback(() => {
-    console.log('初期化: スクロールハンドラー');
-    const setupScrollContainers = () => {
-      const horizontalContainer = document.querySelector('.gantt-horizontal-container');
-      const verticalContainer = document.querySelector('.gantt-vertical-scroll-container');
-      if (horizontalContainer) {
-        const hContainer = horizontalContainer as HTMLElement;
-        horizontalContainerRef.current = hContainer;
-        window.ganttScrollRef.horizontal = hContainer;
-        hContainer.style.overflowX = 'auto';
-        hContainer.style.touchAction = 'pan-x';
-      }
-      if (verticalContainer) {
-        const vContainer = verticalContainer as HTMLElement;
-        verticalContainerRef.current = vContainer;
-        window.ganttScrollRef.vertical = vContainer;
-        vContainer.style.overflowY = 'auto';
-        vContainer.style.touchAction = 'pan-y';
-      }
-    };
-    setupScrollContainers();
-    const handleWheel = (e: WheelEvent) => {
-      const horizontalContainer = horizontalContainerRef.current;
-      const verticalContainer = verticalContainerRef.current;
-      if (!horizontalContainer || !verticalContainer) {
-        setupScrollContainers();
-        return;
-      }
-      
-      const horizontalStep = e.deltaX * 0.8;
-      const verticalStep = e.deltaY * 0.8;
-      
-      // Shiftキー + マウスホイールで横スクロール（確実な方法）
-      if (e.shiftKey && e.deltaY !== 0) {
+        const horizontalStep = e.deltaX * 0.8;
+        const verticalStep = e.deltaY * 0.8;
+
+        // Shiftキー + マウスホイールで横スクロール（確実な方法）
+        if (e.shiftKey && e.deltaY !== 0) {
+          try {
+            e.preventDefault();
+          } catch (err) {
+            // preventDefaultが失敗した場合は無視
+          }
+          requestAnimationFrame(() => {
+            horizontalContainer.scrollLeft += verticalStep;
+          });
+          return;
+        }
+
+        // 通常のスクロール処理
         try {
           e.preventDefault();
         } catch (err) {
           // preventDefaultが失敗した場合は無視
         }
+
         requestAnimationFrame(() => {
-          horizontalContainer.scrollLeft += verticalStep;
+          if (e.deltaX !== 0) horizontalContainer.scrollLeft += horizontalStep;
+          if (e.deltaY !== 0) verticalContainer.scrollTop += verticalStep;
         });
-        return;
-      }
-      
-      // 通常のスクロール処理
-      try {
-        e.preventDefault();
-      } catch (err) {
-        // preventDefaultが失敗した場合は無視
-      }
-      
-      requestAnimationFrame(() => {
-        if (e.deltaX !== 0) horizontalContainer.scrollLeft += horizontalStep;
-        if (e.deltaY !== 0) verticalContainer.scrollTop += verticalStep;
-      });
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === 'INPUT' ||
+      };
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (document.activeElement?.tagName === 'INPUT' ||
           document.activeElement?.tagName === 'TEXTAREA' ||
           (document.activeElement as HTMLElement)?.isContentEditable) {
+          return;
+        }
+        const horizontalContainer = horizontalContainerRef.current;
+        const verticalContainer = verticalContainerRef.current;
+        if (!horizontalContainer || !verticalContainer) return;
+        switch (e.key) {
+          case 'ArrowLeft': e.preventDefault(); requestAnimationFrame(() => { horizontalContainer.scrollLeft -= 50; }); break;
+          case 'ArrowRight': e.preventDefault(); requestAnimationFrame(() => { horizontalContainer.scrollLeft += 50; }); break;
+          case 'ArrowUp': e.preventDefault(); requestAnimationFrame(() => { verticalContainer.scrollTop -= 30; }); break;
+          case 'ArrowDown': e.preventDefault(); requestAnimationFrame(() => { verticalContainer.scrollTop += 30; }); break;
+        }
+      };
+      const handleResize = () => { setupScrollContainers(); };
+      window.scrollGanttLeft = (amount = 100) => { const c = horizontalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollLeft -= amount; }); };
+      window.scrollGanttRight = (amount = 100) => { const c = horizontalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollLeft += amount; }); };
+      window.scrollGanttUp = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop -= amount; }); };
+      window.scrollGanttDown = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop += amount; }); };
+      const ganttElement = document.querySelector('.gantt');
+      if (ganttElement) {
+        // より互換性の高いイベントリスナーの設定
+        try {
+          ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
+        } catch (err) {
+          // 古いブラウザやpassive: falseが使えない場合のフォールバック
+          ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, true);
+        }
+      }
+      document.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('resize', handleResize);
+      const cleanupData = { ganttElement, wheelHandler: handleWheel, keyHandler: handleKeyDown, resizeHandler: handleResize };
+      window.__ganttCleanupData = cleanupData;
+    }, []);
+
+    const cleanupScrollHandlers = useCallback(() => {
+      console.log('クリーンアップ: スクロールハンドラー');
+      const cleanupData = window.__ganttCleanupData;
+      if (!cleanupData) return;
+      const { ganttElement, wheelHandler, keyHandler, resizeHandler } = cleanupData;
+      if (ganttElement) ganttElement.removeEventListener('wheel', wheelHandler, { capture: true });
+      document.removeEventListener('keydown', keyHandler);
+      window.removeEventListener('resize', resizeHandler);
+      window.scrollGanttLeft = () => { };
+      window.scrollGanttRight = () => { };
+      window.scrollGanttUp = () => { };
+      window.scrollGanttDown = () => { };
+      delete window.__ganttCleanupData;
+      horizontalContainerRef.current = null;
+      verticalContainerRef.current = null;
+    }, []);
+
+    const handlePrevious = useCallback(() => {
+      const newDate = new Date(currentStartDate);
+      switch (viewMode) {
+        case ViewMode.Day: newDate.setDate(newDate.getDate() - 1); break;
+        case ViewMode.Week: newDate.setDate(newDate.getDate() - 7); break;
+        case ViewMode.Month: newDate.setMonth(newDate.getMonth() - 1); break;
+        case ViewMode.Year: newDate.setFullYear(newDate.getFullYear() - 1); break;
+        default: newDate.setDate(newDate.getDate() - 7);
+      }
+      saveScrollPosition();
+      setCurrentStartDate(newDate);
+      setTimeout(restoreScrollPosition, 50);
+      console.log(`前の期間に移動: ${formatDate(newDate, 'yyyy-MM-dd')}`);
+    }, [viewMode, currentStartDate, saveScrollPosition, restoreScrollPosition]);
+
+    const handleNext = useCallback(() => {
+      const newDate = new Date(currentStartDate);
+      switch (viewMode) {
+        case ViewMode.Day: newDate.setDate(newDate.getDate() + 1); break;
+        case ViewMode.Week: newDate.setDate(newDate.getDate() + 7); break;
+        case ViewMode.Month: newDate.setMonth(newDate.getMonth() + 1); break;
+        case ViewMode.Year: newDate.setFullYear(newDate.getFullYear() + 1); break;
+        default: newDate.setDate(newDate.getDate() + 7);
+      }
+      saveScrollPosition();
+      setCurrentStartDate(newDate);
+      setTimeout(restoreScrollPosition, 50);
+      console.log(`次の期間に移動: ${formatDate(newDate, 'yyyy-MM-dd')}`);
+    }, [viewMode, currentStartDate, saveScrollPosition, restoreScrollPosition]);
+
+    const dummyCallback = useCallback(() => { }, []); // 不変のダミー関数
+
+    // ================= END HOOKS =================
+
+    // レンダリングカウンタを更新（無限ループ検出用）
+    useEffect(() => {
+      renderCountRef.current += 1;
+      const count = renderCountRef.current;
+
+      // 異常な再レンダリングを検出
+      if (count > 10 && count % 10 === 0) {
+        console.warn(`⚠️ 多数の再レンダリングを検出: ${count}回。無限ループの可能性があります。`);
+      }
+
+      // ★★★ tasksRef の参照更新は不要。localTasks への直接代入も削除 ★★★
+      // localTasks = initialTasks; // この行を削除
+    }, [initialTasks]);
+
+    // 無限ループ修正パッチのステータスを確認
+    useEffect(() => {
+      if (!window.__GANTT_FIX_APPLIED) {
+        console.warn('ガントチャート修正パッチが適用されていません。index.htmlに記述したパッチが動作していない可能性があります。');
+      }
+
+      if (!window.__REACT_PATCHED) {
+        console.warn('React修正パッチが適用されていません。');
+
+        // ここでバックアップパッチを適用
+        if (window.React && window.React.useEffect) {
+          const originalUseEffect = window.React.useEffect;
+          window.React.useEffect = function (effect: React.EffectCallback, deps?: React.DependencyList) {
+            const stack = new Error().stack || '';
+            if (stack.includes('TaskItem') || stack.includes('GanttContent')) {
+              console.log('バックアップパッチ: ガントチャートコンポーネントのuseEffectを修正');
+              return originalUseEffect(function () {
+                try { return effect(); } catch (e) { console.error(e); }
+              }, []);
+            }
+            return originalUseEffect(effect, deps);
+          };
+          window.__REACT_PATCHED = true;
+        }
+      }
+    }, []);
+
+    // 別のパッチ方法：componentDidUpdateに影響するuseLayoutEffectを修正
+    useEffect(() => {
+      if (window.React && window.React.useLayoutEffect && !window.React.__LAYOUT_EFFECT_PATCHED) {
+        const originalUseLayoutEffect = window.React.useLayoutEffect;
+        window.React.useLayoutEffect = function (effect: React.EffectCallback, deps?: React.DependencyList) {
+          const stack = new Error().stack || '';
+          if (stack.includes('TaskItem') || stack.includes('GanttContent')) {
+            console.log('TaskItemのuseLayoutEffectを修正');
+            return originalUseLayoutEffect(function () {
+              try { return effect(); } catch (e) { console.error(e); }
+            }, []);
+          }
+          return originalUseLayoutEffect(effect, deps);
+        };
+        window.React.__LAYOUT_EFFECT_PATCHED = true;
+      }
+    }, []);
+
+    // ガントチャートライブラリの改善スクリプトを直接DOMに挿入
+    useEffect(() => {
+      // スクリプトが既に読み込まれているか確認
+      if (window.__GANTT_FIX_APPLIED) {
+        console.log('ガントチャート修正スクリプトは既に適用されています');
         return;
       }
-      const horizontalContainer = horizontalContainerRef.current;
-      const verticalContainer = verticalContainerRef.current;
-      if (!horizontalContainer || !verticalContainer) return;
-      switch(e.key) {
-        case 'ArrowLeft': e.preventDefault(); requestAnimationFrame(() => { horizontalContainer.scrollLeft -= 50; }); break;
-        case 'ArrowRight': e.preventDefault(); requestAnimationFrame(() => { horizontalContainer.scrollLeft += 50; }); break;
-        case 'ArrowUp': e.preventDefault(); requestAnimationFrame(() => { verticalContainer.scrollTop -= 30; }); break;
-        case 'ArrowDown': e.preventDefault(); requestAnimationFrame(() => { verticalContainer.scrollTop += 30; }); break;
-      }
-    };
-    const handleResize = () => { setupScrollContainers(); };
-    window.scrollGanttLeft = (amount = 100) => { const c = horizontalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollLeft -= amount; }); };
-    window.scrollGanttRight = (amount = 100) => { const c = horizontalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollLeft += amount; }); };
-    window.scrollGanttUp = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop -= amount; }); };
-    window.scrollGanttDown = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop += amount; }); };
-    const ganttElement = document.querySelector('.gantt');
-    if (ganttElement) {
-      // より互換性の高いイベントリスナーの設定
-      try {
-        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
-      } catch (err) {
-        // 古いブラウザやpassive: falseが使えない場合のフォールバック
-        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, true);
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', handleResize);
-    const cleanupData = { ganttElement, wheelHandler: handleWheel, keyHandler: handleKeyDown, resizeHandler: handleResize };
-    window.__ganttCleanupData = cleanupData;
-  }, []);
 
-  const cleanupScrollHandlers = useCallback(() => {
-    console.log('クリーンアップ: スクロールハンドラー');
-    const cleanupData = window.__ganttCleanupData;
-    if (!cleanupData) return;
-    const { ganttElement, wheelHandler, keyHandler, resizeHandler } = cleanupData;
-    if (ganttElement) ganttElement.removeEventListener('wheel', wheelHandler, { capture: true });
-    document.removeEventListener('keydown', keyHandler);
-    window.removeEventListener('resize', resizeHandler);
-    window.scrollGanttLeft = () => {};
-    window.scrollGanttRight = () => {};
-    window.scrollGanttUp = () => {};
-    window.scrollGanttDown = () => {};
-    delete window.__ganttCleanupData;
-    horizontalContainerRef.current = null;
-    verticalContainerRef.current = null;
-  }, []);
+      // 内部パッチ関数 - ReactのsetStateを特定の状況で無効化
+      const patchReactInternals = () => {
+        try {
+          // Reactは既にグローバル変数として利用可能
+          const React = (window as any).React;
+          if (!React) return;
 
-  const handlePrevious = useCallback(() => {
-    const newDate = new Date(currentStartDate);
-    switch (viewMode) {
-      case ViewMode.Day: newDate.setDate(newDate.getDate() - 1); break;
-      case ViewMode.Week: newDate.setDate(newDate.getDate() - 7); break;
-      case ViewMode.Month: newDate.setMonth(newDate.getMonth() - 1); break;
-      case ViewMode.Year: newDate.setFullYear(newDate.getFullYear() - 1); break;
-      default: newDate.setDate(newDate.getDate() - 7);
-    }
-    saveScrollPosition();
-    setCurrentStartDate(newDate);
-    setTimeout(restoreScrollPosition, 50);
-    console.log(`前の期間に移動: ${formatDate(newDate, 'yyyy-MM-dd')}`);
-  }, [viewMode, currentStartDate, saveScrollPosition, restoreScrollPosition]);
+          console.log('Reactの内部関数にパッチを適用します');
 
-  const handleNext = useCallback(() => {
-    const newDate = new Date(currentStartDate);
-    switch (viewMode) {
-      case ViewMode.Day: newDate.setDate(newDate.getDate() + 1); break;
-      case ViewMode.Week: newDate.setDate(newDate.getDate() + 7); break;
-      case ViewMode.Month: newDate.setMonth(newDate.getMonth() + 1); break;
-      case ViewMode.Year: newDate.setFullYear(newDate.getFullYear() + 1); break;
-      default: newDate.setDate(newDate.getDate() + 7);
-    }
-    saveScrollPosition();
-    setCurrentStartDate(newDate);
-    setTimeout(restoreScrollPosition, 50);
-    console.log(`次の期間に移動: ${formatDate(newDate, 'yyyy-MM-dd')}`);
-  }, [viewMode, currentStartDate, saveScrollPosition, restoreScrollPosition]);
-  
-  const dummyCallback = useCallback(() => {}, []); // 不変のダミー関数
+          // オリジナルのuseEffectを保存
+          const originalUseEffect = React.useEffect;
 
-  // ================= END HOOKS =================
-  
-  // レンダリングカウンタを更新（無限ループ検出用）
-  useEffect(() => {
-    renderCountRef.current += 1;
-    const count = renderCountRef.current;
-    
-    // 異常な再レンダリングを検出
-    if (count > 10 && count % 10 === 0) {
-      console.warn(`⚠️ 多数の再レンダリングを検出: ${count}回。無限ループの可能性があります。`);
-    }
-    
-    // ★★★ tasksRef の参照更新は不要。localTasks への直接代入も削除 ★★★
-    // localTasks = initialTasks; // この行を削除
-  }, [initialTasks]);
+          // useEffectをオーバーライド
+          React.useEffect = function (effect: React.EffectCallback, deps?: React.DependencyList) {
+            // エラースタックを取得して発信元をチェック
+            const stack = new Error().stack || '';
 
-  // 無限ループ修正パッチのステータスを確認
-  useEffect(() => {
-    if (!window.__GANTT_FIX_APPLIED) {
-      console.warn('ガントチャート修正パッチが適用されていません。index.htmlに記述したパッチが動作していない可能性があります。');
-    }
-    
-    if (!window.__REACT_PATCHED) {
-      console.warn('React修正パッチが適用されていません。');
-      
-      // ここでバックアップパッチを適用
-      if (window.React && window.React.useEffect) {
-        const originalUseEffect = window.React.useEffect;
-        window.React.useEffect = function(effect: React.EffectCallback, deps?: React.DependencyList) {
-          const stack = new Error().stack || '';
-          if (stack.includes('TaskItem') || stack.includes('GanttContent')) {
-            console.log('バックアップパッチ: ガントチャートコンポーネントのuseEffectを修正');
-            return originalUseEffect(function() {
-              try { return effect(); } catch (e) { console.error(e); }
-            }, []);
-          }
-          return originalUseEffect(effect, deps);
-        };
-        window.__REACT_PATCHED = true;
-      }
-    }
-  }, []);
-  
-  // 別のパッチ方法：componentDidUpdateに影響するuseLayoutEffectを修正
-  useEffect(() => {
-    if (window.React && window.React.useLayoutEffect && !window.React.__LAYOUT_EFFECT_PATCHED) {
-      const originalUseLayoutEffect = window.React.useLayoutEffect;
-      window.React.useLayoutEffect = function(effect: React.EffectCallback, deps?: React.DependencyList) {
-        const stack = new Error().stack || '';
-        if (stack.includes('TaskItem') || stack.includes('GanttContent')) {
-          console.log('TaskItemのuseLayoutEffectを修正');
-          return originalUseLayoutEffect(function() {
-            try { return effect(); } catch (e) { console.error(e); }
-          }, []);
+            // ガントチャート関連コンポーネントからの呼び出しの場合
+            if (stack.includes('TaskItem') || stack.includes('GanttContent')) {
+              // 空の依存配列を強制
+              return originalUseEffect(function () {
+                try { return effect(); } catch (e) { console.error(e); }
+              }, []);
+            }
+
+            // その他の通常の呼び出しはそのまま
+            return originalUseEffect(effect, deps);
+          };
+        } catch (error) {
+          console.error('Reactの内部関数のパッチ適用に失敗しました:', error);
         }
-        return originalUseLayoutEffect(effect, deps);
       };
-      window.React.__LAYOUT_EFFECT_PATCHED = true;
-    }
-  }, []);
 
-  // ガントチャートライブラリの改善スクリプトを直接DOMに挿入
-  useEffect(() => {
-    // スクリプトが既に読み込まれているか確認
-    if (window.__GANTT_FIX_APPLIED) {
-      console.log('ガントチャート修正スクリプトは既に適用されています');
-      return;
-    }
-    
-    // 内部パッチ関数 - ReactのsetStateを特定の状況で無効化
-    const patchReactInternals = () => {
-      try {
-        // Reactは既にグローバル変数として利用可能
-        const React = (window as any).React;
-        if (!React) return;
-        
-        console.log('Reactの内部関数にパッチを適用します');
-        
-        // オリジナルのuseEffectを保存
-        const originalUseEffect = React.useEffect;
-        
-        // useEffectをオーバーライド
-        React.useEffect = function(effect: React.EffectCallback, deps?: React.DependencyList) {
-          // エラースタックを取得して発信元をチェック
-          const stack = new Error().stack || '';
-          
-          // ガントチャート関連コンポーネントからの呼び出しの場合
-          if (stack.includes('TaskItem') || stack.includes('GanttContent')) {
-            // 空の依存配列を強制
-            return originalUseEffect(function() {
-              try { return effect(); } catch (e) { console.error(e); }
-            }, []);
-          }
-          
-          // その他の通常の呼び出しはそのまま
-          return originalUseEffect(effect, deps);
-        };
-      } catch (error) {
-        console.error('Reactの内部関数のパッチ適用に失敗しました:', error);
+      // ページ読み込み完了時にパッチを適用
+      if (document.readyState === 'complete') {
+        patchReactInternals();
+      } else {
+        window.addEventListener('load', patchReactInternals);
       }
-    };
-    
-    // ページ読み込み完了時にパッチを適用
-    if (document.readyState === 'complete') {
-      patchReactInternals();
-    } else {
-      window.addEventListener('load', patchReactInternals);
-    }
-    
-    return () => {
-      window.removeEventListener('load', patchReactInternals);
-    };
-  }, []);
 
-  // グローバル参照を設定（デバッグやライブラリとの連携用）
-  useEffect(() => {
-    // グローバル参照オブジェクト
-    window.ganttScrollRef = {
-      horizontal: null,
-      vertical: null
-    };
-    
-    return () => {
-      // クリーンアップ
+      return () => {
+        window.removeEventListener('load', patchReactInternals);
+      };
+    }, []);
+
+    // グローバル参照を設定（デバッグやライブラリとの連携用）
+    useEffect(() => {
+      // グローバル参照オブジェクト
       window.ganttScrollRef = {
         horizontal: null,
         vertical: null
-    };
-    };
-  }, []);
+      };
 
-  // スクロール関連の初期化・クリーンアップを集約した関数
-  useEffect(() => {
-    console.log('初期化: スクロールハンドラー');
-    
-    // スクロールコンテナを見つけてスクロール可能にする
-    const setupScrollContainers = () => {
-      const horizontalContainer = document.querySelector('.gantt-horizontal-container');
-      const verticalContainer = document.querySelector('.gantt-vertical-scroll-container');
-      
-      if (horizontalContainer) {
-        const hContainer = horizontalContainer as HTMLElement;
-        horizontalContainerRef.current = hContainer;
-        window.ganttScrollRef.horizontal = hContainer;
-        hContainer.style.overflowX = 'auto';
-        hContainer.style.touchAction = 'pan-x';
-      }
-      
-      if (verticalContainer) {
-        const vContainer = verticalContainer as HTMLElement;
-        verticalContainerRef.current = vContainer;
-        window.ganttScrollRef.vertical = vContainer;
-        vContainer.style.overflowY = 'auto';
-        vContainer.style.touchAction = 'pan-y';
-      }
-    };
-    
-    // コンテナの初期設定
-    setupScrollContainers();
-    
-    // ホイールイベントハンドラ - キャプチャフェーズで処理
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      
-      const horizontalContainer = horizontalContainerRef.current;
-      const verticalContainer = verticalContainerRef.current;
-      
-      if (!horizontalContainer || !verticalContainer) {
-        // コンテナが見つからない場合は再取得を試みる
-        setupScrollContainers();
-        return;
-      }
-      
-      const horizontalStep = e.deltaX * 0.8;
-      const verticalStep = e.deltaY * 0.8;
-      
-      // requestAnimationFrameを使用してスムーズなスクロールを実現
-      requestAnimationFrame(() => {
-        // シフトキーが押されていると水平スクロールが優先
-        if (e.shiftKey) {
-          horizontalContainer.scrollLeft += verticalStep;
-        } else {
-          // 通常は垂直/水平の両方に対応
-          if (e.deltaX !== 0) {
-            horizontalContainer.scrollLeft += horizontalStep;
-          }
-          if (e.deltaY !== 0) {
-            verticalContainer.scrollTop += verticalStep;
-          }
+      return () => {
+        // クリーンアップ
+        window.ganttScrollRef = {
+          horizontal: null,
+          vertical: null
+        };
+      };
+    }, []);
+
+    // スクロール関連の初期化・クリーンアップを集約した関数
+    useEffect(() => {
+      console.log('初期化: スクロールハンドラー');
+
+      // scrollIntoViewをオーバーライドして自動スクロールを防ぐ
+      const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+      (window as any).__ganttIsRestoringScroll = false;
+      (window as any).__ganttOriginalScrollIntoView = originalScrollIntoView;
+
+      HTMLElement.prototype.scrollIntoView = function(options?: boolean | ScrollIntoViewOptions) {
+        // スクロール位置を復元中の場合は、scrollIntoViewを無視
+        if ((window as any).__ganttIsRestoringScroll) {
+          console.log('[GanttView] scrollIntoView blocked during scroll restoration');
+          return;
         }
-      });
-    };
-    
-    // キーボードイベントハンドラ
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // アクティブな要素がテキスト入力の場合はスキップ
-      if (document.activeElement?.tagName === 'INPUT' || 
-          document.activeElement?.tagName === 'TEXTAREA' || 
-          (document.activeElement as HTMLElement)?.isContentEditable) {
-        return;
-      }
-      
-      const horizontalContainer = horizontalContainerRef.current;
-      const verticalContainer = verticalContainerRef.current;
-      
-      if (!horizontalContainer || !verticalContainer) return;
-      
-      // 矢印キーによるスクロール
-      switch(e.key) {
-        case 'ArrowLeft':
-          e.preventDefault();
-          requestAnimationFrame(() => {
-            horizontalContainer.scrollLeft -= 50;
-          });
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          requestAnimationFrame(() => {
-            horizontalContainer.scrollLeft += 50;
-          });
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          requestAnimationFrame(() => {
-            verticalContainer.scrollTop -= 30;
-          });
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          requestAnimationFrame(() => {
-            verticalContainer.scrollTop += 30;
-          });
-          break;
-      }
-    };
-    
-    // リサイズ時にコンテナを再取得
-    const handleResize = () => {
+
+        // ガントチャートコンテナ内の要素の場合は、scrollIntoViewを無視
+        const ganttContainer = this.closest('.gantt-container, .gantt-horizontal-container, .gantt-vertical-scroll-container');
+        if (ganttContainer && scrollPositionRef.current) {
+          console.log('[GanttView] scrollIntoView blocked for gantt element to preserve scroll position');
+          return;
+        }
+
+        // その他の場合は通常通り実行
+        return originalScrollIntoView.call(this, options);
+      };
+
+      // スクロールコンテナを見つけてスクロール可能にする
+      const setupScrollContainers = () => {
+        const horizontalContainer = document.querySelector('.gantt-horizontal-container');
+        const verticalContainer = document.querySelector('.gantt-vertical-scroll-container');
+
+        if (horizontalContainer) {
+          const hContainer = horizontalContainer as HTMLElement;
+          horizontalContainerRef.current = hContainer;
+          window.ganttScrollRef.horizontal = hContainer;
+          hContainer.style.overflowX = 'auto';
+          hContainer.style.touchAction = 'pan-x';
+        }
+
+        if (verticalContainer) {
+          const vContainer = verticalContainer as HTMLElement;
+          verticalContainerRef.current = vContainer;
+          window.ganttScrollRef.vertical = vContainer;
+          vContainer.style.overflowY = 'auto';
+          vContainer.style.touchAction = 'pan-y';
+        }
+      };
+
+      // コンテナの初期設定
       setupScrollContainers();
-    };
-    
-    // グローバルスクロール関数を定義
-    window.scrollGanttLeft = (amount = 100) => {
-      const container = horizontalContainerRef.current;
-      if (container) {
-        requestAnimationFrame(() => {
-          container.scrollLeft -= amount;
-        });
-      }
-    };
-    
-    window.scrollGanttRight = (amount = 100) => {
-      const container = horizontalContainerRef.current;
-      if (container) {
-        requestAnimationFrame(() => {
-          container.scrollLeft += amount;
-        });
-      }
-    };
-    
-    window.scrollGanttUp = (amount = 50) => {
-      const container = verticalContainerRef.current;
-      if (container) {
-        requestAnimationFrame(() => {
-          container.scrollTop -= amount;
-        });
-      }
-    };
-    
-    window.scrollGanttDown = (amount = 50) => {
-      const container = verticalContainerRef.current;
-      if (container) {
-        requestAnimationFrame(() => {
-          container.scrollTop += amount;
-        });
-      }
-    };
-    
-    // イベントリスナーの登録
-    const ganttElement = document.querySelector('.gantt');
-    if (ganttElement) {
-      // より互換性の高いイベントリスナーの設定
-      try {
-        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
-      } catch (err) {
-        // 古いブラウザやpassive: falseが使えない場合のフォールバック
-        ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, true);
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', handleResize);
-    
-    // イベントリスナーとコンテナの参照を保存（後でクリーンアップ用）
-    const cleanupData = { ganttElement, wheelHandler: handleWheel, keyHandler: handleKeyDown, resizeHandler: handleResize }; // <<< resizeHandler を追加
-    window.__ganttCleanupData = cleanupData; // <<< クリーンアップ関数から参照できるように window に保存
-    
-    // ★★★ クリーンアップ関数の中身を一時的にコメントアウト ★★★
-    return () => {
-      console.log('クリーンアップ: スクロールハンドラー (useEffect内) - 現在無効化中');
-      // const savedCleanupData = window.__ganttCleanupData; // 保存したデータを取得
-      // if (!savedCleanupData) return;
-      // const { ganttElement: el, wheelHandler: wh, keyHandler: kh, resizeHandler: rh } = savedCleanupData; // 分割代入
 
-      // if (el) el.removeEventListener('wheel', wh as EventListenerOrEventListenerObject, { capture: true });
-      // document.removeEventListener('keydown', kh);
-      // window.removeEventListener('resize', rh);
+      // ホイールイベントハンドラ - キャプチャフェーズで処理
+      const handleWheel = (e: WheelEvent) => {
+        e.preventDefault();
 
-      // グローバル関数もクリーンアップ
-      // window.scrollGanttLeft = () => {};
-      // window.scrollGanttRight = () => {};
-      // window.scrollGanttUp = () => {};
-      // window.scrollGanttDown = () => {};
-      // delete window.__ganttCleanupData; // 不要になったデータを削除
-      // horizontalContainerRef.current = null; // Ref もクリア
-      // verticalContainerRef.current = null;
-    };
-  }, []); // ★★★ 依存配列を空にする ★★★
+        const horizontalContainer = horizontalContainerRef.current;
+        const verticalContainer = verticalContainerRef.current;
 
-  // コンポーネントがマウントされたことを確認
-  useEffect(() => {
+        if (!horizontalContainer || !verticalContainer) {
+          // コンテナが見つからない場合は再取得を試みる
+          setupScrollContainers();
+          return;
+        }
+
+        const horizontalStep = e.deltaX * 0.8;
+        const verticalStep = e.deltaY * 0.8;
+
+        // requestAnimationFrameを使用してスムーズなスクロールを実現
+        requestAnimationFrame(() => {
+          // シフトキーが押されていると水平スクロールが優先
+          if (e.shiftKey) {
+            horizontalContainer.scrollLeft += verticalStep;
+          } else {
+            // 通常は垂直/水平の両方に対応
+            if (e.deltaX !== 0) {
+              horizontalContainer.scrollLeft += horizontalStep;
+            }
+            if (e.deltaY !== 0) {
+              verticalContainer.scrollTop += verticalStep;
+            }
+          }
+        });
+      };
+
+      // キーボードイベントハンドラ
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // アクティブな要素がテキスト入力の場合はスキップ
+        if (document.activeElement?.tagName === 'INPUT' ||
+          document.activeElement?.tagName === 'TEXTAREA' ||
+          (document.activeElement as HTMLElement)?.isContentEditable) {
+          return;
+        }
+
+        const horizontalContainer = horizontalContainerRef.current;
+        const verticalContainer = verticalContainerRef.current;
+
+        if (!horizontalContainer || !verticalContainer) return;
+
+        // 矢印キーによるスクロール
+        switch (e.key) {
+          case 'ArrowLeft':
+            e.preventDefault();
+            requestAnimationFrame(() => {
+              horizontalContainer.scrollLeft -= 50;
+            });
+            break;
+          case 'ArrowRight':
+            e.preventDefault();
+            requestAnimationFrame(() => {
+              horizontalContainer.scrollLeft += 50;
+            });
+            break;
+          case 'ArrowUp':
+            e.preventDefault();
+            requestAnimationFrame(() => {
+              verticalContainer.scrollTop -= 30;
+            });
+            break;
+          case 'ArrowDown':
+            e.preventDefault();
+            requestAnimationFrame(() => {
+              verticalContainer.scrollTop += 30;
+            });
+            break;
+        }
+      };
+
+      // リサイズ時にコンテナを再取得
+      const handleResize = () => {
+        setupScrollContainers();
+      };
+
+      // グローバルスクロール関数を定義
+      window.scrollGanttLeft = (amount = 100) => {
+        const container = horizontalContainerRef.current;
+        if (container) {
+          requestAnimationFrame(() => {
+            container.scrollLeft -= amount;
+          });
+        }
+      };
+
+      window.scrollGanttRight = (amount = 100) => {
+        const container = horizontalContainerRef.current;
+        if (container) {
+          requestAnimationFrame(() => {
+            container.scrollLeft += amount;
+          });
+        }
+      };
+
+      window.scrollGanttUp = (amount = 50) => {
+        const container = verticalContainerRef.current;
+        if (container) {
+          requestAnimationFrame(() => {
+            container.scrollTop -= amount;
+          });
+        }
+      };
+
+      window.scrollGanttDown = (amount = 50) => {
+        const container = verticalContainerRef.current;
+        if (container) {
+          requestAnimationFrame(() => {
+            container.scrollTop += amount;
+          });
+        }
+      };
+
+      // イベントリスナーの登録
+      const ganttElement = document.querySelector('.gantt');
+      if (ganttElement) {
+        // より互換性の高いイベントリスナーの設定
+        try {
+          ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, { passive: false, capture: true });
+        } catch (err) {
+          // 古いブラウザやpassive: falseが使えない場合のフォールバック
+          ganttElement.addEventListener('wheel', handleWheel as EventListenerOrEventListenerObject, true);
+        }
+      }
+      document.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('resize', handleResize);
+
+      // イベントリスナーとコンテナの参照を保存（後でクリーンアップ用）
+      const cleanupData = { ganttElement, wheelHandler: handleWheel, keyHandler: handleKeyDown, resizeHandler: handleResize }; // <<< resizeHandler を追加
+      window.__ganttCleanupData = cleanupData; // <<< クリーンアップ関数から参照できるように window に保存
+
+      // ★★★ クリーンアップ関数の中身を一時的にコメントアウト ★★★
+      return () => {
+        console.log('クリーンアップ: スクロールハンドラー (useEffect内)');
+        
+        // scrollIntoViewを元に戻す
+        if ((window as any).__ganttOriginalScrollIntoView) {
+          HTMLElement.prototype.scrollIntoView = (window as any).__ganttOriginalScrollIntoView;
+          delete (window as any).__ganttOriginalScrollIntoView;
+        }
+        delete (window as any).__ganttIsRestoringScroll;
+        
+        // const savedCleanupData = window.__ganttCleanupData; // 保存したデータを取得
+        // if (!savedCleanupData) return;
+        // const { ganttElement: el, wheelHandler: wh, keyHandler: kh, resizeHandler: rh } = savedCleanupData; // 分割代入
+
+        // if (el) el.removeEventListener('wheel', wh as EventListenerOrEventListenerObject, { capture: true });
+        // document.removeEventListener('keydown', kh);
+        // window.removeEventListener('resize', rh);
+
+        // グローバル関数もクリーンアップ
+        // window.scrollGanttLeft = () => {};
+        // window.scrollGanttRight = () => {};
+        // window.scrollGanttUp = () => {};
+        // window.scrollGanttDown = () => {};
+        // delete window.__ganttCleanupData; // 不要になったデータを削除
+        // horizontalContainerRef.current = null; // Ref もクリア
+        // verticalContainerRef.current = null;
+      };
+    }, []); // ★★★ 依存配列を空にする ★★★
+
+    // コンポーネントがマウントされたことを確認
+    useEffect(() => {
       console.log('マウント処理開始');
-    // マウント後、少し遅延させてからレンダリング許可
-    const timer = setTimeout(() => {
+      // マウント後、少し遅延させてからレンダリング許可
+      const timer = setTimeout(() => {
         console.log('マウント状態をtrueに設定');
-      setIsMountedState(true);
+        setIsMountedState(true);
         initializeScrollHandlers();
-    }, 300);
-    
-    return () => {
-      clearTimeout(timer);
+      }, 300);
+
+      return () => {
+        clearTimeout(timer);
         setIsMountedState(false);
         // cleanupScrollHandlers(); // ★★★ 一時的にコメントアウト ★★★
-    };
-    // }, [initializeScrollHandlers, cleanupScrollHandlers]); // 依存配列も調整が必要な場合がある
+      };
+      // }, [initializeScrollHandlers, cleanupScrollHandlers]); // 依存配列も調整が必要な場合がある
     }, [initializeScrollHandlers]); // cleanupScrollHandlers を使わないので依存配列から削除
 
-  // ★★★ selectedProjectIdRef を使っていた useEffect を削除 ★★★
-  // useEffect(() => {
-  //   selectedProjectIdRef.current = selectedProjectId;
-  // }, [selectedProjectId]);
+    // ★★★ selectedProjectIdRef を使っていた useEffect を削除 ★★★
+    // useEffect(() => {
+    //   selectedProjectIdRef.current = selectedProjectId;
+    // }, [selectedProjectId]);
 
-  // ★★★ エラー/ローディング状態を追加 (必要に応じて) ★★★
-  // ★★★ 移動済みのため削除 ★★★
-  // const [isLoadingData, setIsLoadingData] = useState(false);
-  // const [fetchError, setFetchError] = useState<string | null>(null);
+    // ★★★ エラー/ローディング状態を追加 (必要に応じて) ★★★
+    // ★★★ 移動済みのため削除 ★★★
+    // const [isLoadingData, setIsLoadingData] = useState(false);
+    // const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // ★★★ handleAuthError が未定義の場合に定義 (既存のものを確認) ★★★
-  // ★★★ 移動済みのため削除 ★★★
-  // const navigate = useNavigate(); // useNavigateフックを取得
-  // const location = useLocation(); // useLocation を使用
-  // const [authErrorOpen, setAuthErrorOpen] = useState(false);
-  // 認証エラーダイアログの表示ロジックも必要...
+    // ★★★ handleAuthError が未定義の場合に定義 (既存のものを確認) ★★★
+    // ★★★ 移動済みのため削除 ★★★
+    // const navigate = useNavigate(); // useNavigateフックを取得
+    // const location = useLocation(); // useLocation を使用
+    // const [authErrorOpen, setAuthErrorOpen] = useState(false);
+    // 認証エラーダイアログの表示ロジックも必要...
 
-  // データ取得関数 (既存の fetchData を useCallback でラップ)
+    // データ取得関数 (既存の fetchData を useCallback でラップ)
 
 
-  // ★★★ マウント時に最新データを取得する useEffect を追加 ★★★
-  // ただし、親から既にタスクが渡されている場合（MetricsPageからの使用など）はfetchしない
-  useEffect(() => {
-    // 初期タスクが空の場合のみfetchData（独立ページとして使用される場合）
-    if (initialTasks.length === 0) {
-      console.log("GanttView マウント: initialTasksが空なので、最新データを取得します...");
-      fetchData();
-    } else {
-      console.log(`GanttView マウント: 親から${initialTasks.length}件のタスクを受け取りました。fetchDataはスキップします。`);
-      setIsGanttReady(true); // データは既にあるので準備完了
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ★★★ マウント時のみ実行 ★★★
+    // ★★★ マウント時に最新データを取得する useEffect を追加 ★★★
+    // ただし、親から既にタスクが渡されている場合（MetricsPageからの使用など）はfetchしない
+    useEffect(() => {
+      // 初期タスクが空の場合のみfetchData（独立ページとして使用される場合）
+      if (initialTasks.length === 0) {
+        console.log("GanttView マウント: initialTasksが空なので、最新データを取得します...");
+        fetchData();
+      } else {
+        console.log(`GanttView マウント: 親から${initialTasks.length}件のタスクを受け取りました。fetchDataはスキップします。`);
+        setIsGanttReady(true); // データは既にあるので準備完了
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // ★★★ マウント時のみ実行 ★★★
 
-  // 既存の initialTasks 変更時の useEffect はコメントアウトまたは削除
-  /*
-  useEffect(() => {
-      console.log("Initial tasks prop が変更されました:", initialTasks);
-      // マウント時にfetchDataするので、これは不要になる可能性が高い
-      // tasksRef.current = initialTasks;
-      // setLocalTasks(initialTasks);
-    }, [initialTasks]);
-  */
+    // 既存の initialTasks 変更時の useEffect はコメントアウトまたは削除
+    /*
+    useEffect(() => {
+        console.log("Initial tasks prop が変更されました:", initialTasks);
+        // マウント時にfetchDataするので、これは不要になる可能性が高い
+        // tasksRef.current = initialTasks;
+        // setLocalTasks(initialTasks);
+      }, [initialTasks]);
+    */
 
-  // ★★★ gtrTasks の useMemo (変更なし、内部の getProjectName/getUserName 呼び出しは有効になる) ★★★
-  const gtrTasks = useMemo((): CustomGtrTask[] => {
-    // isMountedState チェックは削除（マウント後にデータ取得するため）
-    // if (!isMountedState) { ... }
+    // ★★★ gtrTasks の useMemo (変更なし、内部の getProjectName/getUserName 呼び出しは有効になる) ★★★
+    const gtrTasks = useMemo((): CustomGtrTask[] => {
+      // isMountedState チェックは削除（マウント後にデータ取得するため）
+      // if (!isMountedState) { ... }
 
-    // ★★★ initialTasks を直接使用 ★★★
-    if (!localTasks || localTasks.length === 0) {
-      console.log('gtrTasks生成: localTasks が空です。空配列を返します。');
-      return [];
-    }
+      // ★★★ initialTasks を直接使用 ★★★
+      if (!localTasks || localTasks.length === 0) {
+        console.log('gtrTasks生成: localTasks が空です。空配列を返します。');
+        return [];
+      }
 
-    console.log('gtrTasks生成: localTasks数 =', localTasks.length);
-    console.log("DEBUG: useMemo フィルタリング前: localTasks=", JSON.stringify(localTasks.map(t => ({id: t.id, name: t.name, project_id: t.project_id, start_date: t.start_date, due_date: t.due_date, dependsOn: t.dependsOn})), null, 2));
-    console.log("DEBUG: useMemo フィルタリング前: projects=", JSON.stringify(projects, null, 2)); // projects確認用
-    console.log("DEBUG: useMemo フィルタリング前: users=", JSON.stringify(users, null, 2)); // users確認用
+      console.log('gtrTasks生成: localTasks数 =', localTasks.length);
+      console.log("DEBUG: useMemo フィルタリング前: localTasks=", JSON.stringify(localTasks.map(t => ({ id: t.id, name: t.name, project_id: t.project_id, start_date: t.start_date, due_date: t.due_date, dependsOn: t.dependsOn })), null, 2));
+      console.log("DEBUG: useMemo フィルタリング前: projects=", JSON.stringify(projects, null, 2)); // projects確認用
+      console.log("DEBUG: useMemo フィルタリング前: users=", JSON.stringify(users, null, 2)); // users確認用
 
-    // 1. 上位でフィルター済みのタスクをそのまま使用
-    const projectFilteredTasks = localTasks;
-    console.log(`フィルタリング後のタスク数: ${projectFilteredTasks.length}個`);
+      // 1. 上位でフィルター済みのタスクをそのまま使用
+      const projectFilteredTasks = localTasks;
+      console.log(`フィルタリング後のタスク数: ${projectFilteredTasks.length}個`);
 
-    // 2. GtrTask への変換と検証
-    const mappedTasks = projectFilteredTasks
-      .map((task): CustomGtrTask | null => {
-        // 日付の存在チェック
-        if (!task.start_date || !task.due_date) {
-          console.warn(`Task ${task.id} (${task.name}) skipped: Missing start_date or due_date.`);
-          return null;
-        }
-        try {
-          const startDate = parseISO(task.start_date);
-          const endDate = parseISO(task.due_date);
-
-          // 日付の有効性チェック
-          if (!isValid(startDate) || !isValid(endDate)) {
-            console.warn(`Task ${task.id} (${task.name}) skipped: Invalid date format. Start: ${task.start_date}, End: ${task.due_date}`);
+      // 2. GtrTask への変換と検証
+      const mappedTasks = projectFilteredTasks
+        .map((task): CustomGtrTask | null => {
+          // 日付の存在チェック
+          if (!task.start_date || !task.due_date) {
+            console.warn(`Task ${task.id} (${task.name}) skipped: Missing start_date or due_date.`);
             return null;
           }
+          try {
+            const startDate = parseISO(task.start_date);
+            const endDate = parseISO(task.due_date);
 
-          // 終了日が開始日より前の場合のチェック（調整はしない、スキップする）
-          if (endDate < startDate) {
-            console.warn(`Task ${task.id} (${task.name}) skipped: End date (${formatDate(endDate, 'yyyy-MM-dd')}) is before start date (${formatDate(startDate, 'yyyy-MM-dd')}).`);
-            return null;
-          }
+            // 日付の有効性チェック
+            if (!isValid(startDate) || !isValid(endDate)) {
+              console.warn(`Task ${task.id} (${task.name}) skipped: Invalid date format. Start: ${task.start_date}, End: ${task.due_date}`);
+              return null;
+            }
 
-          // ★★★ 依存関係IDの解決 (簡略版 - task.id がモックIDの数値部分と一致すると仮定) ★★★
-          let resolvedDependencies: string[] | undefined = undefined;
-          if (task.dependsOn && task.dependsOn.length > 0) {
-            resolvedDependencies = [];
-            for (const mockDepId of task.dependsOn) { // mockDepId は "task-1" のような形式
-              const numericIdMatch = mockDepId.match(/\d+$/); // "task-123" から "123" を抽出
-              if (numericIdMatch) {
-                const numericDepIdStr = numericIdMatch[0]; // "1", "2", ...
-                resolvedDependencies.push(numericDepIdStr);
-              } else {
-                console.warn(`Could not parse numeric ID from dependency: Mock ID "${mockDepId}" for task "${task.name}" (ID: ${task.id})`);
+            // 終了日が開始日より前の場合のチェック（調整はしない、スキップする）
+            if (endDate < startDate) {
+              console.warn(`Task ${task.id} (${task.name}) skipped: End date (${formatDate(endDate, 'yyyy-MM-dd')}) is before start date (${formatDate(startDate, 'yyyy-MM-dd')}).`);
+              return null;
+            }
+
+            // ★★★ 依存関係IDの解決 (簡略版 - task.id がモックIDの数値部分と一致すると仮定) ★★★
+            let resolvedDependencies: string[] | undefined = undefined;
+            if (task.dependsOn && task.dependsOn.length > 0) {
+              resolvedDependencies = [];
+              for (const mockDepId of task.dependsOn) { // mockDepId は "task-1" のような形式
+                const numericIdMatch = mockDepId.match(/\d+$/); // "task-123" から "123" を抽出
+                if (numericIdMatch) {
+                  const numericDepIdStr = numericIdMatch[0]; // "1", "2", ...
+                  resolvedDependencies.push(numericDepIdStr);
+                } else {
+                  console.warn(`Could not parse numeric ID from dependency: Mock ID "${mockDepId}" for task "${task.name}" (ID: ${task.id})`);
+                }
+              }
+              if (resolvedDependencies.length === 0) {
+                resolvedDependencies = undefined;
               }
             }
-            if (resolvedDependencies.length === 0) {
-              resolvedDependencies = undefined;
+            // ★★★ ここまで依存関係IDの解決 ★★★
+
+            const coreName = getCoreTaskName(task.name);
+            const originalFullName = task.name || '';
+
+            const gtrTask: CustomGtrTask = {
+              id: String(task.id),
+              name: coreName,
+              start: parseISO(task.start_date as string), // nullチェック済みなのでas string
+              end: parseISO(task.due_date as string),   // nullチェック済みなのでas string
+              progress: calculateProgress(task),
+              type: 'task' as const,
+              projectId: String(task.project_id),
+              project: getProjectName(task.project_id ?? null, projects || []),
+              dependencies: resolvedDependencies, // ★ 解決済みの依存関係を使用
+              styles: getTaskStyle(task),
+              isDisabled: readOnly,
+              fullName: originalFullName,
+            };
+            return gtrTask;
+          } catch (e) {
+            console.error(`Error mapping task ${task.id} (${task.name}):`, e, task);
+            return null;
+          }
+        })
+        .filter((task): task is CustomGtrTask => task !== null);
+
+      console.log("Mapped and validated ganttTasks (raw):", mappedTasks);
+      console.log("Mapped and validated ganttTasks (with dependencies):", JSON.stringify(mappedTasks.filter(t => t.dependencies && t.dependencies.length > 0).map(t => ({ id: t.id, name: t.name, dependencies: t.dependencies })), null, 2));
+
+      const taskIds = new Set(mappedTasks.map(t => t.id));
+      const finalTasks = mappedTasks.filter(task => {
+        if (task.dependencies && task.dependencies.length > 0) {
+          const validDependencies = task.dependencies.filter(depId => {
+            const dependencyExists = taskIds.has(depId);
+            if (!dependencyExists) { // logEnabled を考慮せず、常に警告を表示
+              console.warn(
+                `Task "${task.name}" (ID: ${task.id}) has a dependency on a non-existent or filtered task ID: "${depId}". ` +
+                `This dependency will be ignored. Check if the dependent task is part of the current project/date filter.`
+              );
+            }
+            return dependencyExists;
+          });
+          task.dependencies = validDependencies.length > 0 ? validDependencies : undefined;
+        }
+        return true;
+      });
+
+      // ★★★ デバッグログ追加 ★★★
+      console.log("DEBUG: Final GTR tasks for Gantt (with dependencies):", JSON.stringify(finalTasks.filter(t => t.dependencies && t.dependencies.length > 0), null, 2));
+      const exampleTaskWithDeps = finalTasks.find(t => t.id === "2"); // 例: ID "2" のタスク (タスク2)
+      if (exampleTaskWithDeps) {
+        console.log("DEBUG: Example Task (ID '2') details for Gantt:", JSON.stringify(exampleTaskWithDeps, null, 2));
+      }
+      // ★★★ ここまで ★★★
+
+      // logEnabled の条件を削除し、常にログ出力
+      console.log(`[GanttView] gtrTasks useMemo: Mapped ${mappedTasks.length} tasks to GtrTasks, Final ${finalTasks.length} tasks after dependency validation.`, { localTasksLength: localTasks.length });
+
+      if (finalTasks.length === 0 && projectFilteredTasks.length > 0) {
+        console.warn('All tasks were filtered out during mapping/validation. Check date formats, start/end order, and dependencies.');
+      }
+
+      // ★★★ スマートソートの適用 ★★★
+      // 依存関係と日付を考慮して並び替えることで、矢印の重なりを軽減する
+      const sortedTasks = smartSortTasks(finalTasks);
+
+      // ★★★ 依存関係チェーンごとのスタッガリング（時間のずらし）適用 ★★★
+      // 依存関係の線が重ならないように、つながりのあるタスク群ごとに少し時間をずらす
+      const staggeredTasks = applyDependencyStaggering(sortedTasks);
+
+      // ★★★ デバッグログ追加 ★★★
+      console.log("DEBUG: Final GTR tasks for Gantt (sorted & staggered):", JSON.stringify(staggeredTasks.filter(t => t.dependencies && t.dependencies.length > 0).map(t => ({ name: t.name, start: t.start })), null, 2));
+
+      return staggeredTasks;
+
+
+    }, [localTasks, projects, users, readOnly]); // ★★★ 依存配列から selectedProjectId を削除 ★★★
+
+    // フィルター処理用の useMemo は削除 (未使用のため)
+
+    // ★★★ 依存関係を再帰的に取得するヘルパー関数 ★★★
+
+
+    // ★★★ ライブラリ表示用タスクリスト（依存関係を削除 ＆ 関連タスクハイライト） ★★★
+    // これにより、デフォルトの矢印描画を抑制し、クリック時にバーの色を変える
+    const gtrTasksForDisplay = useMemo(() => {
+      // 1. タスクが選択されていない場合はそのまま返す（デフォルトの矢印を表示）
+      if (!selectedTaskId) {
+        return gtrTasks;
+      }
+
+      // 2. 関連タスクのIDを特定
+      const relatedIds = getAllRelatedTaskIds(selectedTaskId, gtrTasks);
+
+      // 3. タスクをフィルタリング・加工して返す（ネイティブの矢印を表示する）
+      return gtrTasks.map((t: CustomGtrTask) => {
+        // 関連するタスク (選択タスク含む) -> 依存関係を保持し、色は元のまま
+        if (relatedIds.has(t.id)) {
+          // 依存先も relatedIds に含まれているものだけに絞る（念のため）
+          const filteredDependencies = t.dependencies?.filter(depId => relatedIds.has(depId));
+          return {
+            ...t,
+            dependencies: filteredDependencies // ネイティブの矢印描画を使用するため依存関係を残す
+          };
+        }
+
+        // 関連しないタスク -> 依存関係を削除し、薄く表示
+        return {
+          ...t,
+          dependencies: [], // 矢印を表示しない
+          styles: {
+            ...t.styles,
+            backgroundColor: '#eeeeee',
+            backgroundSelectedColor: '#bdbdbd',
+            progressColor: '#e0e0e0',
+            progressSelectedColor: '#bdbdbd'
+          }
+        };
+      });
+    }, [gtrTasks, selectedTaskId]);
+
+    // コンポーネント内の状態変数を追加
+    // ★★★ 移動済みのため削除 ★★★
+    // const [isSaving, setIsSaving] = useState(false);
+    // const [error, setError] = useState<string | null>(null);
+    // const [editedTask, setEditedTask] = useState<string | null>(null);
+    // const [localTasks, setLocalTasks] = useState<Task[]>([]);
+
+    // useEffectでタスクが変更されたときの処理
+    //useEffect(() => {
+    //    console.log("タスクが更新されました:", initialTasks);
+    //    localTasks = initialTasks;
+    //    // setLocalTasks(initialTasks); // localTasksを更新
+    //  }, [initialTasks]);
+
+    // ★★★ 実際の更新処理 (デバウンス後に呼ばれる) ★★★
+    const runTaskDateUpdate = useCallback((task: GtrTask, startDate: Date, endDate: Date) => {
+      // isSaving チェックはデバウンス後の処理開始時に行う
+      if (isSaving) {
+        console.warn("Debounced task date change skipped: Save operation already in progress.");
+        return;
+      }
+      console.log("Executing debounced task date change for:", task.id);
+
+      // --- ここから元々の handleTaskDateChange 内のロジック (日付比較以降) ---
+      try {
+        // 終了日が開始日より前の調整
+        let endDateToUse = new Date(endDate.getTime()); // コピーを作成
+        if (endDateToUse < startDate) {
+          let originalDurationDays = 0;
+          // ★★★ localTasks を参照 ★★★
+          const originalTask = localTasks.find(t => t.id.toString() === task.id.toString());
+          if (originalTask && originalTask.start_date && originalTask.due_date) {
+            const origStart = parseISO(originalTask.start_date);
+            const origEnd = parseISO(originalTask.due_date);
+            if (isValid(origStart) && isValid(origEnd) && origEnd >= origStart) {
+              originalDurationDays = differenceInCalendarDays(origEnd, origStart);
+            }
+          } else {
+            console.warn(`Task ${task.id}: Cannot find original task data in localTasks to calculate duration. Using current task duration.`);
+            const currentTaskStart = new Date(task.start);
+            const currentTaskEnd = new Date(task.end);
+            if (isValid(currentTaskStart) && isValid(currentTaskEnd) && currentTaskEnd >= currentTaskStart) {
+              originalDurationDays = differenceInCalendarDays(currentTaskEnd, currentTaskStart);
+            } else {
+              originalDurationDays = 0; // 最低0日
             }
           }
-          // ★★★ ここまで依存関係IDの解決 ★★★
-
-          const coreName = getCoreTaskName(task.name);
-          const originalFullName = task.name || '';
-
-          const gtrTask: CustomGtrTask = {
-            id: String(task.id), 
-            name: coreName, 
-            start: parseISO(task.start_date as string), // nullチェック済みなのでas string
-            end: parseISO(task.due_date as string),   // nullチェック済みなのでas string
-            progress: calculateProgress(task), 
-            type: 'task' as const,
-            projectId: String(task.project_id), 
-            project: getProjectName(task.project_id ?? null, projects || []), 
-            dependencies: resolvedDependencies, // ★ 解決済みの依存関係を使用
-            styles: getTaskStyle(task), 
-            isDisabled: readOnly,
-            fullName: originalFullName, 
-          };
-          return gtrTask;
-        } catch (e) {
-          console.error(`Error mapping task ${task.id} (${task.name}):`, e, task);
-          return null;
+          console.warn(`End date was before start date. Adjusting end date using duration (${originalDurationDays} days).`);
+          endDateToUse = addDays(startDate, originalDurationDays);
+          console.log(`  -> Adjusted End Date: ${formatDate(endDateToUse, 'yyyy-MM-dd HH:mm:ss')}`);
         }
-      })
-      .filter((task): task is CustomGtrTask => task !== null); 
 
-    console.log("Mapped and validated ganttTasks (raw):", mappedTasks);
-    console.log("Mapped and validated ganttTasks (with dependencies):", JSON.stringify(mappedTasks.filter(t => t.dependencies && t.dependencies.length > 0).map(t => ({ id: t.id, name: t.name, dependencies: t.dependencies })), null, 2));
+        // 日付変更チェック
+        let datesChanged = true;
+        // ★★★ localTasks を参照 ★★★
+        const currentTaskState = localTasks.find(t => t.id.toString() === task.id.toString());
+        if (currentTaskState && currentTaskState.start_date && currentTaskState.due_date) {
+          // ★★★ parseISO を使う ★★★
+          const currentStart = startOfDay(parseISO(currentTaskState.start_date));
+          const currentEnd = startOfDay(parseISO(currentTaskState.due_date));
+          const newStartDay = startOfDay(startDate); // 引数の startDate を使用
+          const newEndDay = startOfDay(endDateToUse); // 調整後の endDateToUse を使用
 
-    const taskIds = new Set(mappedTasks.map(t => t.id));
-    const finalTasks = mappedTasks.filter(task => {
-      if (task.dependencies && task.dependencies.length > 0) {
-        const validDependencies = task.dependencies.filter(depId => {
-          const dependencyExists = taskIds.has(depId);
-          if (!dependencyExists) { // logEnabled を考慮せず、常に警告を表示
-            console.warn(
-              `Task "${task.name}" (ID: ${task.id}) has a dependency on a non-existent or filtered task ID: "${depId}". ` +
-              `This dependency will be ignored. Check if the dependent task is part of the current project/date filter.`
-            );
+          console.log(`Comparing dates for Task ID=${task.id}:`);
+          console.log(`  - New Start (UI): ${formatDate(newStartDay, 'yyyy-MM-dd')}`);
+          console.log(`  - New End (UI):   ${formatDate(newEndDay, 'yyyy-MM-dd')}`);
+          console.log(`  - Current Start (DB): ${formatDate(currentStart, 'yyyy-MM-dd')} (from ${currentTaskState.start_date})`);
+          console.log(`  - Current End (DB):   ${formatDate(currentEnd, 'yyyy-MM-dd')} (from ${currentTaskState.due_date})`);
+
+          if (isEqual(newStartDay, currentStart) && isEqual(newEndDay, currentEnd)) {
+            console.log(`  -> No change detected compared to current data. Skipping API call.`);
+            datesChanged = false;
+            return; // API呼び出しスキップ
+          }
+        } else {
+          console.warn(`  -> Current task state not found in localTasks for ID ${task.id}. Assuming change.`);
+          datesChanged = true;
         }
-          return dependencyExists;
-        });
-        task.dependencies = validDependencies.length > 0 ? validDependencies : undefined;
-      }
-      return true;
-    });
 
-    // ★★★ デバッグログ追加 ★★★
-    console.log("DEBUG: Final GTR tasks for Gantt (with dependencies):", JSON.stringify(finalTasks.filter(t => t.dependencies && t.dependencies.length > 0), null, 2));
-    const exampleTaskWithDeps = finalTasks.find(t => t.id === "2"); // 例: ID "2" のタスク (タスク2)
-    if (exampleTaskWithDeps) {
-      console.log("DEBUG: Example Task (ID '2') details for Gantt:", JSON.stringify(exampleTaskWithDeps, null, 2));
-    }
-    // ★★★ ここまで ★★★
-
-    // logEnabled の条件を削除し、常にログ出力
-    console.log(`[GanttView] gtrTasks useMemo: Mapped ${mappedTasks.length} tasks to GtrTasks, Final ${finalTasks.length} tasks after dependency validation.`, { localTasksLength: localTasks.length });
-
-    if (finalTasks.length === 0 && projectFilteredTasks.length > 0) {
-         console.warn('All tasks were filtered out during mapping/validation. Check date formats, start/end order, and dependencies.');
-    }
-
-    return finalTasks;
-  }, [localTasks, projects, users, readOnly]); // ★★★ 依存配列から selectedProjectId を削除 ★★★
-
-  // ★★★ フィルター処理用の useMemo (現状はダミー) ★★★
-  const filteredTasks = useMemo(() => {
-      let tempTasks = gtrTasks; // gtrTasks をベースにする
-      // ここに実際のフィルターロジックを追加する
-      // 例:
-      // if (searchTerm) {
-      //   tempTasks = tempTasks.filter(task => task.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      // }
-      // if (selectedAssignee !== 'all') {
-      //   tempTasks = tempTasks.filter(task => getUserName(task.assigneeId, users) === selectedAssignee) // assigneeId が必要
-      // }
-      console.log("Filtered tasks (currently same as mapped):", tempTasks.length);
-      return tempTasks;
-  }, [gtrTasks /* , searchTerm, selectedAssignee */]); // ★★★ 依存配列に gtrTasks とフィルター条件を追加 ★★★
-
-  // メモ化したタスクリスト
-  const memoizedGtrTasks = useMemo(() => {
-    return [...gtrTasks];
-  }, [gtrTasks]);
-
-  // コンポーネント内の状態変数を追加
-  // ★★★ 移動済みのため削除 ★★★
-  // const [isSaving, setIsSaving] = useState(false);
-  // const [error, setError] = useState<string | null>(null);
-  // const [editedTask, setEditedTask] = useState<string | null>(null);
-  // const [localTasks, setLocalTasks] = useState<Task[]>([]);
-
-  // useEffectでタスクが変更されたときの処理
-  //useEffect(() => {
-  //    console.log("タスクが更新されました:", initialTasks);
-  //    localTasks = initialTasks;
-  //    // setLocalTasks(initialTasks); // localTasksを更新
-  //  }, [initialTasks]);
-
-  // ★★★ 実際の更新処理 (デバウンス後に呼ばれる) ★★★
-  const runTaskDateUpdate = useCallback((task: GtrTask, startDate: Date, endDate: Date) => {
-    // isSaving チェックはデバウンス後の処理開始時に行う
-    if (isSaving) {
-      console.warn("Debounced task date change skipped: Save operation already in progress.");
-      return;
-    }
-    console.log("Executing debounced task date change for:", task.id);
-
-    // --- ここから元々の handleTaskDateChange 内のロジック (日付比較以降) ---
-    try {
-      // 終了日が開始日より前の調整
-      let endDateToUse = new Date(endDate.getTime()); // コピーを作成
-      if (endDateToUse < startDate) {
-         let originalDurationDays = 0;
-         // ★★★ localTasks を参照 ★★★
-         const originalTask = localTasks.find(t => t.id.toString() === task.id.toString());
-         if (originalTask && originalTask.start_date && originalTask.due_date) {
-             const origStart = parseISO(originalTask.start_date);
-             const origEnd = parseISO(originalTask.due_date);
-             if (isValid(origStart) && isValid(origEnd) && origEnd >= origStart) {
-                 originalDurationDays = differenceInCalendarDays(origEnd, origStart);
-             }
-         } else {
-             console.warn(`Task ${task.id}: Cannot find original task data in localTasks to calculate duration. Using current task duration.`);
-             const currentTaskStart = new Date(task.start);
-             const currentTaskEnd = new Date(task.end);
-              if (isValid(currentTaskStart) && isValid(currentTaskEnd) && currentTaskEnd >= currentTaskStart) {
-                 originalDurationDays = differenceInCalendarDays(currentTaskEnd, currentTaskStart);
-              } else {
-                 originalDurationDays = 0; // 最低0日
-             }
-         }
-         console.warn(`End date was before start date. Adjusting end date using duration (${originalDurationDays} days).`);
-         endDateToUse = addDays(startDate, originalDurationDays);
-         console.log(`  -> Adjusted End Date: ${formatDate(endDateToUse, 'yyyy-MM-dd HH:mm:ss')}`);
-      }
-
-      // 日付変更チェック
-      let datesChanged = true;
-      // ★★★ localTasks を参照 ★★★
-      const currentTaskState = localTasks.find(t => t.id.toString() === task.id.toString());
-       if (currentTaskState && currentTaskState.start_date && currentTaskState.due_date) {
-           // ★★★ parseISO を使う ★★★
-           const currentStart = startOfDay(parseISO(currentTaskState.start_date));
-           const currentEnd = startOfDay(parseISO(currentTaskState.due_date));
-           const newStartDay = startOfDay(startDate); // 引数の startDate を使用
-           const newEndDay = startOfDay(endDateToUse); // 調整後の endDateToUse を使用
-
-           console.log(`Comparing dates for Task ID=${task.id}:`);
-           console.log(`  - New Start (UI): ${formatDate(newStartDay, 'yyyy-MM-dd')}`);
-           console.log(`  - New End (UI):   ${formatDate(newEndDay, 'yyyy-MM-dd')}`);
-           console.log(`  - Current Start (DB): ${formatDate(currentStart, 'yyyy-MM-dd')} (from ${currentTaskState.start_date})`);
-           console.log(`  - Current End (DB):   ${formatDate(currentEnd, 'yyyy-MM-dd')} (from ${currentTaskState.due_date})`);
-
-           if (isEqual(newStartDay, currentStart) && isEqual(newEndDay, currentEnd)) {
-               console.log(`  -> No change detected compared to current data. Skipping API call.`);
-               datesChanged = false;
-               return; // API呼び出しスキップ
-           }
-       } else {
-           console.warn(`  -> Current task state not found in localTasks for ID ${task.id}. Assuming change.`);
-           datesChanged = true;
-       }
-
-      if (datesChanged) {
+        if (datesChanged) {
           console.log(`  -> Dates changed. Preparing API update...`);
           console.log(`     New Start: ${formatDate(startDate, 'yyyy-MM-dd')}, New End: ${formatDate(endDateToUse, 'yyyy-MM-dd')}`);
 
@@ -1442,8 +2030,8 @@ const GanttView: React.FC<GanttViewProps> = memo(
           const formattedEndDate = formatDate(endDateToUse, 'yyyy-MM-dd'); // 調整後の日付を使用
 
           const updateData: Partial<Task> = {
-              start_date: formattedStartDate,
-              due_date: formattedEndDate
+            start_date: formattedStartDate,
+            due_date: formattedEndDate
           };
 
           setIsSaving(true); // ★★★ API呼び出し直前に true に設定 ★★★
@@ -1457,9 +2045,9 @@ const GanttView: React.FC<GanttViewProps> = memo(
 
               // ★★★ 日付正規化 ★★★
               let normalizedStartDate: string | null = null;
-              if (updatedTaskData.start_date) { try { normalizedStartDate = formatDate(parseISO(updatedTaskData.start_date), 'yyyy-MM-dd'); } catch(e){ console.error("Error parsing start_date..."); } }
+              if (updatedTaskData.start_date) { try { normalizedStartDate = formatDate(parseISO(updatedTaskData.start_date), 'yyyy-MM-dd'); } catch (e) { console.error("Error parsing start_date..."); } }
               let normalizedDueDate: string | null = null;
-              if (updatedTaskData.due_date) { try { normalizedDueDate = formatDate(parseISO(updatedTaskData.due_date), 'yyyy-MM-dd'); } catch(e){ console.error("Error parsing due_date..."); } }
+              if (updatedTaskData.due_date) { try { normalizedDueDate = formatDate(parseISO(updatedTaskData.due_date), 'yyyy-MM-dd'); } catch (e) { console.error("Error parsing due_date..."); } }
               console.log(`  -> Normalized Dates: Start=${normalizedStartDate}, End=${normalizedDueDate}`);
 
               // ★★★ localTasks state を更新 ★★★
@@ -1482,135 +2070,254 @@ const GanttView: React.FC<GanttViewProps> = memo(
               forceUpdate({});
             })
             .finally(() => {
-                setIsSaving(false); // ★★★ 成功/失敗に関わらず false に戻す ★★★
-                setEditedTask(null);
+              setIsSaving(false); // ★★★ 成功/失敗に関わらず false に戻す ★★★
+              setEditedTask(null);
             });
-      } else {
+        } else {
           // datesChanged が false の場合、isSaving は true になっていないはず
+        }
+
+      } catch (error) {
+        console.error('Unexpected error during debounced date change handling:', error);
+        setError('予期せぬエラーが発生しました。');
+        restoreScrollPosition();
+        forceUpdate({});
+        setIsSaving(false); // ★★★ catch ブロックでも false に戻す ★★★
       }
+      // --- ここまで更新処理 --- 
+    }, [isSaving, localTasks, readOnly, saveScrollPosition, restoreScrollPosition, handleAuthError, setError, setEditedTask, forceUpdate]); // ★★★ 依存配列を localTasks ベースに修正 ★★★
 
-    } catch (error) {
-      console.error('Unexpected error during debounced date change handling:', error);
-      setError('予期せぬエラーが発生しました。');
-      restoreScrollPosition();
-      forceUpdate({});
-      setIsSaving(false); // ★★★ catch ブロックでも false に戻す ★★★
-    }
-    // --- ここまで更新処理 --- 
-  }, [isSaving, localTasks, readOnly, saveScrollPosition, restoreScrollPosition, handleAuthError, setError, setEditedTask, forceUpdate]); // ★★★ 依存配列を localTasks ベースに修正 ★★★
+    // ★★★ デバウンス関数 (変更なし、内部の clearTimeout/setTimeout はブラウザ API を使用) ★★★
+    const debouncedUpdateTaskDate = useCallback((task: GtrTask, startDate: Date, endDate: Date) => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      // setTimeout はブラウザ環境では number を返す
+      debounceTimeoutRef.current = window.setTimeout(() => {
+        runTaskDateUpdate(task, startDate, endDate); // 実際の処理を呼び出す
+      }, 500); // 500ms待機
+    }, [runTaskDateUpdate]);
 
-  // ★★★ デバウンス関数 (変更なし、内部の clearTimeout/setTimeout はブラウザ API を使用) ★★★
-  const debouncedUpdateTaskDate = useCallback((task: GtrTask, startDate: Date, endDate: Date) => {
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-    // setTimeout はブラウザ環境では number を返す
-    debounceTimeoutRef.current = window.setTimeout(() => { 
-      runTaskDateUpdate(task, startDate, endDate); // 実際の処理を呼び出す
-    }, 500); // 500ms待機
-  }, [runTaskDateUpdate]);
-
-  // ★★★ Gantt イベントハンドラ (ラッパー) ★★★
-  const handleGanttDateChangeEvent = useCallback((task: GtrTask) => {
+    // ★★★ Gantt イベントハンドラ (ラッパー) ★★★
+    const handleGanttDateChangeEvent = useCallback((task: GtrTask) => {
       console.log("Gantt onDateChange triggered (pre-debounce):", task.id, task.start, task.end);
       // イベント引数の task オブジェクトの日付を信頼する
       const taskStartDate = new Date(task.start);
       const taskEndDate = new Date(task.end);
       if (isValid(taskStartDate) && isValid(taskEndDate)) {
-           debouncedUpdateTaskDate(task, taskStartDate, taskEndDate); // デバウンス関数を呼び出す
+        debouncedUpdateTaskDate(task, taskStartDate, taskEndDate); // デバウンス関数を呼び出す
       } else {
-           console.error("Invalid dates received in handleGanttDateChangeEvent:", task);
+        console.error("Invalid dates received in handleGanttDateChangeEvent:", task);
       }
-  }, [debouncedUpdateTaskDate]); // debouncedUpdateTaskDate を依存関係に追加
+    }, [debouncedUpdateTaskDate]); // debouncedUpdateTaskDate を依存関係に追加
 
-  // ★★★ 元の handleTaskDateChange は削除 ★★★
-  /*
-  const handleTaskDateChange = useCallback((...) => { ... }, [...]);
-  */
+    // ★★★ 元の handleTaskDateChange は削除 ★★★
+    /*
+    const handleTaskDateChange = useCallback((...) => { ... }, [...]);
+    */
 
-  // タスクの進捗更新ハンドラ - any型を使用して互換性を確保
-  const handleProgressChange: CustomProgressEventHandler = (task, progress) => {
-    // タスクの進捗状態を更新
-    // ★★★ API に渡すデータも type.ts の Task 型に合わせるか、バックエンドの期待値に合わせる ★★★
-    const updatedTask: Partial<Task> = { // Task型の一部として定義
-      // name: task.name, // name は変更しない想定
-      progress: progress,
-      status: progress === 100 ? 'completed' : (progress > 0 ? 'in-progress' : 'todo') // status を使用
+    // タスクの進捗更新ハンドラ - any型を使用して互換性を確保
+    const handleProgressChange: CustomProgressEventHandler = (task, progress) => {
+      // タスクの進捗状態を更新
+      // ★★★ API に渡すデータも type.ts の Task 型に合わせるか、バックエンドの期待値に合わせる ★★★
+      const updatedTask: Partial<Task> = { // Task型の一部として定義
+        // name: task.name, // name は変更しない想定
+        progress: progress,
+        status: progress === 100 ? 'completed' : (progress > 0 ? 'in-progress' : 'todo') // status を使用
+      };
+
+      // API呼び出し (api.updateTaskではなくapi.putを使用)
+      api.put(`/tasks/${task.id}`, updatedTask)
+        .then((response) => {
+          console.log('タスク進捗の更新成功:', response.data);
+          // タスク一覧を更新
+          // ★★★ 移動済みのため削除 ★★★
+          // fetchData(); 
+        })
+        .catch((error) => {
+          console.error('タスク進捗の更新に失敗:', error);
+          // 認証エラー（401）の場合、ダイアログを表示
+          if (error.response && error.response.status === 401) {
+            handleAuthError();
+          }
+        });
     };
-    
-    // API呼び出し (api.updateTaskではなくapi.putを使用)
-    api.put(`/tasks/${task.id}`, updatedTask)
-      .then((response) => {
-        console.log('タスク進捗の更新成功:', response.data);
-        // タスク一覧を更新
-        // ★★★ 移動済みのため削除 ★★★
-        // fetchData(); 
-      })
-      .catch((error) => {
-        console.error('タスク進捗の更新に失敗:', error);
-        // 認証エラー（401）の場合、ダイアログを表示
-        if (error.response && error.response.status === 401) {
-          handleAuthError();
-        }
+
+    // ダブルクリック時のハンドラ（タスク詳細表示・編集など）
+    const handleTaskDoubleClick: CustomTaskDoubleClickHandler = (task) => {
+      // 詳細表示をコンソールログに変更
+      console.log(`タスク詳細：${task.name}`, {
+        開始日: formatDate(task.start, 'yyyy/MM/dd'),
+        終了日: formatDate(task.end, 'yyyy/MM/dd'),
+        進捗: `${task.progress}%`
       });
-  };
+    };
 
-  // ダブルクリック時のハンドラ（タスク詳細表示・編集など）
-  const handleTaskDoubleClick: CustomTaskDoubleClickHandler = (task) => {
-    // 詳細表示をコンソールログに変更
-    console.log(`タスク詳細：${task.name}`, {
-      開始日: formatDate(task.start, 'yyyy/MM/dd'),
-      終了日: formatDate(task.end, 'yyyy/MM/dd'),
-      進捗: `${task.progress}%`
-    });
-  };
+    // タスク選択ハンドラ
+    // const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null); // 上部に移動済み
 
-  // タスク選択ハンドラ
-  const handleTaskSelect: CustomSelectEventHandler = (task) => {
-    console.log('Selected task:', task);
-    // 選択状態の管理が必要な場合はここで実装
-  };
+    const handleTaskSelect = (task: any, isSelected: boolean) => {
+      // 選択状態の切り替え (同じタスクなら解除、違うなら選択)
+      saveScrollPosition(); // ★★★ State更新前にスクロール位置を保存 ★★★
 
-  // カスタムタスクリストを使用するための関数
-  const renderCustomTaskList = (listProps: any) => {
-    return <CustomTaskList {...listProps} projectsData={projects} />;
-  };
+      const savedScrollLeft = scrollPositionRef.current?.left ?? 0;
+      const savedScrollTop = scrollPositionRef.current?.top ?? 0;
 
-  // ★★★ ディープクローンとJSON変換用ヘルパー関数 ★★★
-  const safeCloneWithDates = (obj: any): any => {
-    if (!obj) return obj;
-    
-    // 配列の場合は各要素に対して再帰的に処理
-    if (Array.isArray(obj)) {
-      return obj.map(item => safeCloneWithDates(item));
-    }
-    
-    // オブジェクトの場合はプロパティごとに処理
-    if (typeof obj === 'object') {
-      const result: any = {};
-      
-      for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-          // Dateオブジェクトの場合はISO文字列に変換
-          if (obj[key] instanceof Date) {
-            result[key] = formatDate(obj[key], 'yyyy-MM-dd');
-          } else {
-            result[key] = safeCloneWithDates(obj[key]);
+      console.log(`[GanttView] Task selected: ${task.id}, Saved scroll position: L=${savedScrollLeft}, T=${savedScrollTop}`);
+
+      setSelectedTaskId(prevId => {
+        const newId = prevId === String(task.id) ? null : String(task.id);
+        return newId;
+      });
+
+      // スクロール位置を強制的に維持するための監視と復元
+      const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
+      const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
+
+      if (!hContainer && !vContainer) {
+        console.warn('[GanttView] Scroll containers not found');
+        return;
+      }
+
+      // スクロール位置を復元する関数
+      const forceRestoreScroll = () => {
+        if (hContainer && savedScrollLeft !== undefined) {
+          const currentLeft = hContainer.scrollLeft;
+          if (Math.abs(currentLeft - savedScrollLeft) > 1) {
+            hContainer.scrollLeft = savedScrollLeft;
+            console.log(`[GanttView] Force restored horizontal scroll: ${currentLeft} -> ${savedScrollLeft}`);
           }
         }
-      }
-      
-      return result;
-    }
-    
-    // プリミティブ値はそのまま返す
-    return obj;
-  };
+        if (vContainer && savedScrollTop !== undefined) {
+          const currentTop = vContainer.scrollTop;
+          if (Math.abs(currentTop - savedScrollTop) > 1) {
+            vContainer.scrollTop = savedScrollTop;
+            console.log(`[GanttView] Force restored vertical scroll: ${currentTop} -> ${savedScrollTop}`);
+          }
+        }
+      };
 
-  // ガントチャートライブラリとの互換性向上のための効果
-  useEffect(() => {
-    const enhanceGanttEvents = () => {
-      // ... (コンテナ取得など)
+      // スクロールイベントリスナー（意図しないスクロール変更を防ぐ）
+      const handleScroll = () => {
+        forceRestoreScroll();
+      };
+
+      // MutationObserverでDOMの変更を監視（より広範囲に監視）
+      const observer = new MutationObserver(() => {
+        forceRestoreScroll();
+      });
+
+      // 監視を開始
+      if (hContainer) {
+        hContainer.addEventListener('scroll', handleScroll, { passive: true });
+        // より広範囲に監視
+        observer.observe(hContainer, { 
+          attributes: true, 
+          attributeFilter: ['style', 'class'],
+          childList: true,
+          subtree: true
+        });
+      }
+      if (vContainer) {
+        vContainer.addEventListener('scroll', handleScroll, { passive: true });
+        observer.observe(vContainer, { 
+          attributes: true, 
+          attributeFilter: ['style', 'class'],
+          childList: true,
+          subtree: true
+        });
+      }
+
+      // ガントチャートコンテナ全体も監視
+      const ganttContainer = document.querySelector('.gantt-container');
+      if (ganttContainer) {
+        observer.observe(ganttContainer, {
+          attributes: true,
+          attributeFilter: ['style', 'class'],
+          childList: true,
+          subtree: true
+        });
+      }
+
+      // 即座に復元
+      forceRestoreScroll();
+
+      // より頻繁に復元を試行（ライブラリの再レンダリングを考慮）
+      const restoreAttempts = [0, 5, 10, 20, 30, 50, 100, 150, 200, 300, 400, 500, 750, 1000];
+      restoreAttempts.forEach((delay) => {
+        setTimeout(() => {
+          forceRestoreScroll();
+        }, delay);
+      });
+
+      // requestIdleCallbackを使用して、ブラウザがアイドル状態の時に復元
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => {
+          forceRestoreScroll();
+        }, { timeout: 2000 });
+      }
+
+      // 2秒間監視を続ける（通常のスクロール操作を許可）
+      setTimeout(() => {
+        if (hContainer) {
+          hContainer.removeEventListener('scroll', handleScroll);
+        }
+        if (vContainer) {
+          vContainer.removeEventListener('scroll', handleScroll);
+        }
+        observer.disconnect();
+        console.log('[GanttView] Scroll monitoring stopped after 2 seconds');
+      }, 2000);
+    };
+
+
+    // カスタムタスクリストを使用するための関数
+    const renderCustomTaskList = (listProps: any) => {
+      return (
+        <CustomTaskList
+          {...listProps}
+          projectsData={projects}
+          selectedTaskId={selectedTaskId}
+          setSelectedTask={handleTaskSelect}
+        />
+      );
+    };
+
+    // ★★★ ディープクローンとJSON変換用ヘルパー関数 ★★★
+    const safeCloneWithDates = (obj: any): any => {
+      if (!obj) return obj;
+
+      // 配列の場合は各要素に対して再帰的に処理
+      if (Array.isArray(obj)) {
+        return obj.map(item => safeCloneWithDates(item));
+      }
+
+      // オブジェクトの場合はプロパティごとに処理
+      if (typeof obj === 'object') {
+        const result: any = {};
+
+        for (const key in obj) {
+          if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            // Dateオブジェクトの場合はISO文字列に変換
+            if (obj[key] instanceof Date) {
+              result[key] = formatDate(obj[key], 'yyyy-MM-dd');
+            } else {
+              result[key] = safeCloneWithDates(obj[key]);
+            }
+          }
+        }
+
+        return result;
+      }
+
+      // プリミティブ値はそのまま返す
+      return obj;
+    };
+
+    // ガントチャートライブラリとの互換性向上のための効果
+    useEffect(() => {
+      const enhanceGanttEvents = () => {
+        // ... (コンテナ取得など)
         // ganttContainer.addEventListener(\'mouseup\', (e) => {
         //   // ドラッグ操作後のマウスアップイベントで、タスクの更新が必要かをチェック
         //   console.log(\'ガントチャートでマウスアップイベントを検出しました\');
@@ -1620,174 +2327,174 @@ const GanttView: React.FC<GanttViewProps> = memo(
         //   //   forceUpdate({}); // ★★★ この forceUpdate が複数呼び出しの原因の可能性 -> コメントアウト ★★★
         //   // }, 100);
         // });
-      // ... (try-catch)
-    };
+        // ... (try-catch)
+      };
 
-    // ... (マウント後の呼び出し)
+      // ... (マウント後の呼び出し)
 
-    return () => {
-      // ... (クリーンアップ)
-    };
-  // }, [isMountedState, forceUpdate]); // ★★★ forceUpdate を依存配列から削除 (コメントアウトしたため) ★★★
-  }, [isMountedState]); // ★★★ isMountedState のみに変更 ★★★
+      return () => {
+        // ... (クリーンアップ)
+      };
+      // }, [isMountedState, forceUpdate]); // ★★★ forceUpdate を依存配列から削除 (コメントアウトしたため) ★★★
+    }, [isMountedState]); // ★★★ isMountedState のみに変更 ★★★
 
-  // 保存処理の改善
-  const handleSaveCurrentState = async () => {
-    try {
-      console.log('状態の保存を開始します...');
-      
-      // 1. 現在のデータをエクスポート
-      const exportResponse = await api.post('/admin/mock-data/export');
-      const currentData = exportResponse.data;
-      console.log('現在のデータをエクスポートしました。');
-      
-      // 2. タスクを更新
-      const updatedTasks = safeCloneWithDates(localTasks);
-      console.log('タスクデータを安全にクローンしました。');
-      
-      // 変更検出カウンター
-      let updatedCount = 0;
-      
-      // 最終的な更新対象のタスク
-      interface TaskUpdate {
-        id: string;
-        start_date: string;
-        due_date: string;
-        status?: string;
-      }
-      
-      const tasksToUpdate: TaskUpdate[] = [];
-      
-      // オリジナルタスクと現在のガントチャートタスクの比較を直接行う
-      // ★★★ 型アノテーションを追加 ★★★
-      gtrTasks.forEach((gtrTask: CustomGtrTask) => {
-        if (!gtrTask.id || gtrTask.id.startsWith('dummy') || gtrTask.id.startsWith('placeholder')) {
-          return; // ダミータスクはスキップ
+    // 保存処理の改善
+    const handleSaveCurrentState = async () => {
+      try {
+        console.log('状態の保存を開始します...');
+
+        // 1. 現在のデータをエクスポート
+        const exportResponse = await api.post('/admin/mock-data/export');
+        const currentData = exportResponse.data;
+        console.log('現在のデータをエクスポートしました。');
+
+        // 2. タスクを更新
+        const updatedTasks = safeCloneWithDates(localTasks);
+        console.log('タスクデータを安全にクローンしました。');
+
+        // 変更検出カウンター
+        let updatedCount = 0;
+
+        // 最終的な更新対象のタスク
+        interface TaskUpdate {
+          id: string;
+          start_date: string;
+          due_date: string;
+          status?: string;
         }
-        
-        // 対応するタスクを検索
-        const originalTaskIndex = updatedTasks.findIndex((t: any) => t.id === gtrTask.id);
-        if (originalTaskIndex >= 0) {
-          // 開始日・終了日を更新
-          const newStartDate = formatDate(gtrTask.start, 'yyyy-MM-dd');
-          const newEndDate = formatDate(gtrTask.end, 'yyyy-MM-dd');
-          
-          // 現在の値と異なる場合のみ更新
-          if (updatedTasks[originalTaskIndex].start_date !== newStartDate || 
+
+        const tasksToUpdate: TaskUpdate[] = [];
+
+        // オリジナルタスクと現在のガントチャートタスクの比較を直接行う
+        // ★★★ 型アノテーションを追加 ★★★
+        gtrTasks.forEach((gtrTask: CustomGtrTask) => {
+          if (!gtrTask.id || gtrTask.id.startsWith('dummy') || gtrTask.id.startsWith('placeholder')) {
+            return; // ダミータスクはスキップ
+          }
+
+          // 対応するタスクを検索
+          const originalTaskIndex = updatedTasks.findIndex((t: any) => t.id === gtrTask.id);
+          if (originalTaskIndex >= 0) {
+            // 開始日・終了日を更新
+            const newStartDate = formatDate(gtrTask.start, 'yyyy-MM-dd');
+            const newEndDate = formatDate(gtrTask.end, 'yyyy-MM-dd');
+
+            // 現在の値と異なる場合のみ更新
+            if (updatedTasks[originalTaskIndex].start_date !== newStartDate ||
               updatedTasks[originalTaskIndex].due_date !== newEndDate) {
-              
-            // 更新対象としてマーク
-            const taskToUpdate: TaskUpdate = {
-              id: gtrTask.id,
-              start_date: newStartDate,
-              due_date: newEndDate
-            };
-            
-            // もし進捗も変更されていれば追加
-            if (gtrTask.progress === 100 && updatedTasks[originalTaskIndex].status !== 'completed') {
-              taskToUpdate.status = 'completed';
-            } else if (gtrTask.progress > 0 && 
-                      updatedTasks[originalTaskIndex].status !== 'in-progress' && 
-                      updatedTasks[originalTaskIndex].status !== 'completed') {
-              taskToUpdate.status = 'in-progress';
+
+              // 更新対象としてマーク
+              const taskToUpdate: TaskUpdate = {
+                id: gtrTask.id,
+                start_date: newStartDate,
+                due_date: newEndDate
+              };
+
+              // もし進捗も変更されていれば追加
+              if (gtrTask.progress === 100 && updatedTasks[originalTaskIndex].status !== 'completed') {
+                taskToUpdate.status = 'completed';
+              } else if (gtrTask.progress > 0 &&
+                updatedTasks[originalTaskIndex].status !== 'in-progress' &&
+                updatedTasks[originalTaskIndex].status !== 'completed') {
+                taskToUpdate.status = 'in-progress';
+              }
+
+              tasksToUpdate.push(taskToUpdate);
+              updatedCount++;
+
+              // ローカルタスクデータも更新
+              updatedTasks[originalTaskIndex].start_date = newStartDate;
+              updatedTasks[originalTaskIndex].due_date = newEndDate;
+
+              console.log(`タスク ${gtrTask.id} の日付を更新:`, {
+                start: newStartDate,
+                end: newEndDate
+              });
             }
-            
-            tasksToUpdate.push(taskToUpdate);
-            updatedCount++;
-            
-            // ローカルタスクデータも更新
-            updatedTasks[originalTaskIndex].start_date = newStartDate;
-            updatedTasks[originalTaskIndex].due_date = newEndDate;
-            
-            console.log(`タスク ${gtrTask.id} の日付を更新:`, {
-              start: newStartDate,
-              end: newEndDate
-            });
+          }
+        });
+
+        // 変更がない場合
+        if (updatedCount === 0) {
+          console.log('変更が検出されませんでした。保存をスキップします。');
+          alert('変更はありませんでした。保存をスキップします。');
+          return;
+        }
+
+        console.log(`合計 ${updatedCount} 個のタスク更新を検出しました。更新を実行します。`);
+
+        // 各タスクを個別に更新
+        for (const task of tasksToUpdate) {
+          try {
+            console.log(`タスク ${task.id} を更新中...`, task);
+            const response = await api.put(`/tasks/${task.id}`, task);
+            console.log(`タスク ${task.id} の更新成功:`, response.data);
+          } catch (err) {
+            console.error(`タスク ${task.id} の更新失敗:`, err);
+            throw err; // エラーを上位に伝播
           }
         }
-      });
-      
-      // 変更がない場合
-      if (updatedCount === 0) {
-        console.log('変更が検出されませんでした。保存をスキップします。');
-        alert('変更はありませんでした。保存をスキップします。');
-        return;
-      }
-      
-      console.log(`合計 ${updatedCount} 個のタスク更新を検出しました。更新を実行します。`);
-      
-      // 各タスクを個別に更新
-      for (const task of tasksToUpdate) {
-        try {
-          console.log(`タスク ${task.id} を更新中...`, task);
-          const response = await api.put(`/tasks/${task.id}`, task);
-          console.log(`タスク ${task.id} の更新成功:`, response.data);
-        } catch (err) {
-          console.error(`タスク ${task.id} の更新失敗:`, err);
-          throw err; // エラーを上位に伝播
-        }
-      }
-      
-      // 成功メッセージを表示
-      alert(`タスク状態が正常に保存されました。${updatedCount}個のタスクが更新されました。`);
-      console.log(`${updatedCount}個のタスクの永続化に成功しました。`);
-      
-      // ★★★ setLocalTasks を使用して State を更新 ★★★
-      setLocalTasks(updatedTasks);
-      // localTasks = updatedTasks; // この行を setLocalTasks に置き換え
-      // forceUpdate({}); // setLocalTasks で再レンダリングされるため不要
-    } catch (error: any) {
-      console.error('タスク状態の永続化に失敗:', error);
-      
-      // エラーレスポンスを適切に処理
-      if (error.response) {
-        if (error.response.status === 401) {
-          alert('認証エラーが発生しました。再ログインが必要です。');
-        } else if (error.response.status === 403) {
-          alert('このアクションを実行する権限がありません。');
+
+        // 成功メッセージを表示
+        alert(`タスク状態が正常に保存されました。${updatedCount}個のタスクが更新されました。`);
+        console.log(`${updatedCount}個のタスクの永続化に成功しました。`);
+
+        // ★★★ setLocalTasks を使用して State を更新 ★★★
+        setLocalTasks(updatedTasks);
+        // localTasks = updatedTasks; // この行を setLocalTasks に置き換え
+        // forceUpdate({}); // setLocalTasks で再レンダリングされるため不要
+      } catch (error: any) {
+        console.error('タスク状態の永続化に失敗:', error);
+
+        // エラーレスポンスを適切に処理
+        if (error.response) {
+          if (error.response.status === 401) {
+            alert('認証エラーが発生しました。再ログインが必要です。');
+          } else if (error.response.status === 403) {
+            alert('このアクションを実行する権限がありません。');
+          } else {
+            alert(`サーバーエラーが発生しました (${error.response.status}): ${error.response.data?.detail || 'エラー詳細不明'}`);
+          }
+        } else if (error.request) {
+          alert('サーバーに接続できませんでした。ネットワーク接続を確認してください。');
         } else {
-          alert(`サーバーエラーが発生しました (${error.response.status}): ${error.response.data?.detail || 'エラー詳細不明'}`);
+          alert(`エラーが発生しました: ${error.message}`);
         }
-      } else if (error.request) {
-        alert('サーバーに接続できませんでした。ネットワーク接続を確認してください。');
-      } else {
-        alert(`エラーが発生しました: ${error.message}`);
       }
-    }
-  };
-
-  // 表示モード変更時の処理
-  const handleViewModeChange = (event: SelectChangeEvent<string>) => {
-    const newViewMode = event.target.value as ViewMode;
-    console.log(`表示モードを変更: ${newViewMode}`);
-    
-    // スクロール位置をリセット
-    saveScrollPosition();
-    
-    // 表示モードを更新
-    setViewMode(newViewMode);
-    
-    // スクロール位置を復元（少し遅延させる）
-    setTimeout(restoreScrollPosition, 50);
-  };
-
-  // useEffectを使用して、コンポーネントマウント時に依存関係制約を無効化
-  useEffect(() => {
-    // ガントチャートの依存関係制約を無効化
-    if (window) {
-      window.__DISABLE_DEPENDENCY_CONSTRAINTS = true;
-      console.log('依存関係の制約を無効化しました');
-    }
-    
-    // コンポーネントがアンマウントされる際にクリーンアップ
-  return () => {
-      // 必要に応じてクリーンアップを実行
     };
-  }, []);
 
-  // Ganttコンポーネントをレンダリング
-  return (
-    <ColumnWidthContext.Provider value={{ colWidths, setColWidths, listCellWidth, setListCellWidth }}>
+    // 表示モード変更時の処理
+    const handleViewModeChange = (event: SelectChangeEvent<string>) => {
+      const newViewMode = event.target.value as ViewMode;
+      console.log(`表示モードを変更: ${newViewMode}`);
+
+      // スクロール位置をリセット
+      saveScrollPosition();
+
+      // 表示モードを更新
+      setViewMode(newViewMode);
+
+      // スクロール位置を復元（少し遅延させる）
+      setTimeout(restoreScrollPosition, 50);
+    };
+
+    // useEffectを使用して、コンポーネントマウント時に依存関係制約を無効化
+    useEffect(() => {
+      // ガントチャートの依存関係制約を無効化
+      if (window) {
+        window.__DISABLE_DEPENDENCY_CONSTRAINTS = true;
+        console.log('依存関係の制約を無効化しました');
+      }
+
+      // コンポーネントがアンマウントされる際にクリーンアップ
+      return () => {
+        // 必要に応じてクリーンアップを実行
+      };
+    }, []);
+
+    // Ganttコンポーネントをレンダリング
+    return (
+      <ColumnWidthContext.Provider value={{ colWidths, setColWidths, listCellWidth, setListCellWidth }}>
         {/* 認証エラーダイアログ */}
         <Dialog
           open={authErrorOpen}
@@ -1809,72 +2516,72 @@ const GanttView: React.FC<GanttViewProps> = memo(
             </Button>
           </DialogActions>
         </Dialog>
-        
-      <Paper sx={{ p: 2, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1, flexShrink: 0 }}>
-          <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold' }}>
-            ガントチャート
-          </Typography>
-          <Stack direction="row" spacing={1} alignItems="center">
-            {/* 表示モード選択 */}
-            <FormControl size="small" sx={{ minWidth: 90 }}>
-              <InputLabel sx={{ fontSize: '0.7rem' }}>表示</InputLabel>
-              <Select value={viewMode} label="表示" onChange={handleViewModeChange} sx={{ fontSize: '0.7rem' }}>
-                <MenuItem value={ViewMode.Day} sx={{ fontSize: '0.7rem' }}>日</MenuItem>
-                <MenuItem value={ViewMode.Week} sx={{ fontSize: '0.7rem' }}>週</MenuItem>
-                <MenuItem value={ViewMode.Month} sx={{ fontSize: '0.7rem' }}>月</MenuItem>
-              </Select>
-            </FormControl>
-            {/* ★★★ ズームボタンを追加 ★★★ */}
-            <Tooltip title="拡大 (+)">
-              <IconButton onClick={handleZoomIn} size="small">
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="縮小 (-)">
-              <IconButton onClick={handleZoomOut} size="small">
-                <RemoveIcon />
-              </IconButton>
-            </Tooltip>
-            {/* ★★★ ここまで ★★★ */}
-            {/* ナビゲーション */}
-            {/* <IconButton onClick={handlePrevious} size="small"><NavigateBefore /></IconButton> */}
-            {/* <IconButton onClick={handleNext} size="small"><NavigateNext /></IconButton> */}
-            {/* 保存ボタン */}
-            {/* <Button onClick={handleSaveCurrentState} variant="outlined" size="small" disabled={isSaving}>
+
+        <Paper sx={{ p: 2, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1, flexShrink: 0 }}>
+            <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold' }}>
+              ガントチャート
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              {/* 表示モード選択 */}
+              <FormControl size="small" sx={{ minWidth: 90 }}>
+                <InputLabel sx={{ fontSize: '0.7rem' }}>表示</InputLabel>
+                <Select value={viewMode} label="表示" onChange={handleViewModeChange} sx={{ fontSize: '0.7rem' }}>
+                  <MenuItem value={ViewMode.Day} sx={{ fontSize: '0.7rem' }}>日</MenuItem>
+                  <MenuItem value={ViewMode.Week} sx={{ fontSize: '0.7rem' }}>週</MenuItem>
+                  <MenuItem value={ViewMode.Month} sx={{ fontSize: '0.7rem' }}>月</MenuItem>
+                </Select>
+              </FormControl>
+              {/* ★★★ ズームボタンを追加 ★★★ */}
+              <Tooltip title="拡大 (+)">
+                <IconButton onClick={handleZoomIn} size="small">
+                  <AddIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="縮小 (-)">
+                <IconButton onClick={handleZoomOut} size="small">
+                  <RemoveIcon />
+                </IconButton>
+              </Tooltip>
+              {/* ★★★ ここまで ★★★ */}
+              {/* ナビゲーション */}
+              {/* <IconButton onClick={handlePrevious} size="small"><NavigateBefore /></IconButton> */}
+              {/* <IconButton onClick={handleNext} size="small"><NavigateNext /></IconButton> */}
+              {/* 保存ボタン */}
+              {/* <Button onClick={handleSaveCurrentState} variant="outlined" size="small" disabled={isSaving}>
               {isSaving ? <CircularProgress size={16} sx={{mr: 1}}/> : null} 保存
             </Button> */}
+            </Stack>
           </Stack>
-        </Stack>
-        
-        {/* タスクステータスの凡例 */}
-        <Stack direction="row" spacing={1.5} sx={{ mb: 1, ml: 1, flexShrink: 0 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: 16, height: 16, backgroundColor: '#4dabf5', mr: 0.5 }} />
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>未着手</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: 16, height: 16, backgroundColor: '#ffb74d', mr: 0.5 }} />
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>進行中</Typography>
-          </Box>
-          {/* ★ レビュー中の凡例を追加 ★ */}
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: 16, height: 16, backgroundColor: '#ba68c8', mr: 0.5 }} /> 
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>レビュー中</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: 16, height: 16, backgroundColor: '#f6685e', mr: 0.5 }} />
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>遅延</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Box sx={{ width: 16, height: 16, backgroundColor: '#81c784', mr: 0.5 }} />
-            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>完了</Typography>
-          </Box>
-        </Stack>
-        
-        {/* エラー表示 */}
-        {fetchError && <Alert severity="error" sx={{ mb: 1 }}>{fetchError}</Alert>}
-        {error && <Alert severity="warning" sx={{ mb: 1 }}>{error}</Alert>} {/* ★★★ 保存エラー表示を追加 ★★★ */}
+
+          {/* タスクステータスの凡例 */}
+          <Stack direction="row" spacing={1.5} sx={{ mb: 1, ml: 1, flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ width: 16, height: 16, backgroundColor: '#4dabf5', mr: 0.5 }} />
+              <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>未着手</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ width: 16, height: 16, backgroundColor: '#ffb74d', mr: 0.5 }} />
+              <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>進行中</Typography>
+            </Box>
+            {/* ★ レビュー中の凡例を追加 ★ */}
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ width: 16, height: 16, backgroundColor: '#ba68c8', mr: 0.5 }} />
+              <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>レビュー中</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ width: 16, height: 16, backgroundColor: '#f6685e', mr: 0.5 }} />
+              <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>遅延</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ width: 16, height: 16, backgroundColor: '#81c784', mr: 0.5 }} />
+              <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>完了</Typography>
+            </Box>
+          </Stack>
+
+          {/* エラー表示 */}
+          {fetchError && <Alert severity="error" sx={{ mb: 1 }}>{fetchError}</Alert>}
+          {error && <Alert severity="warning" sx={{ mb: 1 }}>{error}</Alert>} {/* ★★★ 保存エラー表示を追加 ★★★ */}
 
           <div
             id="gantt-container"
@@ -1892,42 +2599,51 @@ const GanttView: React.FC<GanttViewProps> = memo(
             {isLoadingData || !isGanttReady ? ( // ★ isGanttReady も条件に追加
               <Box display="flex" justifyContent="center" alignItems="center" height="100%">
                 <CircularProgress />
-            </Box>
+              </Box>
             ) : (
-              // ★★★ デバッグログ追加: Ganttに渡すcolumnWidthを確認 ★★★
-              console.log(`DEBUG: Rendering MemoizedGantt with columnWidth=${currentColumnWidth}`),
-              // ★★★ ここまで ★★★
-              <MemoizedGantt // Memoizedコンポーネントを使用
-                key="stable-gantt-key" // ★★★ 安定したキーを試す ★★★
-                tasks={memoizedGtrTasks} // メモ化されたタスク
-                viewMode={viewMode}
-                viewDate={new Date()} // ★ 再度追加: 今日の日付を指定
-                listCellWidth={listCellWidth}
-                columnWidth={currentColumnWidth} // ★★★ state を使用 ★★★
-                ganttHeight={400}
-                fontFamily='"Roboto", "Helvetica", "Arial", sans-serif'
-                fontSize='0.65rem' // ★★★ Set base font size (adjust from 0.75rem) ★★★
+              <>
 
-                // Styling options (more granular control)
-                headerHeight={45} // ヘッダー高さ調整
-              rowHeight={30}
-                barCornerRadius={3}
-                barFill={75} // バーの塗りつぶし率
-                // barProgressColor="#a3a3ff" // スタイルは getTaskStyle で設定
-                // barProgressSelectedColor="#8282f3"
-                handleWidth={8}
-                onDateChange={handleGanttDateChangeEvent}
-                onProgressChange={handleProgressChange as any} // 型互換性のためのanyキャスト
-                onDoubleClick={handleTaskDoubleClick}
-                onSelect={handleTaskSelect}
-              TaskListHeader={CustomTaskListHeader} 
-              TaskListTable={renderCustomTaskList}
-              />
+                <MemoizedGantt // Memoizedコンポーネントを使用
+                  key="stable-gantt-key" // ★★★ 安定したキーを試す ★★★
+                  tasks={gtrTasksForDisplay} // ★★★ スタイル適用済みタスク ★★★
+                  viewMode={viewMode}
+                  viewDate={new Date()} // ★ 再度追加: 今日の日付を指定
+                  listCellWidth={listCellWidth}
+                  columnWidth={currentColumnWidth} // ★★★ state を使用 ★★★
+                  ganttHeight={400}
+                  fontFamily='"Roboto", "Helvetica", "Arial", sans-serif'
+                  fontSize='0.65rem' // ★★★ Set base font size (adjust from 0.75rem) ★★★
+
+                  // Styling options (more granular control)
+                  headerHeight={45} // ヘッダー高さ調整
+                  rowHeight={30}
+                  barCornerRadius={3}
+                  barFill={75} // バーの塗りつぶし率
+                  // barProgressColor="#a3a3ff" // スタイルは getTaskStyle で設定
+                  // barProgressSelectedColor="#8282f3"
+                  handleWidth={8}
+                  onDateChange={handleGanttDateChangeEvent}
+                  onProgressChange={handleProgressChange as any} // 型互換性のためのanyキャスト
+                  onDoubleClick={handleTaskDoubleClick}
+                  onSelect={handleTaskSelect}
+                  TaskListHeader={CustomTaskListHeader}
+                  TaskListTable={renderCustomTaskList}
+                />
+                {/* <DependencyHighlighter
+                  tasks={gtrTasks}
+                  selectedTaskId={selectedTaskId}
+                  columnWidth={currentColumnWidth}
+                  rowHeight={30}
+                  currentStartDate={new Date()}
+                  viewMode={viewMode}
+                  listCellWidth={listCellWidth}
+                /> */}
+              </>
             )}
           </div>
-      </Paper>
-    </ColumnWidthContext.Provider>
-  );
+        </Paper>
+      </ColumnWidthContext.Provider>
+    );
   }
 );
 

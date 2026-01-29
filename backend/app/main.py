@@ -395,50 +395,67 @@ def get_tasks_endpoint(
             display_status_in=display_status_in
         )
         
-        # タスクの依存関係を処理
+        # タスクの依存関係を処理（N+1クエリ問題を解決するため、バッチ処理に変更）
+        # まず、すべての依存タスクIDを収集
+        all_depends_on_ids = set()
         for task in tasks:
             task['dependsOnTasks'] = []  # デフォルト値を設定
-            
             try:
                 depends_on = task.get('dependsOn')
-                if not depends_on:
-                    continue
-                    
-                # dependsOnがリストでない場合はスキップ
-                if not isinstance(depends_on, list):
-                    logger.debug(f"タスク {task.get('id')} の dependsOn が不正な型です: {type(depends_on)}")
+                if depends_on and isinstance(depends_on, list):
+                    for depends_on_id in depends_on:
+                        try:
+                            if isinstance(depends_on_id, str):
+                                task_id = int(depends_on_id)
+                            elif isinstance(depends_on_id, int):
+                                task_id = depends_on_id
+                            else:
+                                continue
+                            all_depends_on_ids.add(task_id)
+                        except (ValueError, TypeError):
+                            continue
+            except Exception:
+                pass
+        
+        # すべての依存タスクを一度に取得
+        depends_on_tasks_map = {}
+        if all_depends_on_ids:
+            try:
+                depends_on_tasks_list = db.query(models.Task).filter(
+                    models.Task.id.in_(list(all_depends_on_ids))
+                ).all()
+                for dep_task in depends_on_tasks_list:
+                    depends_on_tasks_map[dep_task.id] = {
+                        'id': dep_task.id,
+                        'name': dep_task.name,
+                        'status': dep_task.status
+                    }
+            except Exception as e:
+                logger.error(f"依存タスクの一括取得に失敗: {str(e)}")
+        
+        # 各タスクの依存関係を設定
+        for task in tasks:
+            try:
+                depends_on = task.get('dependsOn')
+                if not depends_on or not isinstance(depends_on, list):
                     continue
                 
-                # 依存タスクの情報を取得
                 depends_on_tasks = []
                 for depends_on_id in depends_on:
                     try:
-                        # IDを整数に変換
                         if isinstance(depends_on_id, str):
                             task_id = int(depends_on_id)
                         elif isinstance(depends_on_id, int):
                             task_id = depends_on_id
                         else:
-                            logger.debug(f"無効な依存タスクID: {depends_on_id} (type: {type(depends_on_id)})")
                             continue
                         
-                        # 依存タスクを取得
-                        depends_on_task = crud.get_task(db, task_id)
-                        if depends_on_task:
-                            depends_on_tasks.append({
-                                'id': depends_on_task.id,
-                                'name': depends_on_task.name,
-                                'status': depends_on_task.status
-                            })
-                    except (ValueError, TypeError) as e:
-                        logger.debug(f"依存タスクID {depends_on_id} の変換に失敗: {str(e)}")
-                        continue
-                    except Exception as e:
-                        logger.debug(f"依存タスク {depends_on_id} の取得に失敗: {str(e)}")
+                        if task_id in depends_on_tasks_map:
+                            depends_on_tasks.append(depends_on_tasks_map[task_id])
+                    except (ValueError, TypeError):
                         continue
                 
                 task['dependsOnTasks'] = depends_on_tasks
-                
             except Exception as e:
                 logger.error(f"タスク {task.get('id')} の依存関係処理に失敗: {str(e)}")
                 task['dependsOnTasks'] = []

@@ -1,39 +1,34 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react'; //Reactとは、フロントエンドのUIを作成するためのライブラリです。
 import { Box, Typography, Paper, Grid, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Tab, Tabs, Button, TextField, Autocomplete, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
-import api from '../services/api';
-import { Project, Task, User } from '../types';
-import ProjectProgressChart from '../components/ProjectProgressChart';
-import AssigneeLoadChart from '../components/AssigneeLoadChart';
-import DelayedTaskList from '../components/DelayedTaskList';
-import UserProgressChart from '../components/UserProgressChart';
-import GanttView from '../components/GanttView';
-import ErrorBoundary from '../components/ErrorBoundary';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useMetricsPageState } from '../contexts/PageStateContext';
-
-// Placeholder types - replace with your actual types if different
-// type Project = { id: string; name: string; status: string; };
-// type Task = { id: string; title: string; taskStatus: string; taskAssigneeId: string | null; taskDueDate: string; projectId: string; };
-// type User = { id: string; full_name: string; };
-
-const MetricsPage: React.FC = () => {
+import api from '../services/api'; //apiとは、バックエンドのAPIを呼び出すためのライブラリです。
+import { Project, Task, User } from '../types'; //Projectとは、プロジェクトの情報を管理する型です。Taskとは、タスクの情報を管理する型です。Userとは、ユーザーの情報を管理する型です。
+import ProjectProgressChart from '../components/ProjectProgressChart'; //ProjectProgressChartとは、プロジェクトの進捗を表示するコンポーネントです。
+import AssigneeLoadChart from '../components/AssigneeLoadChart'; //AssigneeLoadChartとは、メンバーの負荷を表示するコンポーネントです。
+import DelayedTaskList from '../components/DelayedTaskList'; //DelayedTaskListとは、遅れているタスクを表示するコンポーネントです。
+import UserProgressChart from '../components/UserProgressChart'; //UserProgressChartとは、ユーザーの進捗を表示するコンポーネントです。
+import GanttView from '../components/GanttView'; //GanttViewとは、ガントチャートを表示するコンポーネントです。
+import ErrorBoundary from '../components/ErrorBoundary'; //ErrorBoundaryとは、エラーを表示するコンポーネントです。
+import { useLocation, useNavigate } from 'react-router-dom'; //useLocationとは、現在のURLを取得するための関数です。useNavigateとは、ページを遷移するための関数です。
+import { useMetricsPageState } from '../contexts/PageStateContext'; //PageStateContextとは、ページの状態を管理するコンテキストです。
+//コンポーネントとは、フロントエンドのUIを作成するための部品です。他のコードで作成した関数を呼び出して、UIを作成します。
+const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスページを表示するコンポーネントです。
   console.log("--- Rendering MetricsPage Component ---");
 
-  const location = useLocation();
-  const navigate = useNavigate();
+  const location = useLocation(); //locationとは、現在のURLを取得するための関数です。
+  const navigate = useNavigate(); //navigateとは、ページを遷移するための関数です。
 
-  // ページ状態管理の使用
+  // ページ状態管理の使用、ユーザーはアプリ内のページ遷移で状態がリセットされないようにするために使用します。
   const { metricsState, updateMetricsState, isInitialLoad, globalData, updateGlobalData } = useMetricsPageState();
 
   // グローバルデータが既に存在する場合は、loading=falseで開始
   const hasInitialData = globalData && globalData.tasks.length > 0 && globalData.projects.length > 0;
-
+  
   const [projects, setProjects] = useState<Project[]>(hasInitialData ? globalData.projects : []);
   const [tasks, setTasks] = useState<Task[]>(hasInitialData ? globalData.tasks : []);
   const [users, setUsers] = useState<User[]>(hasInitialData ? globalData.users : []);
   const [loading, setLoading] = useState<boolean>(!hasInitialData);
   const [error, setError] = useState<string | null>(null);
-
+  
   // 状態を分離（初期化時はデフォルト値）
   const [selectedTab, setSelectedTab] = useState<number>(0);
   const [dateRange, setDateRange] = useState<string>('all');
@@ -50,50 +45,43 @@ const MetricsPage: React.FC = () => {
       setStatusFilter(metricsState.statusFilter);
       setSelectedDisplayStatuses(metricsState.selectedDisplayStatuses);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [isInitialLoad]); // isInitialLoadが変わった時のみ実行
 
   // データ取得関数
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async () => { //fetchDataとは、データを取得するための関数です。constとは、Reactの定数を宣言するためのキーワードです。
     console.log("MetricsPage: useEffect - Fetching data...");
-    setLoading(true);
-    setError(null);
-    try {
-      const [projRes, taskRes, userRes] = await Promise.all([
-        api.get<Project[]>('/projects'),
-        api.get<Task[]>('/tasks'),
-        api.get<User[]>('/api/users'),
-      ]);
+      setLoading(true); //loadingをtrueにする
+      setError(null); //errorをnullにする
+      try {
+        const [projRes, taskRes, userRes] = await Promise.all([ //projResとは、プロジェクトのデータを取得するための関数です。taskResとは、タスクのデータを取得するための関数です。userResとは、ユーザーのデータを取得するための関数です。
+          api.get<Project[]>('/projects'), //api.getとは、バックエンドのAPIを呼び出すための関数です。
+          api.get<Task[]>('/tasks'), //api.getとは、バックエンドのAPIを呼び出すための関数です。
+          api.get<User[]>('/api/users'), //api.getとは、バックエンドのAPIを呼び出すための関数です。
+        ]);
+        
+        const projectsData = projRes.data; //projectsDataとは、プロジェクトのデータを取得するための関数です。
+        const tasksData = taskRes.data; //このdataは、バックエンドのAPIから取得したデータを格納するための変数です。tasksDataという変数名で格納します。
+        const usersData = userRes.data;
+        
+        setProjects(projectsData);
+        setTasks(tasksData);
+        setUsers(usersData);
 
-      console.log("DEBUG: Fetched Projects (display_status check):", JSON.stringify(projRes.data.map(p => ({ id: p.id, name: p.name, display_status: p.display_status })), null, 2));
+        // グローバルデータも更新
+        updateGlobalData({
+          tasks: tasksData,
+          projects: projectsData,
+          users: usersData,
+        });
 
-      console.log("Fetched Projects:", projRes.data.length);
-      console.log("Fetched Tasks:", taskRes.data.length);
-      console.log("Fetched Users:", userRes.data.length);
-      console.log("Fetched Tasks Data:", taskRes.data);
-
-      const projectsData = projRes.data;
-      const tasksData = taskRes.data;
-      const usersData = userRes.data;
-
-      setProjects(projectsData);
-      setTasks(tasksData);
-      setUsers(usersData);
-
-      // グローバルデータも更新
-      updateGlobalData({
-        tasks: tasksData,
-        projects: projectsData,
-        users: usersData,
-      });
-
-    } catch (err: any) {
-      console.error("Failed to fetch metrics data:", err);
-      setError('データの取得に失敗しました。' + (err.message || ''));
-    } finally {
-      setLoading(false);
-    }
-  }, [updateGlobalData]);
+      } catch (err: any) {
+        console.error("Failed to fetch metrics data:", err);
+        setError('データの取得に失敗しました。' + (err.message || ''));
+      } finally {
+        setLoading(false);
+      }
+    }, [updateGlobalData]);
 
   // マウント時のデータ取得（データがない場合のみ）
   useEffect(() => {
@@ -104,7 +92,7 @@ const MetricsPage: React.FC = () => {
     } else {
       console.log("[MetricsPage] Using existing global data (already set in useState)");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 初回マウント時のみ実行
 
   // グローバルデータ更新イベントとCSVインポートイベントをリッスン
@@ -194,7 +182,7 @@ const MetricsPage: React.FC = () => {
   const projectDisplayStatusOptions = useMemo(() => {
     const displayStatuses = new Set<string>();
     projects.forEach(project => {
-      if (project.display_status) {
+      if (project.display_status) { 
         displayStatuses.add(project.display_status);
       }
     });
@@ -205,7 +193,7 @@ const MetricsPage: React.FC = () => {
   const filteredTasks = useMemo(() => {
     console.log(`[MetricsPage] Filtering tasks - Total tasks: ${tasks.length}, Total projects: ${projects.length}`);
     console.log(`[MetricsPage] Filters - projectName: ${projectNameFilter}, status: ${statusFilter}, displayStatuses: ${selectedDisplayStatuses.join(',')}, dateRange: ${dateRange}`);
-
+    
     let result = tasks;
     let tempProjects = projects;
 
@@ -222,24 +210,24 @@ const MetricsPage: React.FC = () => {
 
     // プロジェクトの display_status でフィルタリング (プロジェクトリストを絞る)
     if (selectedDisplayStatuses.length > 0) {
-      tempProjects = tempProjects.filter(project =>
+      tempProjects = tempProjects.filter(project => 
         project.display_status && selectedDisplayStatuses.includes(project.display_status)
       );
     }
-
+    
     const filteredProjectIds = tempProjects.map(project => String(project.id));
 
     // 絞り込まれたプロジェクトIDに基づいてタスクをフィルタリング
     if (projectNameFilter || statusFilter !== 'all' || selectedDisplayStatuses.length > 0) {
-      result = result.filter(task => task.project_id && filteredProjectIds.includes(String(task.project_id)));
+        result = result.filter(task => task.project_id && filteredProjectIds.includes(String(task.project_id)));
     }
-
+    
     // 日付でフィルタリング (最後に適用)
     if (dateRange !== 'all') {
       const now = new Date();
       let startDate: Date;
-
-      switch (dateRange) {
+      
+      switch(dateRange) {
         case 'week':
           startDate = new Date(now);
           startDate.setDate(now.getDate() - 7);
@@ -255,30 +243,30 @@ const MetricsPage: React.FC = () => {
         default:
           startDate = new Date(0); // Unix epoch
       }
-
+      
       result = result.filter(task => {
         // task.due_date が null や undefined の場合、または無効な日付文字列の場合を考慮
         const dueDate = task.due_date ? new Date(task.due_date) : null;
         if (dueDate && !isNaN(dueDate.getTime())) {
-          return dueDate >= startDate && dueDate <= now;
-        }
+            return dueDate >= startDate && dueDate <= now;
+    }
         // due_date がない、または無効なタスクは期間フィルタでは除外しない (または要件に応じて除外)
         return true; // ここでは除外しない
       });
     }
-
+    
     console.log(`[MetricsPage] Filtered tasks result: ${result.length} tasks`);
     if (result.length > 0) {
       console.log(`[MetricsPage] Project IDs in filtered tasks:`, [...new Set(result.map(t => t.project_id))]);
     }
-
+    
     return result;
   }, [tasks, projects, dateRange, projectNameFilter, statusFilter, selectedDisplayStatuses]);
 
   // フィルタリングされたプロジェクト
   const filteredProjects = useMemo(() => {
     let result = projects;
-
+    
     if (projectNameFilter) {
       result = result.filter(project => project.name === projectNameFilter);
     }
@@ -287,31 +275,31 @@ const MetricsPage: React.FC = () => {
     }
     // プロジェクトの display_status でフィルタリング
     if (selectedDisplayStatuses.length > 0) {
-      result = result.filter(project =>
+      result = result.filter(project => 
         project.display_status && selectedDisplayStatuses.includes(project.display_status)
       );
     }
-
+    
     console.log(`[MetricsPage] Filtered projects result: ${result.length} projects`, result.map(p => ({ id: p.id, name: p.name })));
-
+    
     return result;
   }, [projects, projectNameFilter, statusFilter, selectedDisplayStatuses]);
 
   const totalProjects = useMemo(() => filteredProjects.length, [filteredProjects]);
   const totalTasks = useMemo(() => filteredTasks.length, [filteredTasks]);
   const totalUsers = useMemo(() => users.filter(u => u.role !== 'admin').length, [users]);
-
-  const completedTasks = useMemo(() =>
+  
+  const completedTasks = useMemo(() => 
     filteredTasks.filter(task => task.status === 'completed').length,
     [filteredTasks]
   );
-
-  const inProgressTasks = useMemo(() =>
-    filteredTasks.filter(task => task.status === 'in-progress').length,
+  
+  const inProgressTasks = useMemo(() => 
+    filteredTasks.filter(task => task.status === 'in-progress').length, 
     [filteredTasks]
   );
-
-  const delayedTasks = useMemo(() =>
+  
+  const delayedTasks = useMemo(() => 
     filteredTasks.filter(task => task.status === 'delayed').length,
     [filteredTasks]
   );
@@ -338,7 +326,7 @@ const MetricsPage: React.FC = () => {
 
   const handleDisplayStatusChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = event.target;
-    setSelectedDisplayStatuses(prev =>
+    setSelectedDisplayStatuses(prev => 
       checked ? [...prev, name] : prev.filter(status => status !== name)
     );
   };
@@ -353,7 +341,7 @@ const MetricsPage: React.FC = () => {
     setStatusFilter('all');
     setSelectedDisplayStatuses([]);
   };
-
+//ここから下は、ローディング中、エラー、データが取得できた場合の表示を行うためのコードです。
 
   if (loading) {
     console.log("MetricsPage: Rendering Loading state");
@@ -377,162 +365,162 @@ const MetricsPage: React.FC = () => {
   return (
     <Box sx={{ p: 3, flexGrow: 1 }}>
       <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, mb: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="h6">プロジェクトメトリクス</Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={handleClearFilters}
-                sx={{ ml: 2 }}
-              >
-                フィルターをクリア
-              </Button>
-            </Box>
+         <Grid item xs={12}>
+            <Paper sx={{p: 2, mb: 2}}>
+               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                 <Typography variant="h6">プロジェクトメトリクス</Typography>
+                 <Button 
+                   variant="outlined" 
+                   size="small" 
+                   onClick={handleClearFilters}
+                   sx={{ ml: 2 }}
+                 >
+                   フィルターをクリア
+                 </Button>
+               </Box>
+               
+               <Box sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', pb: 1 }}>
+                 <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'medium' }}>表示状態</Typography>
+                 <FormGroup row>
+                   {projectDisplayStatusOptions.map(statusKey => (
+                     <FormControlLabel
+                       key={statusKey}
+                       control={
+                         <Checkbox 
+                           checked={selectedDisplayStatuses.includes(statusKey)} 
+                           onChange={handleDisplayStatusChange} 
+                           name={statusKey} 
+                           size="small"
+                         />
+                       }
+                       label={statusKey.charAt(0).toUpperCase() + statusKey.slice(1)}
+                       sx={{ '& .MuiTypography-root': { fontSize: '0.875rem' } }}
+                     />
+                   ))}
+                 </FormGroup>
+               </Box>
+               
+               <Grid container spacing={2} sx={{ mb: 3 }}>
+                 <Grid item xs={12} sm={6} md={4}>
+                   <FormControl fullWidth size="small">
+                     <InputLabel id="date-range-label">期間</InputLabel>
+                     <Select
+                       labelId="date-range-label"
+                       value={dateRange}
+                       label="期間"
+                       onChange={handleDateRangeChange}
+                     >
+                       <MenuItem value="all">全期間</MenuItem>
+                       <MenuItem value="week">直近1週間</MenuItem>
+                       <MenuItem value="month">直近1ヶ月</MenuItem>
+                       <MenuItem value="quarter">直近3ヶ月</MenuItem>
+                     </Select>
+                   </FormControl>
+                 </Grid>
+                 
+                 <Grid item xs={12} sm={6} md={4}>
+                   <Autocomplete
+                     size="small"
+                     options={projectNameOptions}
+                     value={projectNameFilter}
+                     onChange={handleProjectNameChange}
+                     renderInput={(params) => (
+                       <TextField {...params} label="プロジェクト名" />
+                     )}
+                   />
+                 </Grid>
+                 
+                 <Grid item xs={12} sm={12} md={4}>
+                   <FormControl fullWidth size="small">
+                     <InputLabel id="project-status-label">プロジェクト状態</InputLabel>
+                     <Select
+                       labelId="project-status-label"
+                       value={statusFilter}
+                       label="プロジェクト状態"
+                       onChange={handleStatusFilterChange}
+                     >
+                       <MenuItem value="all">すべて</MenuItem>
+                       {projectStatusOptions.map(status => (
+                         <MenuItem key={status} value={status}>{status}</MenuItem>
+                       ))}
+                     </Select>
+                   </FormControl>
+                 </Grid>
+               </Grid>
+               
+               <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                 <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                   <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{totalProjects}</Typography>
+                   <Typography variant="body2" color="text.secondary">プロジェクト</Typography>
+                 </Box>
+                 <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                   <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{totalTasks}</Typography>
+                   <Typography variant="body2" color="text.secondary">タスク総数</Typography>
+                 </Box>
+                 <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                   <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#4caf50' }}>{completedTasks}</Typography>
+                   <Typography variant="body2" color="text.secondary">完了タスク</Typography>
+                 </Box>
+                 <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                   <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ff9800' }}>{inProgressTasks}</Typography>
+                   <Typography variant="body2" color="text.secondary">進行中タスク</Typography>
+                 </Box>
+                 <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                   <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#f44336' }}>{delayedTasks}</Typography>
+                   <Typography variant="body2" color="text.secondary">遅延タスク</Typography>
+                 </Box>
+                 <Box sx={{ textAlign: 'center', minWidth: 120 }}>
+                   <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#9e9e9e' }}>{totalUsers}</Typography>
+                   <Typography variant="body2" color="text.secondary">メンバー</Typography>
+                 </Box>
+               </Box>
+            </Paper>
+         </Grid>
 
-            <Box sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', pb: 1 }}>
-              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'medium' }}>表示状態</Typography>
-              <FormGroup row>
-                {projectDisplayStatusOptions.map(statusKey => (
-                  <FormControlLabel
-                    key={statusKey}
-                    control={
-                      <Checkbox
-                        checked={selectedDisplayStatuses.includes(statusKey)}
-                        onChange={handleDisplayStatusChange}
-                        name={statusKey}
-                        size="small"
-                      />
-                    }
-                    label={statusKey.charAt(0).toUpperCase() + statusKey.slice(1)}
-                    sx={{ '& .MuiTypography-root': { fontSize: '0.875rem' } }}
-                  />
-                ))}
-              </FormGroup>
-            </Box>
-
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} sm={6} md={4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="date-range-label">期間</InputLabel>
-                  <Select
-                    labelId="date-range-label"
-                    value={dateRange}
-                    label="期間"
-                    onChange={handleDateRangeChange}
-                  >
-                    <MenuItem value="all">全期間</MenuItem>
-                    <MenuItem value="week">直近1週間</MenuItem>
-                    <MenuItem value="month">直近1ヶ月</MenuItem>
-                    <MenuItem value="quarter">直近3ヶ月</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} sm={6} md={4}>
-                <Autocomplete
-                  size="small"
-                  options={projectNameOptions}
-                  value={projectNameFilter}
-                  onChange={handleProjectNameChange}
-                  renderInput={(params) => (
-                    <TextField {...params} label="プロジェクト名" />
-                  )}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={12} md={4}>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="project-status-label">プロジェクト状態</InputLabel>
-                  <Select
-                    labelId="project-status-label"
-                    value={statusFilter}
-                    label="プロジェクト状態"
-                    onChange={handleStatusFilterChange}
-                  >
-                    <MenuItem value="all">すべて</MenuItem>
-                    {projectStatusOptions.map(status => (
-                      <MenuItem key={status} value={status}>{status}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-
-            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-              <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{totalProjects}</Typography>
-                <Typography variant="body2" color="text.secondary">プロジェクト</Typography>
-              </Box>
-              <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#1976d2' }}>{totalTasks}</Typography>
-                <Typography variant="body2" color="text.secondary">タスク総数</Typography>
-              </Box>
-              <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#4caf50' }}>{completedTasks}</Typography>
-                <Typography variant="body2" color="text.secondary">完了タスク</Typography>
-              </Box>
-              <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ff9800' }}>{inProgressTasks}</Typography>
-                <Typography variant="body2" color="text.secondary">進行中タスク</Typography>
-              </Box>
-              <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#f44336' }}>{delayedTasks}</Typography>
-                <Typography variant="body2" color="text.secondary">遅延タスク</Typography>
-              </Box>
-              <Box sx={{ textAlign: 'center', minWidth: 120 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#9e9e9e' }}>{totalUsers}</Typography>
-                <Typography variant="body2" color="text.secondary">メンバー</Typography>
-              </Box>
-            </Box>
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12}>
+         <Grid item xs={12}>
           <Paper sx={{ p: 2 }}>
-            <Tabs
-              value={selectedTab}
-              onChange={handleTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
-            >
-              <Tab label="プロジェクト進捗" />
-              <Tab label="メンバー負荷" />
-              <Tab label="遅延タスク" />
-              <Tab label="メンバー進捗" />
-              <Tab label="ガントチャート" />
-            </Tabs>
-
-            {selectedTab === 0 && (
-              <ProjectProgressChart
+             <Tabs 
+               value={selectedTab} 
+               onChange={handleTabChange} 
+               variant="scrollable"
+               scrollButtons="auto"
+               sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+             >
+               <Tab label="プロジェクト進捗" />
+               <Tab label="メンバー負荷" />
+               <Tab label="遅延タスク" />
+               <Tab label="メンバー進捗" />
+               <Tab label="ガントチャート" />
+             </Tabs>
+             
+             {selectedTab === 0 && (
+           <ProjectProgressChart
                 projects={filteredProjects}
                 tasks={filteredTasks}
-              />
-            )}
-
-            {selectedTab === 1 && (
-              <AssigneeLoadChart tasks={filteredTasks} users={users} projects={filteredProjects} />
-            )}
-
-            {selectedTab === 2 && (
-              <DelayedTaskList tasks={filteredTasks} users={users} projects={filteredProjects} />
-            )}
-
-            {selectedTab === 3 && (
-              <UserProgressChart tasks={filteredTasks} users={users} projects={filteredProjects} />
-            )}
-
-            {selectedTab === 4 && (
-              <>
+           />
+             )}
+             
+             {selectedTab === 1 && (
+               <AssigneeLoadChart tasks={filteredTasks} users={users} projects={filteredProjects} />
+             )}
+             
+             {selectedTab === 2 && (
+               <DelayedTaskList tasks={filteredTasks} users={users} projects={filteredProjects} />
+             )}
+             
+             {selectedTab === 3 && (
+               <UserProgressChart tasks={filteredTasks} users={users} projects={filteredProjects} />
+             )}
+             
+             {selectedTab === 4 && (
+               <>
                 {filteredTasks.length > 0 ? (
                   <ErrorBoundary componentName="GanttChart">
-                    <GanttView
+                    <GanttView 
                       key={`gantt-${filteredProjects.map(p => p.id).join('-')}`}
-                      tasks={filteredTasks}
-                      projects={filteredProjects}
-                      users={users}
+                      tasks={filteredTasks} 
+                      projects={filteredProjects} 
+                      users={users} 
                     />
                   </ErrorBoundary>
                 ) : (
@@ -540,8 +528,8 @@ const MetricsPage: React.FC = () => {
                     <Typography>タスクデータが見つかりません。タスクを追加するか、フィルターを調整してください。</Typography>
                   </Box>
                 )}
-              </>
-            )}
+               </>
+             )}
           </Paper>
         </Grid>
       </Grid>

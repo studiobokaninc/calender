@@ -111,3 +111,8 @@ button:focus-visible {
    background-color: rgba(0, 0, 0, 0.05) !important; /* 薄い灰色に戻す */
    /* background-color: yellow !important; */ /* 削除 */
 }
+
+/* ガントチャート：依存関係矢印の視認性向上（色はarrowColorで指定、ここでは太さのみ） */
+.gantt-container .arrows path {
+  stroke-width: 2;
+}

@@ -242,16 +242,21 @@ const CalendarPage: React.FC = () => {
                         backgroundColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
                         borderColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
                     extendedProps: {
-                            type: 'task', // ★★★ 小文字に統一 ★★★
+                            type: 'task',
                             taskId: task.id,
                             description: task.description,
                         location: undefined,
                         participants: undefined,
                         projectId: task.project_id ? String(task.project_id) : undefined,
                         taskDueDate: task.due_date,
+                        taskStartDate: task.start_date ?? undefined,
                         taskAssigneeId: task.assigned_to ? String(task.assigned_to) : undefined,
                         taskCost: task.cost,
                         taskStatus: task.status,
+                        taskPriority: task.priority ?? undefined,
+                        taskType: task.type ?? undefined,
+                        taskSeqID: task.seqID ?? undefined,
+                        taskShotID: task.shotID ?? undefined,
                             status: undefined,
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
@@ -537,9 +542,14 @@ const CalendarPage: React.FC = () => {
                             participants: undefined,
                             projectId: task.project_id ? String(task.project_id) : undefined,
                             taskDueDate: task.due_date,
+                            taskStartDate: task.start_date ?? undefined,
                             taskAssigneeId: task.assigned_to ? String(task.assigned_to) : undefined,
                             taskCost: task.cost,
                             taskStatus: task.status,
+                            taskPriority: task.priority ?? undefined,
+                            taskType: task.type ?? undefined,
+                            taskSeqID: task.seqID ?? undefined,
+                            taskShotID: task.shotID ?? undefined,
                             status: undefined,
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
@@ -929,16 +939,70 @@ const CalendarPage: React.FC = () => {
             if (numericIdForApi) {
                 if (normalizedType === 'Task') {
                     const md: any = modalData;
+                    // assigned_toはEventAddModalから既に設定されているので、それを優先使用
+                    let assignedToValue: number | undefined = undefined;
+                    if (md.assigned_to !== null && md.assigned_to !== undefined) {
+                        assignedToValue = typeof md.assigned_to === 'number' ? md.assigned_to : parseInt(String(md.assigned_to), 10);
+                    } else if (md.taskAssigneeId) {
+                        // フォールバック: taskAssigneeIdから値を取得
+                        const taskAssigneeIdStr = String(md.taskAssigneeId);
+                        const match = taskAssigneeIdStr.match(/^(user|group)-(\d+)$/);
+                        if (match) {
+                            assignedToValue = parseInt(match[2], 10);
+                        }
+                    }
+                    
+                    // due_dateのフォーマット処理（yyyy-MM-dd形式の場合はISO形式に変換）
+                    let dueDateValue: string | undefined = undefined;
+                    if (md.due_date) {
+                        // 既にISO形式の場合はそのまま使用
+                        if (typeof md.due_date === 'string' && md.due_date.includes('T')) {
+                            dueDateValue = md.due_date;
+                        } else if (typeof md.due_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(md.due_date)) {
+                            dueDateValue = `${md.due_date}T00:00:00+09:00`;
+                        } else {
+                            dueDateValue = md.due_date;
+                        }
+                    } else if (md.taskDueDate) {
+                        // yyyy-MM-dd形式の場合はISO形式に変換
+                        if (typeof md.taskDueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(md.taskDueDate)) {
+                            dueDateValue = `${md.taskDueDate}T00:00:00+09:00`;
+                        } else {
+                            dueDateValue = md.taskDueDate;
+                        }
+                    }
+                    
+                    // priorityの処理（小文字を大文字に変換、またはundefined）
+                    let priorityValue: string | undefined = undefined;
+                    if (md.priority) {
+                        const priorityStr = String(md.priority).toLowerCase();
+                        if (priorityStr === 'low') {
+                            priorityValue = 'LOW';
+                        } else if (priorityStr === 'medium') {
+                            priorityValue = 'MEDIUM';
+                        } else if (priorityStr === 'high') {
+                            priorityValue = 'HIGH';
+                        }
+                    }
+                    
+                    // seqIDとshotIDの処理（空文字列の場合はundefined）
+                    const seqIDValue = md.seqID && md.seqID.trim() !== '' ? md.seqID.trim() : undefined;
+                    const shotIDValue = md.shotID && md.shotID.trim() !== '' ? md.shotID.trim() : undefined;
+                    
                     const taskData = {
                         name: md.title,
                         description: md.description || '',
                         status: md.status || 'todo',
-                        due_date: md.due_date || md.taskDueDate || undefined,
+                        due_date: dueDateValue,
                         project_id: md.project_id ? parseInt(String(md.project_id)) : undefined,
-                        assigned_to: md.assigned_to ? parseInt(String(md.assigned_to)) : (md.taskAssigneeId ? parseInt(String(md.taskAssigneeId).replace('user-', '')) : undefined),
+                        assigned_to: assignedToValue,
                         cost: md.cost ? Number(md.cost) : (md.taskCost ? Number(md.taskCost) : 0),
                         dependsOn: md.dependsOn || [],
                         start_date: md.start_time,
+                        priority: priorityValue,
+                        type: md.taskType && md.taskType.trim() !== '' ? md.taskType.trim() : undefined,
+                        seqID: seqIDValue,
+                        shotID: shotIDValue,
                     };
                     console.log(`Updating task (PUT) with numeric ID: ${numericIdForApi}`, taskData);
                     response = await api.put(`/tasks/${numericIdForApi}`, taskData);
@@ -962,16 +1026,70 @@ const CalendarPage: React.FC = () => {
             } else {
                 if (normalizedType === 'Task') {
                     const md: any = modalData; 
+                    // assigned_toはEventAddModalから既に設定されているので、それを優先使用
+                    let assignedToValue: number | undefined = undefined;
+                    if (md.assigned_to !== null && md.assigned_to !== undefined) {
+                        assignedToValue = typeof md.assigned_to === 'number' ? md.assigned_to : parseInt(String(md.assigned_to), 10);
+                    } else if (md.taskAssigneeId) {
+                        // フォールバック: taskAssigneeIdから値を取得
+                        const taskAssigneeIdStr = String(md.taskAssigneeId);
+                        const match = taskAssigneeIdStr.match(/^(user|group)-(\d+)$/);
+                        if (match) {
+                            assignedToValue = parseInt(match[2], 10);
+                        }
+                    }
+                    
+                    // due_dateのフォーマット処理（yyyy-MM-dd形式の場合はISO形式に変換）
+                    let dueDateValue: string | undefined = undefined;
+                    if (md.due_date) {
+                        // 既にISO形式の場合はそのまま使用
+                        if (typeof md.due_date === 'string' && md.due_date.includes('T')) {
+                            dueDateValue = md.due_date;
+                        } else if (typeof md.due_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(md.due_date)) {
+                            dueDateValue = `${md.due_date}T00:00:00+09:00`;
+                        } else {
+                            dueDateValue = md.due_date;
+                        }
+                    } else if (md.taskDueDate) {
+                        // yyyy-MM-dd形式の場合はISO形式に変換
+                        if (typeof md.taskDueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(md.taskDueDate)) {
+                            dueDateValue = `${md.taskDueDate}T00:00:00+09:00`;
+                        } else {
+                            dueDateValue = md.taskDueDate;
+                        }
+                    }
+                    
+                    // priorityの処理（小文字を大文字に変換、またはundefined）
+                    let priorityValue: string | undefined = undefined;
+                    if (md.priority) {
+                        const priorityStr = String(md.priority).toLowerCase();
+                        if (priorityStr === 'low') {
+                            priorityValue = 'LOW';
+                        } else if (priorityStr === 'medium') {
+                            priorityValue = 'MEDIUM';
+                        } else if (priorityStr === 'high') {
+                            priorityValue = 'HIGH';
+                        }
+                    }
+                    
+                    // seqIDとshotIDの処理（空文字列の場合はundefined）
+                    const seqIDValue = md.seqID && md.seqID.trim() !== '' ? md.seqID.trim() : undefined;
+                    const shotIDValue = md.shotID && md.shotID.trim() !== '' ? md.shotID.trim() : undefined;
+                    
                     const taskData: any = {
                         name: md.title,
                         description: md.description || '',
                         status: md.status || 'todo',
-                        due_date: md.due_date || md.taskDueDate || undefined,
+                        due_date: dueDateValue,
                         project_id: md.project_id ? parseInt(String(md.project_id)) : undefined,
-                        assigned_to: md.taskAssigneeId ? parseInt(String(md.taskAssigneeId).replace(/^user-|^group-/, '')) : undefined,
+                        assigned_to: assignedToValue,
                         cost: md.taskCost ? Number(md.taskCost) : (md.cost ? Number(md.cost) : undefined),
                         dependsOn: md.dependsOn || [], 
                         start_date: md.start_time,
+                        priority: priorityValue,
+                        type: md.taskType && md.taskType.trim() !== '' ? md.taskType.trim() : undefined,
+                        seqID: seqIDValue,
+                        shotID: shotIDValue,
                     };
                     console.log("[CalendarPage] Creating NEW TASK via POST /tasks with data:", JSON.stringify(taskData, null, 2));
                     response = await api.post('/tasks', taskData);
@@ -997,7 +1115,42 @@ const CalendarPage: React.FC = () => {
 
         } catch (err: any) {
             console.error("Failed to save event:", err);
-            const errorMessage = err.response?.data?.detail || err.message || 'Unknown error';
+            console.error("Error response:", err.response);
+            console.error("Error response data:", err.response?.data);
+            
+            let errorMessage = 'Unknown error';
+            
+            if (err.response?.data?.detail) {
+                const detail = err.response.data.detail;
+                if (Array.isArray(detail)) {
+                    // バリデーションエラーの場合
+                    errorMessage = detail
+                        .map((error: any) => {
+                            if (typeof error === 'string') {
+                                return error;
+                            }
+                            return `${error.loc?.join('.') || 'unknown'}: ${error.msg || JSON.stringify(error)}`;
+                        })
+                        .join('\n');
+                } else if (typeof detail === 'string') {
+                    errorMessage = detail;
+                } else if (typeof detail === 'object') {
+                    // オブジェクトの場合はJSON文字列化
+                    errorMessage = JSON.stringify(detail, null, 2);
+                } else {
+                    errorMessage = String(detail);
+                }
+            } else if (err.response?.data?.message) {
+                errorMessage = err.response.data.message;
+            } else if (err.message) {
+                errorMessage = err.message;
+            } else if (typeof err === 'string') {
+                errorMessage = err;
+            } else {
+                errorMessage = JSON.stringify(err, null, 2);
+            }
+            
+            console.error("Formatted error message:", errorMessage);
             setError(`イベントの保存に失敗しました: ${errorMessage}`);
             setLoading(false);
         } finally {

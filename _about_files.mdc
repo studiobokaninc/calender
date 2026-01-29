@@ -156,3 +156,231 @@ alwaysApply: false
 - クラウドストレージ連携
 - ファイルバージョン管理
 - 自動バックアップ機能の強化
+
+---
+
+# 現状のファイル構成（詳細版）
+
+## ルートディレクトリ構成
+
+### ドキュメントファイル（`.mdc`）
+- `_about_calender.mdc`: カレンダーアプリケーションの概要説明
+- `_about_files.mdc`: このファイル。ファイル構成の説明
+- `_API.mdc`: API仕様書
+- `_basicTHK.mdc`: 開発メモ・思考プロセス
+- `_how2install.mdc`: インストール手順
+- `_how2reset_DB.mdc`: データベースリセット手順
+- `_how2use.mdc`: アプリケーションの基本的な使用方法
+- `_project_task_info.mdc`: プロジェクト・タスク情報
+- `_START_CALENDER.bat`: アプリケーション起動用バッチファイル
+
+### 設定ファイル
+- `package.json`: ルートレベルの依存関係（styled-components、dayjsなど）
+- `package-lock.json`: 依存関係のロックファイル
+- `.gitignore`: Gitの追跡対象外ファイル指定
+- `.vscode/settings.json`: VSCode設定ファイル
+
+### データファイル
+- `original_mock_data.json`: 元のモックデータ
+- `append_mock_data.json`: 追加用モックデータ
+- `import_data_replace.json`: インポート用データ
+- `exported_data.json`: エクスポートされたデータ
+- `exported_data_after_import.json`: インポート後のエクスポートデータ
+- `exported_data_after_import_direct.json`: 直接インポート後のエクスポートデータ
+- `mock_data_export_*.json`: タイムスタンプ付きエクスポートデータ
+
+### その他
+- `walkthrough.md`: ウォークスルーガイド
+- `起動手順.md`: 起動手順書
+- `public/gantt-fix.js`: ガントチャート修正用JavaScript
+
+## フロントエンド構成 (`frontend/`)
+
+### 設定ファイル
+- `package.json`: フロントエンドの依存関係とスクリプト
+- `package-lock.json`: 依存関係のロックファイル
+- `tsconfig.json`: TypeScript設定
+- `tsconfig.node.json`: Node.js用TypeScript設定
+- `vite.config.ts`: Viteビルドツール設定
+
+### ソースコード (`frontend/src/`)
+
+#### エントリーポイント
+- `main.tsx`: Reactアプリケーションのエントリーポイント
+- `App.tsx`: アプリケーションのルートコンポーネント、ルーティング設定
+- `App.css`: アプリケーションのグローバルスタイル
+- `index.css`: グローバルなCSSスタイル
+
+#### 型定義・ユーティリティ
+- `types.ts`: TypeScriptの型定義ファイル（データ構造など）
+- `vite-env.d.ts`: Vite環境変数の型定義
+- `frappe-gantt.d.ts`: frappe-ganttライブラリの型定義
+- `utils/transformImportData.ts`: データインポート変換ユーティリティ
+
+#### コンポーネント (`components/`)
+- `Layout.tsx`: レイアウトコンポーネント
+- `ErrorBoundary.tsx`: エラーバウンダリー
+- `AdminRoute.tsx`: 管理者ルート保護コンポーネント
+
+**イベント・タスク関連**
+- `EventAddModal.tsx`: イベント追加・編集モーダル
+- `EventAddModalMonthly.tsx`: 月次イベント追加モーダル
+- `EventDetailsPanel.tsx`: イベント詳細パネル
+- `EventManagementConsole.tsx`: イベント管理コンソール
+- `DelayedTaskList.tsx`: 遅延タスク一覧
+
+**プロジェクト関連**
+- `ProjectDeleteDialog.tsx`: プロジェクト削除ダイアログ
+- `ProjectProgressChart.tsx`: プロジェクト進捗チャート
+
+**ユーザー関連**
+- `UserAddModal.tsx`: ユーザー追加モーダル
+- `UserProgressChart.tsx`: ユーザー進捗チャート
+- `AssigneeLoadChart.tsx`: 担当者負荷チャート
+
+**データ管理**
+- `CsvParser.tsx`: CSVパーサーコンポーネント
+- `DataManagementConsole.tsx`: データ管理コンソール
+- `MockDataConsole.tsx`: モックデータコンソール
+
+**ビュー・チャート**
+- `GanttView.tsx`: ガントチャートビュー
+- `TimelineView.tsx`: タイムラインビュー
+- `task-gantt/GanttView.tsx`: タスク用ガントチャートビュー
+- `metrics/ProjectProgressChart.tsx`: メトリクス用プロジェクト進捗チャート
+
+#### ページ (`pages/`)
+- `Login.tsx`: ログインページ
+- `Dashboard.tsx`: ダッシュボードページ
+- `CalendarPage.tsx`: メインのカレンダー表示と操作機能を提供するページ
+- `Calendar_backup_20250409.tsx`: カレンダーページのバックアップ
+- `TasksPage.tsx`: タスク管理ページ
+- `Tasks.tsx`: タスク一覧ページ
+- `ProjectsPage.tsx`: プロジェクト一覧ページ
+- `Projects.tsx`: プロジェクト管理ページ
+- `ProjectDetailPage.tsx`: プロジェクト詳細ページ
+- `EventManagementPage.tsx`: イベント管理ページ
+- `GroupManagementPage.tsx`: グループ管理ページ
+- `UserManagementPage.tsx`: ユーザー管理ページ
+- `MetricsPage.tsx`: メトリクス・統計ページ
+- `NotesPage.tsx`: ノートページ
+
+#### コンテキスト (`contexts/`)
+- `AuthContext.tsx`: 認証状態やユーザー情報を管理するコンテキスト
+- `PageStateContext.tsx`: ページ状態を管理するコンテキスト
+- `AuthContext - コピー.tsx.txt`: 認証コンテキストのバックアップ
+
+#### サービス (`services/`)
+- `api.ts`: バックエンドAPIとの通信設定（axiosインスタンスなど）
+
+#### アセット (`assets/`)
+- `react.svg`: Reactロゴ画像
+
+### 公開ファイル (`frontend/public/`)
+- `index.html`: HTMLテンプレート
+- `vite.svg`: Viteロゴ
+
+## バックエンド構成 (`backend/`)
+
+### メインアプリケーション (`backend/app/`)
+
+#### コアファイル
+- `main.py`: FastAPIアプリケーションのエントリーポイント、ルーティング定義
+- `main.py.bak`, `main.py.bak2`: メインファイルのバックアップ
+- `database.py`: データベース接続設定
+- `models.py`: SQLAlchemy ORMモデル定義
+- `schemas.py`: Pydanticデータバリデーションスキーマ定義
+- `crud.py`: データベースのCRUD操作関数群
+- `security.py`: セキュリティ関連（認証、パスワードハッシュなど）
+
+#### 機能モジュール
+- `calendar.py`: カレンダー関連のビジネスロジック
+- `calendar_api.py`: カレンダーAPIエンドポイント
+- `mock_data.py`: モックデータ生成・投入スクリプト
+- `timezone.py`: タイムゾーン処理
+- `update_priority.py`: 優先度更新処理
+- `dify_client.py`: Difyクライアント連携
+
+#### ルーター (`routers/`)
+- `chat.py`: チャット機能のAPIルーター
+
+#### キャッシュ (`__pycache__/`)
+- Pythonバイトコードキャッシュファイル（各種`.pyc`ファイル）
+
+### データベースマイグレーション (`backend/alembic/`)
+- `env.py`: Alembic環境設定
+- `script.py.mako`: マイグレーションスクリプトテンプレート
+- `README`: Alembicの説明
+- `versions/`: マイグレーションファイル
+  - `01936c97c038_add_color_field_to_project_model.py`: プロジェクトモデルにカラーフィールド追加
+  - `14bed50e0a0b_remove_display_status_from_events_and_.py`: イベントからdisplay_status削除
+  - `bb196eb3f4dc_update_task_status_history_model.py`: タスクステータス履歴モデル更新
+  - `xyz123abc456_add_project_id_to_note_model.py`: ノートモデルにプロジェクトID追加
+
+### データファイル (`backend/data/`)
+- `backup_data.json`: バックアップデータ
+
+### スクリプトファイル（ルート直下）
+- `create_db.py`: データベース初期化スクリプト（存在する場合）
+- `add_text_boxes_to_notes.py`: ノートにテキストボックス追加スクリプト
+- `add_content_position_to_notes.py`: ノートにコンテンツ位置追加スクリプト
+- `add_image_positions_to_notes.py`: ノートに画像位置追加スクリプト
+- `add_project_id_to_notes.py`: ノートにプロジェクトID追加スクリプト
+- `create_notes_table.py`: ノートテーブル作成スクリプト
+- `convert_type_column.py`: タイプカラム変換スクリプト
+- `show_recent_errors.py`: 最近のエラー表示スクリプト
+- `find_invalid_types.py`: 無効なタイプ検索スクリプト
+- `check_db.py`: データベースチェックスクリプト
+
+### 仮想環境
+- `backend/venv/`: Python仮想環境（依存パッケージ含む）
+- `venv/`: ルートレベルのPython仮想環境（存在する場合）
+
+## Pythonスクリプト (`python_script/`)
+
+### バックアップスクリプト
+- `CarenderDB_backup/`
+  - `CarenderDB_backup.py`: データベースバックアップスクリプト
+  - `CarenderDB_backup.bat`: バックアップ実行用バッチファイル
+  - `chatgpt_url.txt`: ChatGPT URL情報
+
+## ドキュメント (`docs/`)
+- `データ管理のCSVファイルのアップロード.md`: CSVアップロード手順
+- `データ管理ページ.md`: データ管理ページの説明
+- `ローカル環境でカレンダーアプリを再構築.md`: ローカル環境構築手順
+- `横スクロール機能の改善について.md`: 横スクロール機能の改善内容
+
+## 依存関係
+
+### フロントエンド主要ライブラリ
+- React 18.3.0
+- TypeScript 5.7.2
+- Vite 6.2.0
+- Material-UI (@mui/material, @mui/icons-material, @mui/x-data-grid, @mui/x-date-pickers)
+- FullCalendar (@fullcalendar/react, @fullcalendar/core, etc.)
+- React Router DOM 6.26.1
+- Axios 1.8.4
+- dayjs 1.11.13
+- date-fns 2.30.0
+- Recharts 2.15.2
+- gantt-task-react 0.3.9
+- marked 16.4.0（Markdownパーサー）
+- dompurify 3.2.7（HTMLサニタイズ）
+- papaparse 5.5.2（CSVパーサー）
+- styled-components 6.1.17
+
+### バックエンド主要ライブラリ
+- FastAPI
+- SQLAlchemy（ORM）
+- Pydantic（データバリデーション）
+- Alembic（データベースマイグレーション）
+- Python 3.10-3.13対応
+
+## データベース
+- SQLiteデータベース（`project_management.db` または `sql_app.db`）
+- Alembicによるマイグレーション管理
+
+## 開発環境
+- Node.js（フロントエンド）
+- Python 3.10以上（バックエンド）
+- VSCode設定ファイル（`.vscode/settings.json`）

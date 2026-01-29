@@ -48,14 +48,14 @@ const Dashboard: React.FC = () => {
   const [lastSuggestedForMessageId, setLastSuggestedForMessageId] = useState<string | null>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
-  // アクション確認ダイアログ用の状態
+  // アクション確認ダイアログ用の状態（単一・複数どちらも配列で保持）
   interface PendingAction {
     action_type: 'update_task' | 'create_task' | 'delete_task';
     task_id?: number;
     task_data?: any;
     description: string;
   }
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [pendingActions, setPendingActions] = useState<PendingAction[] | null>(null);
   const [isExecutingAction, setIsExecutingAction] = useState(false);
   const [projectsForAction, setProjectsForAction] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedProjectIdForAction, setSelectedProjectIdForAction] = useState<number | ''>('');
@@ -71,6 +71,7 @@ const Dashboard: React.FC = () => {
   const [stateRestored, setStateRestored] = useState(false)
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const hasReceivedTaskActionRef = useRef<boolean>(false)
 
   // ページ状態が復元されたらローカル状態を更新
   useEffect(() => {
@@ -429,48 +430,57 @@ const Dashboard: React.FC = () => {
     }, 100)
   }
 
-  // アクションJSONを検出する関数
-  const detectActionFromContent = (content: string): any | null => {
+  // アクションJSONを検出する関数（単一オブジェクトまたは配列を返す。配列の場合は複数アクション）
+  const detectActionFromContent = (content: string): any | any[] | null => {
+    const validTypes = ['update_task', 'create_task', 'delete_task'];
+    const isValidAction = (a: any) => a && typeof a === 'object' && validTypes.includes(a.action_type);
+
     try {
-      // JSON形式のアクションを検出（複数のパターンに対応）
-      const jsonPatterns = [
-        /\{[\s\S]*?"action_type"[\s\S]*?\}/,  // 基本的なJSONパターン
-        /\{[\s\S]*?"action_type":\s*"(update_task|create_task|delete_task)"[\s\S]*?\}/,  // より具体的なパターン
-      ];
-      
-      for (const pattern of jsonPatterns) {
-        const match = content.match(pattern);
-        if (match) {
-          try {
-            const action = JSON.parse(match[0]);
-            if (['update_task', 'create_task', 'delete_task'].includes(action.action_type)) {
-              return action;
-            }
-          } catch (e) {
-            // JSON解析エラーは次のパターンを試す
-            continue;
+      // コードブロック全体を抽出（```json または ``` で囲まれた中身）
+      const extractCodeBlock = (text: string): string | null => {
+        const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+        return fence ? fence[1].trim() : null;
+      };
+
+      // パターン1: --- + コードブロック
+      if (content.includes('---')) {
+        const parts = content.split('---', 1);
+        if (parts.length > 1) {
+          const block = extractCodeBlock(parts[1].trim());
+          if (block) {
+            try {
+              const parsed = JSON.parse(block);
+              if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isValidAction))
+                return parsed;
+              if (isValidAction(parsed)) return parsed;
+            } catch (_) { /* ignore */ }
           }
         }
       }
-      
-      // コードブロック内のJSONも検出
-      const codeBlockPattern = /```(?:json)?\s*(\{[\s\S]*?"action_type"[\s\S]*?\})\s*```/;
-      const codeMatch = content.match(codeBlockPattern);
-      if (codeMatch) {
+
+      // パターン2: コードブロックのみ（---なし）
+      const block = extractCodeBlock(content);
+      if (block) {
         try {
-          const action = JSON.parse(codeMatch[1]);
-          if (['update_task', 'create_task', 'delete_task'].includes(action.action_type)) {
-            return action;
-          }
-        } catch (e) {
-          // JSON解析エラーは無視
-        }
+          const parsed = JSON.parse(block);
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isValidAction))
+            return parsed;
+          if (isValidAction(parsed)) return parsed;
+        } catch (_) { /* ignore */ }
+      }
+
+      // パターン3: 単一オブジェクトのJSONを直接検出
+      const singlePattern = /\{[\s\S]*?"action_type":\s*"(update_task|create_task|delete_task)"[\s\S]*?\}/;
+      const singleMatch = content.match(singlePattern);
+      if (singleMatch) {
+        try {
+          const action = JSON.parse(singleMatch[0]);
+          if (isValidAction(action)) return action;
+        } catch (_) { /* ignore */ }
       }
     } catch (e) {
-      // エラーは無視
       console.debug('Action detection error:', e);
     }
-    
     return null;
   };
 
@@ -504,9 +514,10 @@ const Dashboard: React.FC = () => {
   };
 
   // アクション確認ダイアログ用に、タスク作成時のプロジェクト一覧を取得
+  const hasCreateTaskAction = pendingActions?.some(a => a.action_type === 'create_task') ?? false;
   useEffect(() => {
     const fetchProjectsForAction = async () => {
-      if (pendingAction?.action_type !== 'create_task') return;
+      if (!hasCreateTaskAction) return;
       try {
         const res = await api.get('/projects');
         if (Array.isArray(res.data)) {
@@ -518,64 +529,50 @@ const Dashboard: React.FC = () => {
       }
     };
     fetchProjectsForAction();
-  }, [pendingAction]);
+  }, [hasCreateTaskAction]);
 
-  // アクションを実行
+  // アクションを実行（複数件の場合は順に実行）
   const executeAction = async () => {
-    if (!pendingAction) return;
-    
+    if (!pendingActions || pendingActions.length === 0) return;
     setIsExecutingAction(true);
+    const results: string[] = [];
     try {
-      // 送信前にペイロードを構築（必要に応じてproject_idを付与）
-      const payload: any = {
-        action_type: pendingAction.action_type,
-        task_id: pendingAction.task_id,
-        task_data: pendingAction.task_data ? { ...pendingAction.task_data } : {},
-      };
-
-      // タスク作成時にユーザーがプロジェクトを選択していれば、そのIDを付与
-      if (
-        pendingAction.action_type === 'create_task' &&
-        selectedProjectIdForAction !== ''
-      ) {
-        payload.task_data.project_id = selectedProjectIdForAction;
-      }
-
-      const response = await api.post('/chat/actions/task', payload);
-      
-      if (response.data.success) {
-        // 成功メッセージをチャットに追加
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `✅ ${response.data.message}`
-        }]);
-        
-        // グローバルデータを更新（タスク一覧を再取得）
-        if (refreshGlobalData) {
-          await refreshGlobalData();
+      for (const pa of pendingActions) {
+        const payload: any = {
+          action_type: pa.action_type,
+          task_id: pa.task_id,
+          task_data: pa.task_data ? { ...pa.task_data } : {},
+        };
+        if (pa.action_type === 'create_task' && selectedProjectIdForAction !== '') {
+          payload.task_data = payload.task_data || {};
+          payload.task_data.project_id = selectedProjectIdForAction;
         }
-      } else {
-        // エラーメッセージをチャットに追加
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `❌ エラー: ${response.data.error}`
-        }]);
+        try {
+          const response = await api.post('/chat/actions/task', payload);
+          if (response.data.success) {
+            results.push(`✅ ${response.data.message}`);
+          } else {
+            results.push(`❌ ${response.data.error ?? 'エラー'}`);
+          }
+        } catch (err: any) {
+          results.push(`❌ ${err.response?.data?.error || err.message || 'エラー'}`);
+        }
       }
-    } catch (error: any) {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `❌ エラーが発生しました: ${error.response?.data?.error || error.message}`
-      }]);
+      const message = results.length === 1 ? results[0] : results.join('\n');
+      setMessages(prev => [...prev, { role: 'assistant', content: message }]);
+      if (results.some(r => r.startsWith('✅')) && refreshGlobalData) {
+        await refreshGlobalData();
+      }
     } finally {
       setIsExecutingAction(false);
-      setPendingAction(null);
+      setPendingActions(null);
       setSelectedProjectIdForAction('');
     }
   };
 
   // アクションをキャンセル
   const cancelAction = () => {
-    setPendingAction(null);
+    setPendingActions(null);
     setSelectedProjectIdForAction('');
   };
 
@@ -587,6 +584,7 @@ const Dashboard: React.FC = () => {
     }
     console.debug('[chat] send SSE', { query: text, conversationId: conversationId || null, url: url.toString() })
 
+    hasReceivedTaskActionRef.current = false
     const eventSource = new EventSource(url.toString())
     eventSourceRef.current = eventSource
     console.log('[chat] setting isGenerating to true')
@@ -680,20 +678,21 @@ const Dashboard: React.FC = () => {
       }
     })
 
-    // バックエンドからのタスクアクション候補イベントを受信
+    // バックエンドからのタスクアクション候補イベントを受信（単一 action / 複数 actions 両対応）
     eventSource.addEventListener('task_action', (event) => {
       try {
         const data = JSON.parse(event.data)
-        if (data?.type === 'task_action_candidate' && data.action) {
-          const action = data.action
-          const description = generateActionDescription(action)
-          setPendingAction({
-            action_type: action.action_type,
-            task_id: action.task_id,
-            task_data: action.task_data,
-            description,
-          })
-        }
+        if (data?.type !== 'task_action_candidate') return
+        const rawList = data.actions ?? (data.action ? [data.action] : [])
+        if (!Array.isArray(rawList) || rawList.length === 0) return
+        const list: PendingAction[] = rawList.map((a: any) => ({
+          action_type: a.action_type,
+          task_id: a.task_id,
+          task_data: a.task_data,
+          description: generateActionDescription(a),
+        }))
+        setPendingActions(list)
+        hasReceivedTaskActionRef.current = true
       } catch (e) {
         console.debug('Failed to handle task_action event:', e)
       }
@@ -749,23 +748,24 @@ const Dashboard: React.FC = () => {
       
       // まだサーバー側から task_action イベントが来ていない場合のみ、
       // テキストからアクションJSONを検出するフォールバックを実行
-      if (!pendingAction) {
+      if (!hasReceivedTaskActionRef.current) {
         try {
-          const action = detectActionFromContent(accumulatedContent);
-          if (action) {
-            const description = generateActionDescription(action);
-            setPendingAction({
-              action_type: action.action_type,
-              task_id: action.task_id,
-              task_data: action.task_data,
-              description: description
-            });
+          const detected = detectActionFromContent(accumulatedContent);
+          if (detected != null) {
+            const list = Array.isArray(detected) ? detected : [detected];
+            const pendingList: PendingAction[] = list.map((a: any) => ({
+              action_type: a.action_type,
+              task_id: a.task_id,
+              task_data: a.task_data,
+              description: generateActionDescription(a),
+            }));
+            setPendingActions(pendingList);
           }
         } catch (e) {
-          // アクション検出エラーは無視
           console.debug('Action detection error:', e);
         }
       }
+      hasReceivedTaskActionRef.current = false
       
       eventSource.close()
       eventSourceRef.current = null
@@ -855,7 +855,7 @@ const Dashboard: React.FC = () => {
     setShowSuggestions(false)
     setLastSuggestedForMessageId(null)
     
-    const initialMessage = { role: 'assistant' as const, content: 'ようこそ！何かお聞きになりたいことはありますか？' }
+    const initialMessage = { role: 'assistant' as const, content: 'ようこそ！タスクの作成や更新、削除などお気軽にどうぞ！' }
     setMessages([initialMessage])
     
     // デモ質問は表示しない
@@ -922,12 +922,12 @@ const Dashboard: React.FC = () => {
   ]
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+    <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
       <Typography 
         variant="h4" 
         gutterBottom 
         sx={{ 
-          mb: 4,
+          mb: 2,
           fontWeight: 600,
           color: 'text.primary',
         }}
@@ -943,8 +943,8 @@ const Dashboard: React.FC = () => {
             sm: 'repeat(2, 1fr)',
             md: 'repeat(4, 1fr)',
           },
-          gap: 3,
-          mb: 4,
+          gap: 2,
+          mb: 2,
         }}
       >
         {statCards.map((card, index) => {
@@ -960,7 +960,7 @@ const Dashboard: React.FC = () => {
                 }
               }}
               sx={{
-                p: 3,
+                p: 2,
                 borderRadius: 3,
                 position: 'relative',
                 overflow: 'hidden',
@@ -1048,7 +1048,7 @@ const Dashboard: React.FC = () => {
       </Box>
 
 		{/* チャット欄 */}
-		<Box sx={{ width: '100%', mt: 3 }}>
+		<Box sx={{ width: '100%', mt: 2 }}>
 		  <Paper sx={{ p: 2 }}>
 			<Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
 				<Typography variant="h6">
@@ -1058,14 +1058,14 @@ const Dashboard: React.FC = () => {
 			</Box>
 			
 			{/* チャットコンテナ：固定高さで推奨質問スペースを確保 */}
-			<Box sx={{ position: 'relative', height: 520 }}>
+			<Box sx={{ position: 'relative', height: 400 }}>
 			  {/* メッセージ一覧（LINE風 吹き出し） */}
 			  <Box sx={{
 			    border: '1px solid',
 			    borderColor: 'divider',
 			    borderRadius: 1,
 			    p: 1.5,
-			    height: showSuggestions && suggestedQuestions.length > 0 ? 360 : 440,
+			    height: showSuggestions && suggestedQuestions.length > 0 ? 280 : 340,
 			    overflow: 'auto',
 			    backgroundColor: 'background.default',
 			    display: 'flex',
@@ -1372,23 +1372,44 @@ const Dashboard: React.FC = () => {
 		  </Paper>
 		</Box>
       
-      {/* アクション確認ダイアログ */}
+      {/* アクション確認ダイアログ（単一・複数両対応） */}
       <Dialog
-        open={pendingAction !== null}
+        open={pendingActions != null && pendingActions.length > 0}
         onClose={cancelAction}
         maxWidth="sm"
         fullWidth
       >
         <DialogTitle>
-          {pendingAction?.action_type === 'delete_task' ? 'タスクの削除' : 
-           pendingAction?.action_type === 'create_task' ? 'タスクの作成' : 
-           'タスクの更新'}
+          {pendingActions != null && pendingActions.length > 0 && (() => {
+            const hasDelete = pendingActions.some(a => a.action_type === 'delete_task');
+            const hasCreate = pendingActions.some(a => a.action_type === 'create_task');
+            const label = hasDelete ? 'タスクの削除' : hasCreate ? 'タスクの作成' : 'タスクの更新';
+            const suffix = pendingActions.length > 1 ? `（${pendingActions.length}件）` : '';
+            return `${label}${suffix}`;
+          })()}
         </DialogTitle>
         <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2, whiteSpace: 'pre-line' }}>
-            {pendingAction?.description}
-          </Typography>
-          {pendingAction?.action_type === 'create_task' && (
+          {pendingActions != null && (
+            pendingActions.length === 1 ? (
+              <Typography variant="body1" sx={{ mb: 2, whiteSpace: 'pre-line' }}>
+                {pendingActions[0].description}
+              </Typography>
+            ) : (
+              <Typography component="div" variant="body1" sx={{ mb: 2 }}>
+                {pendingActions.map((pa, i) => (
+                  <Box key={i} sx={{ mb: 1.5 }}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      {i + 1}. {pa.action_type === 'update_task' ? '更新' : pa.action_type === 'create_task' ? '作成' : '削除'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-line', pl: 1 }}>
+                      {pa.description}
+                    </Typography>
+                  </Box>
+                ))}
+              </Typography>
+            )
+          )}
+          {hasCreateTaskAction && (
             <Box sx={{ mt: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel id="action-project-select-label">プロジェクト（任意）</InputLabel>
@@ -1416,7 +1437,7 @@ const Dashboard: React.FC = () => {
             </Box>
           )}
           <Typography variant="body2" color="text.secondary">
-            この操作を実行しますか？
+            この操作{pendingActions && pendingActions.length > 1 ? 'をすべて' : ''}実行しますか？
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -1426,7 +1447,7 @@ const Dashboard: React.FC = () => {
           <Button
             onClick={executeAction}
             variant="contained"
-            color={pendingAction?.action_type === 'delete_task' ? 'error' : 'primary'}
+            color={pendingActions?.some(a => a.action_type === 'delete_task') ? 'error' : 'primary'}
             disabled={isExecutingAction}
           >
             {isExecutingAction ? '実行中...' : '実行する'}

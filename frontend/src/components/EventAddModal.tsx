@@ -35,9 +35,14 @@ interface EventFormData {
   newProjectEndDate?: string;
   newProjectColor?: string;
   taskDueDate?: string;
+  taskStartDate?: string;
   taskAssigneeId?: string | null;
   taskCost?: number | string;
   taskStatus?: string;
+  taskPriority?: string;
+  taskType?: string;
+  taskSeqID?: string;
+  taskShotID?: string;
   taskDependsOn?: string[];
   location?: string;
   dueDate?: string;
@@ -138,9 +143,14 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       newProjectEndDate: '',
     newProjectColor: '#4CAF50',
       taskDueDate: isTaskType ? format(initialStartDateTime, 'yyyy-MM-dd') : undefined,
+      taskStartDate: isTaskType ? format(initialStartDateTime, 'yyyy-MM-dd') : undefined,
     taskAssigneeId: null,
     taskCost: '',
     taskStatus: 'todo',
+    taskPriority: 'low',
+    taskType: '',
+    taskSeqID: '',
+    taskShotID: '',
       taskDependsOn: [],
     location: '',
       dueDate: format(initialStartDateTime, 'yyyy-MM-dd'),
@@ -284,9 +294,14 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           allDay: (isTask || isProject) ? true : (eventToEdit.allDay ?? false),
           projectId: eventToEdit.extendedProps?.projectId?.toString() || null,
           taskDueDate: taskDueDateStr, // Use the parsed and formatted due date string for tasks
+          taskStartDate: isTask ? ((eventToEdit.extendedProps as any)?.taskStartDate ? format(parseISO((eventToEdit.extendedProps as any).taskStartDate), 'yyyy-MM-dd') : calculatedStartDateStr) : undefined,
           taskAssigneeId: eventToEdit.extendedProps?.taskAssigneeId?.toString() || null,
           taskCost: eventToEdit.extendedProps?.taskCost || '',
           taskStatus: isProject ? (eventToEdit.extendedProps?.projectStatus || 'planning') : (eventToEdit.extendedProps?.taskStatus || 'todo'),
+          taskPriority: ((eventToEdit.extendedProps as any)?.taskPriority ?? 'low').toString().toLowerCase(),
+          taskType: (eventToEdit.extendedProps as any)?.taskType ?? '',
+          taskSeqID: (eventToEdit.extendedProps as any)?.taskSeqID ?? '',
+          taskShotID: (eventToEdit.extendedProps as any)?.taskShotID ?? '',
           location: eventToEdit.extendedProps?.location || '',
           newProjectName: '',
           newProjectDescription: '',
@@ -404,13 +419,13 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       setFormData(prev => ({
         ...prev,
         taskDueDate: newDueDateStr,
-        startDate: format(startDate, 'yyyy-MM-dd') // タスクの開始日も更新
+        startDate: format(startDate, 'yyyy-MM-dd'), // タスクの開始日も更新（start_time フォールバック用）
       }));
     } else {
-    setFormData(prev => ({
-      ...prev,
-      [name]: newValue && isDateValid(newValue) ? format(newValue, 'yyyy-MM-dd') : ''
-    }));
+      setFormData(prev => ({
+        ...prev,
+        [name]: newValue && isDateValid(newValue) ? format(newValue, 'yyyy-MM-dd') : ''
+      }));
     }
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
@@ -639,12 +654,20 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         dataToSave.projectStatus = formData.taskStatus || 'planning'; // プロジェクトのステータス
         dataToSave.status = formData.taskStatus || 'planning'; // APIに送信するステータス
       } else if (normalizedType === 'Task') {
-        if (formData.startDate) { // Check if calculated startDate exists
+        // start_time: 開始日 → startDate(期日-コスト) → 期日ベースのフォールバック
+        if (formData.taskStartDate) {
+            const startDateObj = parseDateString(formData.taskStartDate);
+            if (startDateObj && isDateValid(startDateObj)) {
+                dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
+            }
+        }
+        if (!dataToSave.start_time && formData.startDate) {
             const startDateObj = parseDateString(formData.startDate);
             if (startDateObj && isDateValid(startDateObj)) {
                 dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
             }
-        } else if (formData.taskDueDate) { // Fallback if startDate is not calculated for some reason, calculate from dueDate
+        }
+        if (!dataToSave.start_time && formData.taskDueDate) {
             const dueDateObj = parseDateString(formData.taskDueDate);
             if (dueDateObj && isDateValid(dueDateObj)) {
                 const cost = formData.taskCost ? Number(formData.taskCost) : 0;
@@ -659,16 +682,33 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             const dueDateObj = parseDateString(formData.taskDueDate);
             if (dueDateObj && isDateValid(dueDateObj)) {
                 dataToSave.end_time = format(startOfDay(addDays(dueDateObj, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
-                // ★ due_date は日付文字列 'yyyy-MM-dd' で送信
-                dataToSave.due_date = format(dueDateObj, 'yyyy-MM-dd'); 
+                dataToSave.due_date = format(dueDateObj, 'yyyy-MM-dd');
             }
         }
-        dataToSave.allDay = true; // Tasks are always all-day
+        dataToSave.allDay = true;
 
-        dataToSave.assigned_to = formData.taskAssigneeId ? parseInt(formData.taskAssigneeId.split('-')[1], 10) : null; // `user-1` or `group-1`
-        dataToSave.assignee_type = formData.taskAssigneeId ? formData.taskAssigneeId.split('-')[0] : null;
-          dataToSave.cost = formData.taskCost ? Number(formData.taskCost) : 0;
-          dataToSave.status = formData.taskStatus || 'todo';
+        // assigned_toの処理を安全に行う
+        if (formData.taskAssigneeId) {
+            const taskAssigneeIdStr = String(formData.taskAssigneeId);
+            const match = taskAssigneeIdStr.match(/^(user|group)-(\d+)$/);
+            if (match) {
+                dataToSave.assigned_to = parseInt(match[2], 10);
+                dataToSave.assignee_type = match[1];
+            } else {
+                // フォーマットが期待通りでない場合はnullに設定
+                dataToSave.assigned_to = null;
+                dataToSave.assignee_type = null;
+            }
+        } else {
+            dataToSave.assigned_to = null;
+            dataToSave.assignee_type = null;
+        }
+        dataToSave.cost = formData.taskCost ? Number(formData.taskCost) : 0;
+        dataToSave.status = formData.taskStatus || 'todo';
+        dataToSave.priority = (formData.taskPriority ?? 'low').toLowerCase();
+        dataToSave.taskType = (formData.taskType ?? '').toLowerCase() || undefined;
+        dataToSave.seqID = formData.taskSeqID?.trim() ?? '';
+        dataToSave.shotID = formData.taskShotID?.trim() ?? '';
         dataToSave.dependsOn = selectedDependencies.map(dep => dep.id);
         console.log("Formatted dependsOn to save:", JSON.stringify(dataToSave.dependsOn, null, 2));
 
@@ -952,12 +992,21 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             {(formData.type === 'task' || formData.type === 'Task') && (
               <Grid item xs={12} container spacing={1.5}> 
                   {/* Task Due Date */}
-                  <Grid item xs={12}> {/* Due Date spans full width */}
+                  <Grid item xs={12}>
                       <DatePicker
-                          label="期限日 *"
+                          label="期日 *"
                           value={parseDateString(formData.taskDueDate)}
                           onChange={(newValue) => handleDateChange('taskDueDate', newValue)}
                           slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.taskDueDate, helperText: errors.taskDueDate } }}
+                      />
+                  </Grid>
+                  {/* Task Start Date */}
+                  <Grid item xs={12}>
+                      <DatePicker
+                          label="開始日"
+                          value={parseDateString(formData.taskStartDate)}
+                          onChange={(newValue) => handleDateChange('taskStartDate', newValue)}
+                          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
                       />
                   </Grid>
                   {/* Assignee, Cost, Status, Dependencies */}
@@ -1011,8 +1060,68 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                               <MenuItem value="completed">完了</MenuItem>
                               <MenuItem value="delayed">遅延</MenuItem>
                           </Select>
-            </FormControl>
-          </Grid>
+                      </FormControl>
+                  </Grid>
+                  <Grid item xs={6}>
+                      <FormControl fullWidth size="small">
+                          <InputLabel id="priority-select-label">優先度</InputLabel>
+                          <Select
+                              labelId="priority-select-label"
+                              name="taskPriority"
+                              value={formData.taskPriority ?? 'low'}
+                              label="優先度"
+                              onChange={handleChange}
+                          >
+                              <MenuItem value="high">高</MenuItem>
+                              <MenuItem value="medium">中</MenuItem>
+                              <MenuItem value="low">低</MenuItem>
+                          </Select>
+                      </FormControl>
+                  </Grid>
+                  <Grid item xs={6}>
+                      <FormControl fullWidth size="small">
+                          <InputLabel id="task-type-select-label">タスクタイプ</InputLabel>
+                          <Select
+                              labelId="task-type-select-label"
+                              name="taskType"
+                              value={formData.taskType ?? ''}
+                              label="タスクタイプ"
+                              onChange={handleChange}
+                          >
+                              <MenuItem value="">未設定</MenuItem>
+                              <MenuItem value="development">Development</MenuItem>
+                              <MenuItem value="design">Design</MenuItem>
+                              <MenuItem value="documentation">Documentation</MenuItem>
+                              <MenuItem value="testing">Testing</MenuItem>
+                              <MenuItem value="maintenance">Maintenance</MenuItem>
+                              <MenuItem value="fx">FX</MenuItem>
+                              <MenuItem value="asset">Asset</MenuItem>
+                              <MenuItem value="animation">Animation</MenuItem>
+                              <MenuItem value="lighting">Lighting</MenuItem>
+                              <MenuItem value="comp">Comp</MenuItem>
+                          </Select>
+                      </FormControl>
+                  </Grid>
+                  <Grid item xs={6}>
+                      <TextField
+                          label="seqID"
+                          name="taskSeqID"
+                          value={formData.taskSeqID ?? ''}
+                          onChange={handleChange}
+                          fullWidth
+                          size="small"
+                      />
+                  </Grid>
+                  <Grid item xs={6}>
+                      <TextField
+                          label="shotID"
+                          name="taskShotID"
+                          value={formData.taskShotID ?? ''}
+                          onChange={handleChange}
+                          fullWidth
+                          size="small"
+                      />
+                  </Grid>
           <Grid item xs={12}>
                       <Autocomplete
                           multiple
@@ -1029,7 +1138,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                               <TextField
                                   {...params}
                                   variant="outlined"
-                                  label="依存先タスク"
+                                  label="依存元タスク"
                                   placeholder="依存するタスクを選択"
                                   size="small"
                               />

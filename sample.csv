@@ -1,4 +1,0 @@
-type,name,start_date,end_date,description,status,display_status
-project,テストプロジェクト,2024/03/01,2024/03/31,テスト用プロジェクト,planning,online
-task,テストタスク1,2024/03/15,テストタスク1の説明,1,100,development,SEQ001,SHOT001,
-task,テストタスク2,2024/03/20,テストタスク2の説明,1,200,design,SEQ002,SHOT002,テストタスク1

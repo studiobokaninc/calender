@@ -107,7 +107,7 @@ const TasksPage: React.FC = () => {
     const [assigneeFilter, setAssigneeFilter] = useState<string>('');
     const [paginationModel, setPaginationModel] = useState({
         page: 0,
-        pageSize: 20,
+        pageSize: 15,
     });
     const [sortModel, setSortModel] = useState<GridSortModel>([]);
     const [stateRestored, setStateRestored] = useState(false);
@@ -401,7 +401,7 @@ const TasksPage: React.FC = () => {
         , [projects]);
 
     const userMap = useMemo(() =>
-        new Map(users.map(u => [u.id, u.name || u.email]))
+        new Map(users.map(u => [u.id, u.username || u.name || u.email]))
         , [users]);
 
 
@@ -541,12 +541,18 @@ const TasksPage: React.FC = () => {
 
     const handleSelectChange = (e: SelectChangeEvent<string | number>) => {
         const { name, value } = e.target;
-        if (name) {
-            setCurrentTask(prev => ({
-                ...prev,
-                [name]: value
-            }));
-        }
+        if (!name) return;
+        const isIdField = name === 'project_id' || name === 'assigned_to';
+        const normalized = (value === '' || value == null)
+            ? null
+            : (isIdField && typeof value === 'string' && /^\d+$/.test(value) ? parseInt(value, 10) : value);
+        setCurrentTask(prev => {
+            const next = { ...prev, [name]: isIdField ? normalized : value } as TaskFormData;
+            if (name === 'project_id' && prev.project_id !== normalized) {
+                next.dependsOn = [];
+            }
+            return next;
+        });
     };
 
     const handleMultiSelectChange = (e: SelectChangeEvent<string[]>) => {
@@ -563,6 +569,18 @@ const TasksPage: React.FC = () => {
 
 
     const handleSubmit = async () => {
+        if (!currentTask.name?.trim()) {
+            setSnackbar({ open: true, message: 'タスク名を入力してください', severity: 'warning' });
+            return;
+        }
+        if (!currentTask.project_id) {
+            setSnackbar({ open: true, message: 'プロジェクトを選択してください', severity: 'warning' });
+            return;
+        }
+        if (!currentTask.due_date) {
+            setSnackbar({ open: true, message: '期日を入力してください', severity: 'warning' });
+            return;
+        }
         try {
             const taskData = {
                 name: currentTask.name,
@@ -1037,7 +1055,7 @@ const TasksPage: React.FC = () => {
                         onSortModelChange={setSortModel}
                         paginationModel={paginationModel}
                         onPaginationModelChange={setPaginationModel}
-                        pageSizeOptions={[10, 20, 50]}
+                        pageSizeOptions={[5, 10, 15, 20, 50]}
                         rowHeight={40}
                         autoHeight
                         sx={{
@@ -1160,6 +1178,55 @@ const TasksPage: React.FC = () => {
                             rows={3}
                             size="small"
                         />
+                        <FormControl fullWidth size="small" required>
+                            <InputLabel>プロジェクト</InputLabel>
+                            <Select
+                                name="project_id"
+                                value={currentTask.project_id ?? ''}
+                                label="プロジェクト"
+                                onChange={handleSelectChange}
+                            >
+                                <MenuItem value="">選択してください</MenuItem>
+                                {projects.map((p) => (
+                                    <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            name="due_date"
+                            label="期日"
+                            type="date"
+                            value={currentTask.due_date}
+                            onChange={handleInputChange}
+                            fullWidth
+                            required
+                            InputLabelProps={{ shrink: true }}
+                            size="small"
+                        />
+                        <TextField
+                            name="start_date"
+                            label="開始日"
+                            type="date"
+                            value={currentTask.start_date}
+                            onChange={handleInputChange}
+                            fullWidth
+                            InputLabelProps={{ shrink: true }}
+                            size="small"
+                        />
+                        <FormControl fullWidth size="small">
+                            <InputLabel>担当者</InputLabel>
+                            <Select
+                                name="assigned_to"
+                                value={currentTask.assigned_to || ''}
+                                label="担当者"
+                                onChange={handleSelectChange}
+                            >
+                                <MenuItem value="">未割り当て</MenuItem>
+                                {users.map(user => (
+                                    <MenuItem key={user.id} value={user.id}>{user.username || user.name || user.email}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                         <FormControl fullWidth size="small">
                             <InputLabel>ステータス</InputLabel>
                             <Select
@@ -1188,40 +1255,6 @@ const TasksPage: React.FC = () => {
                                 <MenuItem value="low">低</MenuItem>
                             </Select>
                         </FormControl>
-                        <FormControl fullWidth size="small">
-                            <InputLabel>担当者</InputLabel>
-                            <Select
-                                name="assigned_to"
-                                value={currentTask.assigned_to || ''}
-                                label="担当者"
-                                onChange={handleSelectChange}
-                            >
-                                <MenuItem value="">未設定</MenuItem>
-                                {users.map(user => (
-                                    <MenuItem key={user.id} value={user.id}>{user.name || user.email}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <TextField
-                            name="start_date"
-                            label="開始日"
-                            type="date"
-                            value={currentTask.start_date}
-                            onChange={handleInputChange}
-                            fullWidth
-                            InputLabelProps={{ shrink: true }}
-                            size="small"
-                        />
-                        <TextField
-                            name="due_date"
-                            label="期日"
-                            type="date"
-                            value={currentTask.due_date}
-                            onChange={handleInputChange}
-                            fullWidth
-                            InputLabelProps={{ shrink: true }}
-                            size="small"
-                        />
                         <TextField
                             name="cost"
                             label="コスト"
@@ -1230,6 +1263,7 @@ const TasksPage: React.FC = () => {
                             onChange={handleInputChange}
                             fullWidth
                             size="small"
+                            inputProps={{ step: '0.1' }}
                         />
                         <TextField
                             name="seqID"
@@ -1267,7 +1301,7 @@ const TasksPage: React.FC = () => {
                                 <MenuItem value="comp">Comp</MenuItem>
                             </Select>
                         </FormControl>
-                        <FormControl fullWidth size="small">
+                        <FormControl fullWidth size="small" disabled={!currentTask.project_id}>
                             <InputLabel>依存元タスク</InputLabel>
                             <Select
                                 multiple

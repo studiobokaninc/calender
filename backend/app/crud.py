@@ -331,6 +331,7 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         assigned_to=task.assigned_to,
         status=task.status,
         display_status=task.display_status,
+        priority=task.priority,
         start_date=task_start_date,
         due_date=task.due_date,
         cost=task.cost,

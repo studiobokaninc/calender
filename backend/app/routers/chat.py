@@ -3,6 +3,7 @@
 別のアプリの実装を参考に統合
 """
 import os
+import re
 from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException, Request, Depends
@@ -14,7 +15,7 @@ import json
 
 from ..dify_client import DifyClient
 from ..database import get_db
-from .. import crud, schemas, models
+from .. import crud, schemas, models, task_list as task_list_module
 from ..security import get_current_user
 from sqlalchemy.orm import Session
 import logging
@@ -28,7 +29,7 @@ router = APIRouter()
 dify_client = None
 _cached_env: dict[str, str] = {"DIFY_API_KEY": "", "DIFY_API_URL": "", "DIFY_USER": ""}#キャッシュ用の環境変数
 
-def get_dify_client():
+def get_dify_client():#DifyClient変数を取得する関数
     """常に backend/.env を再読込し、変更があればクライアントを作り直す。"""
     global dify_client, _cached_env#グローバル変数を使用
 
@@ -36,29 +37,29 @@ def get_dify_client():
     env_path = Path(__file__).resolve().parent.parent / ".env"
     load_dotenv(dotenv_path=str(env_path), override=True)
 
-    current_api_key = os.getenv("DIFY_API_KEY", "")
-    current_api_url = os.getenv("DIFY_API_URL", "")
-    current_user = os.getenv("DIFY_USER", "default_user")
+    current_api_key = os.getenv("DIFY_API_KEY", "")#この関数内のみ有効な環境変数を取得
+    current_api_url = os.getenv("DIFY_API_URL", "")#この関数内のみ有効な環境変数を取得
+    current_user = os.getenv("DIFY_USER", "default_user")#この関数内のみ有効な環境変数を取得
 
     # 環境が変わっていたら作り直し
     if (
-        dify_client is None
-        or _cached_env["DIFY_API_KEY"] != current_api_key
+        dify_client is None#dify_clientがNoneの場合
+        or _cached_env["DIFY_API_KEY"] != current_api_key#キャッシュ用の環境変数と現在の環境変数が異なる場合は
         or _cached_env["DIFY_API_URL"] != current_api_url
         or _cached_env["DIFY_USER"] != current_user
     ):
-        _cached_env = {
+        _cached_env = {#キャッシュ用の環境変数を更新することで、環境変数が変わったらクライアントを作り直す
             "DIFY_API_KEY": current_api_key,
             "DIFY_API_URL": current_api_url,
             "DIFY_USER": current_user,
         }
-        dify_client = DifyClient(
+        dify_client = DifyClient(#DifyClient変数を更新することで、環境変数が変わったらクライアントを作り直す
             api_key=current_api_key,
             api_url=current_api_url,
             user=current_user,
         )
 
-    return dify_client
+    return dify_client#DifyClient変数を返す
 
 
 class ChatRequest(BaseModel):
@@ -106,13 +107,21 @@ async def stream_chat(
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
+    # Dify の inputs にタスクリストCSVを含める（toDatatable形式）
+    inputs: dict = {}
+    try:
+        csv_text = task_list_module.build_task_list_for_chat(db)
+        if csv_text:
+            inputs["csv"] = csv_text
+    except Exception as e:
+        logger.warning("[chat/stream] task_list for inputs failed: %s", e)
     payload = {
         "query": query,
         "response_mode": "streaming",
         "user": user,
         # クエリで受け取った conversation_id をそのまま渡す（None 可）
         "conversation_id": conversation_id,
-        "inputs": {},
+        "inputs": inputs,
     }
 
     # ストリーミング中のメッセージ本文を蓄積するバッファ
@@ -129,6 +138,20 @@ async def stream_chat(
                 async with client.stream("POST", base_url, headers=headers, json=payload) as r:
                     # ブラウザの自動再接続を抑止
                     yield b"retry: 0\n\n"
+                    # チャット開始時にタスクリスト（toDatatable形式CSV）を送信
+                    try:
+                        csv_text = task_list_module.build_task_list_for_chat(db)
+                        if csv_text:
+                            task_list_payload = json.dumps(
+                                {"type": "task_list", "csv": csv_text},
+                                ensure_ascii=False,
+                            )
+                            yield (
+                                "event: task_list\n"
+                                f"data: {task_list_payload}\n\n"
+                            ).encode("utf-8")
+                    except Exception as e:
+                        logger.warning("[SSE] task_list generation failed: %s", e)
                     if r.status_code != 200:
                         # HTTPエラーでもSSEでエラー内容を返してクライアントに表示させる（接続自体は200で成立）
                         body = await r.aread()
@@ -168,39 +191,78 @@ async def stream_chat(
                                     # 次のメッセージに備えてバッファをクリア
                                     message_buffer["text"] = ""
 
-                                    cleaned = full_answer.strip()
-                                    # ``` や ```json フェンスを除去
-                                    if cleaned.startswith("```"):
-                                        cleaned = cleaned[3:]
-                                        cleaned = cleaned.lstrip()
-                                        # 先頭に言語指定があればスキップ（例: json, JSON）
-                                        if cleaned.lower().startswith("json"):
-                                            cleaned = cleaned[4:]
-                                        cleaned = cleaned.lstrip()
-                                        if cleaned.endswith("```"):
-                                            cleaned = cleaned[:-3]
-                                    cleaned = cleaned.strip()
+                                    action_list = None
 
-                                    # 純粋なJSONオブジェクトっぽければパースして「タスクアクション候補」として通知
-                                    if cleaned.startswith("{") and cleaned.endswith("}"):
+                                    def _parse_action_candidates(raw: str):
+                                        """JSON文字列をパースし、単一オブジェクトまたは配列をアクション候補のリストに正規化する。"""
                                         try:
-                                            action_obj = json.loads(cleaned)
+                                            parsed = json.loads(raw)
                                         except json.JSONDecodeError:
-                                            action_obj = None
+                                            return None
+                                        if isinstance(parsed, list):
+                                            if not parsed:
+                                                return None
+                                            if all(
+                                                isinstance(x, dict) and x.get("action_type") in ("update_task", "create_task", "delete_task")
+                                                for x in parsed
+                                            ):
+                                                return parsed
+                                            return None
+                                        if isinstance(parsed, dict) and parsed.get("action_type") in ("update_task", "create_task", "delete_task"):
+                                            return [parsed]
+                                        return None
 
-                                        if isinstance(action_obj, dict) and "action_type" in action_obj:
-                                            # バックエンド側では即時実行せず、SSEのカスタムイベントとしてクライアントに通知する
-                                            # フロントエンド側でユーザー確認後に /chat/actions/task へ POST する想定
+                                    # パターン1: 自然言語メッセージ + --- + JSONコードブロック形式
+                                    # 例: "メッセージ\n---\n```json\n{...}\n```" または ```json\n[{...},{...}]\n```
+                                    if "---" in full_answer:
+                                        parts = full_answer.split("---", 1)
+                                        if len(parts) > 1:
+                                            json_part = parts[1].strip()
+                                            # コードブロック全体を抽出（```json または ``` で囲まれた中身）
+                                            code_fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", json_part)
+                                            if code_fence:
+                                                block_content = code_fence.group(1).strip()
+                                                action_list = _parse_action_candidates(block_content)
+                                    
+                                    # パターン2: メッセージ全体がJSONコードブロックのみの場合
+                                    if action_list is None:
+                                        cleaned = full_answer.strip()
+                                        if cleaned.startswith("```"):
+                                            cleaned = cleaned[3:].lstrip()
+                                            if cleaned.lower().startswith("json"):
+                                                cleaned = cleaned[4:].lstrip()
+                                            if cleaned.endswith("```"):
+                                                cleaned = cleaned[:-3].strip()
+                                        if cleaned.startswith("{") and cleaned.endswith("}"):
+                                            action_list = _parse_action_candidates(cleaned)
+                                        elif cleaned.startswith("[") and cleaned.endswith("]"):
+                                            action_list = _parse_action_candidates(cleaned)
+                                    
+                                    # パターン3: メッセージ内にJSONコードブロックが含まれている場合（---なし）
+                                    if action_list is None:
+                                        code_fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", full_answer)
+                                        if code_fence:
+                                            block_content = code_fence.group(1).strip()
+                                            action_list = _parse_action_candidates(block_content)
+
+                                    # アクション候補が1件以上ある場合、通知を送信
+                                    if action_list:
+                                        # 単一の場合は従来どおり action で、複数の場合は actions で送る（フロントは両方対応）
+                                        if len(action_list) == 1:
                                             notification = {
                                                 "type": "task_action_candidate",
-                                                "action": action_obj,
+                                                "action": action_list[0],
                                             }
-                                            logger.info(f"[SSE] Detected task action candidate: {notification}")
-                                            # EventSource のカスタムイベントとして送信（既存の message イベントはそのまま）
-                                            yield (
-                                                "event: task_action\n"
-                                                f"data: {json.dumps(notification, ensure_ascii=False)}\n\n"
-                                            ).encode("utf-8")
+                                        else:
+                                            notification = {
+                                                "type": "task_action_candidate",
+                                                "actions": action_list,
+                                            }
+                                        logger.info("[SSE] Detected task action candidate(s): count=%s", len(action_list))
+                                        yield (
+                                            "event: task_action\n"
+                                            f"data: {json.dumps(notification, ensure_ascii=False)}\n\n"
+                                        ).encode("utf-8")
 
                             except json.JSONDecodeError:
                                 # SSEの制御メッセージなど、JSONでない行は無視

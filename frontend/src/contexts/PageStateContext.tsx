@@ -49,7 +49,7 @@ const defaultStates: PageStates = {
     assigneeFilter: '',
     paginationModel: {
       page: 0,
-      pageSize: 20,
+      pageSize: 15,
     },
     sortModel: [],
   },
@@ -70,7 +70,7 @@ const defaultStates: PageStates = {
     filterAssignee: '',
   },
   dashboard: {
-    messages: [{ role: 'assistant', content: 'ようこそ！何かお聞きになりたいことはありますか？' }],
+    messages: [{ role: 'assistant', content: 'ようこそ！タスクの作成や更新、削除などお気軽にどうぞ！' }],
     conversationId: null,
     currentMessageId: null,
   },
@@ -127,43 +127,24 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
   });
 
   useEffect(() => {
-    // より確実なブラウザ更新検知
-    const isFirstLoad = !sessionStorage.getItem(SESSION_STORAGE_KEY);
-    const isRefresh = sessionStorage.getItem(REFRESH_FLAG_KEY) === 'true';
-    const navigationEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-    const isPageRefresh = navigationEntry && navigationEntry.type === 'reload';
-    
-    console.log('PageState Debug:', {
-      isFirstLoad,
-      isRefresh,
-      isPageRefresh,
-      navigationType: navigationEntry?.type
-    });
-    
-    if (isFirstLoad || isRefresh || isPageRefresh) {
-      // ブラウザ更新または初回アクセスの場合、状態をリセット
-      console.log('Resetting to default states');
-      setPageStates(defaultStates);
-      sessionStorage.setItem(SESSION_STORAGE_KEY, 'true');
-      sessionStorage.removeItem(REFRESH_FLAG_KEY);
-    } else {
-      // タブ切り替えの場合、sessionStorageから状態を復元
+    // セッションストレージに保存された状態があれば常に復元し、なければデフォルトを使用
+    try {
       const savedStates = sessionStorage.getItem('page_states');
       if (savedStates) {
-        try {
-          const parsedStates = JSON.parse(savedStates);
-          console.log('Restoring saved states:', parsedStates);
-          setPageStates(parsedStates);
-        } catch (error) {
-          console.error('Failed to parse saved page states:', error);
-          setPageStates(defaultStates);
-        }
+        const parsedStates = JSON.parse(savedStates);
+        console.log('Restoring saved states:', parsedStates);
+        setPageStates(parsedStates);
       } else {
         setPageStates(defaultStates);
       }
+      sessionStorage.setItem(SESSION_STORAGE_KEY, 'true');
+      sessionStorage.removeItem(REFRESH_FLAG_KEY);
+    } catch (error) {
+      console.error('Failed to restore page states:', error);
+      setPageStates(defaultStates);
+    } finally {
+      setIsInitialLoad(false);
     }
-    
-    setIsInitialLoad(false);
   }, []);
 
   // ブラウザ更新を検知するためのイベントリスナー

@@ -26,7 +26,7 @@ import {
 } from '@mui/icons-material'
 import api from '../services/api'
 import { DashboardMetrics } from '../types'
-import { useDashboardPageState, usePageState } from '../contexts/PageStateContext'
+import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
 
 const Dashboard: React.FC = () => {
@@ -855,8 +855,7 @@ const Dashboard: React.FC = () => {
     setShowSuggestions(false)
     setLastSuggestedForMessageId(null)
     
-    const initialMessage = { role: 'assistant' as const, content: 'ようこそ！タスクの作成や更新、削除などお気軽にどうぞ！' }
-    setMessages([initialMessage])
+    setMessages([DASHBOARD_WELCOME_MESSAGE])
     
     // デモ質問は表示しない
     setSuggestedQuestions([])
@@ -864,7 +863,7 @@ const Dashboard: React.FC = () => {
     
     // 新しい会話開始時も状態を更新
     updateDashboardState({
-      messages: [initialMessage],
+      messages: [DASHBOARD_WELCOME_MESSAGE],
       conversationId: null,
       currentMessageId: null,
     });

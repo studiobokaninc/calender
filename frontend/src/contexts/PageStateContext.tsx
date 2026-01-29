@@ -41,6 +41,12 @@ interface PageStates {
   };
 }
 
+/** ダッシュボードチャットの最初のメッセージ（唯一の定義場所） */
+export const DASHBOARD_WELCOME_MESSAGE: { role: 'assistant'; content: string } = {
+  role: 'assistant',
+  content: 'ようこそ！タスクのステータス更新や作成、削除などお気軽にどうぞ！',
+};
+
 // デフォルト状態
 const defaultStates: PageStates = {
   tasks: {
@@ -70,7 +76,7 @@ const defaultStates: PageStates = {
     filterAssignee: '',
   },
   dashboard: {
-    messages: [{ role: 'assistant', content: 'ようこそ！タスクの作成や更新、削除などお気軽にどうぞ！' }],
+    messages: [DASHBOARD_WELCOME_MESSAGE],
     conversationId: null,
     currentMessageId: null,
   },

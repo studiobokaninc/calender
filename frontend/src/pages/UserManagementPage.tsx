@@ -179,7 +179,7 @@ const UserManagementPage: React.FC = () => {
         return '#F44336';
       case 'completed':
       case '完了':
-        return '#4CAF50';
+        return '#9E9E9E';
       default:
         return '#BDBDBD';
     }
@@ -369,84 +369,108 @@ const UserManagementPage: React.FC = () => {
                     
                     return (
                       <Grid item xs={12} key={user.id}>
-                        <Card variant="outlined">
-                          <CardHeader
-                            avatar={
-                              <Badge 
-                                badgeContent={info?.totalTasks || 0} 
-                                color="primary"
-                                overlap="circular"
-                              >
-                                <Avatar src={user.iconUrl} alt={user.name || user.username || ''}>
-                                  {user.iconUrl ? null : (user.name || user.username || '')?.[0]?.toUpperCase()}
-                                </Avatar>
-                              </Badge>
+                        <Card 
+                          variant="outlined"
+                          sx={{
+                            transition: 'all 0.2s ease-in-out',
+                            '&:hover': {
+                              backgroundColor: 'action.hover',
+                              boxShadow: 2,
                             }
-                            title={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Typography variant="h6">{user.name || user.username}</Typography>
-                                {user.role === 'admin' && (
-                                  <Chip label="管理者" size="small" color="secondary" />
-                                )}
-                              </Box>
-                            }
-                            subheader={
-                              <Box sx={{ mt: 0.5 }}>
-                                <Typography variant="body2" color="text.secondary">
-                                  {user.email || 'メール未設定'}
-                                </Typography>
-                                <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
-                                  <Chip 
-                                    icon={<WorkIcon />} 
-                                    label={`${info?.totalTasks || 0}件のタスク`} 
-                                    size="small" 
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                            <Box
+                              onClick={() => handleToggleUserExpansion(user.id)}
+                              sx={{
+                                flex: 1,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                minWidth: 0,
+                              }}
+                            >
+                              <CardHeader
+                                avatar={
+                                  <Badge 
+                                    badgeContent={info?.totalTasks || 0} 
                                     color="primary"
-                                    variant="outlined"
-                                  />
-                                  <Chip 
-                                    icon={<AssignmentIcon />} 
-                                    label={`${Object.keys(info?.tasksByProject || {}).length}プロジェクト`} 
-                                    size="small" 
-                                    color="secondary"
-                                    variant="outlined"
-                                  />
-                                </Box>
-                              </Box>
-                            }
-                            action={
-                              <Box>
-                                <IconButton 
-                                  onClick={() => handleToggleUserExpansion(user.id)}
-                                  sx={{ mr: 1 }}
-                                >
-                                  <ExpandMoreIcon 
-                                    sx={{ 
-                                      transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                      transition: 'transform 0.3s'
-                                    }} 
-                                  />
-                                </IconButton>
-                                {isAdmin && (
-                                  <>
-                                    <IconButton 
-                                      edge="end" 
-                                      aria-label="edit" 
-                                      onClick={() => handleEditUserClick(user)}
-                                    >
-                                      <EditIcon />
-                                    </IconButton>
-                                    <IconButton 
-                                      edge="end" 
-                                      aria-label="delete" 
-                                      onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')}
-                                    >
-                                      <DeleteIcon />
-                                    </IconButton>
-                                  </>
-                                )}
-                              </Box>
-                            }
-                          />
+                                    overlap="circular"
+                                  >
+                                    <Avatar src={user.iconUrl} alt={user.name || user.username || ''}>
+                                      {user.iconUrl ? null : (user.name || user.username || '')?.[0]?.toUpperCase()}
+                                    </Avatar>
+                                  </Badge>
+                                }
+                                title={
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="h6">{user.name || user.username}</Typography>
+                                    {user.role === 'admin' && (
+                                      <Chip label="管理者" size="small" color="secondary" />
+                                    )}
+                                  </Box>
+                                }
+                                subheader={
+                                  <Box sx={{ mt: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {user.email || 'メール未設定'}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                                      <Chip 
+                                        icon={<WorkIcon />} 
+                                        label={`${info?.totalTasks || 0}件のタスク`} 
+                                        size="small" 
+                                        color="primary"
+                                        variant="outlined"
+                                      />
+                                      <Chip 
+                                        icon={<AssignmentIcon />} 
+                                        label={`${Object.keys(info?.tasksByProject || {}).length}プロジェクト`} 
+                                        size="small" 
+                                        color="secondary"
+                                        variant="outlined"
+                                      />
+                                    </Box>
+                                  </Box>
+                                }
+                                sx={{ flex: 1, minWidth: 0 }}
+                              />
+                            </Box>
+                            <Box 
+                              onClick={(e) => e.stopPropagation()}
+                              sx={{ display: 'flex', alignItems: 'center', pr: 1 }}
+                            >
+                              <IconButton 
+                                onClick={() => handleToggleUserExpansion(user.id)}
+                                sx={{ mr: 1 }}
+                              >
+                                <ExpandMoreIcon 
+                                  sx={{ 
+                                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    transition: 'transform 0.3s'
+                                  }} 
+                                />
+                              </IconButton>
+                              {isAdmin && (
+                                <>
+                                  <IconButton 
+                                    edge="end" 
+                                    aria-label="edit" 
+                                    onClick={() => handleEditUserClick(user)}
+                                  >
+                                    <EditIcon />
+                                  </IconButton>
+                                  <IconButton 
+                                    edge="end" 
+                                    aria-label="delete" 
+                                    onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')}
+                                  >
+                                    <DeleteIcon />
+                                  </IconButton>
+                                </>
+                              )}
+                            </Box>
+                          </Box>
                           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                             <CardContent>
                               <Divider sx={{ mb: 2 }} />
@@ -530,7 +554,17 @@ const UserManagementPage: React.FC = () => {
                 <Grid container spacing={2}>
                   {usersWithoutTasks.map((user) => (
                     <Grid item xs={12} sm={6} md={4} key={user.id}>
-                      <Card variant="outlined" sx={{ bgcolor: 'background.paper' }}>
+                      <Card 
+                        variant="outlined" 
+                        sx={{ 
+                          bgcolor: 'background.paper',
+                          transition: 'all 0.2s ease-in-out',
+                          '&:hover': {
+                            backgroundColor: 'action.hover',
+                            boxShadow: 2,
+                          }
+                        }}
+                      >
                         <CardContent>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Avatar src={user.iconUrl} alt={user.name || user.username || ''}>

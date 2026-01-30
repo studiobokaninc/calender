@@ -6,6 +6,7 @@ import {
     Snackbar, Alert, SelectChangeEvent, Tooltip, Divider
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon } from '@mui/icons-material';
+import { IconButton } from '@mui/material';
 import api from '../services/api';
 import { Task, Project, User } from '../types'; // Import User type as well
 import { format, parseISO, isValid } from 'date-fns';
@@ -41,7 +42,7 @@ const getTaskStatusColor = (status?: string | null): string => {
         case 'in-progress': return '#FF9800';
         case 'review': return '#9C27B0';
         case 'delayed': return '#F44336';
-        case 'completed': return '#4CAF50';
+        case 'completed': return '#9E9E9E';
         default: return '#BDBDBD';
     }
 };
@@ -698,7 +699,7 @@ const TasksPage: React.FC = () => {
     // DataGrid用のカラム定義
     const columns: GridColDef[] = useMemo(() => [
         {
-            field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, renderCell: (params: GridRenderCellParams) => {
+            field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, hideable: false, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const text = row.name || '-';
                 return (
@@ -859,22 +860,62 @@ const TasksPage: React.FC = () => {
         {
             field: '_actionsSortKey',
             headerName: '操作',
-            width: 200,
+            width: 150,
             sortable: true,
             sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+            pinned: 'right',
+            headerAlign: 'center',
+            align: 'center',
+            hideable: false,
             renderCell: (params) => {
                 const row = params.row as Task;
                 return (
-                    <Box>
-                        <Button size="small" onClick={() => handleViewHistory(row)} sx={{ mr: 1 }}>
-                            <HistoryIcon />
-                        </Button>
-                        <Button size="small" onClick={() => handleEditTask(row)} sx={{ mr: 1 }}>
-                            <EditIcon />
-                        </Button>
-                        <Button size="small" color="error" onClick={() => handleDeleteTask(row.id)}>
-                            <DeleteIcon />
-                        </Button>
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                        <Tooltip title="履歴">
+                            <IconButton 
+                                size="small" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewHistory(row);
+                                }}
+                                sx={{ 
+                                    color: 'primary.main',
+                                    '&:hover': { backgroundColor: 'primary.light', color: 'white' }
+                                }}
+                            >
+                                <HistoryIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="編集">
+                            <IconButton 
+                                size="small" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditTask(row);
+                                }}
+                                sx={{ 
+                                    color: 'primary.main',
+                                    '&:hover': { backgroundColor: 'primary.light', color: 'white' }
+                                }}
+                            >
+                                <EditIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="削除">
+                            <IconButton 
+                                size="small" 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTask(row.id);
+                                }}
+                                sx={{ 
+                                    color: 'error.main',
+                                    '&:hover': { backgroundColor: 'error.light', color: 'white' }
+                                }}
+                            >
+                                <DeleteIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
                     </Box>
                 );
             },
@@ -1058,6 +1099,11 @@ const TasksPage: React.FC = () => {
                         pageSizeOptions={[5, 10, 15, 20, 50]}
                         rowHeight={40}
                         autoHeight
+                        onRowDoubleClick={(params) => {
+                            handleEditTask(params.row as Task);
+                        }}
+                        disableColumnMenu={false}
+                        disableColumnSelector={false}
                         sx={{
                             '& .MuiDataGrid-columnHeaders': {
                                 background: '#f5f5f5',
@@ -1065,7 +1111,11 @@ const TasksPage: React.FC = () => {
                             },
                             '& .MuiDataGrid-cell': {
                                 alignItems: 'center',
-                                fontSize: '0.8rem'
+                                fontSize: '0.8rem',
+                                cursor: 'pointer'
+                            },
+                            '& .MuiDataGrid-row:hover': {
+                                backgroundColor: 'rgba(0, 0, 0, 0.04)'
                             },
                             '& .MuiDataGrid-footerContainer': {
                                 fontSize: '0.8rem'
@@ -1073,6 +1123,11 @@ const TasksPage: React.FC = () => {
                             // DataGrid内部の横スクロールサポート
                             '& .MuiDataGrid-virtualScroller': {
                                 overflowX: 'auto !important'
+                            },
+                            // 固定カラムのスタイル
+                            '& .MuiDataGrid-pinnedColumns': {
+                                backgroundColor: 'background.paper',
+                                boxShadow: '-2px 0 4px rgba(0,0,0,0.1)'
                             }
                         }}
                     />

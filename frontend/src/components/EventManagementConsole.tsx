@@ -234,6 +234,13 @@ const EventManagementConsole: React.FC = () => {
     return 'default';
   };
 
+  /** イベントが終了しているか（終了日時が現在より前か） */
+  const isEventEnded = (ev: BackendEvent): boolean => {
+    const endOrStart = ev.end_time || ev.start_time;
+    if (!endOrStart) return false;
+    return dayjs(endOrStart).isBefore(dayjs(), 'minute');
+  };
+
   const handleOpenRecurringModal = (project: Project) => {
     setModalProject(project);
     setRecurringForm({
@@ -457,13 +464,27 @@ const EventManagementConsole: React.FC = () => {
             </Card>
           ) : (
             <List disablePadding>
-              {filteredEvents.map(ev => (
+              {filteredEvents.map(ev => {
+                const ended = isEventEnded(ev);
+                return (
                 <ListItem
                   key={ev.id}
                   disablePadding
                   sx={{ mb: 1 }}
                 >
-                  <Card variant="outlined" sx={{ width: '100%', borderRadius: 1 }}>
+                  <Card
+                    variant="outlined"
+                    sx={{
+                      width: '100%',
+                      borderRadius: 1,
+                      ...(ended && {
+                        opacity: 0.65,
+                        bgcolor: 'action.hover',
+                        '& .MuiTypography-root': { color: 'text.secondary' },
+                        '& .MuiChip-root': { opacity: 0.9 },
+                      }),
+                    }}
+                  >
                     <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -503,7 +524,8 @@ const EventManagementConsole: React.FC = () => {
                     </CardContent>
                   </Card>
                 </ListItem>
-              ))}
+              );
+              })}
             </List>
           )}
         </Box>

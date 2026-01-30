@@ -35,7 +35,7 @@ const getTaskColor = (status?: string): string => {
     case 'in-progress': return '#FF9800';
     case 'review': return '#9C27B0';
     case 'delayed': return '#F44336';
-    case 'completed': return '#4CAF50';
+    case 'completed': return '#9E9E9E';
     default: return '#BDBDBD';
   }
 }
@@ -82,7 +82,7 @@ const getStatusColor = (status?: string): string => {
     case '進行中':
       return '#2196f3'; // Blue
     case '完了':
-      return '#4caf50'; // Green
+      return '#9e9e9e'; // Grey (completed 統一)
     case '保留':
       return '#ff9800'; // Orange
     default:

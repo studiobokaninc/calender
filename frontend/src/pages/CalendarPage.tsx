@@ -59,7 +59,7 @@ const getTaskColor = (status?: string, projectStatus?: string): string => {
     case 'in-progress': return '#FF9800';
     case 'review': return '#9C27B0';
     case 'delayed': return '#F44336';
-    case 'completed': return '#4CAF50';
+    case 'completed': return '#9E9E9E';
     default: return '#BDBDBD';
   }
 };

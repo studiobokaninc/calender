@@ -1124,6 +1124,10 @@ const NotesPage: React.FC = () => {
                   placeholder="メモの内容を入力してください..."
                   value={textBox.content}
                   onChange={(e) => handleTextBoxContentChange(textBox.id, e.target.value)}
+                  onMouseDown={(e) => {
+                    // テキストエリア内のマウス操作は親に伝播させない（Mac等でテキスト選択ができるようにする）
+                    e.stopPropagation();
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedTextBoxId(textBox.id);
@@ -1142,6 +1146,8 @@ const NotesPage: React.FC = () => {
                       fontSize: '1rem',
                       lineHeight: 1.6,
                       resize: 'none',
+                      userSelect: 'text',
+                      WebkitUserSelect: 'text',
                     },
                     '& .MuiInputBase-root': {
                       '&:before': { borderBottom: 'none' },

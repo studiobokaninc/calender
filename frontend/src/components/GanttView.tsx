@@ -173,12 +173,12 @@ const getTaskStyle = (task: Task) => {
         progressColor: '#aa2e25',
         progressSelectedColor: '#7f1f1a'
       };
-    case 'completed': // ★★★ Fix: 'done' -> 'completed' ★★★
+    case 'completed': // ★★★ Fix: 'done' -> 'completed' ★★★ (アプリ全体で completed はグレー統一)
       return {
-        backgroundColor: '#81c784',
-        backgroundSelectedColor: '#4caf50',
-        progressColor: '#357a38',
-        progressSelectedColor: '#1b5e20'
+        backgroundColor: '#bdbdbd',
+        backgroundSelectedColor: '#9e9e9e',
+        progressColor: '#757575',
+        progressSelectedColor: '#616161'
       };
     default:
       // null や予期せぬステータスの場合

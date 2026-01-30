@@ -22,6 +22,8 @@ import {
   Close as CloseIcon,
   Add as AddIcon,
   Image as ImageIcon,
+  PictureAsPdf as PdfIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { notesApi } from '../services/api';
 import api from '../services/api';
@@ -44,6 +46,15 @@ interface TextBoxItem {
   y: number;
   width: number;
   height: number;
+}
+
+interface PdfItem {
+  url: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  fileName?: string; // 表示用ファイル名
 }
 
 const NotesPage: React.FC = () => {
@@ -71,8 +82,16 @@ const NotesPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [maxZIndex, setMaxZIndex] = useState(10); // z-indexの最大値を管理
   const [elementZIndices, setElementZIndices] = useState<{ [key: string]: number }>({}); // 各要素のz-indexを管理
+  // PDF用
+  const [pdfs, setPdfs] = useState<PdfItem[]>([]);
+  const [selectedPdfIndex, setSelectedPdfIndex] = useState<number | null>(null);
+  const [draggingPdfIndex, setDraggingPdfIndex] = useState<number | null>(null);
+  const [pdfDragOffset, setPdfDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   
-  // コンテナの最小高さを計算（テキストボックスと画像の最大のbottom位置を計算）
+  // コンテナの最小高さを計算（テキストボックスと画像とPDFの最大のbottom位置を計算）
   const calculateMinHeight = useCallback(() => {
     let maxBottom = 0;
     
@@ -92,9 +111,17 @@ const NotesPage: React.FC = () => {
       }
     });
     
+    // PDFの最大bottom位置を計算
+    pdfs.forEach(p => {
+      const bottom = p.y + p.height;
+      if (bottom > maxBottom) {
+        maxBottom = bottom;
+      }
+    });
+    
     // 最小高さは、最大bottom位置 + 余白（100px）と、画面高さの大きい方
     return Math.max(maxBottom + 100, window.innerHeight - 200);
-  }, [textBoxes, images]);
+  }, [textBoxes, images, pdfs]);
   
   // 要素を前面に表示する関数
   const bringToFront = useCallback((key: string) => {
@@ -251,6 +278,21 @@ const NotesPage: React.FC = () => {
           })
         );
         setImages(imageItems);
+        // PDFを読み込み
+        const pdfItems: PdfItem[] = (note.pdf_urls || []).map((url: string, index: number) => {
+          const position = note.pdf_positions?.[url];
+          const defaultW = 380;
+          const defaultH = 480;
+          return {
+            url,
+            width: position?.width ?? defaultW,
+            height: position?.height ?? defaultH,
+            x: position?.x ?? (50 + (index % 2) * 420),
+            y: position?.y ?? (50 + Math.floor(index / 2) * 520),
+            fileName: url.split('/').pop() || `PDF ${index + 1}`,
+          };
+        });
+        setPdfs(pdfItems);
         // projectIdがnullの場合は「その他」として表示
         setSelectedProjectId(projectId === undefined ? 'other' : (projectId === null ? 'other' : projectId));
       } else {
@@ -266,6 +308,7 @@ const NotesPage: React.FC = () => {
           height: 200,
         }]);
         setImages([]);
+        setPdfs([]);
         setSelectedProjectId(projectId === undefined ? null : projectId);
       }
     } catch (err: any) {
@@ -335,12 +378,15 @@ const NotesPage: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-    if (files.length === 0) return;
-
-    // 複数の画像を並列でアップロード
-    const uploadPromises = files.map(file => handleImageUpload(file));
-    await Promise.all(uploadPromises);
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    const pdfFiles = files.filter(file => file.type === 'application/pdf');
+    for (const file of imageFiles) {
+      await handleImageUpload(file);
+    }
+    for (const file of pdfFiles) {
+      await handlePdfUpload(file);
+    }
   };
 
   // 画像のアスペクト比を取得
@@ -415,6 +461,132 @@ const NotesPage: React.FC = () => {
   };
 
 
+  // PDFアップロード
+  const handlePdfUpload = async (file: File) => {
+    try {
+      setUploadingPdf(true);
+      setError(null);
+      const result = await notesApi.uploadPdf(file);
+      if (result?.url) {
+        setPdfs(prev => {
+          const currentCount = prev.length;
+          const cols = 2;
+          const xSpacing = 400;
+          const ySpacing = 520;
+          const x = 50 + (currentCount % cols) * xSpacing;
+          const y = 50 + Math.floor(currentCount / cols) * ySpacing;
+          return [...prev, {
+            url: result.url,
+            width: 380,
+            height: 480,
+            x,
+            y,
+            fileName: file.name || result.url.split('/').pop() || `PDF ${currentCount + 1}`,
+          }];
+        });
+      }
+    } catch (err: any) {
+      console.error('PDFのアップロードに失敗しました:', err);
+      if (err.response?.status === 401) {
+        setError('認証エラーが発生しました。ページをリロードしてください。');
+      } else {
+        setError(err.response?.data?.detail || 'PDFのアップロードに失敗しました');
+      }
+    } finally {
+      setUploadingPdf(false);
+    }
+  };
+
+  // PDF削除
+  const handleRemovePdf = async (index: number) => {
+    const newPdfs = pdfs.filter((_, i) => i !== index);
+    setPdfs(newPdfs);
+    if (selectedPdfIndex === index) {
+      setSelectedPdfIndex(null);
+    } else if (selectedPdfIndex !== null && selectedPdfIndex > index) {
+      setSelectedPdfIndex(selectedPdfIndex - 1);
+    }
+    if (pdfViewerOpen && pdfs[index]?.url === pdfViewerUrl) {
+      setPdfViewerOpen(false);
+      setPdfViewerUrl(null);
+    }
+    if (currentNote) {
+      try {
+        const pdfUrls = newPdfs.map(p => p.url);
+        const pdfPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        newPdfs.forEach(p => {
+          pdfPositions[p.url] = { x: p.x, y: p.y, width: p.width, height: p.height };
+        });
+        const textBoxesData = textBoxes.map(tb => ({
+          id: tb.id,
+          content: tb.content,
+          x: tb.x,
+          y: tb.y,
+          width: tb.width,
+          height: tb.height,
+        }));
+        const imageUrls = images.map(img => img.url);
+        const imagePositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        images.forEach(img => {
+          imagePositions[img.url] = { x: img.x, y: img.y, width: img.width, height: img.height };
+        });
+        const noteData: NoteUpdate = {
+          title: null,
+          content: null,
+          image_urls: imageUrls.length > 0 ? imageUrls : null,
+          image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
+          pdf_urls: pdfUrls.length > 0 ? pdfUrls : null,
+          pdf_positions: Object.keys(pdfPositions).length > 0 ? pdfPositions : null,
+          text_boxes: textBoxesData.length > 0 ? textBoxesData : null,
+          project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
+        };
+        await notesApi.updateNote(currentNote.id, noteData);
+        await fetchNote(selectedProjectId);
+      } catch (err: any) {
+        console.error('PDFの削除に失敗しました:', err);
+        setPdfs(pdfs);
+      }
+    }
+  };
+
+  // PDFドラッグ開始
+  const handlePdfDragStart = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedPdfIndex !== index) {
+      setSelectedPdfIndex(index);
+      setSelectedImageIndex(null);
+      setSelectedTextBoxId(null);
+      bringToFront(`pdf-${index}`);
+    }
+    setDraggingPdfIndex(index);
+    const container = dropZoneRef.current;
+    if (!container) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setPdfDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const handlePdfDrag = (e: React.MouseEvent) => {
+    if (draggingPdfIndex === null || pdfDragOffset === null) return;
+    e.preventDefault();
+    const container = dropZoneRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const newX = e.clientX - rect.left - pdfDragOffset.x;
+    const newY = e.clientY - rect.top - pdfDragOffset.y;
+    const pdf = pdfs[draggingPdfIndex];
+    if (!pdf) return;
+    setPdfs(prev => prev.map((p, i) =>
+      i === draggingPdfIndex
+        ? { ...p, x: Math.max(0, Math.min(newX, rect.width - p.width)), y: Math.max(0, Math.min(newY, rect.height - p.height)) }
+        : p
+    ));
+  };
+
+  const handlePdfDragEnd = () => {
+    setDraggingPdfIndex(null);
+    setPdfDragOffset(null);
+  };
+
   // 画像削除（データベースからも削除）
   const handleRemoveImage = async (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
@@ -451,16 +623,22 @@ const NotesPage: React.FC = () => {
           height: tb.height,
         }));
         
+        const pdfUrls = pdfs.map(p => p.url);
+        const pdfPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        pdfs.forEach(p => {
+          pdfPositions[p.url] = { x: p.x, y: p.y, width: p.width, height: p.height };
+        });
         const noteData: NoteUpdate = {
           title: null,
-          content: null, // 単一contentは使用しない
+          content: null,
           image_urls: imageUrls.length > 0 ? imageUrls : null,
           image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
+          pdf_urls: pdfUrls.length > 0 ? pdfUrls : null,
+          pdf_positions: Object.keys(pdfPositions).length > 0 ? pdfPositions : null,
           text_boxes: textBoxesData.length > 0 ? textBoxesData : null,
           project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
         };
         await notesApi.updateNote(currentNote.id, noteData);
-        // 再取得して最新状態を反映
         await fetchNote(selectedProjectId);
       } catch (err: any) {
         console.error('画像の削除に失敗しました:', err);
@@ -664,12 +842,19 @@ const NotesPage: React.FC = () => {
             height: tb.height,
           }));
           
+          const pdfUrls = pdfs.map(p => p.url);
+          const pdfPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+          pdfs.forEach(p => {
+            pdfPositions[p.url] = { x: p.x, y: p.y, width: p.width, height: p.height };
+          });
           const noteData = {
-            title: null, // タイトルは不要
-            content: null, // 単一contentは使用しない（後方互換性のためnull）
+            title: null,
+            content: null,
             image_urls: imageUrls.length > 0 ? imageUrls : null,
             image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
-            text_boxes: textBoxesData.length > 0 ? textBoxesData : null, // テキストボックス配列
+            pdf_urls: pdfUrls.length > 0 ? pdfUrls : null,
+            pdf_positions: Object.keys(pdfPositions).length > 0 ? pdfPositions : null,
+            text_boxes: textBoxesData.length > 0 ? textBoxesData : null,
             project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
           } as NoteCreate | NoteUpdate;
 
@@ -697,7 +882,7 @@ const NotesPage: React.FC = () => {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [textBoxes, images, selectedProjectId, currentNote?.id]);
+  }, [textBoxes, images, pdfs, selectedProjectId, currentNote?.id]);
 
   return (
     <Box sx={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', p: 2 }}>
@@ -708,7 +893,7 @@ const NotesPage: React.FC = () => {
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             個人メモ（作成者のみ閲覧・編集可能）。
-            画像をドラッグ&ドロップで配置できます。
+            画像・PDFをドラッグ&ドロップで配置できます。PDFはカード内で常に表示・閲覧できます。
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -769,6 +954,30 @@ const NotesPage: React.FC = () => {
               <ImageIcon />
             </IconButton>
           </label>
+          <input
+            accept=".pdf,application/pdf"
+            style={{ display: 'none' }}
+            id="pdf-upload-button"
+            type="file"
+            multiple
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []).filter(file => file.type === 'application/pdf');
+              if (files.length > 0) {
+                files.forEach(file => handlePdfUpload(file));
+              }
+              e.target.value = '';
+            }}
+          />
+          <label htmlFor="pdf-upload-button">
+            <IconButton
+              component="span"
+              color="primary"
+              size="small"
+              title="PDFを追加（カード内に表示されます）"
+            >
+              <PdfIcon />
+            </IconButton>
+          </label>
           {currentNote && (
             <IconButton
               onClick={() => setDeleteDialogOpen(true)}
@@ -797,16 +1006,14 @@ const NotesPage: React.FC = () => {
           onDragOver={handleDragOver}
           onDrop={handleDrop}
           onClick={(e) => {
-            // 画像やその子要素、テキストボックスをクリックした場合は何もしない
             const target = e.target as HTMLElement;
-            if (target.closest('[data-image-box]') || target.closest('[data-text-box]')) {
+            if (target.closest('[data-image-box]') || target.closest('[data-text-box]') || target.closest('[data-pdf-box]')) {
               return;
             }
-            
-            // 背景（Paper）をクリックしたときは選択を解除
             if (e.target === e.currentTarget) {
               setSelectedImageIndex(null);
               setSelectedTextBoxId(null);
+              setSelectedPdfIndex(null);
             }
           }}
           sx={{
@@ -816,27 +1023,29 @@ const NotesPage: React.FC = () => {
             p: 3,
             backgroundColor: '#ffffff',
             minHeight: `${calculateMinHeight()}px`,
-            cursor: (draggingImageIndex !== null || draggingTextBoxId) ? 'grabbing' : 'text',
+            cursor: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'grabbing' : 'text',
           }}
           onMouseMove={(e) => {
             if (draggingImageIndex !== null) {
               handleImageDrag(e);
             } else if (draggingTextBoxId) {
               handleTextBoxDrag(e);
+            } else if (draggingPdfIndex !== null) {
+              handlePdfDrag(e);
             }
-            // リサイズはグローバルイベントリスナーで処理するため、ここでは処理しない
           }}
           onMouseUp={(e) => {
-            // 背景のonClickが発火しないようにstopPropagation
-            if (draggingImageIndex !== null || draggingTextBoxId) {
+            if (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) {
               e.stopPropagation();
             }
             handleImageDragEnd();
             handleTextBoxDragEnd();
+            handlePdfDragEnd();
           }}
           onMouseLeave={() => {
             handleImageDragEnd();
             handleTextBoxDragEnd();
+            handlePdfDragEnd();
           }}
         >
           {/* テキストボックス（自由配置可能・複数配置対応） */}
@@ -1143,7 +1352,119 @@ const NotesPage: React.FC = () => {
             );
           })}
 
-          {uploadingImage && (
+          {/* PDF表示エリア（カード内に常時表示） */}
+          {pdfs.map((pdf, index) => {
+            const pdfFullUrl = pdf.url.startsWith('http') ? pdf.url : `${window.location.origin}${pdf.url}`;
+            const isSelected = selectedPdfIndex === index;
+            return (
+              <Box
+                key={index}
+                data-pdf-box
+                sx={{
+                  position: 'absolute',
+                  left: `${pdf.x}px`,
+                  top: `${pdf.y}px`,
+                  width: `${pdf.width}px`,
+                  height: `${pdf.height}px`,
+                  border: isSelected ? '3px solid #d32f2f' : '2px solid #e0e0e0',
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  backgroundColor: '#fff',
+                  boxShadow: isSelected ? 4 : 2,
+                  zIndex: getZIndex(`pdf-${index}`, 2, isSelected),
+                  display: 'flex',
+                  flexDirection: 'column',
+                  '&:hover': {
+                    boxShadow: 4,
+                    borderColor: isSelected ? '#d32f2f' : '#bdbdbd',
+                  },
+                }}
+              >
+                {/* ドラッグ用ヘッダー（ここをつかんで移動） */}
+                <Box
+                  onMouseDown={(e) => handlePdfDragStart(index, e)}
+                  onMouseUp={(e) => { e.stopPropagation(); handlePdfDragEnd(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPdfIndex(index);
+                    setSelectedImageIndex(null);
+                    setSelectedTextBoxId(null);
+                    bringToFront(`pdf-${index}`);
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    px: 1,
+                    py: 0.5,
+                    backgroundColor: '#f5f5f5',
+                    borderBottom: '1px solid #e0e0e0',
+                    cursor: draggingPdfIndex === index ? 'grabbing' : 'move',
+                    flexShrink: 0,
+                  }}
+                >
+                  <PdfIcon sx={{ fontSize: 20, color: '#d32f2f' }} />
+                  <Typography variant="caption" noWrap sx={{ flex: 1, fontWeight: 500 }}>
+                    {pdf.fileName || `PDF ${index + 1}`}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPdfViewerUrl(pdfFullUrl);
+                      setPdfViewerOpen(true);
+                    }}
+                    title="全画面で表示"
+                    sx={{ p: 0.25 }}
+                  >
+                    <VisibilityIcon fontSize="small" />
+                  </IconButton>
+                  {isSelected && (
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemovePdf(index);
+                      }}
+                      sx={{
+                        backgroundColor: 'error.main',
+                        color: 'white',
+                        width: 24,
+                        height: 24,
+                        p: 0,
+                        '&:hover': { backgroundColor: 'error.dark' },
+                      }}
+                    >
+                      <CloseIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  )}
+                </Box>
+                {/* カード内にPDFを常時表示 */}
+                <Box
+                  sx={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Box
+                    component="iframe"
+                    src={pdfFullUrl}
+                    title={pdf.fileName || `PDF ${index + 1}`}
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      minHeight: `${pdf.height - 40}px`,
+                      border: 'none',
+                      display: 'block',
+                    }}
+                  />
+                </Box>
+              </Box>
+            );
+          })}
+
+          {(uploadingImage || uploadingPdf) && (
             <Box
               sx={{
                 position: 'absolute',
@@ -1155,7 +1476,7 @@ const NotesPage: React.FC = () => {
             >
               <CircularProgress />
               <Typography variant="body2" sx={{ mt: 2 }}>
-                アップロード中...
+                {uploadingPdf ? 'PDFをアップロード中...' : 'アップロード中...'}
               </Typography>
             </Box>
           )}
@@ -1179,6 +1500,51 @@ const NotesPage: React.FC = () => {
           </Button>
           <Button onClick={handleDelete} color="error" variant="contained">
             削除
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* PDF閲覧モーダル */}
+      <Dialog
+        open={pdfViewerOpen}
+        onClose={() => { setPdfViewerOpen(false); setPdfViewerUrl(null); }}
+        maxWidth={false}
+        fullWidth
+        PaperProps={{
+          sx: {
+            width: '95vw',
+            height: '90vh',
+            maxWidth: 'none',
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6">PDFを閲覧</Typography>
+          <IconButton
+            onClick={() => { setPdfViewerOpen(false); setPdfViewerUrl(null); }}
+            size="small"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {pdfViewerUrl && (
+            <Box
+              component="iframe"
+              src={pdfViewerUrl}
+              title="PDF閲覧"
+              sx={{
+                flex: 1,
+                width: '100%',
+                minHeight: '70vh',
+                border: 'none',
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setPdfViewerOpen(false); setPdfViewerUrl(null); }}>
+            閉じる
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MockDataImport, TaskCreate } from '../types'; // ★★★ MockDataImport 型をインポート ★★★
+import { MockDataImport, TaskCreate, NoteCreate, NoteUpdate } from '../types';
 
 // APIクライアントの設定
 const baseURL = '/api'; // 相対パスに変更
@@ -279,13 +279,13 @@ export const notesApi = {
   },
 
   // メモを作成
-  createNote: async (note: { title?: string | null; content?: string | null; image_urls?: string[] | null }) => {
+  createNote: async (note: NoteCreate) => {
     const response = await api.post('/notes', note)
     return response.data
   },
 
   // メモを更新
-  updateNote: async (noteId: number, note: { title?: string | null; content?: string | null; image_urls?: string[] | null }) => {
+  updateNote: async (noteId: number, note: NoteUpdate) => {
     const response = await api.put(`/notes/${noteId}`, note)
     return response.data
   },
@@ -300,10 +300,19 @@ export const notesApi = {
   uploadImage: async (file: File): Promise<{ url: string }> => {
     const formData = new FormData()
     formData.append('file', file)
-    // FormDataを使用する場合、Content-Typeヘッダーはブラウザが自動設定するため削除
     const headers: any = {}
-    // FormDataの場合、Content-Typeを削除（ブラウザが自動設定）
     const response = await api.post('/notes/upload-image', formData, {
+      headers,
+    })
+    return response.data
+  },
+
+  // PDFをアップロード
+  uploadPdf: async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const headers: any = {}
+    const response = await api.post('/notes/upload-pdf', formData, {
       headers,
     })
     return response.data

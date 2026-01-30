@@ -70,6 +70,7 @@ interface ParticipantOption {
 }
 
 // --- Component Props ---
+/** true のときタイプは会議・ワークショップ・イベント・締切・マイルストーンのみ（タスク・プロジェクトを非表示） */
 interface EventAddModalProps {
   open: boolean;
   onClose: () => void;
@@ -81,10 +82,11 @@ interface EventAddModalProps {
   users: User[];
   tasks: Task[];
   groups: Group[];
+  eventTypesOnly?: boolean;
 }
 
 // --- Component ---
-const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, initialDate, eventToEdit, dateClickArg, projects: projectsFromProps, users: usersFromProps, tasks: tasksFromProps, groups: groupsFromProps }) => {
+const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, initialDate, eventToEdit, dateClickArg, projects: projectsFromProps, users: usersFromProps, tasks: tasksFromProps, groups: groupsFromProps, eventTypesOnly = false }) => {
   console.log("tasksFromProps on modal open (checking for ID 10 or name 'タスク 10'):", JSON.stringify(tasksFromProps.filter(t => String(t.id) === "10" || t.name === "タスク 10"), null, 2));
   const getInitialState = (): EventFormData => {
     let initialStartDateTime = new Date();
@@ -113,16 +115,28 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         initialEndDateTime = setMinutes(setHours(startOfDay(initialStartDateTime), defaultEndTime), 0);
         initialAllDay = true; // デフォルトのTaskに合わせて終日
       }
-    } else if (initialDate) { // カレンダー外からの呼び出し（例：＋ボタン、initialTypeは'Task'のまま)
+    } else if (initialDate) { // カレンダー外からの呼び出し（例：＋ボタン、イベント管理ページ）
       initialStartDateTime = setMinutes(setHours(startOfDay(initialDate), defaultStartTime), 0);
       initialEndDateTime = setMinutes(setHours(startOfDay(initialDate), defaultEndTime), 0);
-      initialAllDay = true; // デフォルトのTaskに合わせて終日
+      if (eventTypesOnly) {
+        initialType = 'Meeting';
+        initialAllDay = false;
+      } else {
+        initialAllDay = true; // デフォルトのTaskに合わせて終日
+      }
     } else {
       // initialDate も dateClickArg もない場合 (モーダルを直接開くなど、レアケース)
-      // initialType は 'Task' のまま
-      initialStartDateTime = setMinutes(setHours(startOfDay(new Date()), defaultStartTime), 0);
-      initialEndDateTime = setMinutes(setHours(startOfDay(new Date()), defaultEndTime), 0);
-      initialAllDay = true; // デフォルトのTaskに合わせて終日
+      if (eventTypesOnly) {
+        initialType = 'Meeting';
+        initialAllDay = false;
+        initialStartDateTime = setMinutes(setHours(startOfDay(new Date()), defaultStartTime), 0);
+        initialEndDateTime = setMinutes(setHours(startOfDay(new Date()), defaultEndTime), 0);
+      } else {
+        initialType = 'Task';
+        initialStartDateTime = setMinutes(setHours(startOfDay(new Date()), defaultStartTime), 0);
+        initialEndDateTime = setMinutes(setHours(startOfDay(new Date()), defaultEndTime), 0);
+        initialAllDay = true;
+      }
     }
 
     const isTaskType = initialType === 'Task';
@@ -868,8 +882,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                    size="small"
                    disabled={!!eventToEdit} // 編集時はタイプ変更不可
                 >
-                   <MenuItem value="Task">タスク</MenuItem>
-                  <MenuItem value="Project">プロジェクト</MenuItem>
+                  {!eventTypesOnly && <MenuItem value="Task">タスク</MenuItem>}
+                  {!eventTypesOnly && <MenuItem value="Project">プロジェクト</MenuItem>}
                   <MenuItem value="Meeting">会議</MenuItem>
                   <MenuItem value="Workshop">ワークショップ</MenuItem>
                   <MenuItem value="Generic">イベント (通常)</MenuItem>

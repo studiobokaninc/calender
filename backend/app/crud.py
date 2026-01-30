@@ -519,7 +519,7 @@ def create_group(db: Session, group: schemas.GroupCreate) -> models.Group: # 型
     db.refresh(db_group)
     return db_group
 
-def update_group(db: Session, db_group: models.Group, group_in: schemas.GroupCreate) -> models.Group: # 型ヒント修正 (GroupUpdate がないので GroupCreate)
+def update_group(db: Session, db_group: models.Group, group_in: schemas.GroupUpdate) -> models.Group:
     """グループ情報を更新"""
     update_data = group_in.dict(exclude_unset=True)
     
@@ -680,6 +680,7 @@ def create_note(db: Session, note: schemas.NoteCreate, created_by: int) -> model
         title=note.title,
         content=note.content,
         image_urls=note.image_urls or [],
+        pdf_urls=getattr(note, 'pdf_urls', None) or [],
         project_id=note.project_id,
         created_by=created_by,
         created_at=now_jst_naive(),
@@ -712,6 +713,23 @@ def update_note(db: Session, db_note: models.Note, note_in: schemas.NoteUpdate, 
                     except Exception as e:
                         logger.warning(f"画像ファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
     
+    # PDF URLが更新される場合、削除されたPDFファイルを削除
+    if 'pdf_urls' in note_in.dict(exclude_unset=True) and upload_dir:
+        old_pdf_urls = set(db_note.pdf_urls or [])
+        new_pdf_urls = set(note_in.pdf_urls or [])
+        deleted_pdf_urls = old_pdf_urls - new_pdf_urls
+        
+        for pdf_url in deleted_pdf_urls:
+            if pdf_url and pdf_url.startswith('/static/uploads/'):
+                filename = os.path.basename(pdf_url)
+                file_path = os.path.join(upload_dir, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"PDFファイルを削除しました: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"PDFファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
     update_data = note_in.dict(exclude_unset=True)
     
     for key, value in update_data.items():
@@ -741,6 +759,18 @@ def delete_note(db: Session, db_note: models.Note, upload_dir: str = None) -> mo
                         os.remove(file_path)
                     except Exception as e:
                         logger.warning(f"画像ファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
+    # PDFファイルを削除
+    if db_note.pdf_urls and upload_dir:
+        for pdf_url in db_note.pdf_urls:
+            if pdf_url and pdf_url.startswith('/static/uploads/'):
+                filename = os.path.basename(pdf_url)
+                file_path = os.path.join(upload_dir, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        logger.warning(f"PDFファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
     
     db.delete(db_note)
     db.commit()

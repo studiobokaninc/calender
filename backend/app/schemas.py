@@ -87,10 +87,11 @@ class GroupBase(BaseModel):
 class GroupCreate(GroupBase):
     pass
 
-# Define GroupUpdate if needed for partial updates
-# class GroupUpdate(BaseModel):
-#     name: Optional[str] = None
-#     description: Optional[str] = None
+
+class GroupUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
 
 class GroupResponse(GroupBase):
     id: int
@@ -252,6 +253,8 @@ class NoteBase(BaseModel):
     content: Optional[str] = None  # 後方互換性のため残す
     image_urls: Optional[List[str]] = Field(default_factory=list)
     image_positions: Optional[Dict[str, Dict[str, float]]] = Field(default_factory=dict)  # {url: {x, y, width, height}}
+    pdf_urls: Optional[List[str]] = Field(default_factory=list)
+    pdf_positions: Optional[Dict[str, Dict[str, float]]] = Field(default_factory=dict)  # {url: {x, y, width, height}}
     content_position: Optional[Dict[str, float]] = None  # {x, y, width, height}（後方互換性のため残す）
     text_boxes: Optional[List[Dict[str, Any]]] = None  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Optional[int] = None
@@ -264,6 +267,8 @@ class NoteUpdate(BaseModel):
     content: Optional[str] = None  # 後方互換性のため残す
     image_urls: Optional[List[str]] = None
     image_positions: Optional[Dict[str, Dict[str, float]]] = None  # {url: {x, y, width, height}}
+    pdf_urls: Optional[List[str]] = None
+    pdf_positions: Optional[Dict[str, Dict[str, float]]] = None  # {url: {x, y, width, height}}
     content_position: Optional[Dict[str, float]] = None  # {x, y, width, height}（後方互換性のため残す）
     text_boxes: Optional[List[Dict[str, Any]]] = None  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Optional[int] = None

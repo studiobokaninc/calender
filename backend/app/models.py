@@ -176,6 +176,8 @@ class Note(Base):
     content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     image_urls: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)  # 画像のパスをリストで保存
     image_positions: Mapped[Optional[Dict[str, Dict[str, float]]]] = mapped_column(JSON, nullable=True)  # 画像の位置情報 {url: {x, y, width, height}}
+    pdf_urls: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)  # PDFのパスをリストで保存
+    pdf_positions: Mapped[Optional[Dict[str, Dict[str, float]]]] = mapped_column(JSON, nullable=True)  # PDFの位置情報 {url: {x, y, width, height}}
     content_position: Mapped[Optional[Dict[str, float]]] = mapped_column(JSON, nullable=True)  # テキストボックスの位置情報 {x, y, width, height}（後方互換性のため残す）
     text_boxes: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), nullable=True)

@@ -22,10 +22,11 @@ import {
   People as PeopleIcon,
   Task as TaskIcon,
   Folder as ProjectIcon,
+  CalendarToday as CalendarTodayIcon,
   Event as EventIcon,
 } from '@mui/icons-material'
 import api from '../services/api'
-import { DashboardMetrics } from '../types'
+import { DashboardMetrics, BackendEvent } from '../types'
 import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -36,6 +37,7 @@ const Dashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [backendEvents, setBackendEvents] = useState<BackendEvent[]>([])
   const [chatInput, setChatInput] = useState('')
   const [sending, setSending] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -63,7 +65,7 @@ const Dashboard: React.FC = () => {
   
   // ページ状態管理の使用
   const { dashboardState, updateDashboardState, isInitialLoad } = useDashboardPageState();
-  const { refreshGlobalData } = usePageState();
+  const { refreshGlobalData, globalData } = usePageState();
   
   // 状態を分離（初期化時はページ状態から取得）
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
@@ -112,7 +114,83 @@ const Dashboard: React.FC = () => {
     fetchMetrics()
   }, [])
 
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const res = await api.get<BackendEvent[]>('/calendar/events')
+        setBackendEvents(res.data ?? [])
+      } catch {
+        setBackendEvents([])
+      }
+    }
+    fetchEvents()
+  }, [])
+
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
+
+  // 今日の日付（YYYY-MM-DD）でタスク・イベントをフィルタし、プロジェクト名付きで一覧化（フックは早期 return の前に必ず呼ぶ）
+  const todayStr = useMemo(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }, [])
+
+  const eventTypeToLabel: Record<string, string> = {
+    Meeting: '会議',
+    Deadline: '締切',
+    Milestone: 'マイルストーン',
+    Workshop: 'ワークショップ',
+    Generic: 'イベント',
+    Task: 'タスク',
+  }
+
+  const todayItems = useMemo(() => {
+    const tasks = globalData?.tasks ?? []
+    const projects = globalData?.projects ?? []
+    const getProjectName = (projectId: number | null | undefined): string => {
+      if (projectId == null) return '（プロジェクトなし）'
+      const p = projects.find((x: any) => x.id === projectId)
+      return p?.name ?? `ID:${projectId}`
+    }
+    const norm = (s: string | null | undefined): string =>
+      (s ?? '').toString().split('T')[0]
+    const list: { type: 'task' | 'event'; name: string; projectName: string; id: number; timeLabel?: string; kindLabel: string }[] = []
+
+    // 今日のタスク（start_date または due_date が今日）
+    tasks.forEach((t: any) => {
+      const start = norm(t.start_date)
+      const due = norm(t.due_date)
+      const isToday = start === todayStr || due === todayStr
+      if (!isToday) return
+      list.push({
+        type: 'task',
+        name: t.name ?? `タスク #${t.id}`,
+        projectName: getProjectName(t.project_id ?? t.extendedProps?.projectId),
+        id: t.id,
+        kindLabel: 'タスク',
+      })
+    })
+
+    // 今日のイベント（start_time または end_time が今日に含まれる）
+    backendEvents.forEach((ev: BackendEvent) => {
+      const startDate = norm(ev.start_time)
+      const endDate = ev.end_time ? norm(ev.end_time) : startDate
+      const startsToday = startDate === todayStr
+      const endsToday = endDate === todayStr
+      const spansToday = startDate <= todayStr && todayStr <= endDate
+      if (!startsToday && !endsToday && !spansToday) return
+      const evType = (ev.type ?? 'Generic').toString()
+      list.push({
+        type: 'event',
+        name: ev.title ?? `イベント #${ev.id}`,
+        projectName: getProjectName(ev.project_id ?? undefined),
+        id: ev.id,
+        timeLabel: ev.start_time ? new Date(ev.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : undefined,
+        kindLabel: eventTypeToLabel[evType] ?? evType,
+      })
+    })
+
+    return list
+  }, [globalData?.tasks, globalData?.projects, todayStr, backendEvents])
 
   const scrollToBottom = () => {
     if (listEndRef.current) {
@@ -484,17 +562,26 @@ const Dashboard: React.FC = () => {
     return null;
   };
 
-  // アクションの説明を生成
+  // アクションの説明を生成（タスク名を表示）
   const generateActionDescription = (action: any): string => {
+    // タスクIDからタスク名を取得
+    const getTaskName = (taskId?: number): string => {
+      if (!taskId || !globalData?.tasks) return '';
+      const task = globalData.tasks.find((t: any) => t.id === taskId);
+      return task?.name || '';
+    };
+
     switch (action.action_type) {
       case 'update_task':
+        const taskName = getTaskName(action.task_id);
+        const taskDisplay = taskName ? `「${taskName}」` : `タスクID ${action.task_id}`;
         const updates: string[] = [];
         if (action.task_data?.status) updates.push(`ステータス: ${action.task_data.status}`);
         if (action.task_data?.name) updates.push(`名前: ${action.task_data.name}`);
         if (action.task_data?.due_date) updates.push(`期日: ${action.task_data.due_date}`);
         if (action.task_data?.assigned_to) updates.push(`担当者ID: ${action.task_data.assigned_to}`);
         if (action.task_data?.description) updates.push(`説明: ${action.task_data.description}`);
-        return `タスクID ${action.task_id} を更新します。\n変更内容: ${updates.length > 0 ? updates.join(', ') : 'その他の更新'}`;
+        return `${taskDisplay} を更新します。\n変更内容: ${updates.length > 0 ? updates.join(', ') : 'その他の更新'}`;
       
       case 'create_task':
         const details: string[] = [];
@@ -506,7 +593,9 @@ const Dashboard: React.FC = () => {
         return `新しいタスクを作成します。\n${details.length > 0 ? details.join('\n') : '詳細は未設定'}`;
       
       case 'delete_task':
-        return `タスクID ${action.task_id} を削除します。\nこの操作は取り消せません。`;
+        const deleteTaskName = getTaskName(action.task_id);
+        const deleteTaskDisplay = deleteTaskName ? `「${deleteTaskName}」` : `タスクID ${action.task_id}`;
+        return `${deleteTaskDisplay} を削除します。\nこの操作は取り消せません。`;
       
       default:
         return 'アクションを実行します。';
@@ -882,17 +971,17 @@ const Dashboard: React.FC = () => {
       title: 'ユーザー',
       value: metrics?.users || 0,
       subValue: '登録済みユーザー',
-      icon: <PeopleIcon sx={{ fontSize: 48 }} />,
+      icon: <PeopleIcon sx={{ fontSize: 40 }} />,
       color: 'primary',
       bgGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       path: '/admin/users',
-      requiresAdmin: true, // 管理者専用ページ
+      requiresAdmin: true,
     },
     {
       title: 'タスク',
       value: metrics?.tasks || 0,
       subValue: '登録済みタスク',
-      icon: <TaskIcon sx={{ fontSize: 48 }} />,
+      icon: <TaskIcon sx={{ fontSize: 40 }} />,
       color: 'secondary',
       bgGradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
       path: '/tasks',
@@ -902,20 +991,10 @@ const Dashboard: React.FC = () => {
       title: 'プロジェクト',
       value: metrics?.projects || 0,
       subValue: '登録済みプロジェクト',
-      icon: <ProjectIcon sx={{ fontSize: 48 }} />,
+      icon: <ProjectIcon sx={{ fontSize: 40 }} />,
       color: 'success',
       bgGradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
       path: '/projects',
-      requiresAdmin: false,
-    },
-    {
-      title: 'イベント',
-      value: metrics?.events || 0,
-      subValue: '登録済みイベント',
-      icon: <EventIcon sx={{ fontSize: 48 }} />,
-      color: 'info',
-      bgGradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-      path: '/calendar',
       requiresAdmin: false,
     },
   ]
@@ -940,7 +1019,7 @@ const Dashboard: React.FC = () => {
           gridTemplateColumns: {
             xs: '1fr',
             sm: 'repeat(2, 1fr)',
-            md: 'repeat(4, 1fr)',
+            md: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.2fr)',
           },
           gap: 2,
           mb: 2,
@@ -960,90 +1039,212 @@ const Dashboard: React.FC = () => {
               }}
               sx={{
                 p: 2,
-                borderRadius: 3,
+                borderRadius: 2,
                 position: 'relative',
                 overflow: 'hidden',
+                height: 252,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
                 transition: 'all 0.3s ease-in-out',
                 cursor: canNavigate ? 'pointer' : 'default',
                 opacity: canNavigate ? 1 : 0.7,
                 '&:hover': canNavigate ? {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 6,
+                  transform: 'translateY(-2px)',
+                  boxShadow: 4,
                 } : {},
               }}
             >
-            {/* 背景グラデーション */}
             <Box
               sx={{
                 position: 'absolute',
                 top: 0,
                 right: 0,
-                width: '120px',
-                height: '120px',
+                width: '80px',
+                height: '80px',
                 background: card.bgGradient,
                 borderRadius: '50%',
-                transform: 'translate(30px, -30px)',
+                transform: 'translate(24px, -24px)',
                 opacity: 0.1,
               }}
             />
-            
-            <Box sx={{ position: 'relative', zIndex: 1 }}>
-              {/* アイコン */}
-              <Box
-                sx={{
-                  display: 'inline-flex',
-                  p: 1.5,
-                  borderRadius: 2,
-                  background: card.bgGradient,
-                  mb: 2,
-                  boxShadow: 2,
-                }}
-              >
-                <Box sx={{ color: 'white' }}>
-                  {card.icon}
-                </Box>
+            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', height: '100%' }}>
+              <Box sx={{ display: 'inline-flex', p: 1.5, borderRadius: 2, background: card.bgGradient, mb: 1.25, boxShadow: 2 }}>
+                <Box sx={{ color: 'white' }}>{card.icon}</Box>
               </Box>
-              
-              {/* タイトル */}
-              <Typography
-                variant="body1"
-                sx={{
-                  color: 'text.secondary',
-                  mb: 1,
-                  fontWeight: 500,
-                  fontSize: '0.875rem',
-                }}
-              >
+              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 0.75, fontWeight: 500, fontSize: '0.95rem' }}>
                 {card.title}
               </Typography>
-              
-              {/* 数値 */}
-              <Typography
-                variant="h3"
-                sx={{
-                  fontWeight: 700,
-                  mb: 0.5,
-                  color: 'text.primary',
-                  lineHeight: 1.2,
-                }}
-              >
+              <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2, mb: 0.5 }}>
                 {typeof card.value === 'number' && card.value < 0 ? '-' : card.value.toLocaleString()}
               </Typography>
-              
-              {/* サブタイトル */}
-              <Typography
-                variant="caption"
-                sx={{
-                  color: 'text.secondary',
-                  fontSize: '0.75rem',
-                }}
-              >
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
                 {card.subValue}
               </Typography>
             </Box>
           </Paper>
           )
         })}
+
+        {/* 今日の予定パネル：高さ固定（約3件表示）、4件以上はスクロール。種別（タスク/会議/締切等）を表示 */}
+        <Paper
+          elevation={2}
+          onClick={() => navigate('/calendar')}
+          sx={{
+            p: 2,
+            borderRadius: 3,
+            position: 'relative',
+            overflow: 'hidden',
+            height: 252,
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'all 0.3s ease-in-out',
+            cursor: 'pointer',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: 6,
+            },
+          }}
+        >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '120px',
+              height: '120px',
+              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+              borderRadius: '50%',
+              transform: 'translate(36px, -36px)',
+              opacity: 0.12,
+            }}
+          />
+          <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  p: 1,
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  boxShadow: 2,
+                }}
+              >
+                <Box sx={{ color: 'white' }}>
+                  <CalendarTodayIcon sx={{ fontSize: 24 }} />
+                </Box>
+              </Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>
+                今日の予定
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                height: 200,
+                minHeight: 0,
+                overflowY: 'auto',
+                '&::-webkit-scrollbar': { width: 6 },
+                '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' },
+              }}
+            >
+              {todayItems.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                    今日の予定はありません
+                  </Typography>
+                </Box>
+              ) : (
+                todayItems.map((item) => (
+                  <Box
+                    key={`${item.type}-${item.id}`}
+                    sx={{
+                      py: 1.25,
+                      px: 1.25,
+                      mb: 1,
+                      borderRadius: 1.5,
+                      bgcolor: 'background.paper',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderLeft: '4px solid',
+                      borderLeftColor: item.type === 'event' ? 'info.main' : 'secondary.main',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 1.25,
+                      '&:last-of-type': { mb: 0 },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        flexShrink: 0,
+                        width: 32,
+                        height: 32,
+                        borderRadius: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: item.type === 'event' ? 'info.light' : 'secondary.light',
+                        color: item.type === 'event' ? 'info.dark' : 'secondary.dark',
+                      }}
+                    >
+                      {item.type === 'event' ? (
+                        <EventIcon sx={{ fontSize: 18 }} />
+                      ) : (
+                        <TaskIcon sx={{ fontSize: 18 }} />
+                      )}
+                    </Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} title={item.name}>
+                          {item.name}
+                        </Typography>
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          sx={{
+                            flexShrink: 0,
+                            px: 0.75,
+                            py: 0.2,
+                            borderRadius: 1,
+                            bgcolor: item.type === 'event' ? 'info.main' : 'secondary.main',
+                            color: 'white',
+                            fontWeight: 600,
+                            fontSize: '0.7rem',
+                          }}
+                        >
+                          {item.kindLabel}
+                        </Typography>
+                        {item.timeLabel != null && (
+                          <Typography
+                            component="span"
+                            variant="caption"
+                            sx={{
+                              flexShrink: 0,
+                              px: 0.6,
+                              py: 0.15,
+                              borderRadius: 0.75,
+                              bgcolor: 'action.selected',
+                              color: 'text.secondary',
+                              fontSize: '0.7rem',
+                              fontWeight: 500,
+                            }}
+                          >
+                            {item.timeLabel}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                          {item.projectName}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                ))
+              )}
+            </Box>
+          </Box>
+        </Paper>
       </Box>
 
 		{/* チャット欄 */}

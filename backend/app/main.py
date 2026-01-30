@@ -603,6 +603,22 @@ async def create_group_endpoint(
     created_group = crud.create_group(db=db, group=group_data)
     return created_group
 
+
+@app.put("/api/groups/{group_id}", response_model=schemas.GroupResponse, tags=["Groups"])
+async def update_group_endpoint(
+    group_id: int,
+    group_data: schemas.GroupUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """グループ情報を更新"""
+    db_group = crud.get_group(db=db, group_id=group_id)
+    if db_group is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="グループが見つかりません")
+    updated_group = crud.update_group(db=db, db_group=db_group, group_in=group_data)
+    return updated_group
+
+
 @app.get("/api/user_groups", response_model=List[schemas.UserGroupResponse], tags=["Groups"])
 async def get_user_groups_endpoint(
     user_id: Optional[int] = None,
@@ -1920,4 +1936,30 @@ async def upload_note_image(
         return {"url": image_url}
     except Exception as e:
         logger.error(f"画像のアップロードに失敗: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"画像のアップロードに失敗しました: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"画像のアップロードに失敗しました: {str(e)}")
+
+@app.post("/notes/upload-pdf", tags=["Notes"])
+async def upload_note_pdf(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user)
+):
+    """メモ用のPDFをアップロード"""
+    if not file.content_type or file.content_type != 'application/pdf':
+        logger.warning(f"PDF以外のファイルがアップロードされました: {file.content_type}")
+        raise HTTPException(status_code=400, detail="PDFファイルのみアップロード可能です")
+    
+    file_ext = os.path.splitext(file.filename)[1] if file.filename else '.pdf'
+    if file_ext.lower() != '.pdf':
+        file_ext = '.pdf'
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    
+    try:
+        content = await file.read()
+        with open(file_path, "wb") as buffer:
+            buffer.write(content)
+        pdf_url = f"/static/uploads/{unique_filename}"
+        return {"url": pdf_url}
+    except Exception as e:
+        logger.error(f"PDFのアップロードに失敗: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"PDFのアップロードに失敗しました: {str(e)}") 

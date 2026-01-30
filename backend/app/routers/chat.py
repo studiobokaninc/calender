@@ -590,6 +590,17 @@ async def execute_task_action(
     return _execute_task_action_internal(action=action, db=db, current_user=current_user)
 
 
+def _normalize_priority(value):  # noqa: ANN201
+    """チャット/AI から渡る小文字の priority を TaskPriority の 'HIGH'/'MEDIUM'/'LOW' に正規化する。"""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        u = value.upper()
+        if u in ("HIGH", "MEDIUM", "LOW"):
+            return u
+    return None
+
+
 def _execute_task_action_internal(
     action: dict,
     db: Session,
@@ -624,7 +635,9 @@ def _execute_task_action_internal(
             if "status" in task_data_dict:
                 update_data["status"] = task_data_dict["status"]
             if "priority" in task_data_dict:
-                update_data["priority"] = task_data_dict["priority"]
+                normalized = _normalize_priority(task_data_dict["priority"])
+                if normalized is not None:
+                    update_data["priority"] = normalized
             if "due_date" in task_data_dict:
                 update_data["due_date"] = task_data_dict["due_date"]
             if "start_date" in task_data_dict:
@@ -653,11 +666,12 @@ def _execute_task_action_internal(
                 return {"success": False, "error": "タスク名が必要です"}
 
             # 必須フィールドの設定
+            priority_val = _normalize_priority(task_data_dict.get("priority")) or "MEDIUM"
             task_data = schemas.TaskCreate(
                 name=task_data_dict.get("name"),
                 description=task_data_dict.get("description", ""),
                 status=task_data_dict.get("status", "todo"),
-                priority=task_data_dict.get("priority", "medium"),
+                priority=priority_val,
                 project_id=task_data_dict.get("project_id"),
                 assigned_to=task_data_dict.get("assigned_to"),
                 due_date=task_data_dict.get("due_date"),

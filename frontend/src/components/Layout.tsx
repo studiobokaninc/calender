@@ -103,7 +103,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
     { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
     { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
-    { text: 'ユーザー管理', icon: <UserIcon />, path: '/admin/users', isAdmin: true },
+    { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users' }, // タスク表示は全員、追加・編集は管理者のみ
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },

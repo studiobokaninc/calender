@@ -513,41 +513,44 @@ const Dashboard: React.FC = () => {
     const validTypes = ['update_task', 'create_task', 'delete_task'];
     const isValidAction = (a: any) => a && typeof a === 'object' && validTypes.includes(a.action_type);
 
+    // 複数のコードブロックをすべて抽出（```json または ``` で囲まれた中身）
+    const extractAllCodeBlocks = (text: string): string[] => {
+      const blocks: string[] = [];
+      const regex = /```(?:json)?\s*([\s\S]*?)```/g;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(text)) !== null) {
+        const inner = m[1].trim();
+        if (inner) blocks.push(inner);
+      }
+      return blocks;
+    };
+
+    // 1ブロックの文字列をパースして有効なアクションを配列で返す（0〜n件）
+    const parseBlockToActions = (block: string): any[] => {
+      try {
+        const parsed = JSON.parse(block);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isValidAction))
+          return parsed;
+        if (isValidAction(parsed)) return [parsed];
+      } catch (_) { /* ignore */ }
+      return [];
+    };
+
     try {
-      // コードブロック全体を抽出（```json または ``` で囲まれた中身）
-      const extractCodeBlock = (text: string): string | null => {
-        const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-        return fence ? fence[1].trim() : null;
-      };
+      // 検出対象テキスト（--- がある場合はその以降）
+      const searchContent = content.includes('---')
+        ? content.split('---').slice(1).join('---').trim()
+        : content;
 
-      // パターン1: --- + コードブロック
-      if (content.includes('---')) {
-        const parts = content.split('---', 1);
-        if (parts.length > 1) {
-          const block = extractCodeBlock(parts[1].trim());
-          if (block) {
-            try {
-              const parsed = JSON.parse(block);
-              if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isValidAction))
-                return parsed;
-              if (isValidAction(parsed)) return parsed;
-            } catch (_) { /* ignore */ }
-          }
-        }
+      const blocks = extractAllCodeBlocks(searchContent);
+      const collected: any[] = [];
+      for (const block of blocks) {
+        collected.push(...parseBlockToActions(block));
       }
+      if (collected.length > 1) return collected;
+      if (collected.length === 1) return collected[0];
 
-      // パターン2: コードブロックのみ（---なし）
-      const block = extractCodeBlock(content);
-      if (block) {
-        try {
-          const parsed = JSON.parse(block);
-          if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isValidAction))
-            return parsed;
-          if (isValidAction(parsed)) return parsed;
-        } catch (_) { /* ignore */ }
-      }
-
-      // パターン3: 単一オブジェクトのJSONを直接検出
+      // パターン3: コードブロックなしで単一オブジェクトのJSONを直接検出
       const singlePattern = /\{[\s\S]*?"action_type":\s*"(update_task|create_task|delete_task)"[\s\S]*?\}/;
       const singleMatch = content.match(singlePattern);
       if (singleMatch) {
@@ -562,7 +565,7 @@ const Dashboard: React.FC = () => {
     return null;
   };
 
-  // アクションの説明を生成（タスク名を表示）
+  // アクションの説明を生成（タスク名・プロジェクト名を表示）
   const generateActionDescription = (action: any): string => {
     // タスクIDからタスク名を取得
     const getTaskName = (taskId?: number): string => {
@@ -570,11 +573,33 @@ const Dashboard: React.FC = () => {
       const task = globalData.tasks.find((t: any) => t.id === taskId);
       return task?.name || '';
     };
+    // タスクIDからプロジェクト名を取得（タスクの project_id を参照）
+    const getProjectNameByTaskId = (taskId?: number): string => {
+      if (!taskId || !globalData?.tasks || !globalData?.projects) return '';
+      const task = globalData.tasks.find((t: any) => t.id === taskId);
+      const projectId = task?.project_id;
+      if (projectId == null) return '';
+      const project = globalData.projects.find((p: any) => p.id === projectId);
+      return project?.name || '';
+    };
+    // プロジェクトIDからプロジェクト名を取得
+    const getProjectNameById = (projectId?: number): string => {
+      if (projectId == null || !globalData?.projects) return '';
+      const project = globalData.projects.find((p: any) => p.id === projectId);
+      return project?.name || '';
+    };
+    // 「プロジェクト名 / タスク名」の表示用文字列を組み立て
+    const projectTaskLabel = (taskId: number | undefined, taskName: string, projectName: string): string => {
+      if (projectName && taskName) return `プロジェクト「${projectName}」のタスク「${taskName}」`;
+      if (taskName) return `タスク「${taskName}」`;
+      return `タスクID ${taskId}`;
+    };
 
     switch (action.action_type) {
-      case 'update_task':
+      case 'update_task': {
         const taskName = getTaskName(action.task_id);
-        const taskDisplay = taskName ? `「${taskName}」` : `タスクID ${action.task_id}`;
+        const projectName = getProjectNameByTaskId(action.task_id);
+        const taskDisplay = projectTaskLabel(action.task_id, taskName, projectName);
         const updates: string[] = [];
         if (action.task_data?.status) updates.push(`ステータス: ${action.task_data.status}`);
         if (action.task_data?.name) updates.push(`名前: ${action.task_data.name}`);
@@ -582,21 +607,24 @@ const Dashboard: React.FC = () => {
         if (action.task_data?.assigned_to) updates.push(`担当者ID: ${action.task_data.assigned_to}`);
         if (action.task_data?.description) updates.push(`説明: ${action.task_data.description}`);
         return `${taskDisplay} を更新します。\n変更内容: ${updates.length > 0 ? updates.join(', ') : 'その他の更新'}`;
-      
-      case 'create_task':
+      }
+      case 'create_task': {
         const details: string[] = [];
+        const createProjectName = getProjectNameById(action.task_data?.project_id);
+        if (createProjectName) details.push(`プロジェクト: ${createProjectName}`);
         if (action.task_data?.name) details.push(`名前: ${action.task_data.name}`);
         if (action.task_data?.description) details.push(`説明: ${action.task_data.description}`);
         if (action.task_data?.status) details.push(`ステータス: ${action.task_data.status}`);
         if (action.task_data?.due_date) details.push(`期日: ${action.task_data.due_date}`);
         if (action.task_data?.assigned_to) details.push(`担当者ID: ${action.task_data.assigned_to}`);
         return `新しいタスクを作成します。\n${details.length > 0 ? details.join('\n') : '詳細は未設定'}`;
-      
-      case 'delete_task':
+      }
+      case 'delete_task': {
         const deleteTaskName = getTaskName(action.task_id);
-        const deleteTaskDisplay = deleteTaskName ? `「${deleteTaskName}」` : `タスクID ${action.task_id}`;
+        const deleteProjectName = getProjectNameByTaskId(action.task_id);
+        const deleteTaskDisplay = projectTaskLabel(action.task_id, deleteTaskName, deleteProjectName);
         return `${deleteTaskDisplay} を削除します。\nこの操作は取り消せません。`;
-      
+      }
       default:
         return 'アクションを実行します。';
     }

@@ -1523,7 +1523,8 @@ const CalendarPage: React.FC = () => {
                 projects={projects}
                 users={users}
                 tasks={tasks}
-                groups={groups} // ★ groups を props として渡す
+                groups={groups}
+                canCreateProject={user?.role === 'admin'}
             />
         );
     };

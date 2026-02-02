@@ -85,9 +85,9 @@ const App: React.FC = () => {
           <Route path="events" element={<Navigate to="/metrics?tab=events" replace />} />
           {/* ★ プロジェクト詳細ページのルートを追加 ★ */}
           <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+          {/* ユーザーページは認証済みなら誰でも閲覧可能（編集は管理者のみ・ページ内で制御） */}
+          <Route path="admin/users" element={<UserManagementPage />} />
           {/* Catch-all for non-admin authenticated routes */}
-          {/* Redirect any other authenticated path (that isn't admin) to calendar */}
-          {/* This might need adjustment if more non-admin top-level routes are added */}
           <Route path="*" element={<Navigate to="/calendar" replace />} />
         </Route>
 
@@ -95,7 +95,7 @@ const App: React.FC = () => {
         <Route 
           path="/" 
           element={
-            <AdminRoute> {/* ★★★ Wrap with AdminRoute ★★★ */} 
+            <AdminRoute>
               <Layout>
                 <Outlet /> 
               </Layout>
@@ -103,7 +103,6 @@ const App: React.FC = () => {
           }
         >
           <Route path="event-management" element={<EventManagementPage />} />
-          <Route path="admin/users" element={<UserManagementPage />} />
           <Route path="metrics" element={<MetricsPage />} /> 
           <Route path="admin/groups" element={<GroupManagementPage />} />
           <Route path="admin/data" element={<MockDataConsole />} />

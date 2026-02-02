@@ -552,6 +552,7 @@ const NotesPage: React.FC = () => {
   // PDFドラッグ開始
   const handlePdfDragStart = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     if (selectedPdfIndex !== index) {
       setSelectedPdfIndex(index);
       setSelectedImageIndex(null);
@@ -660,7 +661,7 @@ const NotesPage: React.FC = () => {
     if ((e.target as HTMLElement).classList.contains('resize-handle')) {
       return;
     }
-    
+    e.preventDefault();
     if (selectedImageIndex !== index) {
       setSelectedImageIndex(index);
       setSelectedTextBoxId(null);
@@ -739,6 +740,7 @@ const NotesPage: React.FC = () => {
     if ((e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).closest('textarea')) {
       return;
     }
+    e.preventDefault();
     setSelectedTextBoxId(id);
     setDraggingTextBoxId(id);
     const container = dropZoneRef.current;
@@ -1024,6 +1026,8 @@ const NotesPage: React.FC = () => {
             backgroundColor: '#ffffff',
             minHeight: `${calculateMinHeight()}px`,
             cursor: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'grabbing' : 'text',
+            userSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
+            WebkitUserSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
           }}
           onMouseMove={(e) => {
             if (draggingImageIndex !== null) {

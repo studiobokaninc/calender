@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Button, Typography, Paper, Alert, CircularProgress } from '@mui/material';
 import { Download as DownloadIcon } from '@mui/icons-material';
-import { mockDataApi } from '../services/api';
+import api, { mockDataApi } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { usePageState } from '../contexts/PageStateContext';
 
@@ -125,14 +125,10 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
 
   const handleTemplateDownload = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8001/api/admin/csv-template', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        credentials: 'include',
+      const response = await api.get<Blob>('/admin/csv-template', {
+        responseType: 'blob',
       });
-      const blob = await response.blob();
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data]);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

@@ -1020,7 +1020,7 @@ const Dashboard: React.FC = () => {
       color: 'primary',
       bgGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       path: '/admin/users',
-      requiresAdmin: true,
+      requiresAdmin: false,
     },
     {
       title: 'タスク',

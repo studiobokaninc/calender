@@ -82,6 +82,7 @@ const ProjectsPage: React.FC = () => {
         severity: 'success'
     });
     const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
     const { refreshGlobalData } = usePageState();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState<ProjectWithProgress | null>(null);
@@ -158,9 +159,16 @@ const ProjectsPage: React.FC = () => {
         , [projects]);
 
     const filteredProjects: ProjectWithProgress[] = useMemo(() => {
-        return projects.filter(project => {
+        const filtered = projects.filter(project => {
             const statusMatch = projectStatusFilter === '' || project.status === projectStatusFilter;
             return statusMatch;
+        });
+        // 新しいものが先に表示されるようソート（created_at 降順、なければ id 降順）
+        return [...filtered].sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            if (bTime !== aTime) return bTime - aTime;
+            return (b.id ?? 0) - (a.id ?? 0);
         });
     }, [projects, projectStatusFilter]);
 
@@ -399,10 +407,15 @@ const ProjectsPage: React.FC = () => {
             width: 140,
             renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
                 const row = params.row;
+                const value = typeof params.value === 'string' ? params.value : 'online';
+                const label = displayStatusOptions.find(opt => opt.value === value)?.label ?? value;
+                if (!isAdmin) {
+                    return <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>{label}</Typography>;
+                }
                 return (
                     <Select
                         size="small"
-                        value={typeof params.value === 'string' ? params.value : 'online'}
+                        value={value}
                         onChange={async (e: SelectChangeEvent) => {
                             const newStatus = e.target.value as string;
                             try {
@@ -438,13 +451,13 @@ const ProjectsPage: React.FC = () => {
                 );
             },
         },
-        {
+        ...(isAdmin ? [{
             field: 'actions',
             headerName: '操作',
             width: 120,
             sortable: false,
             filterable: false,
-            pinned: 'right',
+            pinned: 'right' as const,
             headerAlign: 'center',
             align: 'center',
             hideable: false,
@@ -485,7 +498,7 @@ const ProjectsPage: React.FC = () => {
                     </Box>
                 );
             },
-        },
+        }] : []),
     ];
 
     if (loading && projects.length === 0) {
@@ -502,26 +515,27 @@ const ProjectsPage: React.FC = () => {
                 <Typography variant="h4" component="h1">
                     プロジェクト管理
                 </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddProject}
-                >
-                    新規プロジェクト
-                </Button>
+                {isAdmin && (
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={handleAddProject}
+                    >
+                        新規プロジェクト
+                    </Button>
+                )}
             </Box>
 
-            <Box sx={{ mb: 3 }}>
-                <CsvParser onImportComplete={async () => {
-                    await fetchData();
-                    // CSVインポート後にグローバルデータを更新
-                    if (refreshGlobalData) {
-                        console.log('[ProjectsPage] Refreshing global data after CSV import...');
-                        await refreshGlobalData();
-                        console.log('[ProjectsPage] Global data refresh completed after CSV import');
-                    }
-                }} />
-            </Box>
+            {isAdmin && (
+                <Box sx={{ mb: 3 }}>
+                    <CsvParser onImportComplete={async () => {
+                        await fetchData();
+                        if (refreshGlobalData) {
+                            await refreshGlobalData();
+                        }
+                    }} />
+                </Box>
+            )}
 
             <Paper
                 elevation={2}
@@ -543,9 +557,9 @@ const ProjectsPage: React.FC = () => {
                         autoHeight
                         getRowId={(row) => row.id}
                         rowHeight={40}
-                        onRowDoubleClick={(params) => {
+                        onRowDoubleClick={isAdmin ? (params) => {
                             handleEditProject(params.row);
-                        }}
+                        } : undefined}
                         sx={{
                             '& .MuiDataGrid-columnHeaders': {
                                 background: '#f5f5f5',

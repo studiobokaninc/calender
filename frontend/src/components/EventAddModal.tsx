@@ -71,6 +71,7 @@ interface ParticipantOption {
 
 // --- Component Props ---
 /** true のときタイプは会議・ワークショップ・イベント・締切・マイルストーンのみ（タスク・プロジェクトを非表示） */
+/** canCreateProject が false のときは「プロジェクト」タイプと「新規プロジェクトでタスク作成」を非表示（一般ユーザー用） */
 interface EventAddModalProps {
   open: boolean;
   onClose: () => void;
@@ -83,10 +84,11 @@ interface EventAddModalProps {
   tasks: Task[];
   groups: Group[];
   eventTypesOnly?: boolean;
+  canCreateProject?: boolean;
 }
 
 // --- Component ---
-const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, initialDate, eventToEdit, dateClickArg, projects: projectsFromProps, users: usersFromProps, tasks: tasksFromProps, groups: groupsFromProps, eventTypesOnly = false }) => {
+const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, initialDate, eventToEdit, dateClickArg, projects: projectsFromProps, users: usersFromProps, tasks: tasksFromProps, groups: groupsFromProps, eventTypesOnly = false, canCreateProject = true }) => {
   console.log("tasksFromProps on modal open (checking for ID 10 or name 'タスク 10'):", JSON.stringify(tasksFromProps.filter(t => String(t.id) === "10" || t.name === "タスク 10"), null, 2));
   const getInitialState = (): EventFormData => {
     let initialStartDateTime = new Date();
@@ -182,9 +184,15 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   useEffect(() => {
     if (open) {
       setProjectsLoading(false);
-          setParticipantsLoading(false);
+      setParticipantsLoading(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!canCreateProject && projectSelectionMode === 'new') {
+      setProjectSelectionMode('existing');
+    }
+  }, [canCreateProject, projectSelectionMode]);
 
   const projectOptions = useMemo((): ProjectOption[] => {
     return projectsFromProps.map(p => ({ id: String(p.id), name: p.name })) || [];
@@ -883,7 +891,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                    disabled={!!eventToEdit} // 編集時はタイプ変更不可
                 >
                   {!eventTypesOnly && <MenuItem value="Task">タスク</MenuItem>}
-                  {!eventTypesOnly && <MenuItem value="Project">プロジェクト</MenuItem>}
+                  {!eventTypesOnly && canCreateProject && <MenuItem value="Project">プロジェクト</MenuItem>}
                   <MenuItem value="Meeting">会議</MenuItem>
                   <MenuItem value="Workshop">ワークショップ</MenuItem>
                   <MenuItem value="Generic">イベント (通常)</MenuItem>
@@ -926,12 +934,14 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                {showProjectSelection && (
                   <>
                      <Divider sx={{ my: 1 }}><Typography variant="caption">プロジェクト情報</Typography></Divider>
-                      <FormControl component="fieldset" sx={{ mb: 1 }}>
-                        <RadioGroup row name="projectSelectionMode" value={projectSelectionMode} onChange={handleProjectSelectionModeChange}>
-                           <FormControlLabel value="existing" control={<Radio size="small"/>} label="既存プロジェクト" sx={{ mr: 1 }}/>
-                           <FormControlLabel value="new" control={<Radio size="small"/>} label="新規プロジェクト" />
-                        </RadioGroup>
-                      </FormControl>
+                      {canCreateProject ? (
+                        <FormControl component="fieldset" sx={{ mb: 1 }}>
+                          <RadioGroup row name="projectSelectionMode" value={projectSelectionMode} onChange={handleProjectSelectionModeChange}>
+                            <FormControlLabel value="existing" control={<Radio size="small"/>} label="既存プロジェクト" sx={{ mr: 1 }}/>
+                            <FormControlLabel value="new" control={<Radio size="small"/>} label="新規プロジェクト" />
+                          </RadioGroup>
+                        </FormControl>
+                      ) : null}
 
                       {projectSelectionMode === 'existing' && (
                          <FormControl fullWidth required={!(formData.type === 'task' || formData.type === 'Task')} error={!!errors.projectId} size="small" sx={{ mb: 1.5 }}>
@@ -953,7 +963,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                              {errors.projectId && <FormHelperText>{errors.projectId}</FormHelperText>}
                          </FormControl>
                       )}
-                      {projectSelectionMode === 'new' && (
+                      {canCreateProject && projectSelectionMode === 'new' && (
                         <Grid container spacing={1} sx={{pl: 1, mb: 1.5}}>
                             <Grid item xs={12}>
                                 <TextField

@@ -45,6 +45,7 @@ import {
   People as PeopleIcon,
   EventNote as EventNoteIcon,
   Note as NoteIcon,
+  Person as PersonIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
 import { mockDataApi, importMockData } from '../services/api'
@@ -527,9 +528,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Typography>
             </>
           </Box>
-          <Typography variant="subtitle1" noWrap component="div">
-            {user?.full_name}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PersonIcon sx={{ fontSize: 20, opacity: 0.9 }} />
+            <Typography variant="body2" component="span" sx={{ opacity: 0.95 }}>
+              ログイン中: {user?.email || user?.username || user?.full_name || ''}
+            </Typography>
+            {user?.role === 'admin' && (
+              <Typography component="span" variant="caption" sx={{ ml: 0.5, opacity: 0.85 }}>
+                (管理者)
+              </Typography>
+            )}
+          </Box>
         </Toolbar>
       </AppBar>
       <Box

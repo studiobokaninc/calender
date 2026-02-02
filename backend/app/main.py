@@ -48,10 +48,12 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORSミドルウェアの設定
+# CORSミドルウェアの設定（CORS_ORIGINS が未設定の場合はローカル用デフォルト）
+_cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5175,http://192.168.44.253:5175")
+CORS_ORIGINS = [o.strip() for o in _cors_origins_str.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5175", "http://192.168.44.253:5175"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -64,7 +66,12 @@ app.add_middleware(
 app.include_router(chat_router.router, tags=["Chat"])
 
 # ユーザー認証関連のモデルとユーティリティ
-SECRET_KEY = os.getenv("SECRET_KEY", "your_very_secret_key_that_is_long_and_secure")
+_DEFAULT_SECRET = "your_very_secret_key_that_is_long_and_secure"
+SECRET_KEY = os.getenv("SECRET_KEY", _DEFAULT_SECRET)
+if SECRET_KEY == _DEFAULT_SECRET:
+    logger.warning(
+        "SECRET_KEY が環境変数で設定されていません。本番環境では必ず SECRET_KEY を設定してください。"
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 120))
 
@@ -269,9 +276,9 @@ async def get_project_endpoint(
 async def create_project_endpoint(
     project_data: schemas.ProjectCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_active_admin),
 ):
-    """新規プロジェクトを作成"""
+    """新規プロジェクトを作成（管理者のみ）"""
     created_project = crud.create_project(db=db, project=project_data)
     return created_project
 
@@ -280,24 +287,15 @@ async def update_project_endpoint(
     project_id: int,
     project_data: schemas.ProjectUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_active_admin),
 ):
-    """プロジェクト情報を更新"""
+    """プロジェクト情報を更新（管理者のみ）"""
     db_project = crud.get_project(db=db, project_id=project_id)
     if db_project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="プロジェクトが見つかりません"
         )
-    
-    # display_status 変更権限チェック (管理者のみ)
-    if project_data.display_status is not None and db_project.display_status != project_data.display_status:
-        if current_user.role != 'admin':
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="プロジェクトの表示ステータスを変更する権限がありません"
-            )
-
     updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
     # プロジェクトが完了になった場合、そのプロジェクトに属する未完了タスクをすべて完了にする
     if updated_project.status == models.ProjectStatus.COMPLETED:
@@ -308,9 +306,9 @@ async def update_project_endpoint(
 async def delete_project_endpoint(
     project_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_active_admin),
 ):
-    """プロジェクトを削除（無効なデータがあっても安全に削除）"""
+    """プロジェクトを削除（管理者のみ）"""
     from sqlalchemy import text
     
     try:
@@ -370,14 +368,12 @@ async def delete_project_endpoint(
     except HTTPException as he:
         db.rollback()
         raise he
-    except Exception as e:
+    except Exception:
         db.rollback()
-        logger.error(f"プロジェクト削除エラー: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("プロジェクト削除中にエラーが発生しました")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"プロジェクトの削除中にエラーが発生しました: {str(e)}"
+            detail="プロジェクトの削除中にエラーが発生しました。"
         )
 
 @app.get("/tasks", response_model=List[schemas.TaskResponse])
@@ -465,11 +461,11 @@ def get_tasks_endpoint(
         
         return tasks
 
-    except Exception as e:
-        logger.error(f"タスクの取得に失敗: {str(e)}")
+    except Exception:
+        logger.exception("タスクの取得に失敗しました")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"タスクの取得に失敗しました: {str(e)}"
+            detail="タスクの取得に失敗しました。"
         )
 
 @app.get("/calendar/events", response_model=List[schemas.EventResponse], tags=["Events"])
@@ -489,7 +485,7 @@ async def get_events_endpoint(
         if project_id_int is None: # この行のインデントを修正
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"無効なプロジェクトID形式です: {project_id}"
+                detail="無効なプロジェクトID形式です。"
             )
 
     events = crud.get_events(db=db, skip=skip, limit=limit, project_id=project_id_int)
@@ -501,8 +497,7 @@ async def create_event_endpoint(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """新規イベントを作成 (デフォルトステータスは 'offline')"""
-    # TODO: Add authorization checks if needed
+    """新規イベントを作成 (認証済みユーザーのみ、デフォルトステータスは 'offline')"""
     created_event = crud.create_event(db=db, event=event_data)
     return created_event
 
@@ -518,15 +513,13 @@ async def update_event_endpoint(
     if db_event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
-    # 権限チェック: ステータス変更は管理者のみ
+    # 権限チェック: ステータス変更は管理者のみ（その他の更新は認証済みユーザーで許可）
     if event_data.status is not None and db_event.status != event_data.status:
         if current_user.role != 'admin':
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, 
+                status_code=status.HTTP_403_FORBIDDEN,
                 detail="イベントステータスを変更する権限がありません"
             )
-    # TODO: Add more granular permission checks (e.g., event creator)
-
     updated_event = crud.update_event(db=db, db_event=db_event, event_in=event_data)
     return updated_event
 
@@ -543,12 +536,10 @@ async def delete_event_endpoint(
 
     # 権限チェック: 管理者のみ
     if current_user.role != 'admin':
-         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="イベントを削除する権限がありません"
         )
-    # TODO: Add more granular permission checks (e.g., event creator)
-
     crud.delete_event(db=db, db_event=db_event)
     return None # 204 No Content
 
@@ -574,13 +565,11 @@ async def get_users_endpoint(
             
         print(f"[DEBUG] 取得したユーザー数: {len(valid_users)}")
         return valid_users
-    except Exception as e:
-        print(f"[ERROR] ユーザー取得中にエラーが発生: {str(e)}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        logger.exception("ユーザー情報の取得に失敗しました")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"ユーザー情報の取得に失敗しました: {str(e)}"
+            detail="ユーザー情報の取得に失敗しました。"
         )
 
 
@@ -647,10 +636,9 @@ async def get_user_groups_endpoint(
 async def add_user_to_group_endpoint(
     user_group_data: schemas.UserGroupCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_active_admin)
 ):
-    """ユーザーをグループに追加"""
-    # TODO: Add authorization check (e.g., admin or group leader?)
+    """ユーザーをグループに追加（管理者のみ）"""
     
     # 存在チェック (CRUD 内ではなく API レイヤーで行う場合)
     user_id_int = crud._parse_int_safe(user_group_data.user_id)
@@ -679,10 +667,9 @@ async def remove_user_from_group_endpoint(
     user_id: int,
     group_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_active_admin)
 ):
-    """ユーザーをグループから削除"""
-    # TODO: Add authorization check (e.g., admin or group leader?)
+    """ユーザーをグループから削除（管理者のみ）"""
     deleted_relation = crud.remove_user_from_group(db=db, user_id=user_id, group_id=group_id)
     if deleted_relation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User-group relationship not found")
@@ -772,8 +759,14 @@ async def create_task_endpoint(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """新規タスクを作成"""
-    # TODO: Check if project_id exists and user has permission
+    """新規タスクを作成（認証済みユーザー、プロジェクト存在時のみ）"""
+    if task_data.project_id is not None:
+        project = crud.get_project(db, project_id=task_data.project_id)
+        if project is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="指定されたプロジェクトが見つかりません"
+            )
     created_task = crud.create_task(db=db, task=task_data)
     return created_task
     
@@ -791,9 +784,7 @@ async def update_task_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="タスクが見つかりません"
         )
-    # TODO: Add authorization check (e.g., user is assignee or project member)
-
-    # display_status 変更権限チェック (管理者のみ)
+    # タスクは認証済みユーザー全員で管理可能（display_status 変更のみ管理者に制限）
     if task_data.display_status is not None and db_task.display_status != task_data.display_status:
         if current_user.role != 'admin':
             raise HTTPException(
@@ -817,9 +808,9 @@ async def delete_task_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="タスクが見つかりません"
         )
-    # TODO: Add authorization check
+    # タスクは認証済みユーザー全員で管理可能
     crud.delete_task(db=db, db_task=db_task)
-    return None # 204 No Content
+    return None  # 204 No Content
 
 # ★★★ Mock Data Import/Export Model ★★★
 class MockDataImport(BaseModel):
@@ -952,12 +943,11 @@ async def export_mock_data(current_user: models.User = Depends(get_current_activ
             "user_groups": user_groups_list
         }
     
-    except Exception as e:
-        import traceback
-        traceback.print_exc() # エラー詳細を出力
+    except Exception:
+        logger.exception("データエクスポート中にエラーが発生しました")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"データエクスポート中にエラーが発生しました: {str(e)}"
+            detail="データエクスポート中にエラーが発生しました。"
         )
 
 def parse_date(date_str: str, project_start_date: Optional[datetime] = None, project_end_date: Optional[datetime] = None) -> Optional[datetime]:
@@ -1239,9 +1229,9 @@ def update_task_dependencies(task_name: str, depends_on: List[str], db: Session)
 async def import_csv_data(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)  # 現在のユーザーを取得
+    current_user: models.User = Depends(get_current_active_admin),
 ):
-    """CSVファイルからデータをインポートする"""
+    """CSVファイルからデータをインポートする（管理者のみ）"""
     import_results = {
         "projects": {"imported": 0, "skipped": 0, "results": []},
         "tasks": {"imported": 0, "skipped": 0, "results": []},
@@ -1278,11 +1268,11 @@ async def import_csv_data(
         # プロジェクトの開始日・終了日をパース（年なし日付の推測には使えないが、まず取得）
         start_date = parse_date(project_data[1])
         if not start_date:
-            raise HTTPException(status_code=400, detail=f"開始日の形式が不正です: {project_data[1]}")
+            raise HTTPException(status_code=400, detail="開始日の形式が不正です。")
 
         end_date = parse_date(project_data[2])
         if not end_date:
-            raise HTTPException(status_code=400, detail=f"終了日の形式が不正です: {project_data[2]}")
+            raise HTTPException(status_code=400, detail="終了日の形式が不正です。")
 
         description = project_data[3].strip() if len(project_data) > 3 else ""
 
@@ -1420,9 +1410,9 @@ async def import_csv_data(
 
         return import_results
 
-    except Exception as e:
-        logger.error(f"CSVインポートエラー: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"CSVインポートに失敗しました: {str(e)}")
+    except Exception:
+        logger.exception("CSVインポートに失敗しました")
+        raise HTTPException(status_code=500, detail="CSVインポートに失敗しました。")
 
 @app.delete("/api/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Groups"])
 async def delete_group_endpoint(
@@ -1506,16 +1496,24 @@ async def import_mock_data(
         for user_data in data.users:
             username = "<不明>"  # 初期化しておく
             try:
-                # dict 形式と配列形式の両方に対応
+                # dict 形式と配列形式の両方に対応（パスワード未指定の場合はスキップ）
                 if isinstance(user_data, dict):
                     username = user_data.get("username") or user_data.get("full_name") or user_data.get("name") or (user_data.get("email", "").split("@")[0] if user_data.get("email") else "<不明>")
                     email = user_data.get("email", "")
-                    password = user_data.get("password") or "password123"
+                    password = user_data.get("password")
+                    if not password or not str(password).strip():
+                        import_results["users"]["skipped"] += 1
+                        import_results["users"]["results"].append(f"スキップ: {username} (パスワード未指定)")
+                        continue
                     role = user_data.get("role", "user")
                 else:
                     username = user_data[0]
                     email = user_data[1]
-                    password = user_data[2]
+                    password = user_data[2] if len(user_data) > 2 and user_data[2] else None
+                    if not password or not str(password).strip():
+                        import_results["users"]["skipped"] += 1
+                        import_results["users"]["results"].append(f"スキップ: {username} (パスワード未指定)")
+                        continue
                     role = user_data[3] if len(user_data) > 3 else 'user'
 
                 # 既存のユーザーをチェック
@@ -1537,9 +1535,9 @@ async def import_mock_data(
                 db.flush()  # IDを取得するためにflush
                 import_results["users"]["imported"] += 1
                 import_results["users"]["results"].append(f"追加: {username} (ID: {user.id})")
-            except Exception as e:
+            except Exception:
                 import_results["users"]["skipped"] += 1
-                import_results["users"]["results"].append(f"エラー: {username} - {str(e)}")
+                import_results["users"]["results"].append(f"エラー: {username}")
 
         # プロジェクトをインポート
         for project_data in data.projects:
@@ -1712,20 +1710,19 @@ async def import_mock_data(
             "errors": errors
         }
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print(f"\n=== エラー発生 ===")
-        print(f"エラー内容: {str(e)}")
+        logger.exception("モックデータのインポート中にエラーが発生しました")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"モックデータのインポート中にエラーが発生しました: {str(e)}"
+            detail="モックデータのインポート中にエラーが発生しました。"
         )
 
-@app.get("/api/admin/csv-template", tags=["Admin"])
+@app.get("/admin/csv-template", tags=["Admin"])
 async def download_csv_template(
     current_user: models.User = Depends(get_current_active_admin)
 ):
-    """CSVテンプレートをダウンロード"""
+    """CSVテンプレートをダウンロード（Viteプロキシで /api が剥がされるためパスは /admin/csv-template）"""
     template = """プロジェクト情報
 プロジェクト名,開始日,終了日,説明
 プロジェクトX,2024/03/01,2024/03/31,プロジェクトXの説明
@@ -1763,11 +1760,11 @@ async def get_task_status_history(
     """タスクのステータス履歴を取得"""
     try:
         return crud.get_task_status_history(db=db, task_id=task_id)
-    except Exception as e:
-        logger.error(f"ステータス履歴の取得に失敗: {str(e)}")
+    except Exception:
+        logger.exception("ステータス履歴の取得に失敗しました")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"ステータス履歴の取得に失敗しました: {str(e)}"
+            detail="ステータス履歴の取得に失敗しました。"
         )
 
 @app.get("/metrics/status-changes", response_model=List[schemas.StatusChangeMetric])
@@ -1786,7 +1783,11 @@ async def get_status_change_metrics(
     ) 
 
 @app.post("/tasks/update-priorities")
-def update_task_priorities(db: Session = Depends(get_db)):
+async def update_task_priorities(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_admin),
+):
+    """全タスクの優先度を正規化（管理者のみ）"""
     try:
         tasks = db.query(models.Task).all()
         for task in tasks:
@@ -1808,11 +1809,12 @@ def update_task_priorities(db: Session = Depends(get_db)):
                 pass
         db.commit()
         return {"message": "タスクの優先度を大文字に更新しました。"}
-    except Exception as e:
+    except Exception:
         db.rollback()
+        logger.exception("タスクの優先度の更新に失敗しました")
         raise HTTPException(
             status_code=500,
-            detail=f"タスクの優先度の更新に失敗しました: {str(e)}"
+            detail="タスクの優先度の更新に失敗しました。"
         )
 
 # --- Note API Endpoints ---
@@ -1820,6 +1822,9 @@ def update_task_priorities(db: Session = Depends(get_db)):
 # 画像アップロード用の静的ファイルディレクトリ
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+# アップロードファイルのサイズ制限（バイト）
+MAX_IMAGE_UPLOAD_BYTES = int(os.getenv("MAX_IMAGE_UPLOAD_MB", "10")) * 1024 * 1024
+MAX_PDF_UPLOAD_BYTES = int(os.getenv("MAX_PDF_UPLOAD_MB", "20")) * 1024 * 1024
 
 # 静的ファイル配信の設定
 from fastapi.staticfiles import StaticFiles
@@ -1857,11 +1862,9 @@ async def get_notes(
         
         # 作成者のみ取得
         return crud.get_notes(db=db, skip=skip, limit=limit, created_by=current_user.id, project_id=project_id)
-    except Exception as e:
-        import traceback
-        logger.error(f"Error in get_notes: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"メモの取得に失敗しました: {str(e)}")
+    except Exception:
+        logger.exception("メモの取得に失敗しました")
+        raise HTTPException(status_code=500, detail="メモの取得に失敗しました。")
 
 @app.get("/notes/{note_id}", response_model=schemas.NoteResponse, tags=["Notes"])
 async def get_note(
@@ -1916,53 +1919,52 @@ async def upload_note_image(
     file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user)
 ):
-    """メモ用の画像をアップロード"""
-    # 画像ファイルのみ許可
+    """メモ用の画像をアップロード（サイズ制限: デフォルト10MB）"""
     if not file.content_type or not file.content_type.startswith('image/'):
-        logger.warning(f"画像以外のファイルがアップロードされました: {file.content_type}")
+        logger.warning("画像以外のファイルがアップロードされました: %s", file.content_type)
         raise HTTPException(status_code=400, detail="画像ファイルのみアップロード可能です")
-    
-    # ファイル名を生成（ユニークにする）
-    file_ext = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
+    content = await file.read()
+    if len(content) > MAX_IMAGE_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"画像サイズは {MAX_IMAGE_UPLOAD_BYTES // (1024*1024)}MB 以内にしてください"
+        )
+    file_ext = os.path.splitext(file.filename or "")[1] or '.jpg'
     unique_filename = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(UPLOAD_DIR, unique_filename)
-    
-    # ファイルを保存
     try:
-        content = await file.read()
-        
         with open(file_path, "wb") as buffer:
             buffer.write(content)
-        
-        # URLを返す（フロントエンドからアクセスできるパス）
-        image_url = f"/static/uploads/{unique_filename}"
-        return {"url": image_url}
-    except Exception as e:
-        logger.error(f"画像のアップロードに失敗: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"画像のアップロードに失敗しました: {str(e)}")
+        return {"url": f"/static/uploads/{unique_filename}"}
+    except Exception:
+        logger.exception("画像のアップロードに失敗しました")
+        raise HTTPException(status_code=500, detail="画像のアップロードに失敗しました。")
 
 @app.post("/notes/upload-pdf", tags=["Notes"])
 async def upload_note_pdf(
     file: UploadFile = File(...),
     current_user: models.User = Depends(get_current_user)
 ):
-    """メモ用のPDFをアップロード"""
+    """メモ用のPDFをアップロード（サイズ制限: デフォルト20MB）"""
     if not file.content_type or file.content_type != 'application/pdf':
-        logger.warning(f"PDF以外のファイルがアップロードされました: {file.content_type}")
+        logger.warning("PDF以外のファイルがアップロードされました: %s", file.content_type)
         raise HTTPException(status_code=400, detail="PDFファイルのみアップロード可能です")
-    
-    file_ext = os.path.splitext(file.filename)[1] if file.filename else '.pdf'
+    content = await file.read()
+    if len(content) > MAX_PDF_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"PDFサイズは {MAX_PDF_UPLOAD_BYTES // (1024*1024)}MB 以内にしてください"
+        )
+    file_ext = os.path.splitext(file.filename or "")[1] or '.pdf'
     if file_ext.lower() != '.pdf':
         file_ext = '.pdf'
     unique_filename = f"{uuid.uuid4()}{file_ext}"
     file_path = os.path.join(UPLOAD_DIR, unique_filename)
-    
     try:
-        content = await file.read()
         with open(file_path, "wb") as buffer:
             buffer.write(content)
         pdf_url = f"/static/uploads/{unique_filename}"
         return {"url": pdf_url}
-    except Exception as e:
-        logger.error(f"PDFのアップロードに失敗: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"PDFのアップロードに失敗しました: {str(e)}") 
+    except Exception:
+        logger.exception("PDFのアップロードに失敗しました")
+        raise HTTPException(status_code=500, detail="PDFのアップロードに失敗しました。") 

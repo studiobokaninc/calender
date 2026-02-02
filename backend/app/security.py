@@ -19,27 +19,18 @@ def get_password_hash(password: str) -> str:
     """パスワードをハッシュ化する"""
     return pwd_context.hash(password)
 
-# パスワード検証関数もこちらに移動すると良い
+# パスワード検証関数（本番では詳細ログを出さない）
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """平文パスワードとハッシュ化パスワードを比較"""
-    print("--- Verifying Password --- ") # デバッグログ追加
-    print(f"Plain password received: '{plain_password[:3]}...' (length: {len(plain_password)}) ") # パスワード自体は表示しない
-    print(f"Hashed password from DB: '{hashed_password[:15]}...' ") # ハッシュの先頭だけ表示
     try:
-        result = pwd_context.verify(plain_password, hashed_password)
-        print(f"Verification result: {result}") # 検証結果 (True/False) を表示
-        print("-------------------------")
-        return result
-    except Exception as e:
-        print(f"!!! Error during password verification: {e} !!!") # 検証中のエラーも捕捉
-        import traceback
-        traceback.print_exc()
-        print("-------------------------")
-        return False # エラー時は False を返す
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        return False
 
 # --- Token / Auth helpers ---
 # NOTE: router から import されるため、このファイル単体で循環 import なく使えるように定義する。
-SECRET_KEY = os.getenv("SECRET_KEY", "your_very_secret_key_that_is_long_and_secure")
+_SECRET_DEFAULT = "your_very_secret_key_that_is_long_and_secure"
+SECRET_KEY = os.getenv("SECRET_KEY", _SECRET_DEFAULT)
 ALGORITHM = "HS256"
 
 # docs 用の tokenUrl。実際の通信は Vite proxy の設定に依存する。

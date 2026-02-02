@@ -125,11 +125,21 @@ const CalendarPage: React.FC = () => {
     const { calendarState, updateCalendarState, isInitialLoad, globalData, updateGlobalData } = useCalendarPageState();
     const { refreshGlobalData } = usePageState();
     
-    // 状態を分離（初期化時はページ状態から取得）
+    // デフォルトの種類フィルター（永続化のマージ用）
+    const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
+        project: true,
+        task: true,
+        milestone: true,
+        deadline: true,
+        meeting: true,
+        workshop: true,
+        generic: true,
+    };
+    // 状態を分離（初期化時はページ状態から取得、context 復元後に上書き）
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [selectedEventDetails, setSelectedEventDetails] = useState<{ event: CalendarEvent | null; totalCost?: number; }>({ event: null });
     const [eventStatusFilter, setEventStatusFilter] = useState<string>('all'); // 'all' または プロジェクトID
-    const [eventTypeFilter, setEventTypeFilter] = useState<string>('all'); // 'all' または イベントタイプ
+    const [eventTypeFilter, setEventTypeFilter] = useState<Record<string, boolean>>(DEFAULT_EVENT_TYPE_FILTER);
     const [stateRestored, setStateRestored] = useState(false);
 
     const calendarRef = useRef<FullCalendar>(null);
@@ -695,7 +705,7 @@ const CalendarPage: React.FC = () => {
         }
     }, [isInitialLoad, refreshGlobalData]); // refreshGlobalDataを依存関係に追加
 
-    // ページ状態が復元されたらローカル状態を更新
+    // ページ状態が復元されたらローカル状態を更新（ページ切り替え・更新後もフィルターを維持）
     useEffect(() => {
         if (!isInitialLoad) {
             if (calendarState.selectedDate) {
@@ -704,23 +714,29 @@ const CalendarPage: React.FC = () => {
             if (calendarState.selectedEvent) {
                 setSelectedEventDetails({ event: calendarState.selectedEvent });
             }
-            if (calendarState.filterStatus) {
+            if (calendarState.filterStatus !== undefined && calendarState.filterStatus !== '') {
                 setEventStatusFilter(calendarState.filterStatus);
+            } else if (calendarState.filterStatus === '') {
+                setEventStatusFilter('all');
+            }
+            if (calendarState.eventTypeFilter && typeof calendarState.eventTypeFilter === 'object') {
+                setEventTypeFilter(prev => ({ ...DEFAULT_EVENT_TYPE_FILTER, ...prev, ...calendarState.eventTypeFilter } as Record<string, boolean>));
             }
             setStateRestored(true);
         }
     }, [calendarState, isInitialLoad]);
 
-    // フィルター状態の変更をページ状態に反映（状態復元が完了した後のみ）
+    // フィルター状態の変更をページ状態に反映（状態復元が完了した後のみ）→ sessionStorage で永続化
     useEffect(() => {
         if (stateRestored) {
             updateCalendarState({
                 selectedDate: selectedDate?.toISOString() || null,
                 selectedEvent: selectedEventDetails.event,
                 filterStatus: eventStatusFilter,
+                eventTypeFilter,
             });
         }
-    }, [selectedDate, selectedEventDetails, eventStatusFilter, stateRestored, updateCalendarState]);
+    }, [selectedDate, selectedEventDetails, eventStatusFilter, eventTypeFilter, stateRestored, updateCalendarState]);
 
     const filterEvents = useCallback((events: CalendarEvent[]) => {
         return events.filter(event => {
@@ -743,11 +759,9 @@ const CalendarPage: React.FC = () => {
                 }
             }
 
-            // イベントタイプフィルターのチェック
-            let typeFilterPass = true;
-            if (eventTypeFilter !== 'all') {
-                typeFilterPass = eventType === eventTypeFilter.toLowerCase();
-            }
+            // イベントタイプフィルターのチェック（チェックボックスでオンの種類のみ表示）
+            const typeKey = (eventType || 'generic').toLowerCase();
+            const typeFilterPass = eventTypeFilter[typeKey] !== false;
 
             // 両方のフィルターを通過したイベントのみ表示
             return projectFilterPass && typeFilterPass;
@@ -797,8 +811,8 @@ const CalendarPage: React.FC = () => {
         setEventStatusFilter(event.target.value);
     };
 
-    const handleEventTypeFilterChange = (event: SelectChangeEvent<string>) => {
-        setEventTypeFilter(event.target.value);
+    const handleEventTypeFilterChange = (typeKey: string, checked: boolean) => {
+        setEventTypeFilter(prev => ({ ...prev, [typeKey]: checked }));
     };
 
     // ★★★ calculateTotalCost は rawEvents を使うように修正 ★★★
@@ -1744,7 +1758,6 @@ const CalendarPage: React.FC = () => {
                     background: #9E9E9E !important;
                     color: #fff !important;
                 }
-                
                 /* 会議・ワークショップのデフォルト表示（完了していないプロジェクト用） - 締切と同じようにバーなし */
                 .fc-event.meeting-event,
                 .fc-daygrid-event.meeting-event,
@@ -1872,6 +1885,8 @@ const CalendarPage: React.FC = () => {
                             }
                         }}
                         dayMaxEventRows={5}
+                        dayMaxEvents={5}
+                        moreLinkContent={() => null}
                         dayCellDidMount={handleDayCellMount}
                         selectable={false}
                         selectMirror={true}

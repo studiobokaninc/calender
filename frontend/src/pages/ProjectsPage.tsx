@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Paper, TableContainer, Table, TableHead, TableBody, TableRow, TableCell, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, Link, SelectChangeEvent } from '@mui/material';
+import { Box, Typography, CircularProgress, Paper, TableContainer, Table, TableHead, TableBody, TableRow, TableCell, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, Link, SelectChangeEvent, Tooltip } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import api from '../services/api';
@@ -335,8 +335,8 @@ const ProjectsPage: React.FC = () => {
 
     // DataGrid用のカラム定義
     const columns: GridColDef[] = [
-        { field: 'id', headerName: 'ID', width: 80 },
-        { field: 'name', headerName: 'プロジェクト名', width: 180, flex: 1 },
+        { field: 'id', headerName: 'ID', width: 80, hideable: true },
+        { field: 'name', headerName: 'プロジェクト名', minWidth: 120, flex: 1, hideable: false },
         { field: 'description', headerName: '説明', width: 200, flex: 1 },
         {
             field: 'status', headerName: '進捗', width: 120, renderCell: (params) => (
@@ -444,13 +444,45 @@ const ProjectsPage: React.FC = () => {
             width: 120,
             sortable: false,
             filterable: false,
+            pinned: 'right',
+            headerAlign: 'center',
+            align: 'center',
+            hideable: false,
             renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
                 const row = params.row;
                 return (
-                    <>
-                        <IconButton size="small" onClick={() => handleEditProject(row)}><EditIcon /></IconButton>
-                        <IconButton size="small" onClick={() => handleDeleteClick(row)}><DeleteIcon /></IconButton>
-                    </>
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                        <Tooltip title="編集">
+                            <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditProject(row);
+                                }}
+                                sx={{
+                                    color: 'primary.main',
+                                    '&:hover': { backgroundColor: 'primary.light', color: 'white' }
+                                }}
+                            >
+                                <EditIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="削除">
+                            <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(row);
+                                }}
+                                sx={{
+                                    color: 'error.main',
+                                    '&:hover': { backgroundColor: 'error.light', color: 'white' }
+                                }}
+                            >
+                                <DeleteIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
                 );
             },
         },
@@ -491,8 +523,14 @@ const ProjectsPage: React.FC = () => {
                 }} />
             </Box>
 
-            <Paper>
-                <Box sx={{ height: 600, width: '100%', mb: 2 }}>
+            <Paper
+                elevation={2}
+                sx={{
+                    borderRadius: 3,
+                    overflow: 'hidden',
+                }}
+            >
+                <Box sx={{ width: '100%', mb: 2 }}>
                     <DataGrid<ProjectWithProgress>
                         rows={filteredProjects}
                         columns={columns}
@@ -505,9 +543,26 @@ const ProjectsPage: React.FC = () => {
                         autoHeight
                         getRowId={(row) => row.id}
                         rowHeight={40}
+                        onRowDoubleClick={(params) => {
+                            handleEditProject(params.row);
+                        }}
                         sx={{
-                            '& .MuiDataGrid-columnHeaders': { background: '#f5f5f5' },
-                            '& .MuiDataGrid-cell': { alignItems: 'center' },
+                            '& .MuiDataGrid-columnHeaders': {
+                                background: '#f5f5f5',
+                                fontSize: '0.8rem'
+                            },
+                            '& .MuiDataGrid-cell': {
+                                alignItems: 'center',
+                                fontSize: '0.8rem',
+                                cursor: 'pointer'
+                            },
+                            '& .MuiDataGrid-row:hover': {
+                                backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                            },
+                            '& .MuiDataGrid-pinnedColumns': {
+                                backgroundColor: 'background.paper',
+                                boxShadow: '-2px 0 4px rgba(0,0,0,0.1)'
+                            }
                         }}
                     />
                 </Box>

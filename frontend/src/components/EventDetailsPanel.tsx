@@ -1,6 +1,6 @@
 // src/components/EventDetailsPanel.tsx
 import React, { useMemo } from 'react';
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem } from '@mui/material';
+import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
 import { CalendarEvent, Project, Task, User, Group, Participant } from '../types';
 import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay, addDays } from 'date-fns';
 import { ja } from 'date-fns/locale';
@@ -117,8 +117,8 @@ interface EventDetailsPanelProps {
   onDelete: (event: CalendarEvent) => void;
   eventStatusFilter: string;
   onEventStatusFilterChange: (event: any) => void;
-  eventTypeFilter: string;
-  onEventTypeFilterChange: (event: any) => void;
+  eventTypeFilter: Record<string, boolean>;
+  onEventTypeFilterChange: (typeKey: string, checked: boolean) => void;
   projects: Project[];
 }
 
@@ -347,45 +347,56 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
           )}
           {/* フィルターラベル */}
           <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: '1.1rem', mb: 0.5 }}>表示イベント</Typography>
-          {/* プロジェクトフィルターとイベントタイプフィルターを横並び */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FormControl size="small" sx={{ minWidth: 140, flex: 1, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
-              <Select
-                labelId="event-project-filter-label"
-                value={eventStatusFilter}
-                onChange={onEventStatusFilterChange}
-                displayEmpty
-                inputProps={{ 'aria-label': 'プロジェクトフィルター' }}
-                sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
-              >
-                <MenuItem value="all">すべて</MenuItem>
-                {projects.map((project) => (
-                  <MenuItem key={project.id} value={String(project.id)}>
-                    {project.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 120, flex: 1, height: 32, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
-              <Select
-                labelId="event-type-filter-label"
-                value={eventTypeFilter}
-                onChange={onEventTypeFilterChange}
-                displayEmpty
-                inputProps={{ 'aria-label': 'イベント種類フィルター' }}
-                sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
-              >
-                <MenuItem value="all">すべて</MenuItem>
-                <MenuItem value="project">プロジェクト</MenuItem>
-                <MenuItem value="task">タスク</MenuItem>
-                <MenuItem value="milestone">マイルストーン</MenuItem>
-                <MenuItem value="deadline">締切</MenuItem>
-                <MenuItem value="meeting">会議</MenuItem>
-                <MenuItem value="workshop">ワークショップ</MenuItem>
-                <MenuItem value="generic">その他</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
+          {/* プロジェクトフィルター */}
+          <FormControl size="small" sx={{ minWidth: 140, mb: 1, '& .MuiInputBase-root': { height: 32 }, '& .MuiSelect-select': { py: 0.5, fontSize: '0.92rem' } }}>
+            <Select
+              labelId="event-project-filter-label"
+              value={eventStatusFilter}
+              onChange={onEventStatusFilterChange}
+              displayEmpty
+              inputProps={{ 'aria-label': 'プロジェクトフィルター' }}
+              sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
+            >
+              <MenuItem value="all">すべて</MenuItem>
+              {projects.map((project) => (
+                <MenuItem key={project.id} value={String(project.id)}>
+                  {project.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {/* 表示する予定の種類（チェックボックスで個別にオンオフ） */}
+          <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, color: 'text.secondary' }}>表示する種類</Typography>
+          <FormGroup row sx={{ flexWrap: 'wrap', gap: 0 }}>
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.project !== false} onChange={(_, c) => onEventTypeFilterChange('project', c)} />}
+              label={<Typography variant="body2">プロジェクト</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.task !== false} onChange={(_, c) => onEventTypeFilterChange('task', c)} />}
+              label={<Typography variant="body2">タスク</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.milestone !== false} onChange={(_, c) => onEventTypeFilterChange('milestone', c)} />}
+              label={<Typography variant="body2">マイルストーン</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.deadline !== false} onChange={(_, c) => onEventTypeFilterChange('deadline', c)} />}
+              label={<Typography variant="body2">締切</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.meeting !== false} onChange={(_, c) => onEventTypeFilterChange('meeting', c)} />}
+              label={<Typography variant="body2">会議</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.workshop !== false} onChange={(_, c) => onEventTypeFilterChange('workshop', c)} />}
+              label={<Typography variant="body2">ワークショップ</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.generic !== false} onChange={(_, c) => onEventTypeFilterChange('generic', c)} />}
+              label={<Typography variant="body2">その他</Typography>}
+            />
+          </FormGroup>
         </Box>
       )}
 
@@ -851,9 +862,19 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               </Box>
             </Paper>
           )}
+          {/* 選択日あり・イベントなし: 案内表示 */}
+          {selectedEvent === null && selectedDate && dailyEvents.length === 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, p: 1.5, fontStyle: 'italic' }}>
+              この日の予定はありません
+            </Typography>
+          )}
           {/* イベントリスト表示: selectedEventがnullかつdailyEventsがある場合（カード式表示） */}
           {selectedEvent === null && dailyEvents.length > 0 && (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+            <Box sx={{ mt: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary', mb: 1.5 }}>
+                この日の予定 ({dailyEvents.length} 件)
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
               {dailyEvents.map(ev => (
                 <Paper
                   key={ev.id}
@@ -1005,7 +1026,14 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   </Box>
             </Paper>
               ))}
+              </Box>
             </Box>
+          )}
+          {/* 日付未選択時の案内 */}
+          {selectedEvent === null && !selectedDate && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, p: 1.5, lineHeight: 1.6 }}>
+              カレンダーの日付をクリックすると、その日の予定がここに表示されます。
+            </Typography>
           )}
         </>
       )}

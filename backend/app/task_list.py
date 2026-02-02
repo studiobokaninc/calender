@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import logging
+import re
 from datetime import datetime, timezone, timedelta, date
 from sqlalchemy.orm import Session
 
@@ -54,8 +55,42 @@ def get_latest_changed_at(task: dict) -> str:
     return to_relative_minutes(changed_at)
 
 
+def _date_only(value) -> str:
+    """日付値から時刻を除き YYYY-MM-DD 形式の文字列を返す。チャット送信用。"""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    s = str(value).strip()
+    if not s:
+        return ""
+    # "2025-11-04 00:00:00.000000" or "2025-11-04T00:00:00" -> "2025-11-04"
+    if "T" in s:
+        s = s.split("T")[0]
+    elif " " in s:
+        s = s.split(" ")[0]
+    if len(s) >= 10:
+        return s[:10]
+    return s
+
+
+def _cell_str(value, normalize_text: bool = False) -> str:
+    """CSVセル用に値を文字列化。Noneは空文字。normalize_text=Trueで改行をスペースに。"""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if not s:
+        return ""
+    if normalize_text:
+        # 改行・複数スペースを1スペースにし、AIが1行1タスクで解釈しやすくする
+        s = re.sub(r"\s+", " ", s)
+    return s
+
+
 def build_tasks_csv_text(tasks: list[dict]) -> str:
-    """タスク配列から指定順のCSV文字列を生成して返す（toDatatable と同じ列順）"""
+    """タスク配列から指定順のCSV文字列を生成して返す（toDatatable と同じ列順）。AI向けに日付はYYYY-MM-DD、テキストは1行に正規化。"""
     field_order = [
         "name",
         "description",
@@ -74,25 +109,25 @@ def build_tasks_csv_text(tasks: list[dict]) -> str:
         "dependsOn",
     ]
     buffer = io.StringIO()
-    writer = csv.writer(buffer)
+    writer = csv.writer(buffer, lineterminator="\n")
     writer.writerow(field_order)
     for item in tasks:
         row = [
-            item.get("name", ""),
-            item.get("description", ""),
-            item.get("assigned_to", ""),
-            item.get("due_date", ""),
-            item.get("status", ""),
-            item.get("project_id", ""),
-            item.get("priority", ""),
-            item.get("type", ""),
-            item.get("start_date", ""),
-            item.get("id", ""),
-            item.get("seqID", ""),
-            item.get("shotID", ""),
-            item.get("cost", ""),
+            _cell_str(item.get("name"), normalize_text=True),
+            _cell_str(item.get("description"), normalize_text=True),
+            _cell_str(item.get("assigned_to")),
+            _date_only(item.get("due_date")),
+            _cell_str(item.get("status")),
+            _cell_str(item.get("project_id")),
+            _cell_str(item.get("priority")),
+            _cell_str(item.get("type")),
+            _date_only(item.get("start_date")),
+            _cell_str(item.get("id")),
+            _cell_str(item.get("seqID")),
+            _cell_str(item.get("shotID")),
+            _cell_str(item.get("cost")),
             get_latest_changed_at(item),
-            item.get("dependsOn", ""),
+            _cell_str(item.get("dependsOn")),
         ]
         writer.writerow(row)
     return buffer.getvalue()

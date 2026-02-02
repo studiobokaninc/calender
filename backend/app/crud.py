@@ -166,6 +166,28 @@ def get_project_by_name(db: Session, name: str) -> Optional[models.Project]:
     """プロジェクト名からプロジェクトを取得"""
     return db.query(models.Project).filter(models.Project.name == name).first()
 
+
+def complete_tasks_for_project(db: Session, project_id: int) -> int:
+    """プロジェクトに属する未完了タスクをすべて完了にする。完了にしたタスク数を返す。"""
+    tasks_to_complete = db.query(models.Task).filter(
+        models.Task.project_id == project_id,
+        models.Task.status != models.TaskStatus.COMPLETED,
+    ).all()
+    now = now_jst_naive()
+    for task in tasks_to_complete:
+        task.status = models.TaskStatus.COMPLETED
+        task.updated_at = now
+        db.add(models.TaskStatusHistory(
+            task_id=task.id,
+            status=models.TaskStatus.COMPLETED,
+            changed_at=now,
+            changed_by=task.assigned_to,
+        ))
+    if tasks_to_complete:
+        db.commit()
+    return len(tasks_to_complete)
+
+
 # --- Task CRUD ---
 
 def get_task(db: Session, task_id: int) -> models.Task | None:

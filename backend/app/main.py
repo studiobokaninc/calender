@@ -299,6 +299,9 @@ async def update_project_endpoint(
             )
 
     updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
+    # プロジェクトが完了になった場合、そのプロジェクトに属する未完了タスクをすべて完了にする
+    if updated_project.status == models.ProjectStatus.COMPLETED:
+        crud.complete_tasks_for_project(db=db, project_id=project_id)
     return updated_project
 
 @app.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Projects"])

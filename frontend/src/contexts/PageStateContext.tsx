@@ -30,6 +30,8 @@ interface PageStates {
     filterStatus: string;
     filterProject: string;
     filterAssignee: string;
+    /** 表示する予定の種類（キー: project/task/milestone/deadline/meeting/workshop/generic） */
+    eventTypeFilter: Record<string, boolean>;
   };
   dashboard: {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -71,9 +73,18 @@ const defaultStates: PageStates = {
     viewType: 'dayGridMonth',
     selectedDate: null,
     selectedEvent: null,
-    filterStatus: '',
+    filterStatus: 'all',
     filterProject: '',
     filterAssignee: '',
+    eventTypeFilter: {
+      project: true,
+      task: true,
+      milestone: true,
+      deadline: true,
+      meeting: true,
+      workshop: true,
+      generic: true,
+    },
   },
   dashboard: {
     messages: [DASHBOARD_WELCOME_MESSAGE],

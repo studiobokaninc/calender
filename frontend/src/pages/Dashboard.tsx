@@ -153,24 +153,11 @@ const Dashboard: React.FC = () => {
     }
     const norm = (s: string | null | undefined): string =>
       (s ?? '').toString().split('T')[0]
-    const list: { type: 'task' | 'event'; name: string; projectName: string; id: number; timeLabel?: string; kindLabel: string }[] = []
 
-    // 今日のタスク（start_date または due_date が今日）
-    tasks.forEach((t: any) => {
-      const start = norm(t.start_date)
-      const due = norm(t.due_date)
-      const isToday = start === todayStr || due === todayStr
-      if (!isToday) return
-      list.push({
-        type: 'task',
-        name: t.name ?? `タスク #${t.id}`,
-        projectName: getProjectName(t.project_id ?? t.extendedProps?.projectId),
-        id: t.id,
-        kindLabel: 'タスク',
-      })
-    })
+    type TodayItem = { type: 'task' | 'event'; name: string; projectName: string; id: number; timeLabel?: string; kindLabel: string; startTime?: string; dueDate?: string }
 
-    // 今日のイベント（start_time または end_time が今日に含まれる）
+    // 1. 今日のイベント（会議など）… start_time / end_time が今日に含まれるもの。開始時刻順で上に表示
+    const eventList: TodayItem[] = []
     backendEvents.forEach((ev: BackendEvent) => {
       const startDate = norm(ev.start_time)
       const endDate = ev.end_time ? norm(ev.end_time) : startDate
@@ -179,17 +166,47 @@ const Dashboard: React.FC = () => {
       const spansToday = startDate <= todayStr && todayStr <= endDate
       if (!startsToday && !endsToday && !spansToday) return
       const evType = (ev.type ?? 'Generic').toString()
-      list.push({
+      eventList.push({
         type: 'event',
         name: ev.title ?? `イベント #${ev.id}`,
         projectName: getProjectName(ev.project_id ?? undefined),
         id: ev.id,
         timeLabel: ev.start_time ? new Date(ev.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : undefined,
         kindLabel: eventTypeToLabel[evType] ?? evType,
+        startTime: ev.start_time ?? undefined,
       })
     })
+    eventList.sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))
 
-    return list
+    // 2. タスク：開始日・期日のどちらかが設定されていればその日付に表示、両方あれば開始日〜期日まで表示。どちらも未設定は含めない。期日が近い順でイベントの下に表示
+    const taskList: TodayItem[] = []
+    tasks.forEach((t: any) => {
+      const start = norm(t.start_date)
+      const due = norm(t.due_date)
+      const hasStart = start !== ''
+      const hasDue = due !== ''
+      if (!hasStart && !hasDue) return
+      let showToday: boolean
+      if (hasStart && hasDue) {
+        showToday = start <= todayStr && todayStr <= due
+      } else if (hasStart) {
+        showToday = start === todayStr
+      } else {
+        showToday = due === todayStr
+      }
+      if (!showToday) return
+      taskList.push({
+        type: 'task',
+        name: t.name ?? `タスク #${t.id}`,
+        projectName: getProjectName(t.project_id ?? t.extendedProps?.projectId),
+        id: t.id,
+        kindLabel: 'タスク',
+        dueDate: due || start || '9999-12-31',
+      })
+    })
+    taskList.sort((a, b) => (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31'))
+
+    return [...eventList, ...taskList]
   }, [globalData?.tasks, globalData?.projects, todayStr, backendEvents])
 
   const scrollToBottom = () => {
@@ -1584,7 +1601,12 @@ const Dashboard: React.FC = () => {
 				  placeholder="メッセージを入力..."
 				  value={chatInput}
 				  onChange={(e) => setChatInput(e.target.value)}
-				  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+				  onKeyDown={(e) => {
+					if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+						e.preventDefault();
+						handleSend();
+					}
+				}}
 				  disabled={sending}
 			    />
 			    <Button 

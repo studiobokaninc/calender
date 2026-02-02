@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -92,7 +92,7 @@ const NotesPage: React.FC = () => {
   const [uploadingPdf, setUploadingPdf] = useState(false);
   
   // コンテナの最小高さを計算（テキストボックスと画像とPDFの最大のbottom位置を計算）
-  const calculateMinHeight = useCallback(() => {
+  const minHeight = useMemo(() => {
     let maxBottom = 0;
     
     // テキストボックスの最大bottom位置を計算
@@ -566,7 +566,7 @@ const NotesPage: React.FC = () => {
     setPdfDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
   };
 
-  const handlePdfDrag = (e: React.MouseEvent) => {
+  const handlePdfDrag = useCallback((e: React.MouseEvent) => {
     if (draggingPdfIndex === null || pdfDragOffset === null) return;
     e.preventDefault();
     const container = dropZoneRef.current;
@@ -574,14 +574,20 @@ const NotesPage: React.FC = () => {
     const rect = container.getBoundingClientRect();
     const newX = e.clientX - rect.left - pdfDragOffset.x;
     const newY = e.clientY - rect.top - pdfDragOffset.y;
-    const pdf = pdfs[draggingPdfIndex];
-    if (!pdf) return;
-    setPdfs(prev => prev.map((p, i) =>
-      i === draggingPdfIndex
-        ? { ...p, x: Math.max(0, Math.min(newX, rect.width - p.width)), y: Math.max(0, Math.min(newY, rect.height - p.height)) }
-        : p
-    ));
-  };
+    
+    requestAnimationFrame(() => {
+      setPdfs(prev => {
+        const pdf = prev[draggingPdfIndex];
+        if (!pdf) return prev;
+        
+        return prev.map((p, i) =>
+          i === draggingPdfIndex
+            ? { ...p, x: Math.max(0, Math.min(newX, rect.width - p.width)), y: Math.max(0, Math.min(newY, rect.height - p.height)) }
+            : p
+        );
+      });
+    });
+  }, [draggingPdfIndex, pdfDragOffset]);
 
   const handlePdfDragEnd = () => {
     setDraggingPdfIndex(null);
@@ -678,8 +684,8 @@ const NotesPage: React.FC = () => {
     });
   };
 
-  // 画像ドラッグ中
-  const handleImageDrag = (e: React.MouseEvent) => {
+  // 画像ドラッグ中（requestAnimationFrameで最適化）
+  const handleImageDrag = useCallback((e: React.MouseEvent) => {
     if (draggingImageIndex === null || dragOffset === null) return;
     e.preventDefault();
     
@@ -691,12 +697,14 @@ const NotesPage: React.FC = () => {
     const newX = e.clientX - rect.left - dragOffset.x;
     const newY = e.clientY - rect.top - dragOffset.y;
     
-    setImages(images.map((img, i) => 
-      i === draggingImageIndex 
-        ? { ...img, x: Math.max(0, Math.min(newX, rect.width - img.width)), y: Math.max(0, Math.min(newY, rect.height - img.height)) }
-        : img
-    ));
-  };
+    requestAnimationFrame(() => {
+      setImages(prevImages => prevImages.map((img, i) => 
+        i === draggingImageIndex 
+          ? { ...img, x: Math.max(0, Math.min(newX, rect.width - img.width)), y: Math.max(0, Math.min(newY, rect.height - img.height)) }
+          : img
+      ));
+    });
+  }, [draggingImageIndex, dragOffset]);
 
   // 画像ドラッグ終了
   const handleImageDragEnd = () => {
@@ -752,8 +760,8 @@ const NotesPage: React.FC = () => {
     });
   };
 
-  // テキストボックスのドラッグ中
-  const handleTextBoxDrag = (e: React.MouseEvent) => {
+  // テキストボックスのドラッグ中（requestAnimationFrameで最適化）
+  const handleTextBoxDrag = useCallback((e: React.MouseEvent) => {
     if (!draggingTextBoxId || textBoxDragOffset === null) return;
     e.preventDefault();
     
@@ -764,15 +772,19 @@ const NotesPage: React.FC = () => {
     const newX = e.clientX - rect.left - textBoxDragOffset.x;
     const newY = e.clientY - rect.top - textBoxDragOffset.y;
     
-    const textBox = textBoxes.find(tb => tb.id === draggingTextBoxId);
-    if (!textBox) return;
-    
-    setTextBoxes(textBoxes.map(tb => 
-      tb.id === draggingTextBoxId
-        ? { ...tb, x: Math.max(0, Math.min(newX, rect.width - tb.width)), y: Math.max(0, Math.min(newY, rect.height - tb.height)) }
-        : tb
-    ));
-  };
+    requestAnimationFrame(() => {
+      setTextBoxes(prevTextBoxes => {
+        const textBox = prevTextBoxes.find(tb => tb.id === draggingTextBoxId);
+        if (!textBox) return prevTextBoxes;
+        
+        return prevTextBoxes.map(tb => 
+          tb.id === draggingTextBoxId
+            ? { ...tb, x: Math.max(0, Math.min(newX, rect.width - tb.width)), y: Math.max(0, Math.min(newY, rect.height - tb.height)) }
+            : tb
+        );
+      });
+    });
+  }, [draggingTextBoxId, textBoxDragOffset]);
 
   // テキストボックスのドラッグ終了
   const handleTextBoxDragEnd = () => {
@@ -1024,7 +1036,7 @@ const NotesPage: React.FC = () => {
             overflow: 'auto',
             p: 3,
             backgroundColor: '#ffffff',
-            minHeight: `${calculateMinHeight()}px`,
+            minHeight: `${minHeight}px`,
             cursor: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'grabbing' : 'text',
             userSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
             WebkitUserSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
@@ -1285,7 +1297,7 @@ const NotesPage: React.FC = () => {
                         setResizingImageIndex(index);
                         isResizingRef.current = true;
                         
-                        // グローバルなマウスイベントリスナーを追加
+                        // グローバルなマウスイベントリスナーを追加（requestAnimationFrameで最適化）
                         const handleMouseMove = (moveEvent: MouseEvent) => {
                           // リサイズ中でない場合は何もしない
                           if (!isResizingRef.current) {
@@ -1305,12 +1317,14 @@ const NotesPage: React.FC = () => {
                           const newWidth = Math.max(50, Math.min(800, startWidth + delta));
                           const newHeight = newWidth / aspectRatio;
                           
-                          // 画像のサイズを更新
-                          setImages(prevImages => prevImages.map((img, i) => 
-                            i === index 
-                              ? { ...img, width: newWidth, height: newHeight }
-                              : img
-                          ));
+                          // 画像のサイズを更新（requestAnimationFrameで最適化）
+                          requestAnimationFrame(() => {
+                            setImages(prevImages => prevImages.map((img, i) => 
+                              i === index 
+                                ? { ...img, width: newWidth, height: newHeight }
+                                : img
+                            ));
+                          });
                         };
                         
                         const handleMouseUp = (upEvent: MouseEvent) => {

@@ -212,21 +212,29 @@ async def stream_chat(
                                             return [parsed]
                                         return None
 
-                                    # パターン1: 自然言語メッセージ + --- + JSONコードブロック形式
-                                    # 例: "メッセージ\n---\n```json\n{...}\n```" または ```json\n[{...},{...}]\n```
-                                    if "---" in full_answer:
-                                        parts = full_answer.split("---", 1)
-                                        if len(parts) > 1:
-                                            json_part = parts[1].strip()
-                                            # コードブロック全体を抽出（```json または ``` で囲まれた中身）
-                                            code_fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", json_part)
-                                            if code_fence:
-                                                block_content = code_fence.group(1).strip()
-                                                action_list = _parse_action_candidates(block_content)
-                                    
-                                    # パターン2: メッセージ全体がJSONコードブロックのみの場合
+                                    def _collect_all_code_blocks(text: str):
+                                        """テキスト内のすべての ```json ... ``` / ``` ... ``` ブロックの中身をリストで返す。"""
+                                        return re.findall(r"```(?:json)?\s*([\s\S]*?)```", text)
+
+                                    # メッセージ内の「すべての」JSONコードブロックを抽出し、各ブロックをパースしてアクションを集約する
+                                    all_blocks = _collect_all_code_blocks(full_answer)
+                                    if all_blocks:
+                                        action_list = []
+                                        for block_content in all_blocks:
+                                            block_content = block_content.strip()
+                                            if not block_content:
+                                                continue
+                                            candidates = _parse_action_candidates(block_content)
+                                            if candidates:
+                                                action_list.extend(candidates)
+                                        if not action_list:
+                                            action_list = None
+
+                                    # フォールバック: コードブロックが1つも見つからなかった場合、メッセージ全体を単一JSONとして扱う
                                     if action_list is None:
                                         cleaned = full_answer.strip()
+                                        if "---" in cleaned:
+                                            cleaned = cleaned.split("---", 1)[1].strip() if len(cleaned.split("---", 1)) > 1 else cleaned
                                         if cleaned.startswith("```"):
                                             cleaned = cleaned[3:].lstrip()
                                             if cleaned.lower().startswith("json"):
@@ -237,13 +245,6 @@ async def stream_chat(
                                             action_list = _parse_action_candidates(cleaned)
                                         elif cleaned.startswith("[") and cleaned.endswith("]"):
                                             action_list = _parse_action_candidates(cleaned)
-                                    
-                                    # パターン3: メッセージ内にJSONコードブロックが含まれている場合（---なし）
-                                    if action_list is None:
-                                        code_fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", full_answer)
-                                        if code_fence:
-                                            block_content = code_fence.group(1).strip()
-                                            action_list = _parse_action_candidates(block_content)
 
                                     # アクション候補が1件以上ある場合、通知を送信
                                     if action_list:

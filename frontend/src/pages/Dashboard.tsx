@@ -44,10 +44,6 @@ const Dashboard: React.FC = () => {
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
   const [currentMessageId, setCurrentMessageId] = useState<string | null>(null)
   const messageIdRef = useRef<string | null>(null) // 直接参照用のref
-  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
-  const [lastSuggestedForMessageId, setLastSuggestedForMessageId] = useState<string | null>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // アクション確認ダイアログ用の状態（単一・複数どちらも配列で保持）
@@ -437,11 +433,6 @@ const Dashboard: React.FC = () => {
     setMessages((prev) => [...prev, { role: 'user', content: text }])
     setSending(true)
     
-    // 新しいメッセージ送信時に推奨質問をリセット（デモ質問も含む）
-    setSuggestedQuestions([])
-    setShowSuggestions(false)
-    setLastSuggestedForMessageId(null)
-
     // 既存のEventSourceをクリーンアップ
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -478,52 +469,6 @@ const Dashboard: React.FC = () => {
     setCurrentTaskId(null)
   }
 
-  const fetchSuggestedQuestions = async (messageId: string) => {
-    if (!messageId) return
-    
-    // conversation_idとmessage_idが同じ場合はスキップ（ただし、conversationIdがnullの場合は許可）
-    if (messageId === conversationId && conversationId !== null) return
-    
-    setIsLoadingSuggestions(true)
-    try {
-      const apiUrl = `/suggestions/${messageId}?user=dify1@studiobokan.com`
-      const response = await api.get(apiUrl)
-      
-      // レスポンス構造に応じて配列を取得
-      let suggestions = []
-      if (response.data?.suggestions && Array.isArray(response.data.suggestions)) {
-        suggestions = response.data.suggestions
-      } else if (response.data?.data && Array.isArray(response.data.data)) {
-        suggestions = response.data.data
-      }
-      
-      // 推奨質問が空の場合は何も表示しない
-      if (suggestions.length === 0) {
-        setShowSuggestions(false)
-        setIsLoadingSuggestions(false)
-        return
-      }
-      
-      setSuggestedQuestions(suggestions)
-      setShowSuggestions(true)
-      setLastSuggestedForMessageId(messageId)
-    } catch (error) {
-      // エラー時は推奨質問を表示しない
-      setSuggestedQuestions([])
-      setShowSuggestions(false)
-    } finally {
-      setIsLoadingSuggestions(false)
-    }
-  }
-
-  const handleSuggestedQuestion = (question: string) => {
-    setChatInput(question)
-    setShowSuggestions(false)
-    // 自動的に送信
-    setTimeout(() => {
-      handleSend()
-    }, 100)
-  }
 
   // アクションJSONを検出する関数（単一オブジェクトまたは配列を返す。配列の場合は複数アクション）
   const detectActionFromContent = (content: string): any | any[] | null => {
@@ -906,22 +851,6 @@ const Dashboard: React.FC = () => {
       setIsGenerating(false)
       setSending(false)
       setCurrentTaskId(null)
-      // setCurrentMessageId(null) // message_idを保持して推奨質問取得に使用
-      
-       // 自動表示は無効化（手動ボタンでのみ表示）
-       // 推奨質問を取得
-       // メッセージが存在し、推奨質問がまだ取得されていない場合
-       // if (messages.length > 0 && suggestedQuestions.length === 0 && !isLoadingSuggestions) {
-       //   // refから直接message_idを取得
-       //   const messageIdToUse = messageIdRef.current || latestMessageId || messageIdFromEnd || currentMessageId
-       //   
-       //   if (messageIdToUse && messageIdToUse !== conversationId) {
-       //     // 少し遅延を入れてDB反映を待つ
-       //     setTimeout(() => {
-       //       fetchSuggestedQuestions(messageIdToUse)
-       //     }, 500)
-       //   }
-       // }
     })
 
     eventSource.onerror = (error) => {
@@ -983,17 +912,7 @@ const Dashboard: React.FC = () => {
     messageIdRef.current = null // refもリセット
     setSending(false)
     setChatInput('')
-    
-    // 推奨質問の状態もリセット（デモ質問は表示しない）
-    setSuggestedQuestions([])
-    setShowSuggestions(false)
-    setLastSuggestedForMessageId(null)
-    
     setMessages([DASHBOARD_WELCOME_MESSAGE])
-    
-    // デモ質問は表示しない
-    setSuggestedQuestions([])
-    setShowSuggestions(false)
     
     // 新しい会話開始時も状態を更新
     updateDashboardState({
@@ -1302,7 +1221,7 @@ const Dashboard: React.FC = () => {
 				<Button size="small" variant="outlined" onClick={handleNewConversation}>new chat</Button>
 			</Box>
 			
-			{/* チャットコンテナ：固定高さで推奨質問スペースを確保 */}
+			{/* チャットコンテナ */}
 			<Box sx={{ position: 'relative', height: 400 }}>
 			  {/* メッセージ一覧（LINE風 吹き出し） */}
 			  <Box sx={{
@@ -1310,13 +1229,12 @@ const Dashboard: React.FC = () => {
 			    borderColor: 'divider',
 			    borderRadius: 1,
 			    p: 1.5,
-			    height: showSuggestions && suggestedQuestions.length > 0 ? 280 : 340,
+			    height: 340,
 			    overflow: 'auto',
 			    backgroundColor: 'background.default',
 			    display: 'flex',
 			    flexDirection: 'column',
 			    gap: 1,
-			    transition: 'height 0.3s ease',
 			  }}>
 			    {messages.map((m, i) => (
 				  <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -1473,95 +1391,6 @@ const Dashboard: React.FC = () => {
 			    <div ref={listEndRef} />
 			  </Box>
 			  
-			  {/* 予測された質問：固定位置に表示 */}
-			  {showSuggestions && 
-			    suggestedQuestions.length > 0 && 
-			    !isLoadingSuggestions && (
-			    <Box sx={{ 
-			      position: 'absolute',
-			      bottom: 56, // 入力欄の高さ分上に配置
-			      left: 0,
-			      right: 0,
-			      mt: 2,
-			      mb: 1,
-			    }}>
-				  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-				    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-				      予測された質問 ({suggestedQuestions.length}件):
-				    </Typography>
-				    <Button
-				      size="small"
-				      onClick={() => setShowSuggestions(false)}
-				      sx={{ 
-				        fontSize: '0.75rem',
-				        minWidth: 'auto',
-				        px: 1,
-				        py: 0,
-				      }}
-				    >
-				      非表示
-				    </Button>
-				  </Box>
-				  <Box sx={{ 
-				    display: 'flex', 
-				    gap: 1, 
-				    overflowX: 'auto',
-				    pb: 1,
-				    '&::-webkit-scrollbar': {
-				      height: '4px',
-				    },
-				    '&::-webkit-scrollbar-track': {
-				      backgroundColor: 'rgba(0,0,0,0.1)',
-				      borderRadius: '2px',
-				    },
-				    '&::-webkit-scrollbar-thumb': {
-				      backgroundColor: 'rgba(0,0,0,0.3)',
-				      borderRadius: '2px',
-				    },
-				  }}>
-				    {isLoadingSuggestions ? (
-				      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, py: 1 }}>
-					    <CircularProgress size={16} />
-					    <Typography variant="body2" color="text.secondary">
-						    予測された質問を生成中...
-					    </Typography>
-					  </Box>
-				    ) : (
-					  suggestedQuestions.map((question, index) => (
-					    <Button
-						  key={index}
-						  variant="outlined"
-						  size="small"
-						  onClick={() => handleSuggestedQuestion(question)}
-						  disabled={sending || isGenerating}
-						  sx={{
-						    fontSize: '0.75rem',
-						    textTransform: 'none',
-						    borderRadius: 3,
-						    px: 2,
-						    py: 0.5,
-						    minWidth: 'auto',
-						    whiteSpace: 'nowrap',
-						    flexShrink: 0,
-						    borderColor: 'primary.light',
-						    color: 'primary.main',
-						    '&:hover': {
-							  backgroundColor: 'primary.light',
-							  color: 'primary.contrastText',
-							  transform: 'translateY(-1px)',
-							  boxShadow: 2,
-						    },
-						    transition: 'all 0.2s ease-in-out',
-						  }}
-					    >
-						  {question}
-					    </Button>
-					  ))
-				    )}
-				  </Box>
-			    </Box>
-			  )}
-			  
 			  {/* 入力欄と送信ボタン：固定位置 */}
 			  <Box sx={{ 
 			    position: 'absolute',
@@ -1571,30 +1400,6 @@ const Dashboard: React.FC = () => {
 			    display: 'flex', 
 			    gap: 1,
 			  }}>
-			    <Button
-			      variant="outlined"
-			      size="small"
-			      onClick={async () => {
-			        if (showSuggestions) {
-			          setShowSuggestions(false)
-			        } else {
-			          // 予測された質問を取得して表示
-			          const messageIdToUse = messageIdRef.current || currentMessageId
-			          if (messageIdToUse && messageIdToUse !== conversationId && messages.length > 1) {
-			            await fetchSuggestedQuestions(messageIdToUse)
-			          }
-			        }
-			      }}
-			      disabled={sending || isGenerating || messages.length <= 1}
-			      sx={{ 
-			        fontSize: '0.75rem',
-			        minWidth: 'auto',
-			        px: 1.5,
-			        whiteSpace: 'nowrap',
-			      }}
-			    >
-			      {showSuggestions ? '質問非表示' : '予測質問'}
-			    </Button>
 			    <TextField
 				  fullWidth
 				  size="small"

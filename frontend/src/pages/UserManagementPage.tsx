@@ -10,7 +10,7 @@ import api from '../services/api';
 import { 
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, 
   ExpandMore as ExpandMoreIcon, Assignment as AssignmentIcon,
-  Person as PersonIcon, Work as WorkIcon
+  Person as PersonIcon, Work as WorkIcon, AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
 import UserAddModal, { NewUserData } from '../components/UserAddModal';
 import { SelectChangeEvent } from '@mui/material';
@@ -30,6 +30,7 @@ interface UserTaskInfo {
   tasksByProject: Record<number, Task[]>;
   projectNames: Record<number, string>;
   totalTasks: number;
+  totalCost: number; // コスト合計（所要時間の目安）
 }
 
 const UserManagementPage: React.FC = () => {
@@ -107,7 +108,8 @@ const UserManagementPage: React.FC = () => {
         tasks: [],
         tasksByProject: {},
         projectNames: {},
-        totalTasks: 0
+        totalTasks: 0,
+        totalCost: 0
       };
     });
 
@@ -125,12 +127,18 @@ const UserManagementPage: React.FC = () => {
             tasks: [],
             tasksByProject: {},
             projectNames: {},
-            totalTasks: 0
+            totalTasks: 0,
+            totalCost: 0
           };
         }
 
         infoMap[userId].tasks.push(task);
         infoMap[userId].totalTasks++;
+        
+        // コスト（所要時間）を集計（コストが設定されている場合のみ）
+        if (task.cost && typeof task.cost === 'number' && task.cost > 0) {
+          infoMap[userId].totalCost += task.cost;
+        }
 
         if (!infoMap[userId].tasksByProject[projectId]) {
           infoMap[userId].tasksByProject[projectId] = [];
@@ -415,7 +423,7 @@ const UserManagementPage: React.FC = () => {
                                     <Typography variant="body2" color="text.secondary">
                                       {user.email || 'メール未設定'}
                                     </Typography>
-                                    <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                                    <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
                                       <Chip 
                                         icon={<WorkIcon />} 
                                         label={`${info?.totalTasks || 0}件のタスク`} 
@@ -430,6 +438,15 @@ const UserManagementPage: React.FC = () => {
                                         color="secondary"
                                         variant="outlined"
                                       />
+                                      {info && info.totalCost > 0 && (
+                                        <Chip 
+                                          icon={<AccessTimeIcon />} 
+                                          label={`所要時間: ${(info.totalCost / 8).toFixed(1)}日`} 
+                                          size="small" 
+                                          color="info"
+                                          variant="outlined"
+                                        />
+                                      )}
                                     </Box>
                                   </Box>
                                 }
@@ -515,6 +532,15 @@ const UserManagementPage: React.FC = () => {
                                                 <Chip 
                                                   label={`期日: ${new Date(task.due_date).toLocaleDateString('ja-JP')}`} 
                                                   size="small" 
+                                                  variant="outlined"
+                                                />
+                                              )}
+                                              {task.cost && typeof task.cost === 'number' && task.cost > 0 && (
+                                                <Chip 
+                                                  icon={<AccessTimeIcon />}
+                                                  label={`所要時間: ${(task.cost / 8).toFixed(1)}日`} 
+                                                  size="small" 
+                                                  color="info"
                                                   variant="outlined"
                                                 />
                                               )}

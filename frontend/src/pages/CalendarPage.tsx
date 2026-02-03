@@ -1759,6 +1759,18 @@ const CalendarPage: React.FC = () => {
                     background: #9E9E9E !important;
                     color: #fff !important;
                 }
+                /* 「+N件」リンクのスタイル（クリック不可、情報表示のみ） */
+                .fc-more-link {
+                    display: block;
+                    padding: 2px 4px;
+                    font-size: 0.75rem;
+                    color: #1976d2;
+                    cursor: default;
+                    text-align: left;
+                    white-space: nowrap;
+                    pointer-events: none;
+                    text-decoration: none;
+                }
                 /* 会議・ワークショップのデフォルト表示（完了していないプロジェクト用） - 締切と同じようにバーなし */
                 .fc-event.meeting-event,
                 .fc-daygrid-event.meeting-event,
@@ -1887,7 +1899,7 @@ const CalendarPage: React.FC = () => {
                         }}
                         dayMaxEventRows={5}
                         dayMaxEvents={5}
-                        moreLinkContent={() => null}
+                        moreLinkContent={(arg) => `+${arg.num}件`}
                         dayCellDidMount={handleDayCellMount}
                         selectable={false}
                         selectMirror={true}

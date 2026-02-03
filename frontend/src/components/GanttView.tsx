@@ -560,6 +560,18 @@ const getAllRelatedTaskIds = (rootId: string, tasks: CustomGtrTask[]): Set<strin
   return related;
 };
 
+/** 選択タスクと直接だけつながっているID（親・子のみ。その先の関連は含めない） */
+const getDirectlyRelatedTaskIds = (selectedId: string, tasks: CustomGtrTask[]): Set<string> => {
+  const direct = new Set<string>([selectedId]);
+  const selected = tasks.find(t => t.id === selectedId);
+  if (!selected) return direct;
+  selected.dependencies?.forEach(depId => direct.add(depId));
+  tasks.forEach(t => {
+    if (t.dependencies?.includes(selectedId)) direct.add(t.id);
+  });
+  return direct;
+};
+
 // ★★★ 依存関係ハイライト用オーバーレイコンポーネント ★★★
 const DependencyHighlighter: React.FC<{
   tasks: CustomGtrTask[];
@@ -613,9 +625,6 @@ const DependencyHighlighter: React.FC<{
     const selectedTask = tasks.find(t => t.id === selectedTaskId);
     if (!selectedTask) return;
 
-    // 関連タスク全体を取得(再帰的)
-    const relatedIds = getAllRelatedTaskIds(selectedTaskId, tasks);
-
     const newLines: React.ReactNode[] = [];
     const listWidth = parseInt(listCellWidth);
 
@@ -649,46 +658,44 @@ const DependencyHighlighter: React.FC<{
     // 描画済みエッジの追跡（重複防止）
     const processedEdges = new Set<string>();
 
-    // ハイライトされたチェーン内の全ての依存関係について矢印を描画
+    // 選択されたタスクに接続されている矢印だけ描画（選択タスクから出る／選択タスクに入る）
     tasks.forEach(task => {
-      // ターゲットタスク（子）が関連グループ内に無いならスキップ
-      if (!relatedIds.has(task.id)) return;
-
       task.dependencies?.forEach(depId => {
-        // ソースタスク（親）も関連グループ内にあれば矢印を描画
-        if (relatedIds.has(depId)) {
-          const edgeKey = `${depId}-${task.id}`;
-          if (processedEdges.has(edgeKey)) return;
-          processedEdges.add(edgeKey);
+        // 矢印を描くのは「選択タスク → 子」または「親 → 選択タスク」のみ
+        const isOutgoingFromSelected = depId === selectedTaskId; // 選択タスクから出る矢印
+        const isIncomingToSelected = task.id === selectedTaskId; // 選択タスクに入る矢印
+        if (!isOutgoingFromSelected && !isIncomingToSelected) return;
 
-          const sourceTask = tasks.find(t => t.id === depId);
-          const targetTask = task;
+        const edgeKey = `${depId}-${task.id}`;
+        if (processedEdges.has(edgeKey)) return;
+        processedEdges.add(edgeKey);
 
-          if (sourceTask && targetTask) {
-            const start = getTaskCoordinates(sourceTask);
-            const end = getTaskCoordinates(targetTask);
+        const sourceTask = tasks.find(t => t.id === depId);
+        const targetTask = task;
 
-            if (start && end) {
-              const p1 = { x: start.xEnd, y: start.y };
-              const p2 = { x: end.x, y: end.y };
+        if (sourceTask && targetTask) {
+          const start = getTaskCoordinates(sourceTask);
+          const end = getTaskCoordinates(targetTask);
 
-              // 直線 (Straight Line)
-              const path = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+          if (start && end) {
+            const p1 = { x: start.xEnd, y: start.y };
+            const p2 = { x: end.x, y: end.y };
 
-              newLines.push(
-                <g key={edgeKey}>
-                  <path d={path} stroke="white" strokeWidth="4" fill="none" opacity="0.8" />
-                  <path
-                    d={path}
-                    stroke="#e91e63"
-                    strokeWidth="2.5"
-                    fill="none"
-                    markerEnd="url(#arrowhead)"
-                  />
-                  <circle cx={p1.x} cy={p1.y} r="3" fill="#e91e63" />
-                </g>
-              );
-            }
+            const path = `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`;
+
+            newLines.push(
+              <g key={edgeKey}>
+                <path d={path} stroke="white" strokeWidth="4" fill="none" opacity="0.8" />
+                <path
+                  d={path}
+                  stroke="#e91e63"
+                  strokeWidth="2.5"
+                  fill="none"
+                  markerEnd="url(#arrowhead)"
+                />
+                <circle cx={p1.x} cy={p1.y} r="3" fill="#e91e63" />
+              </g>
+            );
           }
         }
       });
@@ -839,7 +846,7 @@ const CustomTaskList: React.FC<any> = ({
               height: rowHeight,
               display: 'flex',
               alignItems: 'center',
-              backgroundColor: selectedTaskId === task.id ? 'rgba(0, 0, 0, 0.05)' : undefined,
+              backgroundColor: selectedTaskId === task.id ? 'rgba(33, 150, 243, 0.15)' : undefined,
               fontSize: '0.7rem',
               borderBottom: '1px solid #eee',
               cursor: 'pointer',
@@ -955,6 +962,29 @@ const GanttWrapper = styled.div`
   }
   /* --------------------------------------------- */
 
+  /* ★★★ タスクリスト: 選択時・ホバー時をはっきり表示 ★★★ */
+  .widget-task-list-item {
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .widget-task-list-item:hover {
+    background-color: rgba(33, 150, 243, 0.08) !important;
+  }
+  .widget-task-list-item.selected {
+    background-color: rgba(33, 150, 243, 0.15) !important;
+    box-shadow: inset 3px 0 0 #2196f3;
+  }
+  .widget-task-list-item.selected:hover {
+    background-color: rgba(33, 150, 243, 0.2) !important;
+  }
+
+  /* ガントバー選択時をはっきり表示（ライブラリのバー用） */
+  .gantt-container .bar.selected,
+  .gantt-container .bar[data-selected="true"] {
+    filter: brightness(1.05);
+    stroke: #1976d2;
+    stroke-width: 2;
+  }
+
   // ... existing styles ...
 `;
 
@@ -962,6 +992,26 @@ const GanttWrapper = styled.div`
 const TooltipWrapper = forwardRef<HTMLSpanElement, { children: React.ReactNode }>((props, ref) => {
   return <span ref={ref} {...props} style={{ display: 'inline-block', width: '100%' }} />;
 });
+
+// タスクバー用ツールチップ：Progress の代わりに担当者を表示
+const CustomTooltipContent: React.FC<{
+  task: CustomGtrTask & { start: Date; end: Date };
+  fontSize?: string;
+  fontFamily?: string;
+}> = ({ task, fontSize = '12px', fontFamily = '"Roboto", "Helvetica", "Arial", sans-serif' }) => {
+  const assigneeLabel = (task.assignee && task.assignee !== 'Unassigned') ? task.assignee : '担当者なし';
+  const style = { fontSize, fontFamily };
+  return (
+    <div style={{ ...style, padding: 12, background: '#fff', boxShadow: '0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23)' }}>
+      <b style={{ fontSize: '14px' }}>
+        {task.name}: {formatDate(task.start, 'yyyy/MM/dd')} - {formatDate(task.end, 'yyyy/MM/dd')}
+      </b>
+      <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#666' }}>
+        担当者: {assigneeLabel}
+      </p>
+    </div>
+  );
+};
 
 const GanttView: React.FC<GanttViewProps> = memo(
   ({ tasks: initialTasks, initialViewMode = ViewMode.Week, onTaskSelect, handleOpenCreateTask, readOnly = false, projects, users }) => {
@@ -982,6 +1032,24 @@ const GanttView: React.FC<GanttViewProps> = memo(
     const [isMountedState, setIsMountedState] = useState(false);
     const horizontalContainerRef = useRef<HTMLElement | null>(null);
     const verticalContainerRef = useRef<HTMLElement | null>(null);
+    /** gantt-task-react はハッシュ化クラスを使用。横スクロール=_CZjuD, 縦スクロール=_2B2zv（左リスト・右チャートの2つある） */
+    const getScrollContainers = useCallback(() => {
+      const root = document.getElementById('gantt-container');
+      const h = horizontalContainerRef.current
+        || (document.querySelector('.gantt-horizontal-container') as HTMLElement)
+        || (root?.querySelector('._CZjuD') as HTMLElement);
+      const v = verticalContainerRef.current
+        || (document.querySelector('.gantt-vertical-scroll-container') as HTMLElement)
+        || (root?.querySelector('._2B2zv') as HTMLElement);
+      return { hContainer: h, vContainer: v };
+    }, []);
+    /** 縦スクロールする2つのパネル（タスクリストとチャート）をまとめて取得。行ずれ防止で両方に同じ scrollTop を適用する */
+    const getAllVerticalContainers = useCallback((): HTMLElement[] => {
+      const root = document.getElementById('gantt-container');
+      if (!root) return [];
+      const list = root.querySelectorAll('._2B2zv');
+      return Array.from(list) as HTMLElement[];
+    }, []);
     const renderCountRef = useRef(0);
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
@@ -1014,43 +1082,35 @@ const GanttView: React.FC<GanttViewProps> = memo(
     // useCallback フック
     // useCallback フック
     const saveScrollPosition = useCallback(() => {
-      const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
-      const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
-
+      const { hContainer, vContainer } = getScrollContainers();
       if (hContainer || vContainer) {
+        // 縦は1つ目で代表（両パネルは同期している想定）
         scrollPositionRef.current = {
           left: hContainer?.scrollLeft || 0,
           top: vContainer?.scrollTop || 0
         };
         console.log(`[GanttView] Saved scroll position: L=${scrollPositionRef.current.left}, T=${scrollPositionRef.current.top}`);
       }
-    }, []);
+    }, [getScrollContainers]);
 
     const restoreScrollPosition = useCallback(() => {
-      const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
-      const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
-
+      const { hContainer } = getScrollContainers();
+      const allVertical = getAllVerticalContainers();
       if (scrollPositionRef.current) {
         const savedLeft = scrollPositionRef.current.left;
         const savedTop = scrollPositionRef.current.top;
 
-        // スクロール復元中フラグを設定
         (window as any).__ganttIsRestoringScroll = true;
 
-        // 複数回試行して確実にスクロール位置を復元する
         const restore = () => {
           if (hContainer && savedLeft !== undefined) {
-            // 現在のスクロール位置と保存された位置が異なる場合のみ復元
             if (Math.abs(hContainer.scrollLeft - savedLeft) > 1) {
               hContainer.scrollLeft = savedLeft;
-              console.log(`[GanttView] Restored horizontal scroll: ${hContainer.scrollLeft} -> ${savedLeft}`);
             }
           }
-          if (vContainer && savedTop !== undefined) {
-            if (Math.abs(vContainer.scrollTop - savedTop) > 1) {
-              vContainer.scrollTop = savedTop;
-              console.log(`[GanttView] Restored vertical scroll: ${vContainer.scrollTop} -> ${savedTop}`);
-            }
+          if (savedTop !== undefined && allVertical.length > 0) {
+            const targetTop = Math.max(0, Math.min(savedTop, allVertical[0].scrollHeight - allVertical[0].clientHeight));
+            allVertical.forEach(el => { el.scrollTop = targetTop; });
           }
         };
 
@@ -1071,7 +1131,7 @@ const GanttView: React.FC<GanttViewProps> = memo(
           }, 50);
         });
       }
-    }, []);
+    }, [getScrollContainers, getAllVerticalContainers]);
 
     // タスク選択変更時にスクロール位置を復元する
     // useLayoutEffect を使用して、ブラウザが描画する前にスクロール位置を戻すことでちらつきを防ぐ
@@ -1081,28 +1141,21 @@ const GanttView: React.FC<GanttViewProps> = memo(
         const savedLeft = scrollPositionRef.current.left;
         const savedTop = scrollPositionRef.current.top;
         
-        const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
-        const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
-
-        if (!hContainer && !vContainer) {
+        const { hContainer } = getScrollContainers();
+        const allVertical = getAllVerticalContainers();
+        if (!hContainer && allVertical.length === 0) {
           return;
         }
 
-        // スクロール位置を復元する関数
         const restore = () => {
           if (hContainer && savedLeft !== undefined) {
-            const currentLeft = hContainer.scrollLeft;
-            if (Math.abs(currentLeft - savedLeft) > 1) {
+            if (Math.abs(hContainer.scrollLeft - savedLeft) > 1) {
               hContainer.scrollLeft = savedLeft;
-              console.log(`[GanttView] useLayoutEffect restored horizontal: ${currentLeft} -> ${savedLeft}`);
             }
           }
-          if (vContainer && savedTop !== undefined) {
-            const currentTop = vContainer.scrollTop;
-            if (Math.abs(currentTop - savedTop) > 1) {
-              vContainer.scrollTop = savedTop;
-              console.log(`[GanttView] useLayoutEffect restored vertical: ${currentTop} -> ${savedTop}`);
-            }
+          if (savedTop !== undefined && allVertical.length > 0) {
+            const targetTop = Math.max(0, Math.min(savedTop, allVertical[0].scrollHeight - allVertical[0].clientHeight));
+            allVertical.forEach(el => { el.scrollTop = targetTop; });
           }
         };
 
@@ -1127,16 +1180,16 @@ const GanttView: React.FC<GanttViewProps> = memo(
         if (hContainer) {
           observer.observe(hContainer, { attributes: true, attributeFilter: ['style'], childList: false, subtree: false });
         }
-        if (vContainer) {
-          observer.observe(vContainer, { attributes: true, attributeFilter: ['style'], childList: false, subtree: false });
-        }
+        allVertical.forEach(v => {
+          observer.observe(v, { attributes: true, attributeFilter: ['style'], childList: false, subtree: false });
+        });
 
         // クリーンアップ
         return () => {
           observer.disconnect();
         };
       }
-    }, [selectedTaskId]);
+    }, [selectedTaskId, getScrollContainers, getAllVerticalContainers]);
 
     const handleAuthError = useCallback(() => {
       setAuthErrorOpen(true);
@@ -1205,29 +1258,53 @@ const GanttView: React.FC<GanttViewProps> = memo(
 
     const initializeScrollHandlers = useCallback(() => {
       console.log('初期化: スクロールハンドラー');
+      const verticalSyncState = { cleanup: null as (() => void) | null };
       const setupScrollContainers = () => {
-        const horizontalContainer = document.querySelector('.gantt-horizontal-container');
-        const verticalContainer = document.querySelector('.gantt-vertical-scroll-container');
+        const root = document.getElementById('gantt-container');
+        const horizontalContainer = document.querySelector('.gantt-horizontal-container') as HTMLElement
+          || (root?.querySelector('._CZjuD') as HTMLElement);
+        const verticalContainers = root ? (Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[]) : [];
+        const verticalContainer = document.querySelector('.gantt-vertical-scroll-container') as HTMLElement
+          || verticalContainers[0];
         if (horizontalContainer) {
-          const hContainer = horizontalContainer as HTMLElement;
-          horizontalContainerRef.current = hContainer;
-          window.ganttScrollRef.horizontal = hContainer;
-          hContainer.style.overflowX = 'auto';
-          hContainer.style.touchAction = 'pan-x';
+          horizontalContainerRef.current = horizontalContainer;
+          window.ganttScrollRef.horizontal = horizontalContainer;
+          horizontalContainer.style.overflowX = 'auto';
+          horizontalContainer.style.touchAction = 'pan-x';
         }
         if (verticalContainer) {
-          const vContainer = verticalContainer as HTMLElement;
-          verticalContainerRef.current = vContainer;
-          window.ganttScrollRef.vertical = vContainer;
-          vContainer.style.overflowY = 'auto';
-          vContainer.style.touchAction = 'pan-y';
+          verticalContainerRef.current = verticalContainer;
+          window.ganttScrollRef.vertical = verticalContainer;
+          verticalContainers.forEach(el => {
+            el.style.overflowY = 'auto';
+            el.style.touchAction = 'pan-y';
+          });
+        }
+        verticalSyncState.cleanup?.();
+        if (verticalContainers.length >= 2) {
+          let isSyncing = false;
+          const onVerticalScroll = function (this: HTMLElement) {
+            if (isSyncing) return;
+            isSyncing = true;
+            const top = this.scrollTop;
+            const rootEl = document.getElementById('gantt-container');
+            const allV = rootEl ? (Array.from(rootEl.querySelectorAll('._2B2zv')) as HTMLElement[]) : [];
+            allV.forEach(el => { if (el !== this) el.scrollTop = top; });
+            requestAnimationFrame(() => { isSyncing = false; });
+          };
+          verticalContainers.forEach(el => el.addEventListener('scroll', onVerticalScroll, { passive: true }));
+          verticalSyncState.cleanup = () => {
+            verticalContainers.forEach(el => el.removeEventListener('scroll', onVerticalScroll));
+            verticalSyncState.cleanup = null;
+          };
         }
       };
       setupScrollContainers();
       const handleWheel = (e: WheelEvent) => {
-        const horizontalContainer = horizontalContainerRef.current;
-        const verticalContainer = verticalContainerRef.current;
-        if (!horizontalContainer || !verticalContainer) {
+        const root = document.getElementById('gantt-container');
+        const horizontalContainer = horizontalContainerRef.current || (root?.querySelector('._CZjuD') as HTMLElement);
+        const allVertical: HTMLElement[] = root ? Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[] : ([] as HTMLElement[]);
+        if (!horizontalContainer || allVertical.length === 0) {
           setupScrollContainers();
           return;
         }
@@ -1235,29 +1312,22 @@ const GanttView: React.FC<GanttViewProps> = memo(
         const horizontalStep = e.deltaX * 0.8;
         const verticalStep = e.deltaY * 0.8;
 
-        // Shiftキー + マウスホイールで横スクロール（確実な方法）
         if (e.shiftKey && e.deltaY !== 0) {
-          try {
-            e.preventDefault();
-          } catch (err) {
-            // preventDefaultが失敗した場合は無視
-          }
-          requestAnimationFrame(() => {
-            horizontalContainer.scrollLeft += verticalStep;
-          });
+          try { e.preventDefault(); } catch (_) {}
+          requestAnimationFrame(() => { horizontalContainer.scrollLeft += verticalStep; });
           return;
         }
 
-        // 通常のスクロール処理
-        try {
-          e.preventDefault();
-        } catch (err) {
-          // preventDefaultが失敗した場合は無視
-        }
+        try { e.preventDefault(); } catch (_) {}
 
         requestAnimationFrame(() => {
           if (e.deltaX !== 0) horizontalContainer.scrollLeft += horizontalStep;
-          if (e.deltaY !== 0) verticalContainer.scrollTop += verticalStep;
+          if (e.deltaY !== 0 && allVertical.length > 0) {
+            const first = allVertical[0];
+            const maxTop = Math.max(0, first.scrollHeight - first.clientHeight);
+            const newTop = Math.max(0, Math.min(maxTop, first.scrollTop + verticalStep));
+            allVertical.forEach(el => { el.scrollTop = newTop; });
+          }
         });
       };
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -1266,21 +1336,41 @@ const GanttView: React.FC<GanttViewProps> = memo(
           (document.activeElement as HTMLElement)?.isContentEditable) {
           return;
         }
-        const horizontalContainer = horizontalContainerRef.current;
-        const verticalContainer = verticalContainerRef.current;
-        if (!horizontalContainer || !verticalContainer) return;
+        const root = document.getElementById('gantt-container');
+        const horizontalContainer = horizontalContainerRef.current || (root?.querySelector('._CZjuD') as HTMLElement);
+        const allVertical: HTMLElement[] = root ? Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[] : ([] as HTMLElement[]);
+        if (!horizontalContainer || allVertical.length === 0) return;
         switch (e.key) {
           case 'ArrowLeft': e.preventDefault(); requestAnimationFrame(() => { horizontalContainer.scrollLeft -= 50; }); break;
           case 'ArrowRight': e.preventDefault(); requestAnimationFrame(() => { horizontalContainer.scrollLeft += 50; }); break;
-          case 'ArrowUp': e.preventDefault(); requestAnimationFrame(() => { verticalContainer.scrollTop -= 30; }); break;
-          case 'ArrowDown': e.preventDefault(); requestAnimationFrame(() => { verticalContainer.scrollTop += 30; }); break;
+          case 'ArrowUp': e.preventDefault(); requestAnimationFrame(() => {
+            const newTop = Math.max(0, allVertical[0].scrollTop - 30);
+            allVertical.forEach(el => { el.scrollTop = newTop; });
+          }); break;
+          case 'ArrowDown': e.preventDefault(); requestAnimationFrame(() => {
+            const maxTop = Math.max(0, allVertical[0].scrollHeight - allVertical[0].clientHeight);
+            const newTop = Math.min(maxTop, allVertical[0].scrollTop + 30);
+            allVertical.forEach(el => { el.scrollTop = newTop; });
+          }); break;
         }
       };
       const handleResize = () => { setupScrollContainers(); };
       window.scrollGanttLeft = (amount = 100) => { const c = horizontalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollLeft -= amount; }); };
       window.scrollGanttRight = (amount = 100) => { const c = horizontalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollLeft += amount; }); };
-      window.scrollGanttUp = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop -= amount; }); };
-      window.scrollGanttDown = (amount = 50) => { const c = verticalContainerRef.current; if (c) requestAnimationFrame(() => { c.scrollTop += amount; }); };
+      window.scrollGanttUp = (amount = 50) => {
+        const root = document.getElementById('gantt-container');
+        const allV: HTMLElement[] = root ? Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[] : ([] as HTMLElement[]);
+        if (allV.length) requestAnimationFrame(() => { const t = Math.max(0, allV[0].scrollTop - amount); allV.forEach(el => { el.scrollTop = t; }); });
+      };
+      window.scrollGanttDown = (amount = 50) => {
+        const root = document.getElementById('gantt-container');
+        const allV: HTMLElement[] = root ? Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[] : ([] as HTMLElement[]);
+        if (allV.length) requestAnimationFrame(() => {
+          const maxT = Math.max(0, allV[0].scrollHeight - allV[0].clientHeight);
+          const t = Math.min(maxT, allV[0].scrollTop + amount);
+          allV.forEach(el => { el.scrollTop = t; });
+        });
+      };
       const ganttElement = document.querySelector('.gantt');
       if (ganttElement) {
         // より互換性の高いイベントリスナーの設定
@@ -1293,7 +1383,13 @@ const GanttView: React.FC<GanttViewProps> = memo(
       }
       document.addEventListener('keydown', handleKeyDown);
       window.addEventListener('resize', handleResize);
-      const cleanupData = { ganttElement, wheelHandler: handleWheel, keyHandler: handleKeyDown, resizeHandler: handleResize };
+      const cleanupData = {
+        ganttElement,
+        wheelHandler: handleWheel,
+        keyHandler: handleKeyDown,
+        resizeHandler: handleResize,
+        verticalSyncState,
+      };
       window.__ganttCleanupData = cleanupData;
     }, []);
 
@@ -1301,7 +1397,8 @@ const GanttView: React.FC<GanttViewProps> = memo(
       console.log('クリーンアップ: スクロールハンドラー');
       const cleanupData = window.__ganttCleanupData;
       if (!cleanupData) return;
-      const { ganttElement, wheelHandler, keyHandler, resizeHandler } = cleanupData;
+      const { ganttElement, wheelHandler, keyHandler, resizeHandler, verticalSyncState } = cleanupData;
+      verticalSyncState?.cleanup?.();
       if (ganttElement) ganttElement.removeEventListener('wheel', wheelHandler, { capture: true });
       document.removeEventListener('keydown', keyHandler);
       window.removeEventListener('resize', resizeHandler);
@@ -1504,102 +1601,90 @@ const GanttView: React.FC<GanttViewProps> = memo(
         return originalScrollIntoView.call(this, options);
       };
 
-      // スクロールコンテナを見つけてスクロール可能にする
       const setupScrollContainers = () => {
-        const horizontalContainer = document.querySelector('.gantt-horizontal-container');
-        const verticalContainer = document.querySelector('.gantt-vertical-scroll-container');
+        const root = document.getElementById('gantt-container');
+        const horizontalContainer = document.querySelector('.gantt-horizontal-container') as HTMLElement
+          || (root?.querySelector('._CZjuD') as HTMLElement);
+        const verticalContainers = root ? (Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[]) : [];
+        const verticalContainer = document.querySelector('.gantt-vertical-scroll-container') as HTMLElement
+          || verticalContainers[0];
 
         if (horizontalContainer) {
-          const hContainer = horizontalContainer as HTMLElement;
-          horizontalContainerRef.current = hContainer;
-          window.ganttScrollRef.horizontal = hContainer;
-          hContainer.style.overflowX = 'auto';
-          hContainer.style.touchAction = 'pan-x';
+          horizontalContainerRef.current = horizontalContainer;
+          window.ganttScrollRef.horizontal = horizontalContainer;
+          horizontalContainer.style.overflowX = 'auto';
+          horizontalContainer.style.touchAction = 'pan-x';
         }
-
         if (verticalContainer) {
-          const vContainer = verticalContainer as HTMLElement;
-          verticalContainerRef.current = vContainer;
-          window.ganttScrollRef.vertical = vContainer;
-          vContainer.style.overflowY = 'auto';
-          vContainer.style.touchAction = 'pan-y';
+          verticalContainerRef.current = verticalContainer;
+          window.ganttScrollRef.vertical = verticalContainer;
+          verticalContainers.forEach(el => {
+            el.style.overflowY = 'auto';
+            el.style.touchAction = 'pan-y';
+          });
         }
       };
 
-      // コンテナの初期設定
       setupScrollContainers();
 
-      // ホイールイベントハンドラ - キャプチャフェーズで処理
       const handleWheel = (e: WheelEvent) => {
         e.preventDefault();
-
-        const horizontalContainer = horizontalContainerRef.current;
-        const verticalContainer = verticalContainerRef.current;
-
-        if (!horizontalContainer || !verticalContainer) {
-          // コンテナが見つからない場合は再取得を試みる
+        const root = document.getElementById('gantt-container');
+        const horizontalContainer = horizontalContainerRef.current || (root?.querySelector('._CZjuD') as HTMLElement);
+        const allVertical: HTMLElement[] = root ? Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[] : ([] as HTMLElement[]);
+        if (!horizontalContainer || allVertical.length === 0) {
           setupScrollContainers();
           return;
         }
-
         const horizontalStep = e.deltaX * 0.8;
         const verticalStep = e.deltaY * 0.8;
-
-        // requestAnimationFrameを使用してスムーズなスクロールを実現
         requestAnimationFrame(() => {
-          // シフトキーが押されていると水平スクロールが優先
           if (e.shiftKey) {
             horizontalContainer.scrollLeft += verticalStep;
           } else {
-            // 通常は垂直/水平の両方に対応
-            if (e.deltaX !== 0) {
-              horizontalContainer.scrollLeft += horizontalStep;
-            }
-            if (e.deltaY !== 0) {
-              verticalContainer.scrollTop += verticalStep;
+            if (e.deltaX !== 0) horizontalContainer.scrollLeft += horizontalStep;
+            if (e.deltaY !== 0 && allVertical.length > 0) {
+              const first = allVertical[0];
+              const maxTop = Math.max(0, first.scrollHeight - first.clientHeight);
+              const newTop = Math.max(0, Math.min(maxTop, first.scrollTop + verticalStep));
+              allVertical.forEach(el => { el.scrollTop = newTop; });
             }
           }
         });
       };
 
-      // キーボードイベントハンドラ
       const handleKeyDown = (e: KeyboardEvent) => {
-        // アクティブな要素がテキスト入力の場合はスキップ
         if (document.activeElement?.tagName === 'INPUT' ||
           document.activeElement?.tagName === 'TEXTAREA' ||
           (document.activeElement as HTMLElement)?.isContentEditable) {
           return;
         }
-
-        const horizontalContainer = horizontalContainerRef.current;
-        const verticalContainer = verticalContainerRef.current;
-
-        if (!horizontalContainer || !verticalContainer) return;
-
-        // 矢印キーによるスクロール
+        const root = document.getElementById('gantt-container');
+        const horizontalContainer = horizontalContainerRef.current || (root?.querySelector('._CZjuD') as HTMLElement);
+        const allVertical: HTMLElement[] = root ? Array.from(root.querySelectorAll('._2B2zv')) as HTMLElement[] : ([] as HTMLElement[]);
+        if (!horizontalContainer || allVertical.length === 0) return;
         switch (e.key) {
           case 'ArrowLeft':
             e.preventDefault();
-            requestAnimationFrame(() => {
-              horizontalContainer.scrollLeft -= 50;
-            });
+            requestAnimationFrame(() => { horizontalContainer.scrollLeft -= 50; });
             break;
           case 'ArrowRight':
             e.preventDefault();
-            requestAnimationFrame(() => {
-              horizontalContainer.scrollLeft += 50;
-            });
+            requestAnimationFrame(() => { horizontalContainer.scrollLeft += 50; });
             break;
           case 'ArrowUp':
             e.preventDefault();
             requestAnimationFrame(() => {
-              verticalContainer.scrollTop -= 30;
+              const newTop = Math.max(0, allVertical[0].scrollTop - 30);
+              allVertical.forEach(el => { el.scrollTop = newTop; });
             });
             break;
           case 'ArrowDown':
             e.preventDefault();
             requestAnimationFrame(() => {
-              verticalContainer.scrollTop += 30;
+              const maxTop = Math.max(0, allVertical[0].scrollHeight - allVertical[0].clientHeight);
+              const newTop = Math.min(maxTop, allVertical[0].scrollTop + 30);
+              allVertical.forEach(el => { el.scrollTop = newTop; });
             });
             break;
         }
@@ -1832,6 +1917,7 @@ const GanttView: React.FC<GanttViewProps> = memo(
               type: 'task' as const,
               projectId: String(task.project_id),
               project: getProjectName(task.project_id ?? null, projects || []),
+              assignee: getUserName(task.assigned_to ?? null, users || []),
               dependencies: resolvedDependencies, // ★ 解決済みの依存関係を使用
               styles: getTaskStyle(task),
               isDisabled: readOnly,
@@ -1902,33 +1988,32 @@ const GanttView: React.FC<GanttViewProps> = memo(
     // ★★★ 依存関係を再帰的に取得するヘルパー関数 ★★★
 
 
-    // ★★★ ライブラリ表示用タスクリスト（依存関係を削除 ＆ 関連タスクハイライト） ★★★
-    // これにより、デフォルトの矢印描画を抑制し、クリック時にバーの色を変える
+    // ★★★ ライブラリ表示用タスクリスト：選択タスクと直接つながりのみハイライトし、矢印も選択タスクの出入りのみ ★★★
     const gtrTasksForDisplay = useMemo(() => {
-      // 1. タスクが選択されていない場合はそのまま返す（デフォルトの矢印を表示）
       if (!selectedTaskId) {
         return gtrTasks;
       }
 
-      // 2. 関連タスクのIDを特定
-      const relatedIds = getAllRelatedTaskIds(selectedTaskId, gtrTasks);
+      const directIds = getDirectlyRelatedTaskIds(selectedTaskId, gtrTasks);
 
-      // 3. タスクをフィルタリング・加工して返す（ネイティブの矢印を表示する）
       return gtrTasks.map((t: CustomGtrTask) => {
-        // 関連するタスク (選択タスク含む) -> 依存関係を保持し、色は元のまま
-        if (relatedIds.has(t.id)) {
-          // 依存先も relatedIds に含まれているものだけに絞る（念のため）
-          const filteredDependencies = t.dependencies?.filter(depId => relatedIds.has(depId));
-          return {
-            ...t,
-            dependencies: filteredDependencies // ネイティブの矢印描画を使用するため依存関係を残す
-          };
+        if (directIds.has(t.id)) {
+          // 選択タスクに直接つながるタスク：矢印は「選択タスクに入る／選択タスクから出る」だけにする
+          let dependencies: string[] | undefined;
+          if (t.id === selectedTaskId) {
+            dependencies = t.dependencies ?? []; // 選択タスク → そのまま（親→選択の矢印）
+          } else if (t.dependencies?.includes(selectedTaskId)) {
+            dependencies = [selectedTaskId]; // 選択の子 → 選択だけ（選択→子の矢印）
+          } else {
+            dependencies = []; // 選択の親など → 他矢印は出さない
+          }
+          return { ...t, dependencies };
         }
 
-        // 関連しないタスク -> 依存関係を削除し、薄く表示
+        // 直接つながっていないタスクは薄くし、矢印なし
         return {
           ...t,
-          dependencies: [], // 矢印を表示しない
+          dependencies: [],
           styles: {
             ...t.styles,
             backgroundColor: '#eeeeee',
@@ -2178,104 +2263,31 @@ const GanttView: React.FC<GanttViewProps> = memo(
         return newId;
       });
 
-      // スクロール位置を強制的に維持するための監視と復元
-      const hContainer = horizontalContainerRef.current || document.querySelector('.gantt-horizontal-container') as HTMLElement;
-      const vContainer = verticalContainerRef.current || document.querySelector('.gantt-vertical-scroll-container') as HTMLElement;
-
-      if (!hContainer && !vContainer) {
+      const { hContainer } = getScrollContainers();
+      const allVertical = getAllVerticalContainers();
+      if (!hContainer && allVertical.length === 0) {
         console.warn('[GanttView] Scroll containers not found');
         return;
       }
 
-      // スクロール位置を復元する関数
       const forceRestoreScroll = () => {
         if (hContainer && savedScrollLeft !== undefined) {
-          const currentLeft = hContainer.scrollLeft;
-          if (Math.abs(currentLeft - savedScrollLeft) > 1) {
+          if (Math.abs(hContainer.scrollLeft - savedScrollLeft) > 1) {
             hContainer.scrollLeft = savedScrollLeft;
-            console.log(`[GanttView] Force restored horizontal scroll: ${currentLeft} -> ${savedScrollLeft}`);
           }
         }
-        if (vContainer && savedScrollTop !== undefined) {
-          const currentTop = vContainer.scrollTop;
-          if (Math.abs(currentTop - savedScrollTop) > 1) {
-            vContainer.scrollTop = savedScrollTop;
-            console.log(`[GanttView] Force restored vertical scroll: ${currentTop} -> ${savedScrollTop}`);
-          }
+        if (savedScrollTop !== undefined && allVertical.length > 0) {
+          const targetTop = Math.max(0, Math.min(savedScrollTop, allVertical[0].scrollHeight - allVertical[0].clientHeight));
+          allVertical.forEach(el => { el.scrollTop = targetTop; });
         }
       };
 
-      // スクロールイベントリスナー（意図しないスクロール変更を防ぐ）
-      const handleScroll = () => {
-        forceRestoreScroll();
-      };
-
-      // MutationObserverでDOMの変更を監視（より広範囲に監視）
-      const observer = new MutationObserver(() => {
-        forceRestoreScroll();
-      });
-
-      // 監視を開始
-      if (hContainer) {
-        hContainer.addEventListener('scroll', handleScroll, { passive: true });
-        // より広範囲に監視
-        observer.observe(hContainer, { 
-          attributes: true, 
-          attributeFilter: ['style', 'class'],
-          childList: true,
-          subtree: true
-        });
-      }
-      if (vContainer) {
-        vContainer.addEventListener('scroll', handleScroll, { passive: true });
-        observer.observe(vContainer, { 
-          attributes: true, 
-          attributeFilter: ['style', 'class'],
-          childList: true,
-          subtree: true
-        });
-      }
-
-      // ガントチャートコンテナ全体も監視
-      const ganttContainer = document.querySelector('.gantt-container');
-      if (ganttContainer) {
-        observer.observe(ganttContainer, {
-          attributes: true,
-          attributeFilter: ['style', 'class'],
-          childList: true,
-          subtree: true
-        });
-      }
-
-      // 即座に復元
+      // 即座に復元＋再レンダ直後の数回だけ復元（スクロールをロックしない）
       forceRestoreScroll();
-
-      // より頻繁に復元を試行（ライブラリの再レンダリングを考慮）
-      const restoreAttempts = [0, 5, 10, 20, 30, 50, 100, 150, 200, 300, 400, 500, 750, 1000];
-      restoreAttempts.forEach((delay) => {
-        setTimeout(() => {
-          forceRestoreScroll();
-        }, delay);
+      const restoreDelays = [0, 16, 50, 100];
+      restoreDelays.forEach((delay) => {
+        setTimeout(forceRestoreScroll, delay);
       });
-
-      // requestIdleCallbackを使用して、ブラウザがアイドル状態の時に復元
-      if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(() => {
-          forceRestoreScroll();
-        }, { timeout: 2000 });
-      }
-
-      // 2秒間監視を続ける（通常のスクロール操作を許可）
-      setTimeout(() => {
-        if (hContainer) {
-          hContainer.removeEventListener('scroll', handleScroll);
-        }
-        if (vContainer) {
-          vContainer.removeEventListener('scroll', handleScroll);
-        }
-        observer.disconnect();
-        console.log('[GanttView] Scroll monitoring stopped after 2 seconds');
-      }, 2000);
     };
 
 
@@ -2591,7 +2603,8 @@ const GanttView: React.FC<GanttViewProps> = memo(
           {fetchError && <Alert severity="error" sx={{ mb: 1 }}>{fetchError}</Alert>}
           {error && <Alert severity="warning" sx={{ mb: 1 }}>{error}</Alert>} {/* ★★★ 保存エラー表示を追加 ★★★ */}
 
-          <div
+          <GanttWrapper style={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div
             id="gantt-container"
             className="gantt-container"
             style={{
@@ -2620,15 +2633,11 @@ const GanttView: React.FC<GanttViewProps> = memo(
                   columnWidth={currentColumnWidth} // ★★★ state を使用 ★★★
                   ganttHeight={400}
                   fontFamily='"Roboto", "Helvetica", "Arial", sans-serif'
-                  fontSize='0.65rem' // ★★★ Set base font size (adjust from 0.75rem) ★★★
-
-                  // Styling options (more granular control)
-                  headerHeight={45} // ヘッダー高さ調整
+                  fontSize='0.65rem'
+                  headerHeight={45}
                   rowHeight={30}
                   barCornerRadius={3}
-                  barFill={75} // バーの塗りつぶし率
-                  // barProgressColor="#a3a3ff" // スタイルは getTaskStyle で設定
-                  // barProgressSelectedColor="#8282f3"
+                  barFill={75}
                   handleWidth={8}
                   arrowColor="#37474f"
                   arrowIndent={24}
@@ -2638,10 +2647,12 @@ const GanttView: React.FC<GanttViewProps> = memo(
                   onSelect={handleTaskSelect}
                   TaskListHeader={CustomTaskListHeader}
                   TaskListTable={renderCustomTaskList}
+                  TooltipContent={CustomTooltipContent}
                 />
               </>
             )}
-          </div>
+            </div>
+          </GanttWrapper>
         </Paper>
       </ColumnWidthContext.Provider>
     );

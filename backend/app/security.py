@@ -44,7 +44,7 @@ async def get_current_user(
     """JWT トークンを検証し、対応するユーザーを DB から取得"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="認証の有効期限が切れました。再度ログインしてください。",
         headers={"WWW-Authenticate": "Bearer"},
     )
 

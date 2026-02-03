@@ -74,10 +74,11 @@ api.interceptors.response.use(
       }
       
       // 401エラーの場合、ログアウト処理（トークン無効の場合）
-      if (error.response.status === 401) {
+      // チャットのタスクアクションの 401 はログアウトせず、Dashboard でメッセージ表示する
+      const requestUrl = error.config?.url ?? '';
+      const isChatAction = String(requestUrl).includes('chat/actions/task');
+      if (error.response.status === 401 && !isChatAction) {
         localStorage.removeItem('token');
-        
-        // グローバル認証エラーコールバックが設定されていれば呼び出し
         if (globalAuthErrorCallback) {
           globalAuthErrorCallback();
         }

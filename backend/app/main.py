@@ -108,7 +108,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    # チャットルーター等が security.get_current_user を使うため、同じ SECRET_KEY で発行する
+    encoded_jwt = jwt.encode(to_encode, security.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session = Depends(get_db)) -> models.User:
@@ -119,7 +120,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Se
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, security.SECRET_KEY, algorithms=[ALGORITHM])
         username: str | None = payload.get("sub")  # トークンには username (email) が入っている想定
         if username is None:
             raise credentials_exception

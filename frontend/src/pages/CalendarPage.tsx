@@ -19,9 +19,10 @@ import { debounce } from 'lodash';
 
 // ★★★ バックアップ版から getEventColor, getProjectColor, getTaskColor を移植 ★★★
 const getEventColor = (type?: string): string => {
-  switch (type) {
+  const t = type?.toLowerCase();
+  switch (t) {
     case 'meeting': return '#1976d2';
-    case 'review': return '#9c27b0';
+    case 'review': case 'workshop': return '#00897b';   // ティール（青背景と調和）
     case 'deadline': return '#d32f2f';
     default: return '#2196f3'; // Default blue for generic events
   }
@@ -126,6 +127,7 @@ const CalendarPage: React.FC = () => {
     const { refreshGlobalData } = usePageState();
     
     // デフォルトの種類フィルター（永続化のマージ用）
+    // ※ 'event' はバックエンドが返す「通常」イベントの type に合わせる
     const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
         project: true,
         task: true,
@@ -134,6 +136,7 @@ const CalendarPage: React.FC = () => {
         meeting: true,
         workshop: true,
         generic: true,
+        event: true, // 通常イベント（API が type: "Event" で返す場合）
     };
     // 状態を分離（初期化時はページ状態から取得、context 復元後に上書き）
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -296,7 +299,11 @@ const CalendarPage: React.FC = () => {
                         const project = be.project_id ? projectsData.find(p => p.id === be.project_id) : undefined;
                         // プロジェクトが完了している場合はグレーにする
                         const isCompletedProject = project?.status === 'completed';
-                        const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                        // バックエンドの type を正規化（Event / 未設定 → Generic として表示）
+                        const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
+                            ? be.type
+                            : 'Generic';
+                        const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
                         
                         return {
                     id: `event-${be.id}`,
@@ -307,7 +314,7 @@ const CalendarPage: React.FC = () => {
                             backgroundColor: eventColor,
                             borderColor: eventColor,
                     extendedProps: {
-                                type: be.type || 'Generic',
+                                type: normalizedType,
                         description: be.description ?? undefined,
                         location: be.location ?? undefined,
                         participants: be.participants ?? undefined,
@@ -334,11 +341,7 @@ const CalendarPage: React.FC = () => {
             ]);
             console.log("[fetchData] Total events for calendar after merge and sort:", allCalendarEvents.length);
             
-            // ★★★ 重複を防ぐため、既存のイベントをクリアしてから新しいイベントを設定 ★★★
-            setRawEvents([]); // まず空にする
-            setTimeout(() => {
-                setRawEvents(allCalendarEvents); // 新しいイベントを設定
-            }, 0);
+            setRawEvents(allCalendarEvents);
             
             // グローバルデータも更新（eventsは各ページで生成されるため含めない）
             if (updateGlobalData) {
@@ -384,9 +387,11 @@ const CalendarPage: React.FC = () => {
                             return null;
                         } else {
                             const project = projects.find(p => p.id === be.project_id);
-                            // プロジェクトが完了している場合はグレーにする
                             const isCompletedProject = project?.status === 'completed';
-                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                            const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
+                                ? be.type
+                                : 'Generic';
+                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
                             
                             return {
                                 id: `event-${be.id}`,
@@ -397,7 +402,7 @@ const CalendarPage: React.FC = () => {
                                 backgroundColor: eventColor,
                                 borderColor: eventColor,
                                 extendedProps: {
-                                    type: be.type || 'Generic',
+                                    type: normalizedType,
                                     description: be.description ?? undefined,
                                     location: be.location ?? undefined,
                                     participants: be.participants ?? undefined,
@@ -649,9 +654,11 @@ const CalendarPage: React.FC = () => {
                                 return null;
                             } else {
                                 const project = be.project_id ? globalData.projects?.find(p => p.id === be.project_id) : undefined;
-                                // プロジェクトが完了している場合はグレーにする
                                 const isCompletedProject = project?.status === 'completed';
-                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                                const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
+                                    ? be.type
+                                    : 'Generic';
+                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
                                 
                                 return {
                                     id: `event-${be.id}`,
@@ -662,7 +669,7 @@ const CalendarPage: React.FC = () => {
                                     backgroundColor: eventColor,
                                     borderColor: eventColor,
                                     extendedProps: {
-                                        type: be.type || 'Generic',
+                                        type: normalizedType,
                                         description: be.description ?? undefined,
                                         location: be.location ?? undefined,
                                         participants: be.participants ?? undefined,
@@ -761,7 +768,9 @@ const CalendarPage: React.FC = () => {
 
             // イベントタイプフィルターのチェック（チェックボックスでオンの種類のみ表示）
             const typeKey = (eventType || 'generic').toLowerCase();
-            const typeFilterPass = eventTypeFilter[typeKey] !== false;
+            // 「通常」イベント: type が event / generic のどちらでも generic フィルターで判定
+            const typeKeyForFilter = (typeKey === 'event' || typeKey === 'generic') ? 'generic' : typeKey;
+            const typeFilterPass = eventTypeFilter[typeKeyForFilter] !== false;
 
             // 両方のフィルターを通過したイベントのみ表示
             return projectFilterPass && typeFilterPass;
@@ -1200,9 +1209,11 @@ const CalendarPage: React.FC = () => {
                             return null;
                         } else {
                             const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
-                            // プロジェクトが完了している場合はグレーにする
                             const isCompletedProject = project?.status === 'completed';
-                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                            const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
+                                ? be.type
+                                : 'Generic';
+                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
                             
                             return {
                                 id: `event-${be.id}`,
@@ -1213,7 +1224,7 @@ const CalendarPage: React.FC = () => {
                                 backgroundColor: eventColor,
                                 borderColor: eventColor,
                                 extendedProps: {
-                                    type: be.type || 'Generic',
+                                    type: normalizedType,
                                     description: be.description ?? undefined,
                                     location: be.location ?? undefined,
                                     participants: be.participants ?? undefined,
@@ -1304,9 +1315,11 @@ const CalendarPage: React.FC = () => {
                                 return null;
                             } else {
                                 const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
-                                // プロジェクトが完了している場合はグレーにする
                                 const isCompletedProject = project?.status === 'completed';
-                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(be.type ?? 'Generic');
+                                const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
+                                    ? be.type
+                                    : 'Generic';
+                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
                                 
                                 return {
                                     id: `event-${be.id}`,
@@ -1317,7 +1330,7 @@ const CalendarPage: React.FC = () => {
                                     backgroundColor: eventColor,
                                     borderColor: eventColor,
                                     extendedProps: {
-                                        type: be.type || 'Generic',
+                                        type: normalizedType,
                                         description: be.description ?? undefined,
                                         location: be.location ?? undefined,
                                         participants: be.participants ?? undefined,
@@ -1391,10 +1404,25 @@ const CalendarPage: React.FC = () => {
         }
     };
 
+    // イベント種別の表示ラベル（直感的にわかる日本語）
+    const getEventTypeLabel = (type: string | undefined): string => {
+        if (!type) return '予定';
+        const t = type.toLowerCase();
+        if (t === 'project') return 'プロジェクト';
+        if (t === 'task') return 'タスク';
+        if (t === 'milestone') return 'マイルストーン';
+        if (t === 'deadline') return '締切';
+        if (t === 'meeting') return '会議';
+        if (t === 'workshop') return 'ワークショップ';
+        if (t === 'generic' || t === 'event') return '通常';
+        return type;
+    };
+
     // ★★★ FullCalendar の eventContent を追加して表示をカスタマイズ ★★★
     const renderEventContent = (eventInfo: any) => {
         const { type } = eventInfo.event.extendedProps;
         const title = eventInfo.event.title || '';
+        const typeLabel = getEventTypeLabel(type);
         
         // 複数日にまたがるイベント判定
         const isMultiDay = eventInfo.event.allDay && 
@@ -1405,18 +1433,11 @@ const CalendarPage: React.FC = () => {
         // プロジェクトまたは複数日にまたがる通常イベント
         if (type === 'project' || isMultiDay) {
             return (
-                <div style={{ 
-                    width: '100%', 
-                    overflow: 'hidden',
-                    display: 'block'
-                }}>
-                    <span style={{
-                        display: 'block',
-                        width: '100%',
-                        overflow: 'hidden',
-                        whiteSpace: 'nowrap',
-                        textOverflow: 'ellipsis',
-                    }} title={title}>
+                <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'block' }}>
+                    <span className="calendar-event-type-badge calendar-event-type-project" title={typeLabel}>
+                        {type === 'project' ? 'P' : '予定'}
+                    </span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>
                         {title}
                     </span>
                 </div>
@@ -1426,17 +1447,9 @@ const CalendarPage: React.FC = () => {
         // マイルストーン（Milestone）
         if (type === 'Milestone') {
             return (
-                <div style={{ 
-                    width: '100%', 
-                    overflow: 'hidden',
-                    display: 'block'
-                }}>
-                    <span
-                        className="milestone-event-content"
-                        title={`[MS] ${title}`}
-                    >
-                        [MS] {title}
-                    </span>
+                <div className="calendar-event-inner milestone-event-content" style={{ width: '100%', overflow: 'hidden' }}>
+                    <span className="calendar-event-type-badge" title={typeLabel}>MS</span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
                 </div>
             );
         }
@@ -1444,64 +1457,54 @@ const CalendarPage: React.FC = () => {
         // 締切（Deadline）
         if (type === 'Deadline') {
             return (
-                <div style={{ 
-                    width: '100%', 
-                    overflow: 'hidden',
-                    display: 'block'
-                }}>
-                    <span
-                        className="deadline-event-content"
-                        title={`[締切] ${title}`}
-                    >
-                        [締切] {title}
-                    </span>
+                <div className="calendar-event-inner deadline-event-content" style={{ width: '100%', overflow: 'hidden' }}>
+                    <span className="calendar-event-type-badge calendar-event-type-deadline" title={typeLabel}>締切</span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
                 </div>
             );
         }
         
         // 会議（Meeting）・ワークショップ（Workshop）- 時間を表示
         if (type === 'Meeting' || type === 'Workshop') {
-            // 時間を取得してフォーマット
             const timeText = eventInfo.timeText || '';
-            const displayText = timeText ? `${timeText} ${title}` : title;
-            
+            const displayTitle = timeText ? `${timeText} ${title}` : title;
+            const badge = type === 'Meeting' ? '会議' : 'WS';
             return (
-                <div style={{ 
-                    width: '100%', 
-                    overflow: 'hidden',
-                    display: 'block'
-                }}>
-                    <span style={{
-                        display: 'block',
-                        width: '100%',
-                        overflow: 'hidden',
-                        whiteSpace: 'nowrap',
-                        textOverflow: 'ellipsis',
-                    }} title={displayText}>
-                        {timeText && <span style={{ fontWeight: 'bold' }}>{timeText}</span>}
-                        {timeText && ' '}
-                        {title}
+                <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden' }}>
+                    <span className={`calendar-event-type-badge calendar-event-type-${type === 'Meeting' ? 'meeting' : 'workshop'}`} title={typeLabel}>{badge}</span>
+                    {timeText && <span className="calendar-event-time" style={{ fontWeight: 600 }}>{timeText}</span>}
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={displayTitle}>
+                        {timeText && ' '}{title}
                     </span>
                 </div>
             );
         }
         
-        // タスクなど、単一日のイベント
+        // 通常イベント（Generic / Event）- ラベルを付けてわかりやすく
+        if (type === 'Generic' || (type && type.toLowerCase() === 'generic') || (type && type.toLowerCase() === 'event')) {
+            return (
+                <div className="calendar-event-inner calendar-event-generic" style={{ width: '100%', overflow: 'hidden' }}>
+                    <span className="calendar-event-type-badge calendar-event-type-generic" title={typeLabel}>予定</span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
+                </div>
+            );
+        }
+        
+        // タスク
+        if (type === 'task') {
+            return (
+                <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden' }}>
+                    <span className="calendar-event-type-badge calendar-event-type-task" title={typeLabel}>T</span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
+                </div>
+            );
+        }
+        
+        // その他（ラベル＋タイトル）
         return (
-            <div style={{ 
-                width: '100%', 
-                overflow: 'hidden',
-                display: 'block'
-            }}>
-                <span style={{
-                    display: 'block',
-                    width: '100%',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap',
-                    textOverflow: 'ellipsis',
-                }} title={title}>
-                    {title}
-                </span>
+            <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden' }}>
+                <span className="calendar-event-type-badge" title={typeLabel}>{typeLabel.slice(0, 2)}</span>
+                <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
             </div>
         );
     };
@@ -1792,6 +1795,68 @@ const CalendarPage: React.FC = () => {
                 .fc-daygrid-event.workshop-event:not(.completed-project-event) * {
                     color: #1976d2 !important;
                 }
+                /* カレンダー予定の種別バッジ・直感的表示 */
+                .calendar-event-inner {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    width: 100%;
+                    min-height: 1.2em;
+                    padding: 0 2px;
+                }
+                .calendar-event-type-badge {
+                    flex-shrink: 0;
+                    font-size: 0.65rem;
+                    font-weight: 700;
+                    padding: 1px 4px;
+                    border-radius: 3px;
+                    line-height: 1.2;
+                }
+                .calendar-event-type-generic {
+                    background: #2196f3;
+                    color: #fff;
+                }
+                .calendar-event-type-project {
+                    background: #757575;
+                    color: #fff;
+                }
+                .calendar-event-type-task {
+                    background: #4caf50;
+                    color: #fff;
+                }
+                .calendar-event-type-deadline {
+                    background: #d32f2f;
+                    color: #fff;
+                }
+                .milestone-event-content .calendar-event-type-badge {
+                    background: #d32f2f;
+                    color: #fff;
+                }
+                .calendar-event-type-meeting,
+                .fc-event.meeting-event .calendar-event-type-badge {
+                    background: #1976d2;
+                    color: #fff;
+                }
+                .calendar-event-type-workshop,
+                .fc-event.workshop-event .calendar-event-type-badge {
+                    background: #00897b;
+                    color: #fff;
+                }
+                .calendar-event-title {
+                    flex: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .calendar-event-time {
+                    flex-shrink: 0;
+                    font-size: 0.7rem;
+                }
+                .fc-event.generic-event .fc-event-main,
+                .fc-event.generic-event .fc-event-main * {
+                    color: #fff !important;
+                }
             `}</style>
 
                 <Box sx={{ 
@@ -1873,6 +1938,9 @@ const CalendarPage: React.FC = () => {
                             } else if (type === 'Workshop') {
                                 classes.push('custom-event');
                                 classes.push('workshop-event');
+                            } else if (type === 'Generic' || (type && type.toLowerCase() === 'generic') || (type && type.toLowerCase() === 'event')) {
+                                classes.push('custom-event');
+                                classes.push('generic-event');
                             } else {
                                 classes.push('custom-event');
                             }

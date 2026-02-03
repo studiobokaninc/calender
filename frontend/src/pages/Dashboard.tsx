@@ -25,6 +25,7 @@ import {
   CalendarToday as CalendarTodayIcon,
   Event as EventIcon,
 } from '@mui/icons-material'
+import { format } from 'date-fns'
 import api from '../services/api'
 import { DashboardMetrics, BackendEvent } from '../types'
 import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '../contexts/PageStateContext'
@@ -32,7 +33,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, token: authToken } = useAuth()
   const isAdmin = user?.role === 'admin'
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [loading, setLoading] = useState(true)
@@ -613,6 +614,16 @@ const Dashboard: React.FC = () => {
   // アクションを実行（複数件の場合は順に実行）
   const executeAction = async () => {
     if (!pendingActions || pendingActions.length === 0) return;
+    // タスク操作にはログインが必要（AuthContext のトークンを優先し、localStorage と同期）
+    const token = authToken ?? localStorage.getItem('token');
+    if (!token) {
+      setMessages(prev => [...prev, { role: 'assistant', content: '❌ タスク操作を行うにはログインが必要です。' }]);
+      setPendingActions(null);
+      return;
+    }
+    if (!localStorage.getItem('token')) {
+      localStorage.setItem('token', token);
+    }
     setIsExecutingAction(true);
     const results: string[] = [];
     try {
@@ -622,9 +633,15 @@ const Dashboard: React.FC = () => {
           task_id: pa.task_id,
           task_data: pa.task_data ? { ...pa.task_data } : {},
         };
-        if (pa.action_type === 'create_task' && selectedProjectIdForAction !== '') {
+        if (pa.action_type === 'create_task') {
           payload.task_data = payload.task_data || {};
-          payload.task_data.project_id = selectedProjectIdForAction;
+          if (selectedProjectIdForAction !== '') {
+            payload.task_data.project_id = selectedProjectIdForAction;
+          }
+          // 実行した日付で開始日・終了日を設定
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          payload.task_data.start_date = todayStr;
+          payload.task_data.due_date = todayStr;
         }
         try {
           const response = await api.post('/chat/actions/task', payload);
@@ -634,7 +651,13 @@ const Dashboard: React.FC = () => {
             results.push(`❌ ${response.data.error ?? 'エラー'}`);
           }
         } catch (err: any) {
-          results.push(`❌ ${err.response?.data?.error || err.message || 'エラー'}`);
+          const status = err.response?.status;
+          const data = err.response?.data;
+          const isAuthError = status === 401 || status === 403;
+          const msg = isAuthError
+            ? (data?.error || data?.detail || '認証が必要です。再度ログインしてください。')
+            : (data?.error || data?.detail || err.message || 'エラー');
+          results.push(`❌ ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
         }
       }
       const message = results.length === 1 ? results[0] : results.join('\n');

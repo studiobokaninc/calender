@@ -94,7 +94,7 @@ const getStatusColor = (status?: string): string => {
 const getEventColor = (type?: string): string => {
   switch (type?.toLowerCase()) {
     case 'meeting': return '#1976d2';
-    case 'review': return '#9c27b0';
+    case 'review': return '#00897b';
     case 'deadline': return '#d32f2f';
     case 'milestone': return '#d32f2f';
     default: return '#2196f3'; // Default blue for generic events
@@ -366,7 +366,11 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             </Select>
           </FormControl>
           {/* 表示する予定の種類（チェックボックスで個別にオンオフ） */}
-          <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5, color: 'text.secondary' }}>表示する種類</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary', mr: 1 }}>表示する種類</Typography>
+            <Button size="small" variant="outlined" sx={{ minWidth: 64, py: 0.25, fontSize: '0.75rem' }} onClick={() => ['project', 'task', 'milestone', 'deadline', 'meeting', 'workshop', 'generic', 'event'].forEach((k) => onEventTypeFilterChange(k, true))}>全てオン</Button>
+            <Button size="small" variant="outlined" sx={{ minWidth: 64, py: 0.25, fontSize: '0.75rem' }} onClick={() => ['project', 'task', 'milestone', 'deadline', 'meeting', 'workshop', 'generic', 'event'].forEach((k) => onEventTypeFilterChange(k, false))}>全てオフ</Button>
+          </Box>
           <FormGroup row sx={{ flexWrap: 'wrap', gap: 0 }}>
             <FormControlLabel
               control={<Checkbox size="small" checked={eventTypeFilter.project !== false} onChange={(_, c) => onEventTypeFilterChange('project', c)} />}
@@ -393,8 +397,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               label={<Typography variant="body2">ワークショップ</Typography>}
             />
             <FormControlLabel
-              control={<Checkbox size="small" checked={eventTypeFilter.generic !== false} onChange={(_, c) => onEventTypeFilterChange('generic', c)} />}
-              label={<Typography variant="body2">その他</Typography>}
+              control={<Checkbox size="small" checked={(eventTypeFilter.generic !== false && eventTypeFilter.event !== false)} onChange={(_, c) => { onEventTypeFilterChange('generic', c); onEventTypeFilterChange('event', c); }} />}
+              label={<Typography variant="body2">通常・その他</Typography>}
             />
           </FormGroup>
         </Box>
@@ -427,8 +431,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       case 'deadline': return '締切';
                       case 'meeting': return '会議';
                       case 'review': return 'レビュー';
-                      case 'generic': return 'イベント';
-                      default: return type || 'イベント';
+                      case 'generic': case 'event': return '通常';
+                      default: return type || '通常';
                     }
                   })()} 
                   size="small"
@@ -704,7 +708,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                    {/* メタ情報セクション */}
                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.2 }}>
                      {/* 時間情報（会議、ワークショップ、通常イベント用） */}
-                     {['meeting', 'workshop', 'generic'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && !selectedEvent.allDay && selectedEvent.start && (
+                     {['meeting', 'workshop', 'generic', 'event'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && !selectedEvent.allDay && selectedEvent.start && (
                        <Box sx={{ 
                          p: 1.5, 
                          backgroundColor: 'rgba(33, 150, 243, 0.08)', 
@@ -751,7 +755,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                      
                      {/* ステータス（特定のイベントタイプでは非表示） */}
                      {selectedEvent.extendedProps?.status && 
-                      !['meeting', 'milestone', 'deadline', 'workshop', 'generic'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && (
+                      !['meeting', 'milestone', 'deadline', 'workshop', 'generic', 'event'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && (
                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
                          <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500 }}>
                            ステータス:
@@ -903,8 +907,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                         case 'deadline': return '締切';
                         case 'meeting': return '会議';
                         case 'review': return 'レビュー';
-                        case 'generic': return 'イベント';
-                        default: return type || 'イベント';
+                        case 'generic': case 'event': return '通常';
+                        default: return type || '通常';
                       }
                     })()} 
                     size="small"
@@ -995,7 +999,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     
                     {/* ステータス（タスク・プロジェクト・特定イベントタイプ以外） */}
                     {ev.extendedProps?.status && 
-                     !['task', 'project', 'meeting', 'milestone', 'deadline', 'workshop', 'generic'].includes(ev.extendedProps?.type?.toLowerCase() || '') && (
+                     !['task', 'project', 'meeting', 'milestone', 'deadline', 'workshop', 'generic', 'event'].includes(ev.extendedProps?.type?.toLowerCase() || '') && (
                       <Chip
                         label={ev.extendedProps.status}
                         size="small"
@@ -1032,7 +1036,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
           {/* 日付未選択時の案内 */}
           {selectedEvent === null && !selectedDate && (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 2, p: 1.5, lineHeight: 1.6 }}>
-              カレンダーの日付をクリックすると、その日の予定がここに表示されます。
+              {`カレンダーの日付をクリックすると、その日の予定がここに表示されます。`}
             </Typography>
           )}
         </>

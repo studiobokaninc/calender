@@ -243,6 +243,11 @@ def build_task_list_for_chat(db: Session) -> str:
         id_to_taskname = {t.get("id"): _cell_str(t.get("name"), normalize_text=True) for t in tasks if t.get("id") and t.get("name")}
 
         filtered_tasks = [t for t in tasks if t.get("project_id") in active_project_ids]
+        # チャット送信用: ステータスが complete のタスクを除外
+        filtered_tasks = [
+            t for t in filtered_tasks
+            if (t.get("status") or "").strip().lower() != "completed"
+        ]
 
         for item in filtered_tasks:
             pid = item.get("project_id")

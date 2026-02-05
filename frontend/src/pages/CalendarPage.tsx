@@ -137,6 +137,7 @@ const CalendarPage: React.FC = () => {
         workshop: true,
         generic: true,
         event: true, // 通常イベント（API が type: "Event" で返す場合）
+        group: false, // グループはデフォルトでオフ
     };
     // 状態を分離（初期化時はページ状態から取得、context 復元後に上書き）
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -535,8 +536,8 @@ const CalendarPage: React.FC = () => {
     // ★★★ ローカルのタスク・プロジェクトが変更された場合のみイベントを再生成 ★★★
     useEffect(() => {
         // タスクとプロジェクトが存在し、かつローディング中でない場合のみ実行
-        if ((tasks.length > 0 || projects.length > 0) && !loading) {
-            console.log("[CalendarPage] Regenerating events from tasks and projects");
+        if ((tasks.length > 0 || projects.length > 0 || groups.length > 0) && !loading) {
+            console.log("[CalendarPage] Regenerating events from tasks, projects, and groups");
             
             const taskEvents = tasks
                 .filter(task => task.due_date) // 期日がないタスクは除外
@@ -604,17 +605,48 @@ const CalendarPage: React.FC = () => {
                     }
                 }));
 
+            // グループイベントを生成（プロジェクトと同じ要領）
+            const groupEvents = groups
+                .filter(group => group.start_date) // 開始日がないグループは除外
+                .map(group => ({
+                    id: `group-${group.id}`,
+                    title: group.name || 'Untitled Group',
+                    start: group.start_date ? parseISO(group.start_date) : new Date(),
+                    end: group.end_date ? addDays(parseISO(group.end_date), 1) : undefined, // FullCalendarの終日イベントは排他的なので+1日
+                    allDay: true,
+                    backgroundColor: '#9C27B0', // グループ用の色（紫）
+                    borderColor: '#9C27B0',
+                    extendedProps: {
+                        type: 'group',
+                        groupId: String(group.id),
+                        groupDescription: group.description,
+                        groupStartDate: group.start_date,
+                        groupEndDate: group.end_date,
+                        description: group.description,
+                        location: undefined,
+                        participants: undefined,
+                        taskDueDate: undefined,
+                        taskAssigneeId: undefined,
+                        taskCost: undefined,
+                        taskStatus: undefined,
+                        status: undefined,
+                        displayStatus: undefined,
+                        dependsOn: undefined,
+                    }
+                }));
+
             // バックエンドイベントと統合
             const allCalendarEvents = sortEventsForDisplay([
                 ...projectEvents, 
-                ...taskEvents, 
+                ...taskEvents,
+                ...groupEvents,
                 ...backendEvents
             ]);
             
             console.log("[CalendarPage] Setting rawEvents with", allCalendarEvents.length, "events");
             setRawEvents(allCalendarEvents);
         }
-    }, [tasks, projects, backendEvents, loading]);
+    }, [tasks, projects, groups, backendEvents, loading]);
 
     // タブを開いた時に最新データを取得（バックグラウンド）
     useEffect(() => {
@@ -927,6 +959,13 @@ const CalendarPage: React.FC = () => {
     const handleCloseModal = () => {
         setIsAddModalOpen(false);
     };
+
+    // 編集モーダル表示中は小窓（fc-popover）を背面に回し、モーダルが前面に表示されるようにする
+    useEffect(() => {
+        if (isAddModalOpen) document.body.classList.add('calendar-modal-open');
+        else document.body.classList.remove('calendar-modal-open');
+        return () => document.body.classList.remove('calendar-modal-open');
+    }, [isAddModalOpen]);
 
     // ★★★ handleSaveEvent の API コール部分のコメントアウトを解除 ★★★
     const handleSaveEvent = async (
@@ -1773,17 +1812,27 @@ const CalendarPage: React.FC = () => {
                     background: #9E9E9E !important;
                     color: #fff !important;
                 }
-                /* 「+N件」リンクのスタイル（クリック不可、情報表示のみ） */
+                /* 「+N件」リンクのスタイル（クリックで折りたたみ分を小窓表示） */
                 .fc-more-link {
                     display: block;
                     padding: 2px 4px;
                     font-size: 0.75rem;
                     color: #1976d2;
-                    cursor: default;
+                    cursor: pointer;
                     text-align: left;
                     white-space: nowrap;
-                    pointer-events: none;
                     text-decoration: none;
+                }
+                .fc-more-link:hover {
+                    text-decoration: underline;
+                }
+                /* ポップオーバー（+N件クリック時の小窓）を前面に表示 */
+                .fc-popover {
+                    z-index: 1100;
+                }
+                /* 編集モーダル表示中は小窓を背面に回す（モーダルが前面に） */
+                body.calendar-modal-open .fc-popover {
+                    z-index: 0;
                 }
                 /* 会議・ワークショップのデフォルト表示（完了していないプロジェクト用） - 締切と同じようにバーなし */
                 .fc-event.meeting-event,
@@ -1978,6 +2027,7 @@ const CalendarPage: React.FC = () => {
                         }}
                         dayMaxEventRows={5}
                         dayMaxEvents={5}
+                        moreLinkClick="popover"
                         moreLinkContent={(arg) => `+${arg.num}件`}
                         dayCellDidMount={handleDayCellMount}
                         selectable={false}

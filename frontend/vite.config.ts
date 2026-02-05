@@ -52,6 +52,15 @@ export default defineConfig({
         target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
+      // Groups endpoints: Forward directly (includes /api)
+      '/api/groups': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: true,
+      },
+      '/api/user_groups': {
+        target: 'http://127.0.0.1:8001',
+        changeOrigin: true,
+      },
       // Other API endpoints: Forward and remove /api prefix
       '/api': {
         target: 'http://127.0.0.1:8001',

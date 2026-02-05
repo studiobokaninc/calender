@@ -156,6 +156,8 @@ class Group(Base):
     name: Mapped[str] = mapped_column(index=True)
     description: Mapped[Optional[str]] = mapped_column(Text)
     type: Mapped[Optional[GroupType]] = mapped_column()
+    start_date: Mapped[Optional[datetime]] = mapped_column()
+    end_date: Mapped[Optional[datetime]] = mapped_column()
     created_at: Mapped[Optional[datetime]] = mapped_column()
     updated_at: Mapped[Optional[datetime]] = mapped_column()
 

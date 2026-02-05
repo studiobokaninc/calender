@@ -152,6 +152,10 @@ export interface Group {
   name: string;
   description?: string;
   type?: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   // Add other group properties
 }
 

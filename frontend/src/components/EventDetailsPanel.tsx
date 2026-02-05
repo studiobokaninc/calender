@@ -309,6 +309,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     switch (t) {
       case 'project': return <FolderIcon sx={{ mr: 1, color: 'inherit' }} fontSize="small" />;
       case 'task': return <TaskAltIcon sx={{ mr: 1, color: 'inherit' }} fontSize="small" />;
+      case 'group': return <GroupIcon sx={{ mr: 1, color: 'inherit' }} fontSize="small" />;
       case 'milestone': return <EventIcon sx={{ mr: 1, color: 'inherit' }} fontSize="small" />;
       case 'deadline': return <EventIcon sx={{ mr: 1, color: 'inherit' }} fontSize="small" />;
       case 'meeting': return <EventIcon sx={{ mr: 1, color: 'inherit' }} fontSize="small" />;
@@ -325,6 +326,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     const type = event.extendedProps?.type;
     if (type === 'project') return getProjectColor({ status: event.extendedProps?.projectStatus ?? undefined });
     if (type === 'task') return getTaskColor(event.extendedProps?.taskStatus ?? 'todo');
+    if (type === 'group') return '#9C27B0'; // グループは紫
     return getEventColor(type);
   };
 
@@ -333,6 +335,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     const type = ev.extendedProps?.type?.toLowerCase?.();
     if (type === 'milestone') return '#d32f2f'; // マイルストーンは常に赤
     if (type === 'project') return getProjectColor({ status: ev.extendedProps?.projectStatus ?? undefined });
+    if (type === 'group') return '#9C27B0'; // グループは紫
     if (type === 'task') return getTaskColor(ev.extendedProps?.taskStatus ?? 'todo');
     if (type === 'milestone' || type === 'deadline') return getEventColor(type);
     return getEventColor(type);
@@ -396,8 +399,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
           {/* 表示する予定の種類（チェックボックスで個別にオンオフ） */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
             <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.secondary', mr: 1 }}>表示する種類</Typography>
-            <Button size="small" variant="outlined" sx={{ minWidth: 64, py: 0.25, fontSize: '0.75rem' }} onClick={() => ['project', 'task', 'milestone', 'deadline', 'meeting', 'workshop', 'generic', 'event'].forEach((k) => onEventTypeFilterChange(k, true))}>全てオン</Button>
-            <Button size="small" variant="outlined" sx={{ minWidth: 64, py: 0.25, fontSize: '0.75rem' }} onClick={() => ['project', 'task', 'milestone', 'deadline', 'meeting', 'workshop', 'generic', 'event'].forEach((k) => onEventTypeFilterChange(k, false))}>全てオフ</Button>
+            <Button size="small" variant="outlined" sx={{ minWidth: 64, py: 0.25, fontSize: '0.75rem' }} onClick={() => ['project', 'task', 'milestone', 'deadline', 'meeting', 'workshop', 'generic', 'event', 'group'].forEach((k) => onEventTypeFilterChange(k, true))}>全てオン</Button>
+            <Button size="small" variant="outlined" sx={{ minWidth: 64, py: 0.25, fontSize: '0.75rem' }} onClick={() => ['project', 'task', 'milestone', 'deadline', 'meeting', 'workshop', 'generic', 'event', 'group'].forEach((k) => onEventTypeFilterChange(k, false))}>全てオフ</Button>
           </Box>
           <FormGroup row sx={{ flexWrap: 'wrap', gap: 0 }}>
             <FormControlLabel
@@ -427,6 +430,10 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             <FormControlLabel
               control={<Checkbox size="small" checked={(eventTypeFilter.generic !== false && eventTypeFilter.event !== false)} onChange={(_, c) => { onEventTypeFilterChange('generic', c); onEventTypeFilterChange('event', c); }} />}
               label={<Typography variant="body2">通常・その他</Typography>}
+            />
+            <FormControlLabel
+              control={<Checkbox size="small" checked={eventTypeFilter.group !== false} onChange={(_, c) => onEventTypeFilterChange('group', c)} />}
+              label={<Typography variant="body2">グループ</Typography>}
             />
           </FormGroup>
         </Box>
@@ -460,6 +467,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     switch(type?.toLowerCase()) {
                       case 'task': return 'タスク';
                       case 'project': return 'プロジェクト';
+                      case 'group': return 'グループ';
                       case 'milestone': return 'マイルストーン';
                       case 'deadline': return '締切';
                       case 'meeting': return '会議';
@@ -476,7 +484,9 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       ? getTaskColor(selectedEvent.extendedProps?.taskStatus ?? 'todo')
                       : selectedEvent.extendedProps?.type === 'project'
                         ? getProjectColor({ status: selectedEvent.extendedProps?.projectStatus ?? undefined })
-                        : getEventColor(selectedEvent.extendedProps?.type ?? undefined),
+                        : selectedEvent.extendedProps?.type === 'group'
+                          ? '#9C27B0'
+                          : getEventColor(selectedEvent.extendedProps?.type ?? undefined),
                     color: '#fff'
                   }}
                 />
@@ -724,7 +734,17 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   )}
                 </>
               )}
-              {!['task', 'project'].includes(selectedEvent.extendedProps?.type || '') && (
+              {selectedEvent.extendedProps?.type === 'group' && (
+                <>
+                  {selectedEvent.extendedProps?.groupDescription && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                      {selectedEvent.extendedProps.groupDescription}
+                    </Typography>
+                  )}
+                  <Divider sx={{ my: 1.5 }} />
+                </>
+              )}
+              {!['task', 'project', 'group'].includes(selectedEvent.extendedProps?.type || '') && (
                  <>
                    {/* 説明 */}
                    {selectedEvent.extendedProps?.description && (
@@ -927,6 +947,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       switch(type?.toLowerCase()) {
                         case 'task': return 'タスク';
                         case 'project': return 'プロジェクト';
+                        case 'group': return 'グループ';
                         case 'milestone': return 'マイルストーン';
                         case 'deadline': return '締切';
                         case 'meeting': return '会議';

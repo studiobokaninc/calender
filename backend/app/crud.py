@@ -223,6 +223,35 @@ def complete_tasks_for_project(db: Session, project_id: int) -> int:
 
 # --- Task CRUD ---
 
+def auto_update_tasks_start_date_to_in_progress(db: Session) -> None:
+    """開始日を迎えた「未着手」タスクのステータスを「進行中」に更新する。未着手のみ更新（完了・進行中・レビュー中・遅延は触らない）。"""
+    now = now_jst_naive()
+    now_date = now.date()
+    candidates = db.query(models.Task).filter(
+        models.Task.start_date.isnot(None),
+        models.Task.status == models.TaskStatus.TODO,
+    ).all()
+    updated = 0
+    for db_task in candidates:
+        if not db_task.start_date:
+            continue
+        start_date_val = db_task.start_date.date() if hasattr(db_task.start_date, 'date') else db_task.start_date
+        if start_date_val > now_date:
+            continue
+        db_task.status = models.TaskStatus.IN_PROGRESS
+        db_task.updated_at = now
+        db.add(models.TaskStatusHistory(
+            task_id=db_task.id,
+            status=models.TaskStatus.IN_PROGRESS,
+            changed_at=now,
+            changed_by=db_task.assigned_to,
+        ))
+        logger.info(f"タスク {db_task.id} のステータスを TODO から IN_PROGRESS に自動更新しました（開始日到達）")
+        updated += 1
+    if updated:
+        db.commit()
+
+
 def get_task(db: Session, task_id: int) -> models.Task | None:
     """ID でタスクを取得"""
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
@@ -233,9 +262,12 @@ def get_task(db: Session, task_id: int) -> models.Task | None:
 def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None) -> list[dict]:
     """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)"""
     try:
+        # 開始日を迎えた未着手タスクを進行中に自動更新（1回の取得につき1回だけ実行）
+        auto_update_tasks_start_date_to_in_progress(db)
+
         # SQLAlchemyを使わず、直接SQL文でデータ取得（Enum検証を回避）
         from sqlalchemy import text
-        
+
         query_parts = ["SELECT * FROM tasks"]
         conditions = []
         params = {}

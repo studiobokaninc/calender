@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Box, Typography, Button, CircularProgress, Paper, 
   IconButton, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, 
@@ -6,13 +6,14 @@ import {
   CardContent, Chip, Grid, Tooltip, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme
 } from '@mui/material';
-import { User, Task, Project } from '../types';
+import { User, Task, Project, UserGroup, Group } from '../types';
 import api from '../services/api';
 import { 
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, 
   Assignment as AssignmentIcon,
   Person as PersonIcon,
-  Today as TodayIcon, Warning as WarningIcon, Schedule as ScheduleIcon
+  Today as TodayIcon, Warning as WarningIcon, Schedule as ScheduleIcon,
+  Group as GroupIcon
 } from '@mui/icons-material';
 import UserAddModal, { NewUserData } from '../components/UserAddModal';
 import { SelectChangeEvent } from '@mui/material';
@@ -95,6 +96,8 @@ const UserManagementPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [userTaskInfo, setUserTaskInfo] = useState<Record<number, UserTaskInfo>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,17 +144,60 @@ const UserManagementPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [usersResponse, tasksResponse, projectsResponse] = await Promise.all([
-        api.get<User[]>('/api/users'),
-        api.get<Task[]>('/tasks'),
-        api.get<Project[]>('/projects')
+      const [usersResponse, tasksResponse, projectsResponse, groupsResponse] = await Promise.all([
+        api.get<User[]>('/users').catch(err => {
+          console.error("Failed to fetch users:", err);
+          throw new Error(`ユーザーデータの取得に失敗しました: ${err.response?.data?.detail || err.message}`);
+        }),
+        api.get<Task[]>('/tasks').catch(err => {
+          console.error("Failed to fetch tasks:", err);
+          throw new Error(`タスクデータの取得に失敗しました: ${err.response?.data?.detail || err.message}`);
+        }),
+        api.get<Project[]>('/projects').catch(err => {
+          console.error("Failed to fetch projects:", err);
+          throw new Error(`プロジェクトデータの取得に失敗しました: ${err.response?.data?.detail || err.message}`);
+        }),
+        api.get<Group[]>('/groups').catch(err => {
+          console.error("Failed to fetch groups:", err);
+          // グループデータの取得失敗は警告のみ（グループ機能が使えないだけ）
+          console.warn("グループデータの取得に失敗しましたが、続行します");
+          return { data: [] };
+        })
       ]);
       setUsers(usersResponse.data);
       setTasks(tasksResponse.data);
       setProjects(projectsResponse.data);
-    } catch (err) {
+      setGroups(groupsResponse.data || []);
+      
+      // 全ユーザーのグループ所属情報を取得
+      if (usersResponse.data.length > 0) {
+        try {
+          const userGroupPromises = usersResponse.data.map(user => 
+            api.get<UserGroup[]>(`/user_groups?user_id=${user.id}`).catch(err => {
+              console.warn(`Failed to fetch user groups for user ${user.id}:`, err);
+              return { data: [] };
+            })
+          );
+          const userGroupResponses = await Promise.all(userGroupPromises);
+          const allUserGroups: UserGroup[] = [];
+          userGroupResponses.forEach(response => {
+            if (response.data && Array.isArray(response.data)) {
+              allUserGroups.push(...response.data);
+            }
+          });
+          console.log('[UserManagementPage] Fetched user groups:', allUserGroups.length, 'memberships');
+          setUserGroups(allUserGroups);
+        } catch (err) {
+          console.warn("Failed to fetch user groups, continuing without group data:", err);
+          setUserGroups([]);
+        }
+      } else {
+        setUserGroups([]);
+      }
+    } catch (err: any) {
       console.error("Error fetching data:", err);
-      setError('データの取得に失敗しました。');
+      const errorMessage = err?.message || err?.response?.data?.detail || 'データの取得に失敗しました。';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -484,10 +530,63 @@ const UserManagementPage: React.FC = () => {
     return info && info.totalTasks > 0;
   });
 
-  const usersWithoutTasks = users.filter(user => {
-    const info = userTaskInfo[user.id];
-    return !info || info.totalTasks === 0;
-  });
+  // グループに所属しているユーザーIDのセット
+  const usersInGroups = useMemo(() => {
+    const userIds = new Set<number>();
+    userGroups.forEach(ug => {
+      if (ug && ug.user_id) {
+        userIds.add(ug.user_id);
+      }
+    });
+    console.log('[UserManagementPage] usersInGroups calculated:', {
+      userGroupsCount: userGroups.length,
+      uniqueUserIds: Array.from(userIds),
+      userGroups: userGroups
+    });
+    return userIds;
+  }, [userGroups]);
+
+  // ユーザーごとのグループ情報をマッピング
+  const userGroupMap = useMemo(() => {
+    const map = new Map<number, Group[]>();
+    const groupMap = new Map<number, Group>();
+    groups.forEach(g => groupMap.set(g.id, g));
+    
+    userGroups.forEach(ug => {
+      const group = groupMap.get(ug.group_id);
+      if (group) {
+        if (!map.has(ug.user_id)) {
+          map.set(ug.user_id, []);
+        }
+        map.get(ug.user_id)!.push(group);
+      }
+    });
+    return map;
+  }, [userGroups, groups]);
+
+  // グループに所属しているユーザー（タスクを持っていないユーザーも含む）
+  const usersInGroupsList = useMemo(() => {
+    return users.filter(user => usersInGroups.has(user.id));
+  }, [users, usersInGroups]);
+
+  // タスク未担当ユーザー（グループ所属ユーザーは除外）
+  const usersWithoutTasks = useMemo(() => {
+    const filtered = users.filter(user => {
+      const info = userTaskInfo[user.id];
+      const hasTasks = info && info.totalTasks > 0;
+      const isInGroup = usersInGroups.has(user.id);
+      
+      // グループに所属しているユーザーはタスク未担当リストから除外
+      if (isInGroup) {
+        return false;
+      }
+      
+      // タスクを持っていないユーザーのみ
+      return !hasTasks;
+    });
+    console.log('[UserManagementPage] usersWithoutTasks calculated:', filtered.length, 'users');
+    return filtered;
+  }, [users, userTaskInfo, usersInGroups]);
 
   const theme = useTheme();
   const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
@@ -678,6 +777,136 @@ const UserManagementPage: React.FC = () => {
                                     </Tooltip>
                                   ))}
                                 </Box>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Paper>
+            </Grid>
+          )}
+
+          {/* グループ所属ユーザーリスト */}
+          {usersInGroupsList.length > 0 && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, mb: 2, overflow: 'auto' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <GroupIcon sx={{ mr: 1, color: 'secondary.main' }} />
+                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                    グループ所属ユーザー（{usersInGroupsList.length}名）
+                  </Typography>
+                </Box>
+                {isNarrow ? (
+                  /* 縦リスト: ユーザーごとにカード、中に所属グループを表示 */
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {usersInGroupsList.map((user) => {
+                      const userGroupsList = userGroupMap.get(user.id) || [];
+                      return (
+                        <Card key={user.id} variant="outlined" sx={{ borderLeft: '4px solid #9C27B0' }}>
+                          <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Avatar src={user.iconUrl} sx={{ width: 36, height: 36 }}>
+                                  {(user.name || user.username || '')?.[0]?.toUpperCase()}
+                                </Avatar>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
+                                {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" />}
+                              </Box>
+                              {isAdmin && (
+                                <Box>
+                                  <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
+                                  <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
+                                </Box>
+                              )}
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" sx={{ color: '#9C27B0', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                <GroupIcon fontSize="small" /> 所属グループ
+                              </Typography>
+                              {userGroupsList.length > 0 ? (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {userGroupsList.map((group) => (
+                                    <Chip 
+                                      key={group.id} 
+                                      label={group.name} 
+                                      size="small" 
+                                      sx={{ 
+                                        bgcolor: '#E1BEE7', 
+                                        color: '#7B1FA2', 
+                                        fontWeight: 600,
+                                        maxWidth: 200,
+                                      }} 
+                                    />
+                                  ))}
+                                </Box>
+                              ) : (
+                                <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                  グループ未所属
+                                </Typography>
+                              )}
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </Box>
+                ) : (
+                  /* 横: テーブル 1行＝1ユーザー、列＝所属グループ */
+                  <TableContainer>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>ユーザー</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 300, bgcolor: '#F3E5F5', color: '#9C27B0' }}>
+                            <GroupIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />所属グループ
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {usersInGroupsList.map((user) => {
+                          const userGroupsList = userGroupMap.get(user.id) || [];
+                          return (
+                            <TableRow key={user.id} hover sx={{ borderLeft: '4px solid #9C27B0' }}>
+                              <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                  <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
+                                    {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ mt: 0.25 }} />}
+                                  </Box>
+                                  {isAdmin && (
+                                    <Box sx={{ ml: 'auto' }}>
+                                      <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
+                                      <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
+                                    </Box>
+                                  )}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(156, 39, 176, 0.04)' }}>
+                                {userGroupsList.length > 0 ? (
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {userGroupsList.map((group) => (
+                                      <Chip 
+                                        key={group.id} 
+                                        label={group.name} 
+                                        size="small" 
+                                        sx={{ 
+                                          bgcolor: '#E1BEE7', 
+                                          color: '#7B1FA2', 
+                                          fontWeight: 600,
+                                          cursor: 'default',
+                                        }} 
+                                      />
+                                    ))}
+                                  </Box>
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                    グループ未所属
+                                  </Typography>
+                                )}
                               </TableCell>
                             </TableRow>
                           );

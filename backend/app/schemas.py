@@ -82,6 +82,8 @@ class EventResponse(EventBase):
 class GroupBase(BaseModel):
     name: str
     description: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     # Add other fields like type if needed
 
 class GroupCreate(GroupBase):
@@ -91,6 +93,8 @@ class GroupCreate(GroupBase):
 class GroupUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
 
 
 class GroupResponse(GroupBase):

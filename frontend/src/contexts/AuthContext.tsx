@@ -45,12 +45,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const response = await api.get<User>('/users/me');
           console.log("User info retrieved successfully:", response.data);
           setUser(response.data);
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to verify token or fetch user:', error);
-          // 認証エラーの場合はトークンを削除
-          localStorage.removeItem('token');
-          setToken(null);
-          setUser(null);
+          
+          // タイムアウトエラーの場合は、トークンを削除せずに警告のみ（サーバーが起動していない可能性）
+          if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+            console.warn('サーバーへの接続がタイムアウトしました。バックエンドサーバーが起動しているか確認してください。');
+            // トークンは保持（サーバーが起動したら再認証できるように）
+          } else {
+            // 認証エラーの場合はトークンを削除
+            localStorage.removeItem('token');
+            setToken(null);
+            setUser(null);
+          }
         }
       } else {
         console.log("No token found in localStorage");
@@ -114,8 +121,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(null);
       setUser(null);
       
+      // タイムアウトエラーの場合
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        throw new Error('サーバーに接続できません。バックエンドサーバーが起動しているか確認してください。');
+      }
+      
+      // ネットワークエラーの場合
+      if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+        throw new Error('ネットワークエラーが発生しました。サーバーに接続できません。');
+      }
+      
       // Rethrow for UI error handling
-      throw new Error(error.response?.data?.detail || 'ログインに失敗しました');
+      throw new Error(error.response?.data?.detail || 'ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
     }
   };
 

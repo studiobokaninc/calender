@@ -20,8 +20,10 @@ import NotesPage from './pages/NotesPage'; // ← メモページを追加
 // import Tasks from './pages/Tasks'; // TasksPageを使うためコメントアウト
 // import UserProfile from './pages/UserProfile'; // Import UserProfile
 // ★★★ AdminRoute をインポート ★★★
-import AdminRoute from './components/AdminRoute'; 
-import MockDataConsole from './components/MockDataConsole'; // ★★★ インポート ★★★
+import AdminRoute from './components/AdminRoute';
+import AdminOnlyRoute from './components/AdminOnlyRoute';
+import MockDataConsole from './components/MockDataConsole';
+import ChatPage from './pages/ChatPage';
 
 // ★★★ PrivateRoute component ★★★
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -39,9 +41,11 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
-// Wrapper components (can add later if needed)
-// const PrivateRoute = ...
-// const AdminRoute = ...
+/** ロールに応じたデフォルトリダイレクト（管理者→カレンダー、一般→チャット） */
+const DefaultRedirect: React.FC = () => {
+  const { user } = useAuth();
+  return <Navigate to={user?.role === 'admin' ? '/calendar' : '/chat'} replace />;
+};
 
 const App: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -59,7 +63,7 @@ const App: React.FC = () => {
       <Box sx={{ display: 'flex', height: '100vh', width: '100%' }}>
         <CssBaseline /> {/* MUI base styles */} 
         <Routes>
-        <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/calendar" replace />} />
+        <Route path="/login" element={!isAuthenticated ? <Login /> : <DefaultRedirect />} />
 
         {/* ★★★ End of Restore Test Route ★★★ */}
 
@@ -74,21 +78,20 @@ const App: React.FC = () => {
             </PrivateRoute>
           }
         >
-          {/* Default route redirects to calendar */} 
-          <Route index element={<Navigate to="/calendar" replace />} /> 
-          <Route path="calendar" element={<CalendarPage />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="projects" element={<ProjectsPage />} />
-          <Route path="tasks" element={<TasksPage />} />
-          <Route path="notes" element={<NotesPage />} />
-          {/* イベント管理ページをメトリクスページの該当タブにリダイレクト */}
-          <Route path="events" element={<Navigate to="/metrics?tab=events" replace />} />
-          {/* ★ プロジェクト詳細ページのルートを追加 ★ */}
-          <Route path="projects/:projectId" element={<ProjectDetailPage />} />
-          {/* ユーザーページは認証済みなら誰でも閲覧可能（編集は管理者のみ・ページ内で制御） */}
-          <Route path="admin/users" element={<UserManagementPage />} />
-          {/* Catch-all for non-admin authenticated routes */}
-          <Route path="*" element={<Navigate to="/calendar" replace />} />
+          {/* デフォルト: 管理者はカレンダー、一般ユーザーはチャット */}
+          <Route index element={<DefaultRedirect />} />
+          {/* 一般ユーザーもアクセス可能: 専用チャットページのみ */}
+          <Route path="chat" element={<ChatPage />} />
+          {/* 以下は管理者のみ（一般ユーザーは /chat にリダイレクト） */}
+          <Route path="calendar" element={<AdminOnlyRoute><CalendarPage /></AdminOnlyRoute>} />
+          <Route path="dashboard" element={<AdminOnlyRoute><Dashboard /></AdminOnlyRoute>} />
+          <Route path="projects" element={<AdminOnlyRoute><ProjectsPage /></AdminOnlyRoute>} />
+          <Route path="tasks" element={<AdminOnlyRoute><TasksPage /></AdminOnlyRoute>} />
+          <Route path="notes" element={<AdminOnlyRoute><NotesPage /></AdminOnlyRoute>} />
+          <Route path="events" element={<AdminOnlyRoute><Navigate to="/metrics?tab=events" replace /></AdminOnlyRoute>} />
+          <Route path="projects/:projectId" element={<AdminOnlyRoute><ProjectDetailPage /></AdminOnlyRoute>} />
+          <Route path="admin/users" element={<AdminOnlyRoute><UserManagementPage /></AdminOnlyRoute>} />
+          <Route path="*" element={<DefaultRedirect />} />
         </Route>
 
         {/* --- Admin Routes --- */}

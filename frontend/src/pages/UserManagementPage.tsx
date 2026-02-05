@@ -3,18 +3,55 @@ import {
   Box, Typography, Button, CircularProgress, Paper, 
   IconButton, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, 
   TextField, FormControl, InputLabel, Select, MenuItem, Snackbar, Alert, Card, 
-  CardContent, CardHeader, Collapse, Chip, Divider, Grid, Badge
+  CardContent, Chip, Grid, Tooltip, Stack,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme
 } from '@mui/material';
 import { User, Task, Project } from '../types';
 import api from '../services/api';
 import { 
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, 
-  ExpandMore as ExpandMoreIcon, Assignment as AssignmentIcon,
-  Person as PersonIcon, Work as WorkIcon, AccessTime as AccessTimeIcon
+  Assignment as AssignmentIcon,
+  Person as PersonIcon,
+  Today as TodayIcon, Warning as WarningIcon, Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import UserAddModal, { NewUserData } from '../components/UserAddModal';
 import { SelectChangeEvent } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid, format } from 'date-fns';
+
+/** タスクの表示カテゴリ（今日 / 遅延 / 期限間近 / その他）。1タスク1カテゴリで重複表示しない */
+export type TaskDisplayCategory = 'today' | 'delayed' | 'dueSoon' | 'other';
+
+const DUE_SOON_DAYS = 3; // 期限「間近」の日数
+
+/** タスクがどのカテゴリに属するか（優先度: 今日 > 遅延 > 期限間近 > その他） */
+function getTaskCategory(task: Task): TaskDisplayCategory {
+  if (!task.due_date) return 'other';
+  const due = parseISO(task.due_date);
+  if (!isValid(due)) return 'other';
+  const dueDate = startOfDay(due);
+  const today = startOfDay(new Date());
+  if (isSameDay(dueDate, today)) return 'today';
+  if (isBefore(dueDate, today)) return 'delayed';
+  const limit = addDays(today, DUE_SOON_DAYS);
+  if (isBefore(dueDate, limit) || isSameDay(dueDate, limit)) return 'dueSoon';
+  return 'other';
+}
+
+/** ユーザーごとのタスクを今日/遅延/期限間近/その他に分割（重複なし） */
+function partitionTasksByCategory(tasks: Task[]): Record<TaskDisplayCategory, Task[]> {
+  const result: Record<TaskDisplayCategory, Task[]> = {
+    today: [],
+    delayed: [],
+    dueSoon: [],
+    other: []
+  };
+  tasks.forEach(task => {
+    const cat = getTaskCategory(task);
+    result[cat].push(task);
+  });
+  return result;
+}
 
 interface EditUserData {
   id: string;
@@ -33,6 +70,24 @@ interface UserTaskInfo {
   totalCost: number; // コスト合計（所要時間の目安）
 }
 
+/** タスク編集ダイアログ用フォームデータ */
+interface TaskFormData {
+  id: number | null;
+  name: string;
+  description: string;
+  status: string;
+  priority: string;
+  assigned_to: number | null;
+  project_id: number | null;
+  start_date: string;
+  due_date: string;
+  cost: number;
+  type: string;
+  seqID: string;
+  shotID: string;
+  dependsOn: string[];
+}
+
 const UserManagementPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
@@ -41,16 +96,35 @@ const UserManagementPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [userTaskInfo, setUserTaskInfo] = useState<Record<number, UserTaskInfo>>({});
-  const [expandedUsers, setExpandedUsers] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentEditUser, setCurrentEditUser] = useState<EditUserData | null>(null);
+  const [editPassword, setEditPassword] = useState('');
+  const [editConfirmPassword, setEditConfirmPassword] = useState('');
+  const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success' | 'error'}>({
     open: false,
     message: '',
     severity: 'success'
+  });
+  const [taskEditDialogOpen, setTaskEditDialogOpen] = useState(false);
+  const [currentEditTask, setCurrentEditTask] = useState<TaskFormData>({
+    id: null,
+    name: '',
+    description: '',
+    status: 'todo',
+    priority: 'low',
+    assigned_to: null,
+    project_id: null,
+    start_date: format(new Date(), 'yyyy-MM-dd'),
+    due_date: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+    cost: 0,
+    type: '',
+    seqID: '',
+    shotID: '',
+    dependsOn: []
   });
 
   useEffect(() => {
@@ -156,59 +230,6 @@ const UserManagementPage: React.FC = () => {
     setUserTaskInfo(infoMap);
   };
 
-  const handleToggleUserExpansion = (userId: number) => {
-    setExpandedUsers(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(userId)) {
-        newSet.delete(userId);
-      } else {
-        newSet.add(userId);
-      }
-      return newSet;
-    });
-  };
-
-  // カレンダー・タスクページと同一のタスクステータス色（ヘックス）
-  const getTaskStatusColor = (status?: string | null): string => {
-    const s = (status ?? '').toLowerCase();
-    switch (s) {
-      case 'todo':
-      case '未着手':
-        return '#2196F3';
-      case 'in-progress':
-      case 'in_progress':
-      case '進行中':
-        return '#FF9800';
-      case 'review':
-      case 'レビュー中':
-        return '#9C27B0';
-      case 'delayed':
-      case '遅延':
-        return '#F44336';
-      case 'completed':
-      case '完了':
-        return '#9E9E9E';
-      default:
-        return '#BDBDBD';
-    }
-  };
-
-  const getPriorityColor = (priority?: string | null) => {
-    switch (priority?.toLowerCase()) {
-      case 'high':
-      case '高':
-        return 'error';
-      case 'medium':
-      case '中':
-        return 'warning';
-      case 'low':
-      case '低':
-        return 'info';
-      default:
-        return 'default';
-    }
-  };
-
   const handleAddUserClick = () => {
     setIsAddModalOpen(true);
   };
@@ -251,12 +272,18 @@ const UserManagementPage: React.FC = () => {
       email: user.email || '',
       role: user.role || 'user'
     });
+    setEditPassword('');
+    setEditConfirmPassword('');
+    setEditPasswordError(null);
     setIsEditModalOpen(true);
   };
 
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setCurrentEditUser(null);
+    setEditPassword('');
+    setEditConfirmPassword('');
+    setEditPasswordError(null);
   };
 
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }> | SelectChangeEvent<string>) => {
@@ -271,9 +298,30 @@ const UserManagementPage: React.FC = () => {
 
   const handleSaveEditUser = async () => {
     if (!currentEditUser) return;
-    
+
+    setEditPasswordError(null);
+    if (editPassword || editConfirmPassword) {
+      if (editPassword.length < 8) {
+        setEditPasswordError('パスワードは8文字以上である必要があります。');
+        return;
+      }
+      if (editPassword !== editConfirmPassword) {
+        setEditPasswordError('パスワードが一致しません。');
+        return;
+      }
+    }
+
     try {
-      const response = await api.put<User>(`/api/users/${currentEditUser.id}`, currentEditUser);
+      const payload: Record<string, string> = {
+        username: currentEditUser.username,
+        full_name: currentEditUser.full_name,
+        email: currentEditUser.email,
+        role: currentEditUser.role
+      };
+      if (editPassword) {
+        payload.password = editPassword;
+      }
+      const response = await api.put<User>(`/api/users/${currentEditUser.id}`, payload);
       const updatedUser = response.data;
       
       setUsers(prevUsers => 
@@ -328,6 +376,109 @@ const UserManagementPage: React.FC = () => {
     setSnackbar({...snackbar, open: false});
   };
 
+  const safeParseDate = (dateStr: string | null | undefined): Date | null => {
+    if (!dateStr) return null;
+    try {
+      const parsed = parseISO(dateStr);
+      return isValid(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleTaskDoubleClick = (task: Task) => {
+    const startDateParsed = safeParseDate(task.start_date);
+    const dueDateParsed = safeParseDate(task.due_date);
+    setCurrentEditTask({
+      id: task.id,
+      name: task.name,
+      description: task.description || '',
+      status: task.status || 'todo',
+      priority: (task.extendedProps as any)?.priority?.toLowerCase() || 'low',
+      assigned_to: task.assigned_to || null,
+      project_id: task.project_id || null,
+      start_date: startDateParsed ? format(startDateParsed, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+      due_date: dueDateParsed ? format(dueDateParsed, 'yyyy-MM-dd') : format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+      cost: task.cost || 0,
+      type: (task as any)?.type ?? (task.extendedProps as any)?.type?.toLowerCase() ?? '',
+      seqID: (task as any)?.seqID ?? (task.extendedProps as any)?.seqID ?? '',
+      shotID: (task as any)?.shotID ?? (task.extendedProps as any)?.shotID ?? '',
+      dependsOn: task.dependsOn || []
+    });
+    setTaskEditDialogOpen(true);
+  };
+
+  const handleCloseTaskEditDialog = () => {
+    setTaskEditDialogOpen(false);
+  };
+
+  const handleTaskEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    if (name) {
+      setCurrentEditTask(prev => ({
+        ...prev,
+        [name]: name === 'cost' ? (value === '' ? 0 : Number(value)) : value
+      }));
+    }
+  };
+
+  const handleTaskEditSelectChange = (e: SelectChangeEvent<string | number>) => {
+    const { name, value } = e.target;
+    if (!name) return;
+    const isIdField = name === 'project_id' || name === 'assigned_to';
+    const normalized = (value === '' || value == null)
+      ? null
+      : (isIdField && typeof value === 'string' && /^\d+$/.test(value) ? parseInt(value, 10) : value);
+    setCurrentEditTask(prev => ({
+      ...prev,
+      [name]: isIdField ? normalized : value
+    } as TaskFormData));
+  };
+
+  const handleTaskEditSubmit = async () => {
+    if (!currentEditTask.name?.trim()) {
+      setSnackbar({ open: true, message: 'タスク名を入力してください', severity: 'error' });
+      return;
+    }
+    if (!currentEditTask.project_id) {
+      setSnackbar({ open: true, message: 'プロジェクトを選択してください', severity: 'error' });
+      return;
+    }
+    if (!currentEditTask.due_date) {
+      setSnackbar({ open: true, message: '期日を入力してください', severity: 'error' });
+      return;
+    }
+    if (currentEditTask.id == null) return;
+    try {
+      await api.put(`/tasks/${currentEditTask.id}`, {
+        name: currentEditTask.name,
+        description: currentEditTask.description || '',
+        status: currentEditTask.status,
+        priority: (currentEditTask.priority || 'low').toUpperCase(),
+        assigned_to: currentEditTask.assigned_to || null,
+        project_id: currentEditTask.project_id || null,
+        start_date: currentEditTask.start_date,
+        due_date: currentEditTask.due_date,
+        cost: currentEditTask.cost || 0,
+        type: (currentEditTask.type || '').toLowerCase(),
+        seqID: currentEditTask.seqID || '',
+        shotID: currentEditTask.shotID || '',
+        dependsOn: currentEditTask.dependsOn || [],
+        display_status: 'online'
+      });
+      setSnackbar({ open: true, message: 'タスクを更新しました', severity: 'success' });
+      setTaskEditDialogOpen(false);
+      await fetchAllData();
+    } catch (err: any) {
+      const msg = err.response?.data?.detail
+        ? (Array.isArray(err.response.data.detail)
+          ? err.response.data.detail.map((e: any) => `${e.loc?.join?.('.')}: ${e.msg}`).join('\n')
+          : err.response.data.detail)
+        : 'タスクの更新に失敗しました';
+      setSnackbar({ open: true, message: msg, severity: 'error' });
+    }
+  };
+
   const usersWithTasks = users.filter(user => {
     const info = userTaskInfo[user.id];
     return info && info.totalTasks > 0;
@@ -337,6 +488,9 @@ const UserManagementPage: React.FC = () => {
     const info = userTaskInfo[user.id];
     return !info || info.totalTasks === 0;
   });
+
+  const theme = useTheme();
+  const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
     <Box sx={{ p: 3 }}>
@@ -360,209 +514,178 @@ const UserManagementPage: React.FC = () => {
 
       {!loading && !error && (
         <Grid container spacing={3}>
-          {/* タスクを持っているユーザー */}
+          {/* ユーザー別タスクリスト */}
           {usersWithTasks.length > 0 && (
             <Grid item xs={12}>
-              <Paper sx={{ p: 2, mb: 2 }}>
+              <Paper sx={{ p: 2, mb: 2, overflow: 'auto' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <AssignmentIcon sx={{ mr: 1, color: 'primary.main' }} />
                   <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                    タスク担当者 ({usersWithTasks.length}名)
+                    ユーザー別タスクリスト（{usersWithTasks.length}名）
                   </Typography>
                 </Box>
-                <Grid container spacing={2}>
-                  {usersWithTasks.map((user) => {
-                    const info = userTaskInfo[user.id];
-                    const isExpanded = expandedUsers.has(user.id);
-                    
-                    return (
-                      <Grid item xs={12} key={user.id}>
-                        <Card 
-                          variant="outlined"
-                          sx={{
-                            transition: 'all 0.2s ease-in-out',
-                            '&:hover': {
-                              backgroundColor: 'action.hover',
-                              boxShadow: 2,
-                            }
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                            <Box
-                              onClick={() => handleToggleUserExpansion(user.id)}
-                              sx={{
-                                flex: 1,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                minWidth: 0,
-                              }}
-                            >
-                              <CardHeader
-                                avatar={
-                                  <Badge 
-                                    badgeContent={info?.totalTasks || 0} 
-                                    color="primary"
-                                    overlap="circular"
-                                  >
-                                    <Avatar src={user.iconUrl} alt={user.name || user.username || ''}>
-                                      {user.iconUrl ? null : (user.name || user.username || '')?.[0]?.toUpperCase()}
-                                    </Avatar>
-                                  </Badge>
-                                }
-                                title={
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Typography variant="h6">{user.name || user.username}</Typography>
-                                    {user.role === 'admin' && (
-                                      <Chip label="管理者" size="small" color="secondary" />
-                                    )}
-                                  </Box>
-                                }
-                                subheader={
-                                  <Box sx={{ mt: 0.5 }}>
-                                    <Typography variant="body2" color="text.secondary">
-                                      {user.email || 'メール未設定'}
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
-                                      <Chip 
-                                        icon={<WorkIcon />} 
-                                        label={`${info?.totalTasks || 0}件のタスク`} 
-                                        size="small" 
-                                        color="primary"
-                                        variant="outlined"
-                                      />
-                                      <Chip 
-                                        icon={<AssignmentIcon />} 
-                                        label={`${Object.keys(info?.tasksByProject || {}).length}プロジェクト`} 
-                                        size="small" 
-                                        color="secondary"
-                                        variant="outlined"
-                                      />
-                                      {info && info.totalCost > 0 && (
-                                        <Chip 
-                                          icon={<AccessTimeIcon />} 
-                                          label={`所要時間: ${(info.totalCost / 8).toFixed(1)}日`} 
-                                          size="small" 
-                                          color="info"
-                                          variant="outlined"
-                                        />
-                                      )}
-                                    </Box>
-                                  </Box>
-                                }
-                                sx={{ flex: 1, minWidth: 0 }}
-                              />
-                            </Box>
-                            <Box 
-                              onClick={(e) => e.stopPropagation()}
-                              sx={{ display: 'flex', alignItems: 'center', pr: 1 }}
-                            >
-                              <IconButton 
-                                onClick={() => handleToggleUserExpansion(user.id)}
-                                sx={{ mr: 1 }}
-                              >
-                                <ExpandMoreIcon 
-                                  sx={{ 
-                                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                                    transition: 'transform 0.3s'
-                                  }} 
-                                />
-                              </IconButton>
+                {isNarrow ? (
+                  /* 縦リスト: ユーザーごとにカード、中に今日/遅延/期限間近/その他とタスク名を並べる */
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {usersWithTasks.map((user) => {
+                      const info = userTaskInfo[user.id];
+                      const part = info ? partitionTasksByCategory(info.tasks) : { today: [], delayed: [], dueSoon: [], other: [] as Task[] };
+                      return (
+                        <Card key={user.id} variant="outlined" sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : 'none' }}>
+                          <CardContent sx={{ '&:last-child': { pb: 2 } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <Avatar src={user.iconUrl} sx={{ width: 36, height: 36 }}>
+                                  {(user.name || user.username || '')?.[0]?.toUpperCase()}
+                                </Avatar>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
+                                {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" />}
+                              </Box>
                               {isAdmin && (
-                                <>
-                                  <IconButton 
-                                    edge="end" 
-                                    aria-label="edit" 
-                                    onClick={() => handleEditUserClick(user)}
-                                  >
-                                    <EditIcon />
-                                  </IconButton>
-                                  <IconButton 
-                                    edge="end" 
-                                    aria-label="delete" 
-                                    onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')}
-                                  >
-                                    <DeleteIcon />
-                                  </IconButton>
-                                </>
+                                <Box>
+                                  <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
+                                  <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
+                                </Box>
                               )}
                             </Box>
-                          </Box>
-                          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                            <CardContent>
-                              <Divider sx={{ mb: 2 }} />
-                              {info && Object.keys(info.tasksByProject).length > 0 ? (
-                                Object.entries(info.tasksByProject).map(([projectId, projectTasks]) => (
-                                  <Box key={projectId} sx={{ mb: 3 }}>
-                                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1, color: 'primary.main' }}>
-                                      📁 {info.projectNames[Number(projectId)] || `プロジェクトID: ${projectId}`}
-                                      <Chip 
-                                        label={`${projectTasks.length}件`} 
-                                        size="small" 
-                                        sx={{ ml: 1 }} 
-                                      />
-                                    </Typography>
-                                    <Grid container spacing={1}>
-                                      {projectTasks.map((task) => (
-                                        <Grid item xs={12} sm={6} md={4} key={task.id}>
-                                          <Card variant="outlined" sx={{ p: 1.5, height: '100%' }}>
-                                            <Typography variant="body2" sx={{ fontWeight: 'medium', mb: 1 }}>
-                                              {task.name}
-                                            </Typography>
-                                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                              {task.status && (
-                                                <Chip
-                                                  label={task.status}
-                                                  size="small"
-                                                  sx={{
-                                                    backgroundColor: getTaskStatusColor(task.status),
-                                                    color: '#fff',
-                                                  }}
-                                                />
-                                              )}
-                                              {task.priority && (
-                                                <Chip 
-                                                  label={`優先度: ${task.priority}`} 
-                                                  size="small" 
-                                                  color={getPriorityColor(task.priority) as any}
-                                                  variant="outlined"
-                                                />
-                                              )}
-                                              {task.due_date && (
-                                                <Chip 
-                                                  label={`期日: ${new Date(task.due_date).toLocaleDateString('ja-JP')}`} 
-                                                  size="small" 
-                                                  variant="outlined"
-                                                />
-                                              )}
-                                              {task.cost && typeof task.cost === 'number' && task.cost > 0 && (
-                                                <Chip 
-                                                  icon={<AccessTimeIcon />}
-                                                  label={`所要時間: ${(task.cost / 8).toFixed(1)}日`} 
-                                                  size="small" 
-                                                  color="info"
-                                                  variant="outlined"
-                                                />
-                                              )}
-                                            </Box>
-                                          </Card>
-                                        </Grid>
-                                      ))}
-                                    </Grid>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                              {part.delayed.length > 0 && (
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: '#C62828', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                    <WarningIcon fontSize="small" /> 遅れている
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {part.delayed.map((t) => (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                        <Chip size="small" label={t.name} sx={{ bgcolor: '#FFEBEE', color: '#C62828', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                      </Tooltip>
+                                    ))}
                                   </Box>
-                                ))
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  タスク情報がありません
-                                </Typography>
+                                </Box>
                               )}
-                            </CardContent>
-                          </Collapse>
+                              {part.today.length > 0 && (
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: '#1565C0', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                    <TodayIcon fontSize="small" /> 今日中
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {part.today.map((t) => (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                        <Chip size="small" label={t.name} sx={{ bgcolor: '#E3F2FD', color: '#1565C0', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                      </Tooltip>
+                                    ))}
+                                  </Box>
+                                </Box>
+                              )}
+                              {part.dueSoon.length > 0 && (
+                                <Box>
+                                  <Typography variant="caption" sx={{ color: '#E65100', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                    <ScheduleIcon fontSize="small" /> 期限が近い
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {part.dueSoon.map((t) => (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                        <Chip size="small" label={t.name} sx={{ bgcolor: '#FFF3E0', color: '#E65100', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                      </Tooltip>
+                                    ))}
+                                  </Box>
+                                </Box>
+                              )}
+                              {part.other.length > 0 && (
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', mb: 0.5, display: 'block' }}>余裕をもって進める</Typography>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                    {part.other.map((t) => (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`}>
+                                        <Chip size="small" label={t.name} variant="outlined" sx={{ maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                      </Tooltip>
+                                    ))}
+                                  </Box>
+                                </Box>
+                              )}
+                            </Box>
+                          </CardContent>
                         </Card>
-                      </Grid>
-                    );
-                  })}
-                </Grid>
+                      );
+                    })}
+                  </Box>
+                ) : (
+                  /* 横: テーブル 1行＝1ユーザー、列＝遅延/今日中にやるべき/期限間近/その他（タスク名を表示） */
+                  <TableContainer>
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>ユーザー</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: '#FFEBEE', color: '#C62828' }}><WarningIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />遅れている</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: '#E3F2FD', color: '#1565C0' }}><TodayIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />今日中</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: '#FFF3E0', color: '#E65100' }}><ScheduleIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />期限が近い</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>余裕をもって進める</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {usersWithTasks.map((user) => {
+                          const info = userTaskInfo[user.id];
+                          const part = info ? partitionTasksByCategory(info.tasks) : { today: [], delayed: [], dueSoon: [], other: [] as Task[] };
+                          return (
+                            <TableRow key={user.id} hover sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : undefined }}>
+                              <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                  <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
+                                  <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
+                                    {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ mt: 0.25 }} />}
+                                  </Box>
+                                  {isAdmin && (
+                                    <Box sx={{ ml: 'auto' }}>
+                                      <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
+                                      <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
+                                    </Box>
+                                  )}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(244, 67, 54, 0.04)' }}>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {part.delayed.length === 0 ? '—' : part.delayed.map((t) => (
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                      <Chip size="small" label={t.name} sx={{ bgcolor: '#FFEBEE', color: '#C62828', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                    </Tooltip>
+                                  ))}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(33, 150, 243, 0.04)' }}>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {part.today.length === 0 ? '—' : part.today.map((t) => (
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                      <Chip size="small" label={t.name} sx={{ bgcolor: '#E3F2FD', color: '#1565C0', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                    </Tooltip>
+                                  ))}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(255, 152, 0, 0.04)' }}>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {part.dueSoon.length === 0 ? '—' : part.dueSoon.map((t) => (
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                      <Chip size="small" label={t.name} sx={{ bgcolor: '#FFF3E0', color: '#E65100', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                    </Tooltip>
+                                  ))}
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={{ verticalAlign: 'top' }}>
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {part.other.length === 0 ? '—' : part.other.map((t) => (
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`}>
+                                      <Chip size="small" label={t.name} variant="outlined" sx={{ cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                    </Tooltip>
+                                  ))}
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
               </Paper>
             </Grid>
           )}
@@ -698,6 +821,29 @@ const UserManagementPage: React.FC = () => {
                 <MenuItem value="admin">管理者</MenuItem>
               </Select>
             </FormControl>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              パスワードを変更する場合のみ入力してください（空欄の場合は変更されません）
+            </Typography>
+            <TextField
+              label="新しいパスワード"
+              type="password"
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+              fullWidth
+              error={!!editPasswordError}
+              helperText={editPasswordError}
+              placeholder="8文字以上"
+              inputProps={{ autoComplete: 'new-password' }}
+            />
+            <TextField
+              label="新しいパスワード（確認）"
+              type="password"
+              value={editConfirmPassword}
+              onChange={(e) => setEditConfirmPassword(e.target.value)}
+              fullWidth
+              error={!!editPasswordError}
+              inputProps={{ autoComplete: 'new-password' }}
+            />
           </Box>
         </DialogContent>
         <DialogActions>
@@ -708,6 +854,127 @@ const UserManagementPage: React.FC = () => {
         </DialogActions>
       </Dialog>
       )}
+
+      {/* タスク編集ダイアログ（タスク部分ダブルクリックで表示） */}
+      <Dialog open={taskEditDialogOpen} onClose={handleCloseTaskEditDialog} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontSize: '1rem' }}>タスク編集</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <TextField
+              name="name"
+              label="タスク名"
+              value={currentEditTask.name}
+              onChange={handleTaskEditInputChange}
+              fullWidth
+              required
+              size="small"
+            />
+            <TextField
+              name="description"
+              label="説明"
+              value={currentEditTask.description}
+              onChange={handleTaskEditInputChange}
+              fullWidth
+              multiline
+              rows={3}
+              size="small"
+            />
+            <FormControl fullWidth size="small" required>
+              <InputLabel>プロジェクト</InputLabel>
+              <Select
+                name="project_id"
+                value={currentEditTask.project_id ?? ''}
+                label="プロジェクト"
+                onChange={handleTaskEditSelectChange}
+              >
+                <MenuItem value="">選択してください</MenuItem>
+                {projects.map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              name="due_date"
+              label="期日"
+              type="date"
+              value={currentEditTask.due_date}
+              onChange={handleTaskEditInputChange}
+              fullWidth
+              required
+              InputLabelProps={{ shrink: true }}
+              size="small"
+            />
+            <TextField
+              name="start_date"
+              label="開始日"
+              type="date"
+              value={currentEditTask.start_date}
+              onChange={handleTaskEditInputChange}
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              size="small"
+            />
+            <FormControl fullWidth size="small">
+              <InputLabel>担当者</InputLabel>
+              <Select
+                name="assigned_to"
+                value={currentEditTask.assigned_to || ''}
+                label="担当者"
+                onChange={handleTaskEditSelectChange}
+              >
+                <MenuItem value="">未割り当て</MenuItem>
+                {users.map((u) => (
+                  <MenuItem key={u.id} value={u.id}>{u.username || u.name || u.email}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>ステータス</InputLabel>
+              <Select
+                name="status"
+                value={currentEditTask.status}
+                label="ステータス"
+                onChange={handleTaskEditSelectChange}
+              >
+                <MenuItem value="todo">未着手</MenuItem>
+                <MenuItem value="in-progress">進行中</MenuItem>
+                <MenuItem value="review">レビュー中</MenuItem>
+                <MenuItem value="completed">完了</MenuItem>
+                <MenuItem value="delayed">遅延</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>優先度</InputLabel>
+              <Select
+                name="priority"
+                value={currentEditTask.priority}
+                label="優先度"
+                onChange={handleTaskEditSelectChange}
+              >
+                <MenuItem value="high">高</MenuItem>
+                <MenuItem value="medium">中</MenuItem>
+                <MenuItem value="low">低</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              name="cost"
+              label="コスト"
+              type="number"
+              value={currentEditTask.cost}
+              onChange={handleTaskEditInputChange}
+              fullWidth
+              size="small"
+              inputProps={{ step: '0.1' }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseTaskEditDialog}>キャンセル</Button>
+          <Button onClick={handleTaskEditSubmit} variant="contained" color="primary">
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 操作結果の通知 */}
       <Snackbar 

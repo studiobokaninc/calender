@@ -149,6 +149,7 @@ const CalendarPage: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     // ★★★ ダブルクリック判定用の Ref と閾値を追加 ★★★
     const lastClickTimeRef = useRef<number>(0);
+    const lastClickedEventIdRef = useRef<string | null>(null);
     const DOUBLE_CLICK_THRESHOLD = 300; // 300ms以内ならダブルクリック
 
     const handleResize = useCallback(debounce(() => {
@@ -753,7 +754,10 @@ const CalendarPage: React.FC = () => {
 
             // プロジェクトフィルターのチェック
             let projectFilterPass = true;
-            if (eventStatusFilter !== 'all') {
+            if (eventStatusFilter === 'no-project') {
+                // プロジェクト未設定のタスク・イベントを表示（プロジェクト本体は除く）
+                projectFilterPass = eventType !== 'project' && !eventProjectId;
+            } else if (eventStatusFilter !== 'all') {
                 // プロジェクト自体の場合
                 if (eventType === 'project' && String(eventId) === eventStatusFilter) {
                     projectFilterPass = true;
@@ -850,27 +854,34 @@ const CalendarPage: React.FC = () => {
     };
 
     const handleEventClick = (clickInfo: EventClickArg) => {
-        // ★★★ 修正: rawEvents を直接参照 ★★★
+        const now = Date.now();
+        const isDoubleClick = (now - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) && lastClickedEventIdRef.current === clickInfo.event.id;
+        lastClickTimeRef.current = now;
+        lastClickedEventIdRef.current = clickInfo.event.id;
+
         const clickedEvent = rawEvents.find(event => event.id === clickInfo.event.id);
-        if (clickedEvent) {
-            let totalCost: number | undefined = undefined;
-            if (clickedEvent.extendedProps.type === 'Task') {
-                totalCost = clickedEvent.extendedProps.taskCost ?? 0;
-            } else if (clickedEvent.start) {
-                // ★★★ 修正: rawEvents を直接参照 ★★★
-                const dayEvents = rawEvents.filter(event => event.start && isSameDay(parseISO(event.start as string), parseISO(clickedEvent.start as string)));
-                totalCost = calculateTotalCost(dayEvents);
-            }
-            if (clickedEvent.start) {
-                setSelectedDate(clickedEvent.start instanceof Date ? clickedEvent.start : parseISO(clickedEvent.start as string));
-            }
-            // ★★★ デバッグログ追加: EventDetailsPanelに渡す直前のclickedEventの内容 ★★★
-            console.log("[CalendarPage:handleEventClick] Event being set to EventDetailsPanel (clickedEvent):", JSON.stringify(clickedEvent, null, 2));
-            setSelectedEventDetails({ event: clickedEvent, totalCost });
-            setIsPanelMinimized(false);
-        } else {
+        if (!clickedEvent) {
             setSelectedEventDetails({ event: null });
+            return;
         }
+        // ダブルクリックと判定した場合は編集モーダルを開く
+        if (isDoubleClick) {
+            handleOpenEditModal(clickedEvent);
+            return;
+        }
+        // シングルクリック: 詳細パネルに表示
+        let totalCost: number | undefined = undefined;
+        if (clickedEvent.extendedProps.type === 'Task') {
+            totalCost = clickedEvent.extendedProps.taskCost ?? 0;
+        } else if (clickedEvent.start) {
+            const dayEvents = rawEvents.filter(event => event.start && isSameDay(parseISO(event.start as string), parseISO(clickedEvent.start as string)));
+            totalCost = calculateTotalCost(dayEvents);
+        }
+        if (clickedEvent.start) {
+            setSelectedDate(clickedEvent.start instanceof Date ? clickedEvent.start : parseISO(clickedEvent.start as string));
+        }
+        setSelectedEventDetails({ event: clickedEvent, totalCost });
+        setIsPanelMinimized(false);
     };
 
     const handlePanelEventSelect = (event: CalendarEvent) => {
@@ -1017,7 +1028,7 @@ const CalendarPage: React.FC = () => {
                         description: md.description || '',
                         status: md.status || 'todo',
                         due_date: dueDateValue,
-                        project_id: md.project_id ? parseInt(String(md.project_id)) : undefined,
+                        project_id: md.project_id != null && md.project_id !== '' ? parseInt(String(md.project_id)) : null,
                         assigned_to: assignedToValue,
                         cost: md.cost ? Number(md.cost) : (md.taskCost ? Number(md.taskCost) : 0),
                         dependsOn: md.dependsOn || [],
@@ -1104,7 +1115,7 @@ const CalendarPage: React.FC = () => {
                         description: md.description || '',
                         status: md.status || 'todo',
                         due_date: dueDateValue,
-                        project_id: md.project_id ? parseInt(String(md.project_id)) : undefined,
+                        project_id: md.project_id != null && md.project_id !== '' ? parseInt(String(md.project_id)) : null,
                         assigned_to: assignedToValue,
                         cost: md.taskCost ? Number(md.taskCost) : (md.cost ? Number(md.cost) : undefined),
                         dependsOn: md.dependsOn || [], 

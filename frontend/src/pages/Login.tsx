@@ -18,8 +18,10 @@ const Login: React.FC = () => {
     try {
       await login(username, password);
       navigate('/calendar'); // Redirect to calendar after successful login
-    } catch (err) {
-      setError('ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
+    } catch (err: any) {
+      // エラーメッセージが既に設定されている場合はそれを使用、そうでなければデフォルトメッセージ
+      const errorMessage = err?.message || 'ログインに失敗しました。ユーザー名またはパスワードを確認してください。';
+      setError(errorMessage);
       console.error(err);
     } finally {
       setLoading(false);

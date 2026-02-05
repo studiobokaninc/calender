@@ -34,7 +34,9 @@ export default defineConfig({
     ]
   },
   server: {
+    host: '0.0.0.0', // 外部アクセスを許可（すべてのネットワークインターフェースでリッスン）
     port: 5175, // ★ ポート番号を 5175 に設定（実際に使用されているポート）
+    strictPort: true, // ポートが使用中の場合はエラーを出す
     proxy: {
       // 静的ファイル配信: /static をそのまま転送
       '/static': {

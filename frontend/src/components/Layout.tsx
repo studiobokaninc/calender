@@ -46,6 +46,7 @@ import {
   EventNote as EventNoteIcon,
   Note as NoteIcon,
   Person as PersonIcon,
+  QuestionAnswer as ChatIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
 import { mockDataApi, importMockData } from '../services/api'
@@ -98,13 +99,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   const allMenuItems: MenuItemType[] = [
+    { text: 'チャット', icon: <ChatIcon />, path: '/chat' },
     { text: 'ダッシュボード', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'カレンダー', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
     { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
     { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
-    { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users' }, // タスク表示は全員、追加・編集は管理者のみ
+    { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users' },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
@@ -141,7 +143,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [errorMessage])
 
-  const menuItems = allMenuItems.filter(item => !item.isAdmin)
+  // 一般ユーザーはチャットのみ表示。管理者は管理者以外のメニューを表示
+  const menuItems = user?.role === 'admin'
+    ? allMenuItems.filter(item => !item.isAdmin)
+    : allMenuItems.filter(item => item.path === '/chat')
   const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
 
   // モックデータのエクスポート

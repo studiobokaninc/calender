@@ -577,9 +577,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     if (!formData.title.trim()) newErrors.title = 'タイトル/タスク名を入力してください';
 
     if (formData.type === 'task' || formData.type === 'Task') {
-      if (projectSelectionMode === 'existing' && !formData.projectId) {
-        newErrors.projectId = '既存プロジェクトを選択してください';
-      } else if (projectSelectionMode === 'new') {
+      // プロジェクトは任意（既存で未選択＝プロジェクトなしでOK）
+      if (projectSelectionMode === 'new') {
           if (!formData.newProjectName?.trim()) newErrors.newProjectName = '新規プロジェクト名を入力してください';
           if (!formData.newProjectStartDate) newErrors.newProjectStartDate = '開始日を入力してください';
           if (!formData.newProjectEndDate) newErrors.newProjectEndDate = '終了日を入力してください';
@@ -615,10 +614,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                 newErrors.endTime = '終了時刻は開始時刻より後に設定してください';
             }
         }
-        // プロジェクト選択が必要なタイプ
-        if (["Meeting", "Workshop", "Deadline", "Milestone"].includes(formData.type) && !formData.projectId) {
-            newErrors.projectId = '関連プロジェクトを選択してください';
-        }
+        // プロジェクトは任意（指定しなくてもよい）
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -736,6 +732,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
         if (projectSelectionMode === 'existing' && formData.projectId) {
             dataToSave.project_id = parseInt(formData.projectId, 10);
+        } else if (projectSelectionMode === 'existing') {
+            dataToSave.project_id = null; // プロジェクト未設定のタスク
         } else if (projectSelectionMode === 'new') {
               dataToSave.new_project = {
                         name: formData.newProjectName,
@@ -801,9 +799,10 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
 
           dataToSave.location = formData.location || '';
-        if (["Meeting", "Workshop", "Deadline", "Milestone"].includes(normalizedType) && formData.projectId) {
-               dataToSave.project_id = parseInt(formData.projectId, 10);
-           }
+        // プロジェクトは任意：指定されていれば送信
+        if (formData.projectId) {
+          dataToSave.project_id = parseInt(formData.projectId, 10);
+        }
         if (normalizedType === 'Meeting' || normalizedType === 'Workshop' || normalizedType === 'Generic' ) {
            dataToSave.participants = selectedParticipants.map(p => ({
              type: p.type,
@@ -830,8 +829,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   // --- UI 表示制御ロジック ---
   const showProjectSelection = useMemo(() => {
     if (!formData?.type) return false;
-    // タスク、会議、ワークショップ、締切、マイルストーンで表示（プロジェクトは除外）
-    return ['task', 'Task', 'Meeting', 'Workshop', 'Deadline', 'Milestone'].includes(formData.type);
+    // タスク・プロジェクト以外の全イベントタイプでプロジェクトを任意指定可能
+    return ['task', 'Task', 'Meeting', 'Workshop', 'Deadline', 'Milestone', 'Generic'].includes(formData.type);
   }, [formData?.type]);
 
   const showParticipants = useMemo(() => {
@@ -944,18 +943,18 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       ) : null}
 
                       {projectSelectionMode === 'existing' && (
-                         <FormControl fullWidth required={!(formData.type === 'task' || formData.type === 'Task')} error={!!errors.projectId} size="small" sx={{ mb: 1.5 }}>
-                             <InputLabel id="existing-project-label">既存プロジェクト {!(formData.type === 'task' || formData.type === 'Task') && "*"}</InputLabel>
+                         <FormControl fullWidth error={!!errors.projectId} size="small" sx={{ mb: 1.5 }}>
+                             <InputLabel id="existing-project-label">プロジェクト（任意）</InputLabel>
                              <Select
                                 labelId="existing-project-label"
                                 name="projectId"
                                 value={formData.projectId || ''}
-                                label={`既存プロジェクト ${!(formData.type === 'task' || formData.type === 'Task') && "*"}`}
+                                label="プロジェクト（任意）"
                                 onChange={handleChange}
                                 size="small"
                                 disabled={projectsLoading}
                              >
-                                 <MenuItem value="" disabled><em>{projectsLoading ? '読み込み中...' : '選択してください'}</em></MenuItem>
+                                 <MenuItem value=""><em>{projectsLoading ? '読み込み中...' : '未設定'}</em></MenuItem>
                                  {projectOptions.map((p) => (
                                      <MenuItem key={`project-${p.id}`} value={p.id}>{p.name}</MenuItem>
                                  ))}

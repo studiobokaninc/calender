@@ -16,7 +16,8 @@ import json
 from ..dify_client import DifyClient
 from ..database import get_db
 from .. import crud, schemas, models, task_list as task_list_module
-from ..security import get_current_user
+from jose import JWTError, jwt
+from ..security import get_current_user, SECRET_KEY, ALGORITHM
 from sqlalchemy.orm import Session
 import logging
 
@@ -27,7 +28,9 @@ router = APIRouter()
 # DifyClientの初期化（main.pyでload_dotenv()後に初期化）
 """Dify クライアントのシングルトン管理。環境変数が変わったら差し替える。"""
 dify_client = None
-_cached_env: dict[str, str] = {"DIFY_API_KEY": "", "DIFY_API_URL": "", "DIFY_USER": ""}#キャッシュ用の環境変数
+dify_client_user = None
+_cached_env: dict[str, str] = {"DIFY_API_KEY": "", "DIFY_API_URL": "", "DIFY_USER": ""}
+_cached_env_user: dict[str, str] = {"DIFY_API_KEY_USER": "", "DIFY_API_URL_USER": "", "DIFY_USER_USER": ""}
 
 def get_dify_client():#DifyClient変数を取得する関数
     """常に backend/.env を再読込し、変更があればクライアントを作り直す。"""
@@ -62,6 +65,33 @@ def get_dify_client():#DifyClient変数を取得する関数
     return dify_client#DifyClient変数を返す
 
 
+def get_dify_client_user():
+    """一般ユーザー専用チャット用の Dify クライアント。DIFY_API_KEY_USER を使用（未設定時は DIFY_* にフォールバック）。"""
+    global dify_client_user, _cached_env_user
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(dotenv_path=str(env_path), override=True)
+    current_key = os.getenv("DIFY_API_KEY_USER", "") or os.getenv("DIFY_API_KEY", "")
+    current_url = os.getenv("DIFY_API_URL_USER", "") or os.getenv("DIFY_API_URL", "")
+    current_user = os.getenv("DIFY_USER_USER", "") or os.getenv("DIFY_USER", "default_user")
+    if (
+        dify_client_user is None
+        or _cached_env_user["DIFY_API_KEY_USER"] != current_key
+        or _cached_env_user["DIFY_API_URL_USER"] != current_url
+        or _cached_env_user["DIFY_USER_USER"] != current_user
+    ):
+        _cached_env_user = {
+            "DIFY_API_KEY_USER": current_key,
+            "DIFY_API_URL_USER": current_url,
+            "DIFY_USER_USER": current_user,
+        }
+        dify_client_user = DifyClient(
+            api_key=current_key,
+            api_url=current_url,
+            user=current_user,
+        )
+    return dify_client_user
+
+
 class ChatRequest(BaseModel):
     """チャットリクエストのモデル"""
     query: str
@@ -79,6 +109,26 @@ class ChatResponse(BaseModel):
 class StopRequest(BaseModel):
     """停止リクエストのモデル"""
     user: str
+
+
+async def get_current_user_for_sse(
+    access_token: Optional[str] = Query(None, description="SSE用トークン（EventSourceはヘッダ送信不可のため）"),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """クエリパラメータ access_token から現在ユーザーを取得（一般ユーザー用チャットSSE用）"""
+    if not access_token or not access_token.strip():
+        raise HTTPException(status_code=401, detail="access_tokenが必要です")
+    try:
+        payload = jwt.decode(access_token.strip(), SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(status_code=401, detail="無効なトークンです")
+        user = crud.get_user_by_email(db, email=username)
+        if user is None:
+            raise HTTPException(status_code=401, detail="ユーザーが見つかりません")
+        return user
+    except JWTError:
+        raise HTTPException(status_code=401, detail="無効なトークンです")
 
 
 @router.get("/chat/stream")
@@ -107,7 +157,7 @@ async def stream_chat(
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
     }
-    # Dify の inputs にタスクリストCSVを含める（toDatatable形式）
+    # Dify の inputs にタスクリストCSV、プロジェクトリスト、ユーザーリストを含める
     inputs: dict = {}
     try:
         csv_text = task_list_module.build_task_list_for_chat(db)
@@ -115,6 +165,18 @@ async def stream_chat(
             inputs["csv"] = csv_text
     except Exception as e:
         logger.warning("[chat/stream] task_list for inputs failed: %s", e)
+    try:
+        proj_text = task_list_module.build_projects_list_for_chat(db)
+        if proj_text:
+            inputs["proj"] = proj_text
+    except Exception as e:
+        logger.warning("[chat/stream] projects_list for inputs failed: %s", e)
+    try:
+        user_list_text = task_list_module.build_users_list_for_chat(db)
+        if user_list_text:
+            inputs["user_list"] = user_list_text
+    except Exception as e:
+        logger.warning("[chat/stream] users_list for inputs failed: %s", e)
     payload = {
         "query": query,
         "response_mode": "streaming",
@@ -292,7 +354,168 @@ async def stream_chat(
     )
 
 
+@router.get("/chat/user/stream")
+async def stream_chat_user(
+    query: str = Query(..., description="ユーザーの質問"),
+    conversation_id: Optional[str] = Query(None, description="会話ID"),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user_for_sse),
+):
+    """
+    一般ユーザー専用ストリーミングチャット。DIFY_API_KEY_USER を使用。
+    認証はクエリパラメータ access_token で行う（EventSource の制約のため）。
+    """
+    if not query.strip():
+        raise HTTPException(status_code=400, detail="queryパラメータが必要です")
 
+    import httpx
+
+    client = get_dify_client_user()
+    base_url = client.base_url
+    api_key = client.api_key
+    user = client.user
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+    }
+    inputs: dict = {}
+    try:
+        csv_text = task_list_module.build_task_list_for_chat(db)
+        if csv_text:
+            inputs["csv"] = csv_text
+    except Exception as e:
+        logger.warning("[chat/user/stream] task_list for inputs failed: %s", e)
+    payload = {
+        "query": query,
+        "response_mode": "streaming",
+        "user": user,
+        "conversation_id": conversation_id,
+        "inputs": inputs,
+    }
+
+    message_buffer = {"text": ""}
+
+    async def eventgen():
+        try:
+            async with httpx.AsyncClient(timeout=None) as client_http:
+                async with client_http.stream("POST", base_url, headers=headers, json=payload) as r:
+                    yield b"retry: 0\n\n"
+                    try:
+                        csv_text_inner = task_list_module.build_task_list_for_chat(db)
+                        if csv_text_inner:
+                            task_list_payload = json.dumps(
+                                {"type": "task_list", "csv": csv_text_inner},
+                                ensure_ascii=False,
+                            )
+                            yield (
+                                "event: task_list\n"
+                                f"data: {task_list_payload}\n\n"
+                            ).encode("utf-8")
+                    except Exception as e:
+                        logger.warning("[SSE user] task_list generation failed: %s", e)
+                    if r.status_code != 200:
+                        body = await r.aread()
+                        err_payload = json.dumps({
+                            "type": "error",
+                            "status": r.status_code,
+                            "detail": body.decode("utf-8", errors="ignore")[:1024]
+                        }, ensure_ascii=False)
+                        yield f"data: {err_payload}\n\n".encode("utf-8")
+                        yield b"\n"
+                        return
+                    async for line in r.aiter_lines():
+                        if line is None:
+                            continue
+                        if line.startswith("data: "):
+                            raw_json = line[6:]
+                            try:
+                                data = json.loads(raw_json)
+                                event_type = data.get("event")
+                                answer_chunk = data.get("answer")
+                                if isinstance(answer_chunk, str):
+                                    message_buffer["text"] += answer_chunk
+                                if event_type == "message_end":
+                                    full_answer = message_buffer["text"]
+                                    message_buffer["text"] = ""
+                                    action_list = None
+                                    def _parse_action_candidates(raw):
+                                        try:
+                                            parsed = json.loads(raw)
+                                        except json.JSONDecodeError:
+                                            return None
+                                        if isinstance(parsed, list):
+                                            if not parsed:
+                                                return None
+                                            if all(
+                                                isinstance(x, dict) and x.get("action_type") in ("update_task", "create_task", "delete_task")
+                                                for x in parsed
+                                            ):
+                                                return parsed
+                                            return None
+                                        if isinstance(parsed, dict) and parsed.get("action_type") in ("update_task", "create_task", "delete_task"):
+                                            return [parsed]
+                                        return None
+                                    def _collect_all_code_blocks(text):
+                                        return re.findall(r"```(?:json)?\s*([\s\S]*?)```", text)
+                                    all_blocks = _collect_all_code_blocks(full_answer)
+                                    if all_blocks:
+                                        action_list = []
+                                        for block_content in all_blocks:
+                                            block_content = block_content.strip()
+                                            if not block_content:
+                                                continue
+                                            candidates = _parse_action_candidates(block_content)
+                                            if candidates:
+                                                action_list.extend(candidates)
+                                        if not action_list:
+                                            action_list = None
+                                    if action_list is None:
+                                        cleaned = full_answer.strip()
+                                        if "---" in cleaned:
+                                            cleaned = cleaned.split("---", 1)[1].strip() if len(cleaned.split("---", 1)) > 1 else cleaned
+                                        if cleaned.startswith("```"):
+                                            cleaned = cleaned[3:].lstrip()
+                                            if cleaned.lower().startswith("json"):
+                                                cleaned = cleaned[4:].lstrip()
+                                            if cleaned.endswith("```"):
+                                                cleaned = cleaned[:-3].strip()
+                                        if cleaned.startswith("{") and cleaned.endswith("}"):
+                                            action_list = _parse_action_candidates(cleaned)
+                                        elif cleaned.startswith("[") and cleaned.endswith("]"):
+                                            action_list = _parse_action_candidates(cleaned)
+                                    if action_list:
+                                        if len(action_list) == 1:
+                                            notification = {"type": "task_action_candidate", "action": action_list[0]}
+                                        else:
+                                            notification = {"type": "task_action_candidate", "actions": action_list}
+                                        yield (
+                                            "event: task_action\n"
+                                            f"data: {json.dumps(notification, ensure_ascii=False)}\n\n"
+                                        ).encode("utf-8")
+                            except json.JSONDecodeError:
+                                pass
+                        yield (line + "\n").encode("utf-8")
+                    yield b"\n"
+        except HTTPException as he:
+            err = json.dumps({"type": "error", "status": he.status_code, "detail": he.detail}, ensure_ascii=False)
+            yield f"data: {err}\n\n".encode("utf-8")
+        except Exception as e:
+            logger.error("[SSE user] Exception: %s", e)
+            err = json.dumps({"type": "error", "status": 500, "detail": {"message": str(e)}}, ensure_ascii=False)
+            yield f"data: {err}\n\n".encode("utf-8")
+
+    return StreamingResponse(
+        eventgen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/conversation/reset")
@@ -471,6 +694,45 @@ async def stop_generation(task_id: str, request: StopRequest):
         raise
     except Exception as e:
         logger.error(f"[STOP] Exception occurred: {e}")
+        raise HTTPException(status_code=500, detail={"message": "停止エラー", "error": str(e)})
+
+
+@router.post("/chat/user/stop/{task_id}")
+async def stop_generation_user(
+    task_id: str,
+    request: StopRequest,
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    一般ユーザー専用チャットのストリーミング生成を停止するエンドポイント。DIFY_API_KEY_USER を使用。
+    """
+    if not task_id.strip():
+        raise HTTPException(status_code=400, detail="task_idが必要です")
+    if not request.user.strip():
+        raise HTTPException(status_code=400, detail="userが必要です")
+    try:
+        import httpx
+        client = get_dify_client_user()
+        base_url = client.base_url
+        api_key = client.api_key
+        stop_url = f"{base_url}/chat-messages/{task_id}/stop"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {"user": request.user}
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.post(stop_url, headers=headers, json=payload)
+            if response.status_code == 200:
+                return {"result": "success", "message": "生成が停止されました"}
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Dify API エラー: {response.text}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("[STOP user] Exception: %s", e)
         raise HTTPException(status_code=500, detail={"message": "停止エラー", "error": str(e)})
 
 

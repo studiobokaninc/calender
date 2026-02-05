@@ -48,13 +48,24 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORSミドルウェアの設定（CORS_ORIGINS が未設定の場合はローカル用デフォルト）
+# CORSミドルウェアの設定
+# 外部アクセスを許可する場合は、環境変数 CORS_ALLOW_ALL=true を設定
+# または CORS_ORIGINS に許可するオリジンをカンマ区切りで指定
+_cors_allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() == "true"
 _cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5175,http://192.168.44.253:5175")
-CORS_ORIGINS = [o.strip() for o in _cors_origins_str.split(",") if o.strip()]
+
+if _cors_allow_all:
+    # 開発環境での外部アクセス許可（本番環境では非推奨）
+    logger.warning("CORS_ALLOW_ALL=true が設定されています。すべてのオリジンからのアクセスを許可します。")
+    CORS_ORIGINS = ["*"]
+else:
+    # 指定されたオリジンのみ許可
+    CORS_ORIGINS = [o.strip() for o in _cors_origins_str.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=True if not _cors_allow_all else False,  # allow_origins=["*"]の場合はFalseにする必要がある
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"]
@@ -298,8 +309,8 @@ async def update_project_endpoint(
             detail="プロジェクトが見つかりません"
         )
     updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
-    # プロジェクトが完了になった場合、そのプロジェクトに属する未完了タスクをすべて完了にする
-    if updated_project.status == models.ProjectStatus.COMPLETED:
+    # プロジェクトが完了またはキャンセルになった場合、そのプロジェクトに属する未完了タスクをすべて完了にする
+    if updated_project.status == models.ProjectStatus.COMPLETED or updated_project.status == models.ProjectStatus.CANCELLED:
         crud.complete_tasks_for_project(db=db, project_id=project_id)
     return updated_project
 

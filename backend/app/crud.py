@@ -46,6 +46,39 @@ def _parse_int_safe(value: str | None) -> int | None:
         print(f"Warning: Could not parse string to int: {value}")
         return None
 
+def _check_and_update_overdue_task(db: Session, db_task: models.Task) -> bool:
+    """期日を過ぎたタスクのステータスをdelayedに更新する。更新した場合Trueを返す。"""
+    if db_task.due_date is None:
+        return False
+    
+    # 期日が設定されている場合、現在時刻と比較
+    now = now_jst_naive()
+    # 期日を日付のみで比較（時刻を無視）
+    due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    now_date_only = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # 期日を過ぎていて、かつステータスがcompleted以外の場合
+    if due_date_only < now_date_only and db_task.status != models.TaskStatus.COMPLETED:
+        # 既にdelayedでない場合のみ更新
+        if db_task.status != models.TaskStatus.DELAYED:
+            original_status = db_task.status
+            db_task.status = models.TaskStatus.DELAYED
+            db_task.updated_at = now
+            
+            # ステータス履歴を記録
+            status_history_entry = models.TaskStatusHistory(
+                task_id=db_task.id,
+                status=models.TaskStatus.DELAYED,
+                changed_at=now,
+                changed_by=db_task.assigned_to
+            )
+            db.add(status_history_entry)
+            db.commit()
+            db.refresh(db_task)
+            logger.info(f"タスク {db_task.id} のステータスを {original_status} から DELAYED に自動更新しました（期日超過）")
+            return True
+    return False
+
 # --- User CRUD ---
 
 def get_user(db: Session, user_id: int) -> models.User | None:
@@ -192,7 +225,10 @@ def complete_tasks_for_project(db: Session, project_id: int) -> int:
 
 def get_task(db: Session, task_id: int) -> models.Task | None:
     """ID でタスクを取得"""
-    return db.query(models.Task).filter(models.Task.id == task_id).first()
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if db_task:
+        _check_and_update_overdue_task(db, db_task)
+    return db_task
 
 def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None) -> list[dict]:
     """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)"""
@@ -224,6 +260,43 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
         query_str = " ".join(query_parts)
         result = db.execute(text(query_str), params)
         rows = result.fetchall()
+        
+        # 期日を過ぎたタスクをチェックして更新（一括処理）
+        task_ids = [row.id for row in rows]
+        if task_ids:
+            # 期日が設定されていて、completed以外のタスクを取得
+            overdue_tasks = db.query(models.Task).filter(
+                models.Task.id.in_(task_ids),
+                models.Task.due_date.isnot(None),
+                models.Task.status != models.TaskStatus.COMPLETED,
+                models.Task.status != models.TaskStatus.DELAYED
+            ).all()
+            
+            now = now_jst_naive()
+            now_date_only = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            for db_task in overdue_tasks:
+                due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                if due_date_only < now_date_only:
+                    original_status = db_task.status
+                    db_task.status = models.TaskStatus.DELAYED
+                    db_task.updated_at = now
+                    
+                    # ステータス履歴を記録
+                    status_history_entry = models.TaskStatusHistory(
+                        task_id=db_task.id,
+                        status=models.TaskStatus.DELAYED,
+                        changed_at=now,
+                        changed_by=db_task.assigned_to
+                    )
+                    db.add(status_history_entry)
+                    logger.info(f"タスク {db_task.id} のステータスを {original_status} から DELAYED に自動更新しました（期日超過）")
+            
+            if overdue_tasks:
+                db.commit()
+                # 更新されたタスクのステータスを反映するため、再度取得
+                for db_task in overdue_tasks:
+                    db.refresh(db_task)
         
         # タスクを辞書に変換
         task_dicts = []
@@ -428,6 +501,10 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
 
     db.commit()
     db.refresh(db_task)
+    
+    # 期日を過ぎたタスクのステータスをチェックして更新
+    _check_and_update_overdue_task(db, db_task)
+    
     return db_task
 
 def delete_task(db: Session, db_task: models.Task) -> models.Task:

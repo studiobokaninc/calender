@@ -19,12 +19,8 @@ const AdminRoute: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // ★★★ 管理者チェックを追加 ★★★
-  if (user?.role !== 'admin') { 
-    // 管理者でない場合は、カレンダーなどにリダイレクトするか、アクセス拒否ページを表示
-    console.warn('AdminRoute: Non-admin user tried to access:', window.location.pathname);
-    // 例: カレンダーにリダイレクト
-    return <Navigate to="/calendar" replace />;
+  if (user?.role !== 'admin') {
+    return <Navigate to="/chat" replace />;
     // あるいはアクセス拒否メッセージを表示
     // return <Typography color="error">アクセス権限がありません。</Typography>;
   }

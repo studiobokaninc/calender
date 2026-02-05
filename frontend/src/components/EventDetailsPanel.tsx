@@ -255,14 +255,41 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   }, [timedEventsForDate]);
 
   // ★★★ Create maps for user and group lookup ★★★
-  const userMap = useMemo(() => new Map(users.map(u => [String(u.id), u.username || u.name || u.email || u.id])), [users]);
-  const groupMap: Map<string, string> = useMemo(() => new Map(groups.map(g => [String(g.id), g.name])), [groups]);
+  const userMap = useMemo(() => {
+    const m = new Map<string, string>();
+    users.forEach(u => {
+      const key = String(u.id);
+      const label = u.username || u.name || u.email || String(u.id);
+      m.set(key, label);
+      if (!key.startsWith('user-')) m.set(`user-${key}`, label); // バックエンドの "user-1" 形式にも対応
+    });
+    return m;
+  }, [users]);
+  const groupMap: Map<string, string> = useMemo(() => {
+    const m = new Map<string, string>();
+    groups.forEach(g => {
+      const key = String(g.id);
+      m.set(key, g.name);
+      if (!key.startsWith('group-')) m.set(`group-${key}`, g.name); // バックエンドの "group-1" 形式にも対応
+    });
+    return m;
+  }, [groups]);
   // ★★★ Add projectMap for lookup (Project型) ★★★
   const projectMap = useMemo(() => new Map((projects ?? []).map(p => {
     let key = String(p.id);
     if (key.startsWith('proj-')) key = key.replace('proj-', '');
     return [key, p];
   })), [projects]);
+
+  /** 参加者オブジェクトから表示名を取得（id が "user-1" / "group-1" または数値の両方に対応） */
+  const getParticipantDisplayName = (p: Participant): string => {
+    const idStr = String(p.id ?? '');
+    if (p.type === 'user') {
+      return userMap.get(idStr) ?? userMap.get(idStr.replace(/^user-/, '')) ?? idStr;
+    }
+    const groupId = idStr.startsWith('group-') ? idStr.replace('group-', '') : idStr;
+    return groupMap.get(groupId) ?? groupMap.get(idStr) ?? idStr;
+  };
 
   const handleDelete = () => {
       if (selectedEvent && window.confirm('このイベントを削除してもよろしいですか？')) {
@@ -357,7 +384,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               inputProps={{ 'aria-label': 'プロジェクトフィルター' }}
               sx={{ fontSize: '0.92rem', height: 32, minHeight: 32 }}
             >
-              <MenuItem value="all">すべて</MenuItem>
+              <MenuItem value="all">すべてのプロジェクト</MenuItem>
+              <MenuItem value="no-project">プロジェクト未設定</MenuItem>
               {projects.map((project) => (
                 <MenuItem key={project.id} value={String(project.id)}>
                   {project.name}
@@ -415,7 +443,12 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                 borderColor: getTitleBorderColor(selectedEvent),
                 backgroundColor: '#fafafa',
                 transition: 'box-shadow 0.2s',
-                '&:hover': { boxShadow: 4 }
+                '&:hover': { boxShadow: 4 },
+                cursor: 'pointer',
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                handleEdit();
               }}
             >
               {/* 1. タイトル（アイコン付き・青・ボールド・左詰め） */}
@@ -509,26 +542,26 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               {/* 3. その他の詳細（Chipや担当者など） */}
               {selectedEvent.extendedProps?.type === 'task' && (
                 <>
-                  {/* 関連プロジェクト（日付の下、説明の上に表示） */}
-                   {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) && (
-                      <Box sx={{ 
-                        mt: 1, 
-                        mb: 1.5, 
-                        p: 1, 
-                        backgroundColor: 'rgba(25, 118, 210, 0.08)', 
-                        borderRadius: 1,
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}>
-                        <FolderIcon sx={{ mr: 1, color: 'primary.main', fontSize: '1.1rem' }} />
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '0.95rem' }}>
-                          {(() => {
+                  {/* 関連プロジェクト（日付の下、説明の上に表示。未設定の場合は「未設定」と表示） */}
+                  <Box sx={{ 
+                    mt: 1, 
+                    mb: 1.5, 
+                    p: 1, 
+                    backgroundColor: selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) ? 'rgba(25, 118, 210, 0.08)' : 'rgba(0,0,0,0.04)', 
+                    borderRadius: 1,
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <FolderIcon sx={{ mr: 1, color: selectedEvent.extendedProps?.projectId ? 'primary.main' : 'text.secondary', fontSize: '1.1rem' }} />
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: selectedEvent.extendedProps?.projectId ? 'primary.main' : 'text.secondary', fontSize: '0.95rem' }}>
+                      {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId))
+                        ? (() => {
                             const project = projectMap.get(String(selectedEvent.extendedProps.projectId));
                             return project && 'name' in project ? project.name : '';
-                          })()}
-                        </Typography>
-                      </Box>
-                   )}
+                          })()
+                        : 'プロジェクト未設定'}
+                    </Typography>
+                  </Box>
                    
                   {/* タスクの説明 */}
                   {selectedEvent.extendedProps?.description && (
@@ -783,19 +816,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                          </Box>
                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, ml: 3 }}>
                           {(selectedEvent.extendedProps.participants as Participant[]).map((p, index) => {
-                            let groupId = String(p.id);
-                            if (
-                              p.type === 'group' &&
-                              typeof p.id === 'string' &&
-                              (p.id as string).startsWith('group-')
-                            ) {
-                              groupId = (p.id as string).replace('group-', '');
-                            }
-                            let groupName: string | undefined;
-                            groupName = groupMap.get(groupId);
-                            const name = p.type === 'user'
-                              ? (userMap.get(String(p.id ?? '')) ?? String(p.id ?? ''))
-                              : (groupName ?? String(p.id ?? ''));
+                            const name = getParticipantDisplayName(p);
                             const key = `${p.type}-${String(p.id)}-${index}`;
                             return (
                               <Chip 
@@ -814,25 +835,25 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                        </Box>
                      )}
                      
-                     {/* 関連プロジェクト */}
-                     {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) && (
-                       <Box sx={{ 
-                         mt: 0.5,
-                         p: 1, 
-                         backgroundColor: 'rgba(25, 118, 210, 0.08)', 
-                         borderRadius: 1,
-                         display: 'flex',
-                         alignItems: 'center'
-                       }}>
-                         <FolderIcon sx={{ mr: 1, color: 'primary.main', fontSize: '1rem' }} />
-                         <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', fontSize: '0.9rem' }}>
-                           {(() => {
-                             const project = projectMap.get(String(selectedEvent.extendedProps.projectId));
-                             return project && 'name' in project ? project.name : '';
-                           })()}
-                         </Typography>
-                       </Box>
-                     )}
+                     {/* 関連プロジェクト（未設定の場合は「未設定」と表示） */}
+                     <Box sx={{ 
+                       mt: 0.5,
+                       p: 1, 
+                       backgroundColor: selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) ? 'rgba(25, 118, 210, 0.08)' : 'rgba(0,0,0,0.04)', 
+                       borderRadius: 1,
+                       display: 'flex',
+                       alignItems: 'center'
+                     }}>
+                       <FolderIcon sx={{ mr: 1, color: selectedEvent.extendedProps?.projectId ? 'primary.main' : 'text.secondary', fontSize: '1rem' }} />
+                       <Typography variant="body2" sx={{ fontWeight: 600, color: selectedEvent.extendedProps?.projectId ? 'primary.main' : 'text.secondary', fontSize: '0.9rem' }}>
+                         {selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId))
+                           ? (() => {
+                               const project = projectMap.get(String(selectedEvent.extendedProps.projectId));
+                               return project && 'name' in project ? project.name : '';
+                             })()
+                           : 'プロジェクト未設定'}
+                       </Typography>
+                     </Box>
                    </Box>
                  </>
               )}
@@ -878,16 +899,15 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary', mb: 1.5 }}>
                 この日の予定 ({dailyEvents.length} 件)
               </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {dailyEvents.map(ev => (
                 <Paper
                   key={ev.id}
                   elevation={2}
-                               sx={{
-                    minWidth: 180,
-                    maxWidth: 260,
-                    flex: '1 1 180px',
-                    p: 1,
+                  sx={{
+                    width: '100%',
+                    minWidth: 0,
+                    p: 1.25,
                     cursor: 'pointer',
                     borderLeft: 4,
                     borderColor: getCardColor(ev),
@@ -895,6 +915,10 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     '&:hover': { boxShadow: 6, background: '#f5faff' },
                   }}
                   onClick={() => onEventSelect(ev)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(ev);
+                  }}
                 >
                   {/* タイプ表示Chip */}
                   <Chip 
@@ -987,13 +1011,37 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       </Box>
                     )}
                     
-                    {/* 参加者数 */}
+                    {/* 参加者（横長の余白を活かして名前を横並びで表示） */}
                     {ev.extendedProps?.participants && ev.extendedProps.participants.length > 0 && (
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <GroupIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', mr: 0.3 }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                          参加者 {ev.extendedProps.participants.length}名
-                        </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', mt: 0.2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                          <GroupIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', mr: 0.25 }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', fontWeight: 500 }}>
+                            参加者:
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, alignItems: 'center', flex: 1, minWidth: 0 }}>
+                          {(ev.extendedProps.participants as Participant[]).map((p, index) => {
+                            const name = getParticipantDisplayName(p);
+                            const key = `ev-${ev.id}-${p.type}-${String(p.id)}-${index}`;
+                            return (
+                              <Chip
+                                key={key}
+                                label={name}
+                                size="small"
+                                sx={{
+                                  height: 20,
+                                  fontSize: '0.7rem',
+                                  fontWeight: 500,
+                                  maxWidth: 160,
+                                  '& .MuiChip-label': { px: 0.6, overflow: 'hidden', textOverflow: 'ellipsis' },
+                                  backgroundColor: p.type === 'group' ? 'secondary.light' : 'primary.light',
+                                  color: p.type === 'group' ? 'secondary.dark' : 'primary.dark',
+                                }}
+                              />
+                            );
+                          })}
+                        </Box>
                       </Box>
                     )}
                     
@@ -1015,18 +1063,18 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       />
                     )}
                     
-                    {/* 関連プロジェクト */}
-                    {ev.extendedProps?.projectId && projectMap.has(String(ev.extendedProps.projectId)) && (
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <FolderIcon sx={{ fontSize: '0.9rem', color: 'primary.main', mr: 0.3 }} />
-                        <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'primary.main', fontWeight: 500 }} noWrap>
-                          {(() => {
-                            const project = projectMap.get(String(ev.extendedProps.projectId));
-                            return project && 'name' in project ? project.name : '';
-                          })()}
-                        </Typography>
-                      </Box>
-                    )}
+                    {/* 関連プロジェクト（未設定の場合は「未設定」と表示） */}
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <FolderIcon sx={{ fontSize: '0.9rem', color: ev.extendedProps?.projectId ? 'primary.main' : 'text.secondary', mr: 0.3 }} />
+                      <Typography variant="caption" sx={{ fontSize: '0.75rem', color: ev.extendedProps?.projectId ? 'primary.main' : 'text.secondary', fontWeight: 500 }} noWrap>
+                        {ev.extendedProps?.projectId && projectMap.has(String(ev.extendedProps.projectId))
+                          ? (() => {
+                              const project = projectMap.get(String(ev.extendedProps.projectId));
+                              return project && 'name' in project ? project.name : '';
+                            })()
+                          : 'プロジェクト未設定'}
+                      </Typography>
+                    </Box>
                   </Box>
             </Paper>
               ))}

@@ -141,26 +141,38 @@ const Dashboard: React.FC = () => {
   }
 
   const todayItems = useMemo(() => {
-    const tasks = globalData?.tasks ?? []
     const projects = globalData?.projects ?? []
     const getProjectName = (projectId: number | null | undefined): string => {
       if (projectId == null) return '（プロジェクトなし）'
       const p = projects.find((x: any) => x.id === projectId)
       return p?.name ?? `ID:${projectId}`
     }
-    const norm = (s: string | null | undefined): string =>
-      (s ?? '').toString().split('T')[0]
+    // ISO文字列をローカル日付の YYYY-MM-DD に変換（タイムゾーンずれを防ぐ）
+    const toLocalDateStr = (s: string | null | undefined): string => {
+      if (!s) return ''
+      const d = new Date(s)
+      if (isNaN(d.getTime())) return ''
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    }
+    // 終了時刻がローカルで 00:00:00 か（「翌日 00:00」で保存された終日イベント＝実質その日で終了）
+    const isMidnight = (s: string | null | undefined): boolean => {
+      if (!s) return true
+      const d = new Date(s)
+      return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0
+    }
 
-    type TodayItem = { type: 'task' | 'event'; name: string; projectName: string; id: number; timeLabel?: string; kindLabel: string; startTime?: string; dueDate?: string }
+    type TodayItem = { type: 'event'; name: string; projectName: string; id: number; timeLabel?: string; kindLabel: string; startTime?: string }
 
-    // 1. 今日のイベント（会議など）… start_time / end_time が今日に含まれるもの。開始時刻順で上に表示
+    // 今日のイベントのみ表示。2/4 00:00〜2/5 00:00 のような「翌日 00:00」で終了するものは 2/4 のイベントとみなし、2/5 には出さない
     const eventList: TodayItem[] = []
     backendEvents.forEach((ev: BackendEvent) => {
-      const startDate = norm(ev.start_time)
-      const endDate = ev.end_time ? norm(ev.end_time) : startDate
+      const startDate = toLocalDateStr(ev.start_time)
+      const endDate = ev.end_time ? toLocalDateStr(ev.end_time) : startDate
+      if (!startDate) return
       const startsToday = startDate === todayStr
-      const endsToday = endDate === todayStr
-      const spansToday = startDate <= todayStr && todayStr <= endDate
+      const endIsMidnight = isMidnight(ev.end_time)
+      const endsToday = endDate === todayStr && !endIsMidnight
+      const spansToday = startDate <= todayStr && todayStr <= endDate && !(todayStr === endDate && endIsMidnight)
       if (!startsToday && !endsToday && !spansToday) return
       const evType = (ev.type ?? 'Generic').toString()
       eventList.push({
@@ -175,36 +187,8 @@ const Dashboard: React.FC = () => {
     })
     eventList.sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))
 
-    // 2. タスク：開始日・期日のどちらかが設定されていればその日付に表示、両方あれば開始日〜期日まで表示。どちらも未設定は含めない。期日が近い順でイベントの下に表示
-    const taskList: TodayItem[] = []
-    tasks.forEach((t: any) => {
-      const start = norm(t.start_date)
-      const due = norm(t.due_date)
-      const hasStart = start !== ''
-      const hasDue = due !== ''
-      if (!hasStart && !hasDue) return
-      let showToday: boolean
-      if (hasStart && hasDue) {
-        showToday = start <= todayStr && todayStr <= due
-      } else if (hasStart) {
-        showToday = start === todayStr
-      } else {
-        showToday = due === todayStr
-      }
-      if (!showToday) return
-      taskList.push({
-        type: 'task',
-        name: t.name ?? `タスク #${t.id}`,
-        projectName: getProjectName(t.project_id ?? t.extendedProps?.projectId),
-        id: t.id,
-        kindLabel: 'タスク',
-        dueDate: due || start || '9999-12-31',
-      })
-    })
-    taskList.sort((a, b) => (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31'))
-
-    return [...eventList, ...taskList]
-  }, [globalData?.tasks, globalData?.projects, todayStr, backendEvents])
+    return eventList
+  }, [globalData?.projects, todayStr, backendEvents])
 
   const scrollToBottom = () => {
     if (listEndRef.current) {
@@ -1239,7 +1223,7 @@ const Dashboard: React.FC = () => {
 		  <Paper sx={{ p: 2 }}>
 			<Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
 				<Typography variant="h6">
-				  チャット
+				  チャット（管理者用）
 				</Typography>
 				<Button size="small" variant="outlined" onClick={handleNewConversation}>new chat</Button>
 			</Box>

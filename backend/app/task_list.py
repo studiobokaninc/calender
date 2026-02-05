@@ -140,6 +140,82 @@ def _project_status_value(p) -> str:
     return getattr(p.status, "value", str(p.status))
 
 
+def build_projects_list_for_chat(db: Session) -> str:
+    """
+    プロジェクトリストをCSV形式で生成する。
+    チャットで「プロジェクトリスト」を送る際に使用。
+    """
+    try:
+        projects = crud.get_projects(db, skip=0, limit=100000, display_status_in=None)
+        if not projects:
+            return ""
+        
+        field_order = [
+            "id",
+            "name",
+            "description",
+            "start_date",
+            "end_date",
+            "status",
+            "display_status",
+        ]
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow(field_order)
+        
+        for p in projects:
+            row = [
+                _cell_str(p.id),
+                _cell_str(p.name, normalize_text=True),
+                _cell_str(p.description, normalize_text=True),
+                _date_only(p.start_date),
+                _date_only(p.end_date),
+                _cell_str(_project_status_value(p)),
+                _cell_str(p.display_status),
+            ]
+            writer.writerow(row)
+        return buffer.getvalue()
+    except Exception as e:
+        logger.exception("build_projects_list_for_chat failed: %s", e)
+        return ""
+
+
+def build_users_list_for_chat(db: Session) -> str:
+    """
+    ユーザーリストをCSV形式で生成する。
+    チャットで「ユーザーリスト」を送る際に使用。
+    """
+    try:
+        users = crud.get_users(db, skip=0, limit=100000)
+        if not users:
+            return ""
+        
+        field_order = [
+            "id",
+            "username",
+            "name",
+            "email",
+            "role",
+        ]
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow(field_order)
+        
+        for u in users:
+            row = [
+                _cell_str(u.id),
+                _cell_str(u.username),
+                _cell_str(u.name),
+                _cell_str(u.email),
+                _cell_str(u.role),
+            ]
+            writer.writerow(row)
+        return buffer.getvalue()
+    except Exception as e:
+        logger.exception("build_users_list_for_chat failed: %s", e)
+        return ""
+
+
 def build_task_list_for_chat(db: Session) -> str:
     """
     アプリ内DBからタスク・プロジェクト・ユーザーを取得し、
@@ -163,6 +239,9 @@ def build_task_list_for_chat(db: Session) -> str:
         if not tasks:
             return build_tasks_csv_text([])
 
+        # タスクIDからタスク名へのマッピングを作成
+        id_to_taskname = {t.get("id"): _cell_str(t.get("name"), normalize_text=True) for t in tasks if t.get("id") and t.get("name")}
+
         filtered_tasks = [t for t in tasks if t.get("project_id") in active_project_ids]
 
         for item in filtered_tasks:
@@ -175,12 +254,61 @@ def build_task_list_for_chat(db: Session) -> str:
             elif uid is not None:
                 item["assigned_to"] = id_to_username.get(uid, str(uid))
 
+            # 依存タスクをタスクIDからタスク名に置き換え
             depends_on = item.get("dependsOn", "")
             if depends_on:
+                task_names = []
+                
+                # タスクIDを抽出するヘルパー関数（"task-XXXX"形式にも対応）
+                def extract_task_id(value):
+                    """タスクIDを抽出。整数、文字列の整数、"task-XXXX"形式に対応"""
+                    if isinstance(value, int):
+                        return value
+                    if isinstance(value, str):
+                        value = value.strip()
+                        # "task-XXXX"形式の場合
+                        if value.startswith("task-"):
+                            try:
+                                return int(value[5:])  # "task-"の後の部分を抽出
+                            except (ValueError, TypeError):
+                                pass
+                        # 通常の数値文字列の場合
+                        try:
+                            return int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    return None
+                
+                # リスト形式の場合
                 if isinstance(depends_on, list):
-                    item["dependsOn"] = ", ".join(map(str, depends_on))
+                    for dep_id in depends_on:
+                        dep_id_int = extract_task_id(dep_id)
+                        if dep_id_int and dep_id_int in id_to_taskname:
+                            task_names.append(id_to_taskname[dep_id_int])
+                        elif dep_id:
+                            # タスク名が見つからない場合は元の値を保持（既にタスク名の可能性もある）
+                            task_names.append(str(dep_id))
+                # 文字列形式の場合（カンマ区切りなど）
+                elif isinstance(depends_on, str):
+                    # カンマ区切りの文字列をパース
+                    dep_ids_str = [d.strip() for d in depends_on.split(",") if d.strip()]
+                    for dep_id_str in dep_ids_str:
+                        dep_id_int = extract_task_id(dep_id_str)
+                        if dep_id_int and dep_id_int in id_to_taskname:
+                            task_names.append(id_to_taskname[dep_id_int])
+                        elif dep_id_str:
+                            # タスク名が見つからない場合は元の値を保持（既にタスク名の可能性もある）
+                            task_names.append(dep_id_str)
+                # 単一のIDの場合
                 else:
-                    item["dependsOn"] = str(depends_on)
+                    dep_id_int = extract_task_id(depends_on)
+                    if dep_id_int and dep_id_int in id_to_taskname:
+                        task_names.append(id_to_taskname[dep_id_int])
+                    elif depends_on:
+                        task_names.append(str(depends_on))
+                
+                # タスク名をカンマ区切りで結合
+                item["dependsOn"] = ", ".join(task_names) if task_names else ""
             else:
                 item["dependsOn"] = ""
 

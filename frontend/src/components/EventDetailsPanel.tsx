@@ -29,13 +29,23 @@ const getProjectColor = (project: Project | { status?: string, color?: string } 
     default: return '#757575';
   }
 }
-const getTaskColor = (status?: string): string => {
+const getTaskColor = (
+  status?: string,
+  projectStatus?: string,
+  dueDate?: string | Date | null
+): string => {
+  const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
+
+  if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
+    return '#9E9E9E'; // Grey if project is completed/cancelled
+  }
+
   switch (status) {
     case 'todo': return '#2196F3';
     case 'in-progress': return '#FF9800';
     case 'review': return '#9C27B0';
     case 'delayed': return '#F44336';
-    case 'completed': return '#9E9E9E';
+    case 'completed': return '#9E9E9E'; // Grey if task itself is completed
     default: return '#BDBDBD';
   }
 }
@@ -90,13 +100,57 @@ const getStatusColor = (status?: string): string => {
   }
 };
 
-// Updated getEventColor (copy or import from Calendar.tsx if needed)
-const getEventColor = (type?: string): string => {
-  switch (type?.toLowerCase()) {
+// 日付が過ぎているかどうかを判定するヘルパー関数
+const isDatePast = (dateStr: string | Date | null | undefined): boolean => {
+  if (!dateStr) return false;
+  try {
+    const date = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
+    if (!isValid(date)) return false;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const eventDate = new Date(date);
+    eventDate.setHours(0, 0, 0, 0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    
+    return eventDate <= yesterday;
+  } catch {
+    return false;
+  }
+};
+
+// Updated getEventColor (same logic as CalendarPage.tsx)
+const getEventColor = (
+  type?: string,
+  projectStatus?: string,
+  eventDate?: string | Date | null
+): string => {
+  // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
+  const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
+  
+  // プロジェクトが完了またはキャンセルの場合は、イベントの種類に関わらずグレーにする
+  if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
+    return '#9E9E9E';
+  }
+  
+  // 日付が過ぎている場合はグレーにする
+  if (eventDate) {
+    const isPast = isDatePast(eventDate);
+    if (isPast) {
+      return '#9E9E9E';
+    }
+  }
+  
+  const t = type?.toLowerCase();
+  switch (t) {
     case 'meeting': return '#1976d2';
-    case 'review': return '#00897b';
+    case 'review': case 'workshop': return '#00897b';
     case 'deadline': return '#d32f2f';
-    case 'milestone': return '#d32f2f';
+    case 'milestone': return '#9C27B0';
     default: return '#2196f3'; // Default blue for generic events
   }
 };
@@ -324,21 +378,70 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     console.log("[EventDetailsPanel] getTitleBorderColor called with event:", event ? { type: event.extendedProps?.type, status: event.extendedProps?.taskStatus, projectStatus: event.extendedProps?.projectStatus } : null);
     if (!event) return 'transparent';
     const type = event.extendedProps?.type;
-    if (type === 'project') return getProjectColor({ status: event.extendedProps?.projectStatus ?? undefined });
-    if (type === 'task') return getTaskColor(event.extendedProps?.taskStatus ?? 'todo');
+    
+    // プロジェクトIDからプロジェクト情報を取得
+    const projectId = event.extendedProps?.projectId;
+    const project = projectId ? projectMap.get(String(projectId)) : undefined;
+    const projectStatus = project?.status ?? event.extendedProps?.projectStatus;
+    
+    // イベント日付を取得
+    let eventDate: string | Date | null = null;
+    if (event.end) {
+      eventDate = typeof event.end === 'string' ? event.end : event.end;
+    } else if (event.start) {
+      eventDate = typeof event.start === 'string' ? event.start : event.start;
+    }
+    
+    if (type === 'project') return getProjectColor({ status: projectStatus ?? undefined });
+    if (type === 'task') {
+      const taskDueDate = event.extendedProps?.taskDueDate;
+      return getTaskColor(
+        event.extendedProps?.taskStatus ?? 'todo', 
+        (projectStatus === null || projectStatus === undefined) ? undefined : projectStatus, 
+        (taskDueDate === null || taskDueDate === undefined) ? undefined : (taskDueDate as string | Date | null)
+      );
+    }
     if (type === 'group') return '#9C27B0'; // グループは紫
-    return getEventColor(type);
+    return getEventColor(
+      type ?? undefined, 
+      (projectStatus === null || projectStatus === undefined) ? undefined : projectStatus, 
+      (eventDate === null || eventDate === undefined) ? undefined : (eventDate as string | Date | null)
+    );
   };
 
   // カード色分け用関数
   const getCardColor = (ev: CalendarEvent) => {
     const type = ev.extendedProps?.type?.toLowerCase?.();
-    if (type === 'milestone') return '#d32f2f'; // マイルストーンは常に赤
-    if (type === 'project') return getProjectColor({ status: ev.extendedProps?.projectStatus ?? undefined });
+    
+    // プロジェクトIDからプロジェクト情報を取得
+    const projectId = ev.extendedProps?.projectId;
+    const project = projectId ? projectMap.get(String(projectId)) : undefined;
+    const projectStatus = project?.status ?? ev.extendedProps?.projectStatus;
+    
+    // イベント日付を取得
+    let eventDate: string | Date | null = null;
+    if (ev.end) {
+      eventDate = typeof ev.end === 'string' ? ev.end : ev.end;
+    } else if (ev.start) {
+      eventDate = typeof ev.start === 'string' ? ev.start : ev.start;
+    }
+    
+    if (type === 'project') return getProjectColor({ status: projectStatus ?? undefined });
     if (type === 'group') return '#9C27B0'; // グループは紫
-    if (type === 'task') return getTaskColor(ev.extendedProps?.taskStatus ?? 'todo');
-    if (type === 'milestone' || type === 'deadline') return getEventColor(type);
-    return getEventColor(type);
+    if (type === 'task') {
+      const taskDueDate = ev.extendedProps?.taskDueDate;
+      return getTaskColor(
+        ev.extendedProps?.taskStatus ?? 'todo', 
+        (projectStatus === null || projectStatus === undefined) ? undefined : (projectStatus as string), 
+        (taskDueDate === null || taskDueDate === undefined) ? undefined : (taskDueDate as string | Date | null)
+      );
+    }
+    // バックエンドイベント（会議、マイルストーン、締切など）の場合
+    return getEventColor(
+      ev.extendedProps?.type, 
+      (projectStatus === null || projectStatus === undefined) ? undefined : (projectStatus as string), 
+      (eventDate === null || eventDate === undefined) ? undefined : (eventDate as string | Date | null)
+    );
   };
 
   // カード色デバッグ: dailyEventsが変化したときに出力
@@ -389,11 +492,30 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             >
               <MenuItem value="all">すべてのプロジェクト</MenuItem>
               <MenuItem value="no-project">プロジェクト未設定</MenuItem>
-              {projects.map((project) => (
-                <MenuItem key={project.id} value={String(project.id)}>
-                  {project.name}
-                </MenuItem>
-              ))}
+              {projects.filter(project => project.display_status !== 'offline').map((project) => {
+                const isOnline = project.display_status === 'online';
+                const statusColor = isOnline ? '#4CAF50' : '#9E9E9E';
+                return (
+                  <MenuItem 
+                    key={project.id} 
+                    value={String(project.id)}
+                    sx={{
+                      '&::before': {
+                        content: '""',
+                        display: 'inline-block',
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: statusColor,
+                        marginRight: 1,
+                        verticalAlign: 'middle'
+                      }
+                    }}
+                  >
+                    {project.name}
+                  </MenuItem>
+                );
+              })}
             </Select>
           </FormControl>
           {/* 表示する予定の種類（チェックボックスで個別にオンオフ） */}
@@ -736,9 +858,9 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               )}
               {selectedEvent.extendedProps?.type === 'group' && (
                 <>
-                  {selectedEvent.extendedProps?.groupDescription && (
+                  {selectedEvent.extendedProps?.description && (
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 1.5, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                      {selectedEvent.extendedProps.groupDescription}
+                      {selectedEvent.extendedProps.description}
                     </Typography>
                   )}
                   <Divider sx={{ my: 1.5 }} />

@@ -20,7 +20,7 @@ const Login: React.FC = () => {
       navigate('/calendar'); // Redirect to calendar after successful login
     } catch (err: any) {
       // エラーメッセージが既に設定されている場合はそれを使用、そうでなければデフォルトメッセージ
-      const errorMessage = err?.message || 'ログインに失敗しました。ユーザー名またはパスワードを確認してください。';
+      const errorMessage = err?.message || 'ログインに失敗しました。メールアドレスまたはパスワードを確認してください。';
       setError(errorMessage);
       console.error(err);
     } finally {
@@ -49,9 +49,9 @@ const Login: React.FC = () => {
           required
           fullWidth
           id="username"
-          label="ユーザー名"
+          label="メールアドレス"
           name="username"
-          autoComplete="username"
+          autoComplete="email"
           autoFocus
           value={username}
           onChange={(e) => setUsername(e.target.value)}

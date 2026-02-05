@@ -224,10 +224,10 @@ def build_task_list_for_chat(db: Session) -> str:
     """
     try:
         projects = crud.get_projects(db, skip=0, limit=100000, display_status_in=None)
-        # status が completed でないプロジェクトをアクティブとする（toDatatable に合わせる）
+        # status が completed または cancelled でないプロジェクトをアクティブとする（toDatatable に合わせる）
         active_projects = [
             p for p in (projects or [])
-            if _project_status_value(p) != "completed"
+            if _project_status_value(p) not in ["completed", "cancelled"]
         ]
         id_to_name = {p.id: p.name for p in active_projects}
         active_project_ids = {p.id for p in active_projects}

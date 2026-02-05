@@ -1018,7 +1018,7 @@ const UserManagementPage: React.FC = () => {
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
-              label="ユーザーID"
+              label="ユーザー名"
               name="username"
               value={currentEditUser?.username || ''}
               onChange={handleEditChange}

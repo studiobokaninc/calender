@@ -34,6 +34,8 @@ const GroupManagementPage: React.FC = () => {
   const [newGroupDesc, setNewGroupDesc] = useState('');
   const [newGroupStartDate, setNewGroupStartDate] = useState('');
   const [newGroupEndDate, setNewGroupEndDate] = useState('');
+  const [newGroupUsers, setNewGroupUsers] = useState<string[]>([]);
+  const [newGroupSelectOpen, setNewGroupSelectOpen] = useState(false);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [usersToAdd, setUsersToAdd] = useState<string[]>([]);
   const [addUserSelectOpen, setAddUserSelectOpen] = useState(false);
@@ -149,21 +151,40 @@ const GroupManagementPage: React.FC = () => {
   const handleOpenCreateModal = () => {
     setNewGroupName('');
     setNewGroupDesc('');
+    setNewGroupStartDate('');
+    setNewGroupEndDate('');
+    setNewGroupUsers([]);
     setIsCreateModalOpen(true);
   };
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return;
     try {
-      await api.post('/api/groups', { 
+      const response = await api.post<Group>('/api/groups', { 
         name: newGroupName.trim(), 
         description: newGroupDesc.trim() || undefined,
         start_date: newGroupStartDate || undefined,
         end_date: newGroupEndDate || undefined,
       });
+      const newGroup = response.data;
+      
+      // 選択されたユーザーをグループに追加
+      if (newGroupUsers.length > 0) {
+        for (const userId of newGroupUsers) {
+          try {
+            await api.post('/api/user_groups', { user_id: Number(userId), group_id: newGroup.id });
+          } catch (err) {
+            console.error(`Failed to add user ${userId} to group:`, err);
+          }
+        }
+      }
+      
       await fetchInitialData();
       handleCloseCreateModal();
-      setSnackbar({ open: true, message: `グループ「${newGroupName}」を作成しました`, severity: 'success' });
+      const userMessage = newGroupUsers.length > 0 
+        ? `グループ「${newGroupName}」を作成し、${newGroupUsers.length}人のメンバーを追加しました`
+        : `グループ「${newGroupName}」を作成しました`;
+      setSnackbar({ open: true, message: userMessage, severity: 'success' });
     } catch (err) {
       console.error("Failed to create group:", err);
       setSnackbar({ open: true, message: 'グループの作成に失敗しました', severity: 'error' });
@@ -176,6 +197,7 @@ const GroupManagementPage: React.FC = () => {
     setNewGroupDesc('');
     setNewGroupStartDate('');
     setNewGroupEndDate('');
+    setNewGroupUsers([]);
   };
 
   const handleOpenEditModal = () => {
@@ -686,6 +708,54 @@ const GroupManagementPage: React.FC = () => {
             onChange={e => setNewGroupEndDate(e.target.value)}
             InputLabelProps={{ shrink: true }}
           />
+          <FormControl fullWidth margin="dense" variant="outlined" size="small" sx={{ mt: 1 }}>
+            <InputLabel>メンバー（複数選択可）</InputLabel>
+            <Select
+              multiple
+              value={newGroupUsers}
+              label="メンバー（複数選択可）"
+              open={newGroupSelectOpen}
+              onOpen={() => setNewGroupSelectOpen(true)}
+              onClose={() => setNewGroupSelectOpen(false)}
+              onChange={e => setNewGroupUsers(Array.isArray(e.target.value) ? e.target.value : [])}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {selected.map((userId) => {
+                    const id = parseInt(userId, 10);
+                    const user = users.find(u => u.id === id);
+                    const displayName = user?.username || user?.name || user?.full_name || user?.email || userId;
+                    return <Chip key={userId} label={displayName} size="small" />;
+                  })}
+                </Box>
+              )}
+            >
+              {users.map((user) => (
+                <MenuItem
+                  key={user.id}
+                  value={String(user.id)}
+                  sx={{
+                    '&.Mui-selected': {
+                      backgroundColor: 'rgba(25, 118, 210, 0.2) !important',
+                      '&:hover': { backgroundColor: 'rgba(25, 118, 210, 0.3) !important' },
+                    },
+                    '&.Mui-selected.Mui-focusVisible': { backgroundColor: 'rgba(25, 118, 210, 0.3) !important' },
+                  }}
+                >
+                  {user.username || user.name || user.full_name || user.email}
+                </MenuItem>
+              ))}
+              {users.length > 0 && (
+                <>
+                  <Divider />
+                  <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', zIndex: 1, width: '100%', display: 'flex', justifyContent: 'flex-end', py: 1, px: 1 }} onClick={(e) => e.stopPropagation()}>
+                    <Button onClick={() => setNewGroupSelectOpen(false)} size="small" variant="contained">
+                      完了
+                    </Button>
+                  </Box>
+                </>
+              )}
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={handleCloseCreateModal}>キャンセル</Button>
@@ -766,8 +836,9 @@ const GroupManagementPage: React.FC = () => {
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                   {selected.map((userId) => {
                     const id = parseInt(userId, 10);
-                    const name = userMap.get(id);
-                    return <Chip key={userId} label={name || userId} size="small" />;
+                    const user = users.find(u => u.id === id);
+                    const displayName = user?.username || user?.name || user?.full_name || user?.email || userId;
+                    return <Chip key={userId} label={displayName} size="small" />;
                   })}
                 </Box>
               )}
@@ -784,7 +855,7 @@ const GroupManagementPage: React.FC = () => {
                     '&.Mui-selected.Mui-focusVisible': { backgroundColor: 'rgba(25, 118, 210, 0.3) !important' },
                   }}
                 >
-                  {user.name || user.email}
+                  {user.username || user.name || user.full_name || user.email}
                 </MenuItem>
               ))}
               {usersNotInSelectedGroup.length > 0 && (

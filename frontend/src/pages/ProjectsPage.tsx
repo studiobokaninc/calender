@@ -33,6 +33,15 @@ const getPriorityColor = (priority?: string): string => {
     }
 };
 
+// Helper function to get display status color
+const getDisplayStatusColor = (status?: string): string => {
+    switch (status) {
+        case 'online': return '#4CAF50'; // Green
+        case 'offline': return '#9E9E9E'; // Grey
+        default: return '#757575'; // Default grey
+    }
+};
+
 interface ProjectWithProgress extends Project {
     totalCost: number;
     completedCost: number;
@@ -54,7 +63,6 @@ interface ProjectFormData {
 const displayStatusOptions = [
     { value: 'online', label: 'オンライン' },
     { value: 'offline', label: 'オフライン' },
-    { value: 'archived', label: 'アーカイブ' },
 ];
 
 const ProjectsPage: React.FC = () => {
@@ -409,8 +417,21 @@ const ProjectsPage: React.FC = () => {
                 const row = params.row;
                 const value = typeof params.value === 'string' ? params.value : 'online';
                 const label = displayStatusOptions.find(opt => opt.value === value)?.label ?? value;
+                const statusColor = getDisplayStatusColor(value);
                 if (!isAdmin) {
-                    return <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>{label}</Typography>;
+                    return (
+                        <Chip 
+                            label={label} 
+                            size="small"
+                            sx={{ 
+                                backgroundColor: statusColor, 
+                                color: '#fff',
+                                fontSize: '0.75rem',
+                                height: 24,
+                                fontWeight: 500
+                            }} 
+                        />
+                    );
                 }
                 return (
                     <Select
@@ -437,7 +458,25 @@ const ProjectsPage: React.FC = () => {
                                 setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
                             }
                         }}
-                        sx={{ minWidth: 100, fontSize: '0.75rem' }}
+                        sx={{ 
+                            minWidth: 100, 
+                            fontSize: '0.75rem',
+                            backgroundColor: statusColor,
+                            color: '#fff',
+                            '& .MuiSelect-select': {
+                                color: '#fff',
+                                fontWeight: 500
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                                borderColor: statusColor
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                                borderColor: statusColor
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                borderColor: statusColor
+                            }
+                        }}
                         MenuProps={{
                             PaperProps: {
                                 sx: { fontSize: '0.75rem' }
@@ -445,7 +484,20 @@ const ProjectsPage: React.FC = () => {
                         }}
                     >
                         {displayStatusOptions.map(opt => (
-                            <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.75rem' }}>{opt.label}</MenuItem>
+                            <MenuItem 
+                                key={opt.value} 
+                                value={opt.value} 
+                                sx={{ 
+                                    fontSize: '0.75rem',
+                                    backgroundColor: opt.value === value ? statusColor : 'transparent',
+                                    color: opt.value === value ? '#fff' : 'inherit',
+                                    '&:hover': {
+                                        backgroundColor: opt.value === value ? statusColor : 'rgba(0, 0, 0, 0.04)'
+                                    }
+                                }}
+                            >
+                                {opt.label}
+                            </MenuItem>
                         ))}
                     </Select>
                 );

@@ -18,19 +18,43 @@ import { debounce } from 'lodash';
 
 
 // ★★★ バックアップ版から getEventColor, getProjectColor, getTaskColor を移植 ★★★
-const getEventColor = (type?: string): string => {
+const getEventColor = (
+  type?: string, 
+  projectStatus?: string, 
+  eventDate?: string | Date | null
+): string => {
+  // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
+  const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
+  
+  // プロジェクトが完了またはキャンセルの場合は、イベントの種類に関わらずグレーにする
+  if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
+    return '#9E9E9E';
+  }
+  
+  // 日付が過ぎている場合はグレーにする
+  if (eventDate) {
+    const isPast = isDatePast(eventDate);
+    if (isPast) {
+      return '#9E9E9E';
+    }
+  }
+  
   const t = type?.toLowerCase();
   switch (t) {
     case 'meeting': return '#1976d2';
     case 'review': case 'workshop': return '#00897b';   // ティール（青背景と調和）
     case 'deadline': return '#d32f2f';
+    case 'milestone': return '#9C27B0';
     default: return '#2196f3'; // Default blue for generic events
   }
 };
 
-const getProjectColor = (project?: { status?: string | null; color?: string | null } | string): string => {
-  // プロジェクトオブジェクトの場合、ステータスに基づく色のみを使用（カスタム色は無視）
+const getProjectColor = (project?: { status?: string | null; color?: string | null; display_status?: string | null } | string): string => {
+  // プロジェクトオブジェクトの場合、display_statusがofflineの場合はグレーを返す
   if (typeof project === 'object' && project) {
+    if (project.display_status === 'offline') {
+      return '#9E9E9E'; // オフラインはグレー
+    }
     const status = project.status;
     switch (status) {
       case 'planning': return '#FF9800';
@@ -49,11 +73,48 @@ const getProjectColor = (project?: { status?: string | null; color?: string | nu
   }
 };
 
-const getTaskColor = (status?: string, projectStatus?: string): string => {
-  // プロジェクトが完了している場合は、タスクのステータスに関わらずグレーにする
-  if (projectStatus === 'completed') {
+// 日付が過ぎているかどうかを判定するヘルパー関数
+// 2/5の時に2/4 00:00~00:00のイベントもグレーになるように、日付のみで比較（時刻は無視）
+const isDatePast = (dateStr: string | Date | null | undefined): boolean => {
+  if (!dateStr) return false;
+  try {
+    const date = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
+    if (!isValidDateFns(date)) return false;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const eventDate = new Date(date);
+    eventDate.setHours(0, 0, 0, 0);
+    
+    // 日付のみで比較（2/4のイベントは2/5の時点で「過ぎている」と判定）
+    // eventDate < today ではなく、eventDate <= today - 1日 で判定
+    // つまり、今日より前の日付のイベントは「過ぎている」
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    
+    // イベント日付が昨日以前なら「過ぎている」
+    return eventDate <= yesterday;
+  } catch {
+    return false;
+  }
+};
+
+const getTaskColor = (
+  status?: string, 
+  projectStatus?: string, 
+  _dueDate?: string | Date | null
+): string => {
+  // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
+  const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
+  
+  // プロジェクトが完了またはキャンセルの場合は、タスクのステータスに関わらずグレーにする
+  if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
     return '#9E9E9E';
   }
+  
+  // タスクは日付が過ぎただけではグレーにしない（プロジェクトステータスのみで判定）
   
   switch (status) {
     case 'todo': return '#2196F3';
@@ -248,14 +309,19 @@ const CalendarPage: React.FC = () => {
                 .filter(task => task.due_date)
                 .map((task) => {
                     const project = projectsData.find(p => p.id === task.project_id);
+                    const taskColor = getTaskColor(
+                        task.status ?? 'todo', 
+                        project?.status ?? undefined,
+                        task.due_date
+                    );
                     return {
                     id: `task-${task.id}`,
                     title: task.name,
                         start: task.due_date ? parseISO(task.due_date) : new Date(),
                         end: undefined,
                         allDay: true,
-                        backgroundColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
-                        borderColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
+                        backgroundColor: taskColor,
+                        borderColor: taskColor,
                     extendedProps: {
                             type: 'task',
                             taskId: task.id,
@@ -299,13 +365,17 @@ const CalendarPage: React.FC = () => {
                         return null;
                     } else {
                         const project = be.project_id ? projectsData.find(p => p.id === be.project_id) : undefined;
-                        // プロジェクトが完了している場合はグレーにする
-                        const isCompletedProject = project?.status === 'completed';
                         // バックエンドの type を正規化（Event / 未設定 → Generic として表示）
                         const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                             ? be.type
                             : 'Generic';
-                        const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
+                        // イベントの日付を決定（終了日があれば終了日、なければ開始日）
+                        const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                        const eventColor = getEventColor(
+                            normalizedType ?? 'Generic',
+                            project?.status ?? undefined,
+                            eventDate
+                        );
                         
                         return {
                     id: `event-${be.id}`,
@@ -389,11 +459,16 @@ const CalendarPage: React.FC = () => {
                             return null;
                         } else {
                             const project = projects.find(p => p.id === be.project_id);
-                            const isCompletedProject = project?.status === 'completed';
                             const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                 ? be.type
                                 : 'Generic';
-                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
+                            // イベントの日付を決定（終了日があれば終了日、なければ開始日）
+                            const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                            const eventColor = getEventColor(
+                                normalizedType ?? 'Generic',
+                                project?.status ?? undefined,
+                                eventDate
+                            );
                             
                             return {
                                 id: `event-${be.id}`,
@@ -543,14 +618,19 @@ const CalendarPage: React.FC = () => {
                 .filter(task => task.due_date) // 期日がないタスクは除外
                 .map(task => {
                     const project = projects.find(p => p.id === task.project_id);
+                    const taskColor = getTaskColor(
+                        task.status ?? 'todo', 
+                        project?.status ?? undefined,
+                        task.due_date
+                    );
                     return {
                         id: `task-${task.id}`,
                         title: task.name || 'Untitled Task',
                         start: task.due_date ? parseISO(task.due_date) : new Date(),
                         end: undefined,
                         allDay: true,
-                        backgroundColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
-                        borderColor: getTaskColor(task.status ?? 'todo', project?.status ?? undefined),
+                        backgroundColor: taskColor,
+                        borderColor: taskColor,
                         extendedProps: {
                             type: 'task',
                             taskId: task.id,
@@ -635,18 +715,89 @@ const CalendarPage: React.FC = () => {
                     }
                 }));
 
+            // バックエンドイベントの色を再計算（プロジェクトステータスが変更された場合に備えて）
+            // プロジェクトの検索を最適化するためのMapを作成
+            const projectsMapForRecalc = new Map<string, Project>();
+            projects.forEach(project => {
+                projectsMapForRecalc.set(String(project.id), project);
+            });
+            
+            const recalculatedBackendEvents = backendEvents.map(event => {
+                const projectId = event.extendedProps?.projectId;
+                const project = projectId ? projectsMapForRecalc.get(String(projectId)) : undefined;
+                
+                // イベントの日付を決定（終了日があれば終了日、なければ開始日）
+                // event.end と event.start は Date オブジェクトまたは文字列の可能性がある
+                let eventDate: string | Date | null = null;
+                if (event.end) {
+                    eventDate = typeof event.end === 'string' ? event.end : event.end;
+                } else if (event.start) {
+                    eventDate = typeof event.start === 'string' ? event.start : event.start;
+                }
+                
+                const eventColor = getEventColor(
+                    event.extendedProps?.type ?? 'Generic',
+                    project?.status ?? undefined,
+                    eventDate
+                );
+                
+                return {
+                    ...event,
+                    backgroundColor: eventColor,
+                    borderColor: eventColor,
+                };
+            });
+            
             // バックエンドイベントと統合
             const allCalendarEvents = sortEventsForDisplay([
                 ...projectEvents, 
                 ...taskEvents,
                 ...groupEvents,
-                ...backendEvents
+                ...recalculatedBackendEvents
             ]);
             
             console.log("[CalendarPage] Setting rawEvents with", allCalendarEvents.length, "events");
             setRawEvents(allCalendarEvents);
         }
     }, [tasks, projects, groups, backendEvents, loading]);
+
+    // projectsが更新された時に、backendEventsの色を再計算して更新
+    useEffect(() => {
+        if (backendEvents.length > 0 && projects.length > 0) {
+            // プロジェクトの検索を最適化するためのMapを作成
+            const projectsMapForUpdate = new Map<string, Project>();
+            projects.forEach(project => {
+                projectsMapForUpdate.set(String(project.id), project);
+            });
+            
+            const updatedBackendEvents = backendEvents.map(event => {
+                const projectId = event.extendedProps?.projectId;
+                const project = projectId ? projectsMapForUpdate.get(String(projectId)) : undefined;
+                
+                let eventDate: string | Date | null = null;
+                if (event.end) {
+                    eventDate = typeof event.end === 'string' ? event.end : event.end;
+                } else if (event.start) {
+                    eventDate = typeof event.start === 'string' ? event.start : event.start;
+                }
+                
+                const eventColor = getEventColor(
+                    event.extendedProps?.type ?? 'Generic',
+                    project?.status ?? undefined,
+                    eventDate
+                );
+                
+                return {
+                    ...event,
+                    backgroundColor: eventColor,
+                    borderColor: eventColor,
+                };
+            });
+            
+            // 必ず更新して、rawEventsの再生成をトリガーする
+            setBackendEvents(updatedBackendEvents);
+        }
+    }, [projects]); // projectsのみを依存関係に設定（backendEventsはクロージャで参照）
 
     // タブを開いた時に最新データを取得（バックグラウンド）
     useEffect(() => {
@@ -687,11 +838,16 @@ const CalendarPage: React.FC = () => {
                                 return null;
                             } else {
                                 const project = be.project_id ? globalData.projects?.find(p => p.id === be.project_id) : undefined;
-                                const isCompletedProject = project?.status === 'completed';
                                 const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                     ? be.type
                                     : 'Generic';
-                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
+                                // イベントの日付を決定（終了日があれば終了日、なければ開始日）
+                                const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                                const eventColor = getEventColor(
+                                    normalizedType ?? 'Generic',
+                                    project?.status ?? undefined,
+                                    eventDate
+                                );
                                 
                                 return {
                                     id: `event-${be.id}`,
@@ -778,11 +934,36 @@ const CalendarPage: React.FC = () => {
         }
     }, [selectedDate, selectedEventDetails, eventStatusFilter, eventTypeFilter, stateRestored, updateCalendarState]);
 
+    // プロジェクトの検索を最適化するためのMapを作成（O(1)の検索を可能にする）
+    const projectsMap = useMemo(() => {
+        const map = new Map<string, Project>();
+        projects.forEach(project => {
+            map.set(String(project.id), project);
+        });
+        return map;
+    }, [projects]);
+
     const filterEvents = useCallback((events: CalendarEvent[]) => {
         return events.filter(event => {
             const eventProjectId = event.extendedProps?.projectId;
             const eventType = event.extendedProps?.type?.toLowerCase();
             const eventId = event.id;
+
+            // プロジェクトのdisplay_statusがofflineの場合は、そのプロジェクトに関連するすべてのイベントを非表示にする（Mapを使用してO(1)検索）
+            if (eventType === 'project') {
+                // プロジェクト自体の場合
+                const projectId = eventId.replace(/^proj-/, '');
+                const project = projectsMap.get(String(projectId));
+                if (project && project.display_status === 'offline') {
+                    return false; // オフラインのプロジェクトは非表示
+                }
+            } else if (eventProjectId) {
+                // プロジェクトに紐づくイベント（タスク、会議、ワークショップ、マイルストーン、締切など）の場合
+                const project = projectsMap.get(String(eventProjectId));
+                if (project && project.display_status === 'offline') {
+                    return false; // オフラインのプロジェクトに関連するイベントは非表示
+                }
+            }
 
             // プロジェクトフィルターのチェック
             let projectFilterPass = true;
@@ -811,13 +992,13 @@ const CalendarPage: React.FC = () => {
             // 両方のフィルターを通過したイベントのみ表示
             return projectFilterPass && typeFilterPass;
         });
-    }, [eventStatusFilter, eventTypeFilter]);
+    }, [eventStatusFilter, eventTypeFilter, projectsMap]);
 
     const filteredEvents = useMemo(() => {
         return filterEvents(rawEvents);
     }, [rawEvents, filterEvents]);
 
-    // FullCalendarに渡す前に、endがnullのイベントをundefinedに変換
+    // FullCalendarに渡す前に、endがnullのイベントをundefinedに変換し、色を再計算
     const eventsForFullCalendar = useMemo(() => {
         return filteredEvents.map(event => {
             let startStr: string | undefined = undefined;
@@ -844,13 +1025,94 @@ const CalendarPage: React.FC = () => {
                 }
             }
 
+            // バックエンドイベント（会議、マイルストーン、締切、ワークショップなど）の色を再計算
+            let backgroundColor = event.backgroundColor;
+            let borderColor = event.borderColor;
+            
+            const eventType = event.extendedProps?.type?.toLowerCase();
+            if (eventType && eventType !== 'project' && eventType !== 'task' && eventType !== 'group') {
+                // バックエンドイベントの場合、色を再計算（Mapを使用してO(1)検索）
+                const projectId = event.extendedProps?.projectId;
+                const project = projectId ? projectsMap.get(String(projectId)) : undefined;
+                
+                let eventDate: string | Date | null = null;
+                if (event.end) {
+                    eventDate = typeof event.end === 'string' ? event.end : event.end;
+                } else if (event.start) {
+                    eventDate = typeof event.start === 'string' ? event.start : event.start;
+                }
+                
+                const recalculatedColor = getEventColor(
+                    event.extendedProps?.type ?? 'Generic',
+                    project?.status ?? undefined,
+                    eventDate
+                );
+                
+                backgroundColor = recalculatedColor;
+                borderColor = recalculatedColor;
+            } else if (eventType === 'task') {
+                // タスクの場合も色を再計算（Mapを使用してO(1)検索）
+                const projectId = event.extendedProps?.projectId;
+                const project = projectId ? projectsMap.get(String(projectId)) : undefined;
+                const taskDueDate = event.extendedProps?.taskDueDate;
+                
+                const recalculatedColor = getTaskColor(
+                    event.extendedProps?.taskStatus ?? 'todo',
+                    project?.status ?? undefined,
+                    taskDueDate
+                );
+                
+                backgroundColor = recalculatedColor;
+                borderColor = recalculatedColor;
+            }
+
             return {
                 ...event,
                 start: startStr,
                 end: endStr,
+                backgroundColor,
+                borderColor,
+                color: backgroundColor, // FullCalendarでもcolorプロパティを設定
             };
         });
-    }, [filteredEvents]);
+    }, [filteredEvents, projectsMap]);
+
+    // eventsForFullCalendarが変更されたときに、FullCalendarのイベントを更新
+    // 注意: FullCalendarは自動的に再レンダリングするため、render()の呼び出しは不要
+    // タスクの色のみ、必要に応じて更新（パフォーマンス最適化のため最小限の処理）
+    useEffect(() => {
+        if (calendarRef.current && eventsForFullCalendar.length > 0) {
+            // タスクの色のみ更新（他のイベントはCSSクラスで制御されるため不要）
+            const timeoutId = setTimeout(() => {
+                const calendarApi = calendarRef.current?.getApi();
+                if (!calendarApi) return;
+                
+                // タスクの色のみ更新（最小限の処理）
+                eventsForFullCalendar.forEach(event => {
+                    const eventType = event.extendedProps?.type?.toLowerCase();
+                    if (eventType === 'task') {
+                        const existingEvent = calendarApi.getEventById(event.id);
+                        if (existingEvent && existingEvent.backgroundColor !== event.backgroundColor) {
+                            // 色が変更された場合のみ更新
+                            existingEvent.setProp('backgroundColor', event.backgroundColor);
+                            existingEvent.setProp('borderColor', event.borderColor);
+                            existingEvent.setProp('color', event.color);
+                            
+                            // DOM要素の色も更新
+                            const eventEl = (existingEvent as any).el;
+                            if (eventEl) {
+                                eventEl.style.setProperty('background-color', event.backgroundColor, 'important');
+                                eventEl.style.setProperty('border-color', event.borderColor || event.backgroundColor, 'important');
+                            }
+                        }
+                    }
+                });
+                // render()は呼ばない（FullCalendarが自動的に再レンダリングする）
+            }, 0);
+            
+            return () => clearTimeout(timeoutId);
+        }
+    }, [eventsForFullCalendar]);
 
     const handleEventStatusFilterChange = (event: SelectChangeEvent<string>) => {
         setEventStatusFilter(event.target.value);
@@ -1259,11 +1521,16 @@ const CalendarPage: React.FC = () => {
                             return null;
                         } else {
                             const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
-                            const isCompletedProject = project?.status === 'completed';
                             const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                 ? be.type
                                 : 'Generic';
-                            const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
+                            // イベントの日付を決定（終了日があれば終了日、なければ開始日）
+                            const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                            const eventColor = getEventColor(
+                                normalizedType ?? 'Generic',
+                                project?.status ?? undefined,
+                                eventDate
+                            );
                             
                             return {
                                 id: `event-${be.id}`,
@@ -1365,11 +1632,16 @@ const CalendarPage: React.FC = () => {
                                 return null;
                             } else {
                                 const project = be.project_id ? projects.find(p => p.id === be.project_id) : undefined;
-                                const isCompletedProject = project?.status === 'completed';
                                 const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                     ? be.type
                                     : 'Generic';
-                                const eventColor = isCompletedProject ? '#9E9E9E' : getEventColor(normalizedType ?? 'Generic');
+                                // イベントの日付を決定（終了日があれば終了日、なければ開始日）
+                                const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                                const eventColor = getEventColor(
+                                    normalizedType ?? 'Generic',
+                                    project?.status ?? undefined,
+                                    eventDate
+                                );
                                 
                                 return {
                                     id: `event-${be.id}`,
@@ -1787,6 +2059,35 @@ const CalendarPage: React.FC = () => {
                 .fc-event.completed-project-event .deadline-event-content {
                     color: #757575 !important;
                 }
+                /* グレーイベント（完了/キャンセルプロジェクトまたは日付が過ぎたイベント） */
+                .fc-event.grey-event.deadline-event-wrapper .deadline-event-content {
+                    color: #9E9E9E !important;
+                }
+                .fc-event.grey-event.deadline-event-wrapper .calendar-event-type-deadline {
+                    background-color: #9E9E9E !important;
+                }
+                .fc-event.grey-event.milestone-event-wrapper .milestone-event-content {
+                    background-color: #9E9E9E !important;
+                    color: #ffffff !important;
+                }
+                .fc-event.grey-event.meeting-event,
+                .fc-daygrid-event.grey-event.meeting-event,
+                .fc-event.grey-event.workshop-event,
+                .fc-daygrid-event.grey-event.workshop-event {
+                    background: none !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                }
+                .fc-event.grey-event.meeting-event *,
+                .fc-daygrid-event.grey-event.meeting-event *,
+                .fc-event.grey-event.workshop-event *,
+                .fc-daygrid-event.grey-event.workshop-event * {
+                    color: #9E9E9E !important;
+                }
+                .fc-event.grey-event.custom-event {
+                    background-color: #9E9E9E !important;
+                    border-color: #9E9E9E !important;
+                }
                 /* 完了プロジェクトの会議・ワークショップ - バーなし、文字色のみグレーに */
                 .fc-event.completed-project-event.meeting-event,
                 .fc-daygrid-event.completed-project-event.meeting-event,
@@ -1976,11 +2277,27 @@ const CalendarPage: React.FC = () => {
                             const projectId = arg.event.extendedProps.projectId;
                             const classes: string[] = [];
                             
-                            // プロジェクトのステータスを確認
-                            const project = projectId ? projects.find(p => String(p.id) === String(projectId)) : undefined;
-                            const isCompletedProject = project?.status === 'completed';
+                            // プロジェクトのステータスを確認（Mapを使用してO(1)検索）
+                            const project = projectId ? projectsMap.get(String(projectId)) : undefined;
+                            const projectStatusStr = project?.status ? String(project.status).toLowerCase() : undefined;
+                            const isCompletedProject = projectStatusStr === 'completed';
+                            const isCancelledProject = projectStatusStr === 'cancelled';
                             
-                            // 完了プロジェクトの場合は特別なクラスを追加
+                            // イベントの日付を確認
+                            let eventDate: string | Date | null = null;
+                            if (arg.event.end) {
+                                eventDate = arg.event.end;
+                            } else if (arg.event.start) {
+                                eventDate = arg.event.start;
+                            }
+                            const isPastEvent = eventDate ? isDatePast(eventDate) : false;
+                            
+                            // プロジェクトが完了またはキャンセル、または日付が過ぎた場合は特別なクラスを追加
+                            if (isCompletedProject || isCancelledProject || isPastEvent) {
+                                classes.push('grey-event');
+                            }
+                            
+                            // 完了プロジェクトの場合は特別なクラスを追加（後方互換性のため）
                             if (isCompletedProject) {
                                 classes.push('completed-project-event');
                             }
@@ -1988,6 +2305,12 @@ const CalendarPage: React.FC = () => {
                             // 既存のクラス設定
                             if (type === 'project') {
                                 classes.push('project-event');
+                            } else if (type === 'task' || type === 'Task') {
+                                // タスクの場合は特別な処理は不要（eventDidMountで色を設定）
+                                // ただし、プロジェクトが完了/キャンセルまたは日付が過ぎた場合はgrey-eventクラスを追加
+                                if (isCompletedProject || isCancelledProject || isPastEvent) {
+                                    classes.push('grey-task');
+                                }
                             } else if (type === 'Deadline') {
                                 classes.push('deadline-event-wrapper');
                             } else if (type === 'Milestone') {
@@ -2024,6 +2347,31 @@ const CalendarPage: React.FC = () => {
                             if (isMultiDay && type !== 'project') {
                                 arg.el.classList.add('project-event');
                             }
+                            
+                            // タスクの色を設定（タスクはeventClassNamesで処理されないため、ここで設定が必要）
+                            const eventType = type?.toLowerCase();
+                            if (eventType === 'task') {
+                                const projectId = arg.event.extendedProps?.projectId;
+                                const project = projectId ? projectsMap.get(String(projectId)) : undefined;
+                                const taskDueDate = arg.event.extendedProps?.taskDueDate;
+                                
+                                const recalculatedColor = getTaskColor(
+                                    arg.event.extendedProps?.taskStatus ?? 'todo',
+                                    project?.status ?? undefined,
+                                    taskDueDate
+                                );
+                                
+                                // タスクの色を設定
+                                arg.el.style.setProperty('background-color', recalculatedColor, 'important');
+                                arg.el.style.setProperty('border-color', recalculatedColor, 'important');
+                                
+                                // イベントオブジェクトの色も更新
+                                arg.event.setProp('backgroundColor', recalculatedColor);
+                                arg.event.setProp('borderColor', recalculatedColor);
+                                arg.event.setProp('color', recalculatedColor);
+                            }
+                            // バックエンドイベント（会議、マイルストーン、締切、ワークショップなど）の色は
+                            // CSSクラス（grey-event）で制御されるため、eventDidMountでの処理は不要
                         }}
                         dayMaxEventRows={5}
                         dayMaxEvents={5}

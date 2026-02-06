@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-  Box, Typography, List, ListItem, Paper, CircularProgress, Divider, Button,
+  Box, Typography, List, ListItem, Paper, CircularProgress, Button,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select,
-  MenuItem, Chip, FormLabel, RadioGroup, FormControlLabel, Radio, Autocomplete, Tab, Tabs,
-  IconButton, Tooltip, Card, CardContent, Stack, Snackbar, Alert
+  MenuItem, Chip, FormLabel, RadioGroup, FormControlLabel, Radio, Checkbox, OutlinedInput,
+  IconButton, Tooltip, Card, CardContent, Stack, Snackbar, Alert, Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -57,7 +57,7 @@ const EventManagementConsole: React.FC = () => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tabValue, setTabValue] = useState(0);
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
 
   // 新規イベント作成モーダル（カレンダーと同じ EventAddModal）
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
@@ -65,7 +65,6 @@ const EventManagementConsole: React.FC = () => {
 
   // 定例作成モーダル
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalProject, setModalProject] = useState<Project | null>(null);
   const [recurringForm, setRecurringForm] = useState({
     type: 'weekly',
     weekday: 1,
@@ -76,13 +75,23 @@ const EventManagementConsole: React.FC = () => {
     description: '',
     location: '',
     participants: [] as ParticipantOption[],
+    projectId: '' as string | number | '',
+    startDate: dayjs().format('YYYY-MM-DD'),
+    endDate: dayjs().add(3, 'month').format('YYYY-MM-DD'),
   });
 
-  // イベント一覧フィルタ
-  const [filterProjectId, setFilterProjectId] = useState<string>('');
-  const [filterType, setFilterType] = useState<string>('');
-  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
-  const [filterDateTo, setFilterDateTo] = useState<string>('');
+  // プロジェクトの折りたたみ状態を管理
+  const handleAccordionChange = (projectId: number) => (_event: React.SyntheticEvent, isExpanded: boolean) => {
+    setExpandedProjects(prev => {
+      const newSet = new Set(prev);
+      if (isExpanded) {
+        newSet.add(projectId);
+      } else {
+        newSet.delete(projectId);
+      }
+      return newSet;
+    });
+  };
 
   // イベント編集モーダル
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -124,11 +133,6 @@ const EventManagementConsole: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleOpenAddEventModal = () => {
-    setSelectedDateForNewEvent(new Date());
-    setIsAddEventModalOpen(true);
-  };
-
   const handleCloseAddEventModal = () => {
     setIsAddEventModalOpen(false);
     setSelectedDateForNewEvent(null);
@@ -161,12 +165,10 @@ const EventManagementConsole: React.FC = () => {
     }
   }, [fetchData]);
 
-  const projectMap = useMemo(() => new Map(projects.map(p => [p.id, p.name])), [projects]);
-
   const participantOptions: ParticipantOption[] = useMemo(() => [
     ...users.map(u => ({
       id: `user-${u.id}`,
-      label: u.full_name || u.username || u.email || '',
+      label: u.username || u.full_name || u.name || u.email || '',
       type: 'user' as const,
     })),
     ...groups.map(g => ({
@@ -176,35 +178,27 @@ const EventManagementConsole: React.FC = () => {
     })),
   ].filter(p => p.label).sort((a, b) => (a.label || '').localeCompare(b.label || '', 'ja')), [users, groups]);
 
-  const filteredEvents = useMemo(() => {
-    let list = [...events].filter(ev => (ev.type?.toLowerCase() || '') !== 'task');
-    if (filterProjectId) {
-      const pid = parseInt(filterProjectId, 10);
-      if (!isNaN(pid)) list = list.filter(ev => ev.project_id === pid);
-    }
-    if (filterType) {
-      const t = filterType.toLowerCase();
-      list = list.filter(ev => (ev.type?.toLowerCase() || '') === t);
-    }
-    if (filterDateFrom) {
-      list = list.filter(ev => {
-        const start = ev.start_time ? dayjs(ev.start_time).format('YYYY-MM-DD') : '';
-        return start >= filterDateFrom;
+  // プロジェクトごとのイベントを取得
+  const getProjectEvents = useCallback((projectId: number) => {
+    return events
+      .filter(ev => ev.project_id === projectId && (ev.type?.toLowerCase() || '') !== 'task')
+      .sort((a, b) => {
+        const sa = a.start_time ? new Date(a.start_time).getTime() : 0;
+        const sb = b.start_time ? new Date(b.start_time).getTime() : 0;
+        return sb - sa;
       });
-    }
-    if (filterDateTo) {
-      list = list.filter(ev => {
-        const start = ev.start_time ? dayjs(ev.start_time).format('YYYY-MM-DD') : '';
-        return start <= filterDateTo;
+  }, [events]);
+
+  // プロジェクトに属さないイベントを取得
+  const getNoProjectEvents = useCallback(() => {
+    return events
+      .filter(ev => ev.project_id == null && (ev.type?.toLowerCase() || '') !== 'task')
+      .sort((a, b) => {
+        const sa = a.start_time ? new Date(a.start_time).getTime() : 0;
+        const sb = b.start_time ? new Date(b.start_time).getTime() : 0;
+        return sb - sa;
       });
-    }
-    // 日付が新しいものが上にくるよう降順でソート
-    return list.sort((a, b) => {
-      const sa = a.start_time ? new Date(a.start_time).getTime() : 0;
-      const sb = b.start_time ? new Date(b.start_time).getTime() : 0;
-      return sb - sa;
-    });
-  }, [events, filterProjectId, filterType, filterDateFrom, filterDateTo]);
+  }, [events]);
 
   const projectEventDetails = useMemo(() => {
     const details: Record<number, { total: number; meeting: number; deadline: number; milestone: number; workshop: number }> = {};
@@ -241,27 +235,44 @@ const EventManagementConsole: React.FC = () => {
     return dayjs(endOrStart).isBefore(dayjs(), 'minute');
   };
 
-  const handleOpenRecurringModal = (project: Project) => {
-    setModalProject(project);
+  const handleOpenRecurringModal = (project?: Project) => {
+    const defaultTitle = project ? `${project.name}定例` : '定例会議';
+    const defaultStartDate = project ? dayjs(project.start_date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+    const defaultEndDate = project ? dayjs(project.end_date).format('YYYY-MM-DD') : dayjs().add(3, 'month').format('YYYY-MM-DD');
     setRecurringForm({
       type: 'weekly',
       weekday: 1,
       monthDay: 1,
       startTime: '14:00',
       endTime: '16:00',
-      title: `${project.name}定例`,
+      title: defaultTitle,
       description: '',
       location: '',
       participants: [],
+      projectId: project ? project.id : '',
+      startDate: defaultStartDate,
+      endDate: defaultEndDate,
     });
     setModalOpen(true);
   };
 
   const handleCreateRecurringMeetings = async () => {
-    if (!modalProject) return;
-    const { type, weekday, monthDay, startTime, endTime, title, description, location, participants } = recurringForm;
-    const start = dayjs(modalProject.start_date);
-    const end = dayjs(modalProject.end_date);
+    const { type, weekday, monthDay, startTime, endTime, title, description, location, participants, projectId, startDate, endDate } = recurringForm;
+    
+    // 日付範囲の検証
+    if (!startDate || !endDate) {
+      setSnackbar({ open: true, message: '開始日と終了日を入力してください', severity: 'error' });
+      return;
+    }
+    
+    const start = dayjs(startDate);
+    const end = dayjs(endDate);
+    
+    if (start.isAfter(end)) {
+      setSnackbar({ open: true, message: '開始日は終了日より前である必要があります', severity: 'error' });
+      return;
+    }
+    
     let dates: dayjs.Dayjs[] = [];
     if (type === 'weekly') {
       let d = start.startOf('day');
@@ -279,17 +290,25 @@ const EventManagementConsole: React.FC = () => {
         d = d.add(1, 'month');
       }
     }
+    
+    if (dates.length === 0) {
+      setSnackbar({ open: true, message: '指定された期間内に該当する日付がありません', severity: 'error' });
+      return;
+    }
+    
     const participantsPayload = participants.map(p => ({ type: p.type, id: parseInt(p.id.replace(/\D/g, ''), 10) }));
+    const projectIdNum = projectId ? parseInt(String(projectId), 10) : undefined;
+    
     setLoading(true);
     try {
       for (let i = 0; i < dates.length; i++) {
         const date = dates[i];
-        const eventTitle = `${title}（${i + 1}回目）`;
+        const eventTitle = dates.length > 1 ? `${title}（${i + 1}回目）` : title;
         const dateStr = date.format('YYYY-MM-DD');
         const startISO = `${dateStr}T${startTime}:00+09:00`;
         const endISO = `${dateStr}T${endTime}:00+09:00`;
         await api.post('/calendar/events', {
-          project_id: modalProject.id,
+          project_id: projectIdNum,
           type: 'MEETING',
           title: eventTitle,
           description,
@@ -302,8 +321,12 @@ const EventManagementConsole: React.FC = () => {
       setModalOpen(false);
       setSnackbar({ open: true, message: `${dates.length}件の定例イベントを作成しました`, severity: 'success' });
       await fetchData();
-    } catch (e) {
-      setSnackbar({ open: true, message: 'イベント作成に失敗しました', severity: 'error' });
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((err: any) => (err?.loc ? `${err.loc.join('.')}: ${err.msg}` : JSON.stringify(err))).join('\n')
+        : (typeof detail === 'string' ? detail : e?.message || 'イベント作成に失敗しました');
+      setSnackbar({ open: true, message: `作成に失敗しました: ${msg}`, severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -392,10 +415,9 @@ const EventManagementConsole: React.FC = () => {
   return (
     <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ minHeight: 40 }}>
-          <Tab label="イベント一覧" />
-          <Tab label="定例作成" />
-        </Tabs>
+        <Typography variant="h6" fontWeight={600}>
+          定例会議管理
+        </Typography>
         <Tooltip title="再読み込み">
           <IconButton onClick={fetchData} size="small" disabled={loading}>
             <RefreshIcon />
@@ -403,146 +425,145 @@ const EventManagementConsole: React.FC = () => {
         </Tooltip>
       </Box>
 
-      {tabValue === 0 && (
-        <Box sx={{ flex: 1, overflow: 'auto' }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }} flexWrap="wrap" alignItems="center">
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel>プロジェクト</InputLabel>
-              <Select
-                value={filterProjectId}
-                label="プロジェクト"
-                onChange={e => setFilterProjectId(e.target.value)}
-              >
-                <MenuItem value="">すべて</MenuItem>
-                {projects.map(p => (
-                  <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>種別</InputLabel>
-              <Select value={filterType} label="種別" onChange={e => setFilterType(e.target.value)}>
-                <MenuItem value="">すべて</MenuItem>
-                <MenuItem value="meeting">会議</MenuItem>
-                <MenuItem value="deadline">締切</MenuItem>
-                <MenuItem value="milestone">マイルストーン</MenuItem>
-                <MenuItem value="workshop">ワークショップ</MenuItem>
-                <MenuItem value="generic">イベント</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              size="small"
-              label="開始日"
-              type="date"
-              value={filterDateFrom}
-              onChange={e => setFilterDateFrom(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ width: 160 }}
-            />
-            <TextField
-              size="small"
-              label="終了日"
-              type="date"
-              value={filterDateTo}
-              onChange={e => setFilterDateTo(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ width: 160 }}
-            />
-            <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenAddEventModal} sx={{ ml: { sm: 'auto' } }}>
-              新規イベント作成
-            </Button>
-          </Stack>
-          {filteredEvents.length === 0 ? (
-            <Card variant="outlined" sx={{ py: 4 }}>
-              <CardContent>
-                <Typography color="text.secondary" align="center">
-                  {events.filter(e => (e.type?.toLowerCase() || '') !== 'task').length === 0
-                    ? 'イベントがまだありません。'
-                    : '条件に一致するイベントはありません。'}
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        {/* プロジェクトに属さない定例会議作成セクション */}
+        <Card variant="outlined" sx={{ mb: 2, bgcolor: 'rgba(25, 118, 210, 0.04)', borderColor: 'primary.main', borderWidth: 2 }}>
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+              <Box>
+                <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5 }}>
+                  プロジェクトに属さない定例会議
                 </Typography>
-              </CardContent>
-            </Card>
-          ) : (
-            <List disablePadding>
-              {filteredEvents.map(ev => {
-                const ended = isEventEnded(ev);
-                return (
-                <ListItem
-                  key={ev.id}
-                  disablePadding
-                  sx={{ mb: 1 }}
-                >
-                  <Card
-                    variant="outlined"
-                    sx={{
-                      width: '100%',
-                      borderRadius: 1,
-                      ...(ended && {
-                        opacity: 0.65,
-                        bgcolor: 'action.hover',
-                        '& .MuiTypography-root': { color: 'text.secondary' },
-                        '& .MuiChip-root': { opacity: 0.9 },
-                      }),
-                    }}
-                  >
-                    <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="subtitle1" fontWeight={600}>{ev.title}</Typography>
-                          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
-                            <Chip size="small" label={getTypeLabel(ev.type)} color={getTypeColor(ev.type)} />
-                            {ev.project_id != null && (
-                              <Chip size="small" variant="outlined" label={projectMap.get(ev.project_id) || ev.project_id} />
-                            )}
-                            {ev.start_time && (
-                              <Typography variant="caption" color="text.secondary">
-                                {dayjs(ev.start_time).format('YYYY/MM/DD HH:mm')}
-                                {ev.end_time && ` ～ ${dayjs(ev.end_time).format('HH:mm')}`}
-                              </Typography>
-                            )}
-                          </Stack>
-                          {(ev.description || ev.location) && (
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {ev.description}
-                              {ev.location && ` · ${ev.location}`}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Stack direction="row" spacing={0.5}>
-                          <Tooltip title="編集">
-                            <IconButton size="small" onClick={() => openEditModal(ev)}>
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="削除">
-                            <IconButton size="small" color="error" onClick={() => handleDeleteEvent(ev)}>
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </ListItem>
-              );
-              })}
-            </List>
-          )}
-        </Box>
-      )}
+                <Typography variant="body2" color="text.secondary">
+                  プロジェクトに関連付けずに定例会議を作成できます
+                </Typography>
+              </Box>
+              <Button 
+                variant="contained" 
+                size="medium" 
+                startIcon={<MeetingRoomIcon />} 
+                onClick={() => handleOpenRecurringModal()}
+                sx={{ minWidth: 180 }}
+              >
+                定例会議を作成
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
 
-      {tabValue === 1 && (
-        <Box sx={{ flex: 1, overflowY: 'auto' }}>
-          <List sx={{ py: 0 }}>
+        {/* プロジェクトに属さないイベント一覧（折りたたみ可能） */}
+        {(() => {
+          const noProjectEvents = getNoProjectEvents();
+          if (noProjectEvents.length > 0) {
+            return (
+              <Accordion 
+                expanded={expandedProjects.has(-1)} 
+                onChange={handleAccordionChange(-1)}
+                sx={{ mb: 2 }}
+              >
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pr: 2 }}>
+                    <Typography variant="subtitle1" fontWeight={600}>
+                      プロジェクト未設定のイベント ({noProjectEvents.length}件)
+                    </Typography>
+                  </Box>
+                </AccordionSummary>
+                <AccordionDetails>
+                  <List disablePadding>
+                    {noProjectEvents.map(ev => {
+                      const ended = isEventEnded(ev);
+                      return (
+                        <ListItem key={ev.id} disablePadding sx={{ mb: 1 }}>
+                          <Card
+                            variant="outlined"
+                            sx={{
+                              width: '100%',
+                              borderRadius: 1,
+                              ...(ended && {
+                                opacity: 0.65,
+                                bgcolor: 'action.hover',
+                                '& .MuiTypography-root': { color: 'text.secondary' },
+                                '& .MuiChip-root': { opacity: 0.9 },
+                              }),
+                            }}
+                          >
+                            <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                  <Typography variant="subtitle1" fontWeight={600}>{ev.title}</Typography>
+                                  <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                                    <Chip size="small" label={getTypeLabel(ev.type)} color={getTypeColor(ev.type)} />
+                                    {ev.start_time && (
+                                      <Typography variant="caption" color="text.secondary">
+                                        {dayjs(ev.start_time).format('YYYY/MM/DD HH:mm')}
+                                        {ev.end_time && ` ～ ${dayjs(ev.end_time).format('HH:mm')}`}
+                                      </Typography>
+                                    )}
+                                  </Stack>
+                                  {(ev.description || ev.location) && (
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                      {ev.description}
+                                      {ev.location && ` · ${ev.location}`}
+                                    </Typography>
+                                  )}
+                                </Box>
+                                <Stack direction="row" spacing={0.5}>
+                                  <Tooltip title="編集">
+                                    <IconButton size="small" onClick={() => openEditModal(ev)}>
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="削除">
+                                    <IconButton size="small" color="error" onClick={() => handleDeleteEvent(ev)}>
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Stack>
+                              </Box>
+                            </CardContent>
+                          </Card>
+                        </ListItem>
+                      );
+                    })}
+                  </List>
+                </AccordionDetails>
+              </Accordion>
+            );
+          }
+          return null;
+        })()}
+
+        {/* プロジェクト別の定例会議作成セクション */}
+        <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>
+          プロジェクト別の定例会議作成
+        </Typography>
+        {projects.length === 0 ? (
+          <Card variant="outlined" sx={{ py: 4 }}>
+            <CardContent>
+              <Typography color="text.secondary" align="center">
+                プロジェクトがまだありません
+              </Typography>
+            </CardContent>
+          </Card>
+        ) : (
+          <Box>
             {projects.map((project, idx) => {
               const detail = projectEventDetails[project.id] || { total: 0, meeting: 0, deadline: 0, milestone: 0, workshop: 0 };
+              const projectEvents = getProjectEvents(project.id);
+              const isExpanded = expandedProjects.has(project.id);
+              
               return (
-                <React.Fragment key={project.id}>
-                  <ListItem sx={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', py: 2, px: 0 }}>
-                    <Card variant="outlined" sx={{ borderRadius: 1 }}>
-                      <CardContent>
+                <Accordion 
+                  key={project.id}
+                  expanded={isExpanded} 
+                  onChange={handleAccordionChange(project.id)}
+                  sx={{ mb: idx < projects.length - 1 ? 1 : 0 }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pr: 2 }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="subtitle1" fontWeight={600}>{project.name}</Typography>
-                        <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap">
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} flexWrap="wrap">
                           <Chip size="small" label={`合計 ${detail.total}`} />
                           <Chip size="small" variant="outlined" label={`会議 ${detail.meeting}`} />
                           <Chip size="small" variant="outlined" label={`締切 ${detail.deadline}`} />
@@ -550,33 +571,146 @@ const EventManagementConsole: React.FC = () => {
                           <Chip size="small" variant="outlined" label={`ワークショップ ${detail.workshop}`} />
                         </Stack>
                         {project.priority && (
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>優先度: {project.priority}</Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>優先度: {project.priority}</Typography>
                         )}
-                        <Button variant="outlined" size="small" startIcon={<MeetingRoomIcon />} sx={{ mt: 2 }} onClick={() => handleOpenRecurringModal(project)}>
-                          定例mtg作成
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </ListItem>
-                  {idx < projects.length - 1 && <Divider sx={{ my: 0 }} />}
-                </React.Fragment>
+                      </Box>
+                      <Button 
+                        variant="outlined" 
+                        size="small" 
+                        startIcon={<MeetingRoomIcon />} 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenRecurringModal(project);
+                        }}
+                        sx={{ flexShrink: 0, ml: 2 }}
+                      >
+                        定例mtg作成
+                      </Button>
+                    </Box>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    {projectEvents.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                        このプロジェクトにはイベントがありません
+                      </Typography>
+                    ) : (
+                      <List disablePadding>
+                        {projectEvents.map(ev => {
+                          const ended = isEventEnded(ev);
+                          return (
+                            <ListItem key={ev.id} disablePadding sx={{ mb: 1 }}>
+                              <Card
+                                variant="outlined"
+                                sx={{
+                                  width: '100%',
+                                  borderRadius: 1,
+                                  ...(ended && {
+                                    opacity: 0.65,
+                                    bgcolor: 'action.hover',
+                                    '& .MuiTypography-root': { color: 'text.secondary' },
+                                    '& .MuiChip-root': { opacity: 0.9 },
+                                  }),
+                                }}
+                              >
+                                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                      <Typography variant="subtitle1" fontWeight={600}>{ev.title}</Typography>
+                                      <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 0.5 }}>
+                                        <Chip size="small" label={getTypeLabel(ev.type)} color={getTypeColor(ev.type)} />
+                                        {ev.start_time && (
+                                          <Typography variant="caption" color="text.secondary">
+                                            {dayjs(ev.start_time).format('YYYY/MM/DD HH:mm')}
+                                            {ev.end_time && ` ～ ${dayjs(ev.end_time).format('HH:mm')}`}
+                                          </Typography>
+                                        )}
+                                      </Stack>
+                                      {(ev.description || ev.location) && (
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                          {ev.description}
+                                          {ev.location && ` · ${ev.location}`}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                    <Stack direction="row" spacing={0.5}>
+                                      <Tooltip title="編集">
+                                        <IconButton size="small" onClick={() => openEditModal(ev)}>
+                                          <EditIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                      <Tooltip title="削除">
+                                        <IconButton size="small" color="error" onClick={() => handleDeleteEvent(ev)}>
+                                          <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
+                                    </Stack>
+                                  </Box>
+                                </CardContent>
+                              </Card>
+                            </ListItem>
+                          );
+                        })}
+                      </List>
+                    )}
+                  </AccordionDetails>
+                </Accordion>
               );
             })}
-          </List>
-        </Box>
-      )}
+          </Box>
+        )}
+      </Box>
 
       {/* 定例作成モーダル */}
       <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>定例会議作成</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
+          {/* プロジェクト選択（任意） */}
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>プロジェクト（任意）</InputLabel>
+            <Select 
+              value={recurringForm.projectId} 
+              label="プロジェクト（任意）" 
+              onChange={e => setRecurringForm(f => ({ ...f, projectId: e.target.value }))}
+            >
+              <MenuItem value="">プロジェクトに属さない</MenuItem>
+              {projects.map(p => (
+                <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* 日付範囲 */}
+          <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+            <TextField 
+              fullWidth 
+              label="開始日" 
+              type="date" 
+              value={recurringForm.startDate} 
+              onChange={e => setRecurringForm(f => ({ ...f, startDate: e.target.value }))} 
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+            <TextField 
+              fullWidth 
+              label="終了日" 
+              type="date" 
+              value={recurringForm.endDate} 
+              onChange={e => setRecurringForm(f => ({ ...f, endDate: e.target.value }))} 
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+          </Stack>
+
+          {/* 繰り返しタイプ */}
           <FormControl component="fieldset" sx={{ mb: 2 }}>
-            <FormLabel>タイプ</FormLabel>
+            <FormLabel>繰り返しタイプ</FormLabel>
             <RadioGroup row value={recurringForm.type} onChange={e => setRecurringForm(f => ({ ...f, type: e.target.value }))}>
               <FormControlLabel value="weekly" control={<Radio />} label="ウィークリー" />
               <FormControlLabel value="monthly" control={<Radio />} label="マンスリー" />
             </RadioGroup>
           </FormControl>
+
+          {/* 曜日または日付 */}
           {recurringForm.type === 'weekly' ? (
             <FormControl fullWidth sx={{ mb: 2 }}>
               <InputLabel>曜日</InputLabel>
@@ -587,20 +721,109 @@ const EventManagementConsole: React.FC = () => {
               </Select>
             </FormControl>
           ) : (
-            <TextField fullWidth sx={{ mb: 2 }} label="日付 (毎月)" type="number" value={recurringForm.monthDay} onChange={e => setRecurringForm(f => ({ ...f, monthDay: Number(e.target.value) }))} inputProps={{ min: 1, max: 31 }} />
+            <TextField 
+              fullWidth 
+              sx={{ mb: 2 }} 
+              label="日付 (毎月)" 
+              type="number" 
+              value={recurringForm.monthDay} 
+              onChange={e => setRecurringForm(f => ({ ...f, monthDay: Number(e.target.value) }))} 
+              inputProps={{ min: 1, max: 31 }}
+              helperText="毎月の日付を指定（1-31）"
+            />
           )}
+
+          {/* 時間 */}
           <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-            <TextField label="開始" type="time" value={recurringForm.startTime} onChange={e => setRecurringForm(f => ({ ...f, startTime: e.target.value }))} InputLabelProps={{ shrink: true }} fullWidth />
-            <TextField label="終了" type="time" value={recurringForm.endTime} onChange={e => setRecurringForm(f => ({ ...f, endTime: e.target.value }))} InputLabelProps={{ shrink: true }} fullWidth />
+            <TextField 
+              label="開始時刻" 
+              type="time" 
+              value={recurringForm.startTime} 
+              onChange={e => setRecurringForm(f => ({ ...f, startTime: e.target.value }))} 
+              InputLabelProps={{ shrink: true }} 
+              fullWidth 
+            />
+            <TextField 
+              label="終了時刻" 
+              type="time" 
+              value={recurringForm.endTime} 
+              onChange={e => setRecurringForm(f => ({ ...f, endTime: e.target.value }))} 
+              InputLabelProps={{ shrink: true }} 
+              fullWidth 
+            />
           </Stack>
-          <TextField fullWidth label="タイトル" value={recurringForm.title} onChange={e => setRecurringForm(f => ({ ...f, title: e.target.value }))} sx={{ mb: 2 }} />
-          <TextField fullWidth label="説明" multiline minRows={2} value={recurringForm.description} onChange={e => setRecurringForm(f => ({ ...f, description: e.target.value }))} sx={{ mb: 2 }} />
-          <TextField fullWidth label="場所" value={recurringForm.location} onChange={e => setRecurringForm(f => ({ ...f, location: e.target.value }))} sx={{ mb: 2 }} />
-          <Autocomplete multiple options={participantOptions} getOptionLabel={o => o.label} value={recurringForm.participants} onChange={(_, v) => setRecurringForm(f => ({ ...f, participants: v as ParticipantOption[] }))} renderInput={params => <TextField {...params} label="参加者" />} />
+
+          {/* タイトル */}
+          <TextField 
+            fullWidth 
+            label="タイトル" 
+            value={recurringForm.title} 
+            onChange={e => setRecurringForm(f => ({ ...f, title: e.target.value }))} 
+            sx={{ mb: 2 }}
+            required
+          />
+
+          {/* 説明 */}
+          <TextField 
+            fullWidth 
+            label="説明" 
+            multiline 
+            minRows={2} 
+            value={recurringForm.description} 
+            onChange={e => setRecurringForm(f => ({ ...f, description: e.target.value }))} 
+            sx={{ mb: 2 }} 
+          />
+
+          {/* 場所 */}
+          <TextField 
+            fullWidth 
+            label="場所" 
+            value={recurringForm.location} 
+            onChange={e => setRecurringForm(f => ({ ...f, location: e.target.value }))} 
+            sx={{ mb: 2 }} 
+          />
+
+          {/* 参加者 */}
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>参加者</InputLabel>
+            <Select
+              multiple
+              value={recurringForm.participants.map(p => p.id)}
+              onChange={(e) => {
+                const selectedIds = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                const selectedParticipants = participantOptions.filter(opt => selectedIds.includes(opt.id));
+                setRecurringForm(f => ({ ...f, participants: selectedParticipants }));
+              }}
+              input={<OutlinedInput label="参加者" />}
+              renderValue={(selected) => {
+                if (selected.length === 0) return '';
+                const selectedLabels = participantOptions
+                  .filter(opt => selected.includes(opt.id))
+                  .map(opt => opt.label);
+                return selectedLabels.join(', ');
+              }}
+              MenuProps={{
+                PaperProps: {
+                  style: {
+                    maxHeight: 224,
+                  },
+                },
+              }}
+            >
+              {participantOptions.map((option) => (
+                <MenuItem key={option.id} value={option.id}>
+                  <Checkbox checked={recurringForm.participants.some(p => p.id === option.id)} />
+                  <Typography variant="body2">{option.label}</Typography>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setModalOpen(false)}>キャンセル</Button>
-          <Button variant="contained" onClick={handleCreateRecurringMeetings} disabled={loading}>作成</Button>
+          <Button variant="contained" onClick={handleCreateRecurringMeetings} disabled={loading}>
+            {loading ? '作成中...' : '作成'}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -625,7 +848,41 @@ const EventManagementConsole: React.FC = () => {
             <TextField fullWidth label="開始時刻" type="time" value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
             <TextField fullWidth label="終了時刻" type="time" value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} InputLabelProps={{ shrink: true }} />
           </Stack>
-          <Autocomplete multiple options={participantOptions} getOptionLabel={o => o.label} value={editForm.participants} onChange={(_, v) => setEditForm(f => ({ ...f, participants: v as ParticipantOption[] }))} renderInput={params => <TextField {...params} label="参加者" />} />
+          {/* 参加者 */}
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>参加者</InputLabel>
+            <Select
+              multiple
+              value={editForm.participants.map(p => p.id)}
+              onChange={(e) => {
+                const selectedIds = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                const selectedParticipants = participantOptions.filter(opt => selectedIds.includes(opt.id));
+                setEditForm(f => ({ ...f, participants: selectedParticipants }));
+              }}
+              input={<OutlinedInput label="参加者" />}
+              renderValue={(selected) => {
+                if (selected.length === 0) return '';
+                const selectedLabels = participantOptions
+                  .filter(opt => selected.includes(opt.id))
+                  .map(opt => opt.label);
+                return selectedLabels.join(', ');
+              }}
+              MenuProps={{
+                PaperProps: {
+                  style: {
+                    maxHeight: 224,
+                  },
+                },
+              }}
+            >
+              {participantOptions.map((option) => (
+                <MenuItem key={option.id} value={option.id}>
+                  <Checkbox checked={editForm.participants.some(p => p.id === option.id)} />
+                  <Typography variant="body2">{option.label}</Typography>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { setEditModalOpen(false); setEditingEvent(null); }}>キャンセル</Button>

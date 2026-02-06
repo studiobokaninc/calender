@@ -84,7 +84,8 @@ if SECRET_KEY == _DEFAULT_SECRET:
         "SECRET_KEY が環境変数で設定されていません。本番環境では必ず SECRET_KEY を設定してください。"
     )
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 120))
+# トークンの有効期限を24時間に設定（5:00でのみログアウトするため）
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))  # 24時間 = 1440分
 
 # pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto") # security.py に移動
 
@@ -1979,4 +1980,75 @@ async def upload_note_pdf(
         return {"url": pdf_url}
     except Exception:
         logger.exception("PDFのアップロードに失敗しました")
-        raise HTTPException(status_code=500, detail="PDFのアップロードに失敗しました。") 
+        raise HTTPException(status_code=500, detail="PDFのアップロードに失敗しました。")
+
+# --- UserActivity Endpoints ---
+
+@app.post("/api/user-activities", response_model=schemas.UserActivityResponse, status_code=status.HTTP_201_CREATED, tags=["UserActivities"])
+async def create_user_activity(
+    activity_data: schemas.UserActivityCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """ユーザーのアクティビティを記録（一般ユーザーは自分のみ記録可能、管理者は全ユーザー記録可能）"""
+    user_id = activity_data.user_id if activity_data.user_id else current_user.id
+    
+    # 一般ユーザーは自分のアクティビティのみ記録可能
+    if current_user.role != 'admin' and user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="自分のアクティビティのみ記録可能です"
+        )
+    
+    # ユーザーが存在するか確認
+    db_user = crud.get_user(db, user_id=user_id)
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ユーザーが見つかりません"
+        )
+    
+    # 一般ユーザーのみ記録（管理者は記録しない）
+    if db_user.role != 'user':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="一般ユーザーのみアクティビティを記録できます"
+        )
+    
+    return crud.create_user_activity(db=db, user_id=user_id)
+
+@app.get("/api/user-activities", response_model=List[schemas.UserActivityResponse], tags=["UserActivities"])
+async def get_user_activities_endpoint(
+    user_id: Optional[int] = Query(None, description="ユーザーIDでフィルタリング"),
+    cycle_date: Optional[str] = Query(None, description="周期日（YYYY-MM-DD形式）"),
+    skip: int = 0,
+    limit: int = 10000,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_admin)  # 管理者のみ閲覧可能
+):
+    """ユーザーアクティビティを取得（管理者のみ）"""
+    cycle_date_dt = None
+    if cycle_date:
+        try:
+            # YYYY-MM-DD形式の文字列を日付として解析
+            # 時刻部分がない場合は、その日の5:00を周期開始時刻として設定
+            if 'T' in cycle_date or ' ' in cycle_date:
+                cycle_date_dt = datetime.fromisoformat(cycle_date.replace('Z', '+00:00')).replace(tzinfo=None)
+            else:
+                # YYYY-MM-DD形式の場合、その日の5:00を周期開始時刻として設定
+                parsed_date = datetime.strptime(cycle_date, '%Y-%m-%d')
+                cycle_date_dt = parsed_date.replace(hour=5, minute=0, second=0, microsecond=0)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="周期日の形式が不正です（YYYY-MM-DD形式で指定してください）"
+            )
+    
+    activities = crud.get_user_activities(
+        db=db,
+        user_id=user_id,
+        cycle_date=cycle_date_dt,
+        skip=skip,
+        limit=limit
+    )
+    return activities 

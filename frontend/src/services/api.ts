@@ -319,3 +319,18 @@ export const notesApi = {
     return response.data
   },
 }
+
+// --- UserActivity API ---
+export const userActivityApi = {
+  // アクティビティを記録
+  recordActivity: async () => {
+    const response = await api.post('/api/user-activities', {})
+    return response.data
+  },
+
+  // アクティビティを取得
+  getActivities: async (params?: { user_id?: number; cycle_date?: string }) => {
+    const response = await api.get('/api/user-activities', { params })
+    return response.data
+  },
+}

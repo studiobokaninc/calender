@@ -1,0 +1,626 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Button,
+  Stack,
+  Card,
+  CardContent
+} from '@mui/material';
+import {
+  AccessTime as AccessTimeIcon,
+  Timeline as TimelineIcon
+} from '@mui/icons-material';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ReferenceLine
+} from 'recharts';
+import api from '../services/api';
+import { User } from '../types';
+import { format, parseISO, getHours, getMinutes } from 'date-fns';
+import { ja } from 'date-fns/locale';
+
+interface UserActivity {
+  id: number;
+  user_id: number;
+  active_at: string;
+  cycle_date: string;
+  created_at: string;
+}
+
+interface UserActivityWithUser extends UserActivity {
+  user?: User;
+}
+
+const UserActivityPage: React.FC = () => {
+  const [activities, setActivities] = useState<UserActivityWithUser[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
+  const [selectedCycleDate, setSelectedCycleDate] = useState<string>('');
+
+  useEffect(() => {
+    fetchUsers();
+    fetchActivities();
+  }, []);
+
+  useEffect(() => {
+    fetchActivities();
+  }, [selectedUserId, selectedCycleDate]);
+
+  // リアルタイム更新（30秒ごと）
+  useEffect(() => {
+    if (loading) return;
+    
+    const intervalId = setInterval(() => {
+      fetchActivities();
+    }, 30000); // 30秒ごとに更新
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [selectedUserId, selectedCycleDate, loading]);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get<User[]>('/api/users');
+      setUsers(response.data);
+    } catch (err: any) {
+      console.error('Failed to fetch users:', err);
+    }
+  };
+
+  const fetchActivities = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params: any = {};
+      if (selectedUserId) {
+        params.user_id = selectedUserId;
+      }
+      if (selectedCycleDate) {
+        params.cycle_date = selectedCycleDate;
+      }
+      
+      const response = await api.get<UserActivity[]>('/api/user-activities', { params });
+      const activitiesData = response.data;
+      
+      // ユーザー情報を結合
+      const activitiesWithUsers: UserActivityWithUser[] = activitiesData.map(activity => {
+        const user = users.find(u => u.id === activity.user_id);
+        return { ...activity, user };
+      });
+      
+      setActivities(activitiesWithUsers);
+    } catch (err: any) {
+      console.error('Failed to fetch activities:', err);
+      setError(err.response?.data?.detail || 'アクティビティの取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 現在時刻を取得（リアルタイム更新用）
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // 1分ごとに更新
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  // 現在時刻のラベルを計算（5:00〜28:59の周期に対応、10分刻み）
+  const currentTimeLabel = useMemo(() => {
+    const now = currentTime;
+    const hour = getHours(now);
+    const minute = getMinutes(now);
+    
+    // 5:00〜28:59の周期に変換
+    let cycleHour = hour;
+    if (hour < 5) {
+      cycleHour = hour + 24; // 前日の5:00以降として扱う
+    }
+    
+    // 10分刻みに丸める（例：13:07 → 13:10, 13:23 → 13:20）
+    const roundedMinute = Math.floor(minute / 10) * 10;
+    
+    const displayHour = cycleHour >= 24 ? cycleHour - 24 : cycleHour;
+    const dayLabel = cycleHour >= 24 ? '翌日' : '当日';
+    // グラフのtimeLabel形式に合わせる（10分刻み）
+    const timeLabel = `${dayLabel} ${displayHour.toString().padStart(2, '0')}:${roundedMinute.toString().padStart(2, '0')}`;
+    
+    return {
+      cycleHour,
+      roundedMinute,
+      timeLabel,
+      timeKey: `${cycleHour * 60 + roundedMinute}` // グラフのtimeキーと一致させる（分数で表現）
+    };
+  }, [currentTime]);
+
+  // 今日の周期日を計算（フィルターで今日を表示しているか判定用）
+  const isShowingToday = useMemo(() => {
+    if (selectedCycleDate) {
+      const selected = parseISO(selectedCycleDate);
+      const today = new Date();
+      const todayCycleDate = today.getHours() < 5 
+        ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+        : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      return selected.toDateString() === todayCycleDate.toDateString();
+    }
+    return true; // フィルターなしの場合は今日を表示
+  }, [selectedCycleDate]);
+
+  // 時間帯別アクティビティ状態（ユーザー別）- オンオフ表示用（10分刻み）
+  const hourlyDataByUser = useMemo(() => {
+    // ユーザーごとのアクティビティ時刻を記録（時系列でソート）
+    const userActivitiesMap = new Map<number, Array<Date>>();
+    
+    activities.forEach(activity => {
+      const date = parseISO(activity.active_at);
+      if (!userActivitiesMap.has(activity.user_id)) {
+        userActivitiesMap.set(activity.user_id, []);
+      }
+      userActivitiesMap.get(activity.user_id)!.push(date);
+    });
+
+    // 各ユーザーのアクティビティを時系列でソート
+    userActivitiesMap.forEach((dates, userId) => {
+      dates.sort((a, b) => a.getTime() - b.getTime());
+    });
+
+    // アクティビティの記録間隔が10分以内なら連続してアクティブとみなす
+    const ACTIVE_THRESHOLD_MINUTES = 10;
+    const now = currentTime;
+
+    const result: Array<{ time: string; timeLabel: string; [key: string]: string | number }> = [];
+    
+    // 5:00から28:59まで10分刻みで生成（5:00, 5:10, 5:20, ..., 4:50）
+    for (let h = 5; h < 29; h++) {
+      for (let m = 0; m < 60; m += 10) {
+        const cycleMinutes = h * 60 + m; // 周期内の分数（5:00 = 300分, 28:50 = 1730分）
+        const displayHour = h >= 24 ? h - 24 : h;
+        const timeLabel = `${displayHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        const dayLabel = h >= 24 ? '翌日' : '当日';
+        
+        // 時間帯の開始時刻を計算（今日の周期日を基準に）
+        const today = new Date();
+        const cycleDate = today.getHours() < 5 
+          ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+          : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        
+        const timeSlotStart = new Date(cycleDate);
+        timeSlotStart.setHours(h >= 24 ? h - 24 : h, m, 0, 0);
+        if (h >= 24) {
+          timeSlotStart.setDate(timeSlotStart.getDate() + 1);
+        }
+        
+        const timeSlotEnd = new Date(timeSlotStart);
+        timeSlotEnd.setMinutes(timeSlotEnd.getMinutes() + 10);
+        
+        const dataPoint: any = { 
+          time: `${cycleMinutes}`,
+          timeLabel: `${dayLabel} ${timeLabel}`
+        };
+        
+        userActivitiesMap.forEach((activityDates, userId) => {
+          const user = users.find(u => u.id === userId);
+          const userName = user?.name || user?.username || `ユーザー${userId}`;
+          
+          // その時間帯が現在時刻より後なら非アクティブ
+          if (timeSlotStart > now) {
+            dataPoint[userName] = 0;
+            return;
+          }
+          
+          // その10分間（h:m から h:m+10 まで）にアクティビティがあるかチェック
+          let isActive = false;
+          
+          // 時間帯内にアクティビティがあるかチェック
+          for (const activityDate of activityDates) {
+            const activityTime = new Date(activityDate);
+            if (activityTime >= timeSlotStart && activityTime < timeSlotEnd) {
+              isActive = true;
+              break;
+            }
+          }
+          
+          // 時間帯内にアクティビティがない場合、直前のアクティビティから10分以内かチェック
+          if (!isActive) {
+            // 時間帯の開始時刻より前の最後のアクティビティを探す
+            let lastActivityBeforeSlot: Date | null = null;
+            for (const activityDate of activityDates) {
+              const activityTime = new Date(activityDate);
+              if (activityTime < timeSlotStart) {
+                lastActivityBeforeSlot = activityTime;
+              } else {
+                break;
+              }
+            }
+            
+            if (lastActivityBeforeSlot) {
+              const minutesDiff = (timeSlotStart.getTime() - lastActivityBeforeSlot.getTime()) / (1000 * 60);
+              // 直前のアクティビティから10分以内で、かつ時間帯の終了時刻より前ならアクティブ
+              if (minutesDiff <= ACTIVE_THRESHOLD_MINUTES && lastActivityBeforeSlot < timeSlotEnd) {
+                // ただし、最後のアクティビティから10分以上経過している場合は非アクティブ
+                const minutesSinceLastActivity = (now.getTime() - lastActivityBeforeSlot.getTime()) / (1000 * 60);
+                if (minutesSinceLastActivity <= ACTIVE_THRESHOLD_MINUTES) {
+                  isActive = true;
+                }
+              }
+            }
+          } else {
+            // 時間帯内にアクティビティがある場合でも、最後のアクティビティから10分以上経過していれば非アクティブ
+            const lastActivity = activityDates[activityDates.length - 1];
+            const minutesSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+            if (minutesSinceLastActivity > ACTIVE_THRESHOLD_MINUTES && timeSlotStart > lastActivity) {
+              isActive = false;
+            }
+          }
+          
+          dataPoint[userName] = isActive ? 1 : 0;
+        });
+        
+        result.push(dataPoint);
+      }
+    }
+    
+    return result;
+  }, [activities, users, currentTime]);
+
+  // ユーザー別のセッション数とアクティブ時間（ログイン回数とセッション時間）
+  const userStats = useMemo(() => {
+    // ユーザーごとのアクティビティを時系列でソート
+    const userActivitiesMap = new Map<number, UserActivityWithUser[]>();
+    
+    activities.forEach(activity => {
+      if (!userActivitiesMap.has(activity.user_id)) {
+        userActivitiesMap.set(activity.user_id, []);
+      }
+      userActivitiesMap.get(activity.user_id)!.push(activity);
+    });
+
+    // 各ユーザーについて、セッションを計算
+    const statsMap = new Map<number, { sessionCount: number; totalActiveMinutes: number; sessions: Array<{ start: Date; end: Date; minutes: number }> }>();
+    
+    userActivitiesMap.forEach((userActivities, userId) => {
+      // アクティビティを時系列でソート
+      const sortedActivities = userActivities.sort((a, b) => 
+        parseISO(a.active_at).getTime() - parseISO(b.active_at).getTime()
+      );
+
+      // セッションを検出（アクティビティの間隔が15分以上空いたら新しいセッションとみなす）
+      const SESSION_GAP_MINUTES = 15;
+      const sessions: Array<{ start: Date; end: Date; minutes: number }> = [];
+      let currentSessionStart: Date | null = null;
+      let lastActivityTime: Date | null = null;
+
+      sortedActivities.forEach(activity => {
+        const activityTime = parseISO(activity.active_at);
+        
+        if (currentSessionStart === null) {
+          // 最初のアクティビティでセッション開始
+          currentSessionStart = activityTime;
+          lastActivityTime = activityTime;
+        } else if (lastActivityTime) {
+          const minutesDiff = (activityTime.getTime() - lastActivityTime.getTime()) / (1000 * 60);
+          
+          if (minutesDiff > SESSION_GAP_MINUTES) {
+            // 15分以上空いたら前のセッションを終了
+            const sessionMinutes = (lastActivityTime.getTime() - currentSessionStart.getTime()) / (1000 * 60);
+            sessions.push({
+              start: currentSessionStart,
+              end: lastActivityTime,
+              minutes: sessionMinutes
+            });
+            // 新しいセッション開始
+            currentSessionStart = activityTime;
+          }
+          lastActivityTime = activityTime;
+        }
+      });
+
+      // 最後のセッションを追加
+      if (currentSessionStart && lastActivityTime) {
+        const sessionMinutes = (lastActivityTime.getTime() - currentSessionStart.getTime()) / (1000 * 60);
+        sessions.push({
+          start: currentSessionStart,
+          end: lastActivityTime,
+          minutes: sessionMinutes
+        });
+      }
+
+      const totalActiveMinutes = sessions.reduce((sum, session) => sum + session.minutes, 0);
+      statsMap.set(userId, {
+        sessionCount: sessions.length,
+        totalActiveMinutes,
+        sessions
+      });
+    });
+
+    return Array.from(statsMap.entries())
+      .map(([userId, stats]) => {
+        const user = users.find(u => u.id === userId);
+        return {
+          userId,
+          name: user?.name || user?.username || `ユーザー${userId}`,
+          sessionCount: stats.sessionCount,
+          totalActiveMinutes: stats.totalActiveMinutes,
+          activeHours: Math.round(stats.totalActiveMinutes / 60 * 10) / 10
+        };
+      })
+      .sort((a, b) => b.sessionCount - a.sessionCount);
+  }, [activities, users]);
+
+  // ユーザーリストと色のマッピング
+  const userColors = useMemo(() => {
+    const colors = [
+      '#1976d2', '#d32f2f', '#388e3c', '#f57c00',
+      '#7b1fa2', '#0288d1', '#c2185b', '#00796b',
+      '#5d4037', '#455a64', '#e64a19', '#512da8',
+      '#0097a7', '#c51162', '#303f9f', '#00796b'
+    ];
+    
+    const userList = Array.from(new Set(activities.map(a => a.user_id)))
+      .map(userId => {
+        const user = users.find(u => u.id === userId);
+        return {
+          userId,
+          name: user?.name || user?.username || `ユーザー${userId}`,
+          email: user?.email
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    const colorMap = new Map<number, string>();
+    userList.forEach((user, index) => {
+      colorMap.set(user.userId, colors[index % colors.length]);
+    });
+    
+    return { userList, colorMap };
+  }, [activities, users]);
+
+
+  const handleClearFilters = () => {
+    setSelectedUserId('');
+    setSelectedCycleDate('');
+  };
+
+
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <AccessTimeIcon sx={{ mr: 1, color: 'primary.main' }} />
+        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
+          ユーザーアクティビティ管理
+        </Typography>
+      </Box>
+
+      {/* フィルター */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          フィルター
+        </Typography>
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <FormControl sx={{ minWidth: 200 }} size="small">
+            <InputLabel>ユーザー</InputLabel>
+            <Select
+              value={selectedUserId}
+              label="ユーザー"
+              onChange={(e) => setSelectedUserId(e.target.value as number | '')}
+            >
+              <MenuItem value="">すべて</MenuItem>
+              {users
+                .filter(user => user.role === 'user') // 一般ユーザーのみ
+                .map(user => (
+                  <MenuItem key={user.id} value={user.id}>
+                    {user.name || user.username || user.email}
+                  </MenuItem>
+                ))}
+            </Select>
+          </FormControl>
+          <TextField
+            label="周期日"
+            type="date"
+            value={selectedCycleDate}
+            onChange={(e) => setSelectedCycleDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            size="small"
+            sx={{ minWidth: 200 }}
+          />
+          <Button variant="outlined" onClick={handleClearFilters}>
+            フィルター解除
+          </Button>
+        </Stack>
+      </Paper>
+
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {!loading && !error && (
+        <>
+          {activities.length === 0 ? (
+            <Paper sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="body1" color="text.secondary">
+                アクティビティデータがありません
+              </Typography>
+            </Paper>
+          ) : (
+            <Card sx={{ height: 'calc(100vh - 280px)', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, pb: 2 }}>
+                <Box sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <TimelineIcon color="primary" />
+                      ユーザー別アクティブ状態（5:00〜翌4:59）
+                    </Typography>
+                    <Chip 
+                      label="リアルタイム更新中" 
+                      color="success" 
+                      size="small"
+                      sx={{ fontSize: '0.7rem' }}
+                    />
+                  </Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    各時間帯におけるユーザーのアクティブ状態を表示しています。グラフが1（オン）の時間帯はアクティブ、0（オフ）の時間帯は非アクティブです。アクティブが続くと横に直線が続きます。
+                  </Typography>
+                  
+                  {/* ユーザー統計情報 */}
+                  <Paper sx={{ p: 1.5, mb: 1.5, bgcolor: 'grey.50' }}>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {userStats.slice(0, 8).map(stat => {
+                        const color = userColors.colorMap.get(stat.userId) || '#1976d2';
+                        return (
+                          <Box key={stat.userId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: '50%',
+                                bgcolor: color
+                              }}
+                            />
+                            <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                              {stat.name}:
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {stat.sessionCount}回ログイン ({stat.activeHours}時間)
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                      {userStats.length > 8 && (
+                        <Typography variant="caption" color="text.secondary">
+                          他 {userStats.length - 8}名
+                        </Typography>
+                      )}
+                    </Box>
+                  </Paper>
+                </Box>
+                <Box sx={{ flex: 1, minHeight: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={hourlyDataByUser} margin={{ top: 10, right: 20, left: 10, bottom: 80 }}>
+                      <defs>
+                        {userColors.userList.map(user => {
+                          const color = userColors.colorMap.get(user.userId) || '#1976d2';
+                          return (
+                            <linearGradient key={user.userId} id={`color${user.userId}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor={color} stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor={color} stopOpacity={0.05}/>
+                            </linearGradient>
+                          );
+                        })}
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                      <XAxis 
+                        dataKey="timeLabel" 
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                        interval={5}
+                        tick={{ fontSize: 9 }}
+                        label={{ value: '時間帯（10分刻み）', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fontSize: 12 } }}
+                      />
+                      <YAxis 
+                        label={{ value: 'アクティブ状態', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 12 } }}
+                        tick={{ fontSize: 11 }}
+                        domain={[0, 1]}
+                        ticks={[0, 1]}
+                        tickFormatter={(value) => value === 1 ? 'オン' : 'オフ'}
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'rgba(255, 255, 255, 0.98)', 
+                          fontSize: '12px',
+                          border: '1px solid #ccc',
+                          borderRadius: '4px',
+                          padding: '8px'
+                        }}
+                        formatter={(value: any, name: string) => [value === 1 ? 'アクティブ' : '非アクティブ', name]}
+                        labelFormatter={(label) => `時間帯: ${label}`}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '10px', fontSize: '11px' }}
+                        iconType="circle"
+                        iconSize={8}
+                        verticalAlign="top"
+                        height={36}
+                      />
+                      {/* 現在時刻を示す線（今日のデータを表示している場合のみ） */}
+                      {isShowingToday && currentTimeLabel.cycleHour >= 5 && currentTimeLabel.cycleHour < 29 && (
+                        <ReferenceLine
+                          x={currentTimeLabel.timeLabel}
+                          stroke="#ff0000"
+                          strokeWidth={2.5}
+                          strokeDasharray="5 5"
+                          label={{ 
+                            value: '現在', 
+                            position: 'top',
+                            fill: '#ff0000',
+                            fontSize: 11,
+                            fontWeight: 'bold',
+                            offset: 5
+                          }}
+                        />
+                      )}
+                      {userColors.userList.map(user => {
+                        const color = userColors.colorMap.get(user.userId) || '#1976d2';
+                        return (
+                          <Area
+                            key={user.userId}
+                            type="stepAfter"
+                            dataKey={user.name}
+                            stroke={color}
+                            fill={`url(#color${user.userId})`}
+                            strokeWidth={2.5}
+                            name={user.name}
+                            connectNulls={false}
+                            isAnimationActive={false}
+                            strokeOpacity={0.8}
+                            fillOpacity={0.3}
+                          />
+                        );
+                      })}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+    </Box>
+  );
+};
+
+export default UserActivityPage;

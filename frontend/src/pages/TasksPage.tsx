@@ -401,6 +401,12 @@ const TasksPage: React.FC = () => {
         new Map(projects.map(p => [p.id, p.name]))
         , [projects]);
 
+    // 表示ステータスがオンラインのプロジェクトのみ（カレンダーと同じ要領）
+    const onlineProjects = useMemo(() =>
+        projects.filter((p: Project) => (p.display_status ?? 'online') === 'online'),
+        [projects]
+    );
+
     const userMap = useMemo(() =>
         new Map(users.map(u => [u.id, u.username || u.name || u.email]))
         , [users]);
@@ -424,7 +430,20 @@ const TasksPage: React.FC = () => {
     const filteredTasks = useMemo(() => {
         return tasks.filter(task => {
             const statusMatch = statusFilter === '' || task.status === statusFilter;
-            const projectMatch = projectFilter === '' || String(task.project_id) === projectFilter;
+
+            // プロジェクトフィルター: 「プロジェクト未設定」の場合は project_id が null のタスクのみ
+            let projectMatch: boolean;
+            if (projectFilter === 'no-project') {
+                projectMatch = task.project_id == null;
+            } else {
+                // 通常時は表示ステータスがオンラインのプロジェクトのタスクのみ表示
+                const project = task.project_id != null ? projects.find(p => p.id === task.project_id) : null;
+                const isOnlineProject = task.project_id == null
+                    ? false
+                    : (project && (project.display_status ?? 'online') === 'online');
+                if (!isOnlineProject) return false;
+                projectMatch = projectFilter === '' || String(task.project_id) === projectFilter;
+            }
             let assigneeMatch = false;
             if (assigneeFilter === '') {
                 assigneeMatch = true;
@@ -435,7 +454,7 @@ const TasksPage: React.FC = () => {
             }
             return statusMatch && projectMatch && assigneeMatch;
         });
-    }, [tasks, statusFilter, projectFilter, assigneeFilter]);
+    }, [tasks, projects, onlineProjects, statusFilter, projectFilter, assigneeFilter]);
 
 
 
@@ -1008,19 +1027,57 @@ const TasksPage: React.FC = () => {
                                 labelId="project-filter-label"
                                 label="プロジェクト"
                                 displayEmpty
-                                value={projectFilter || 'all'}
-                                onChange={(e) => setProjectFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                                value={projectFilter === '' ? 'all' : projectFilter}
+                                onChange={(e) => {
+                                    const v = e.target.value as string;
+                                    setProjectFilter(v === 'all' ? '' : v);
+                                }}
                                 renderValue={(selected) => {
                                     if (!selected || selected === 'all' || selected === '') {
                                         return '全て';
                                     }
+                                    if (selected === 'no-project') {
+                                        return 'プロジェクト未設定';
+                                    }
                                     const project = projects.find(p => String(p.id) === selected);
-                                    return project ? project.name : selected;
+                                    if (!project) return selected;
+                                    return (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Box
+                                                sx={{
+                                                    width: 8,
+                                                    height: 8,
+                                                    borderRadius: '50%',
+                                                    backgroundColor: '#4CAF50',
+                                                    flexShrink: 0,
+                                                }}
+                                            />
+                                            <span>{project.name}</span>
+                                        </Box>
+                                    );
                                 }}
                             >
                                 <MenuItem value="all">全て</MenuItem>
-                                {projects.map(project => (
-                                    <MenuItem key={project.id} value={String(project.id)}>{project.name}</MenuItem>
+                                <MenuItem value="no-project">プロジェクト未設定</MenuItem>
+                                {onlineProjects.map(project => (
+                                    <MenuItem
+                                        key={project.id}
+                                        value={String(project.id)}
+                                        sx={{
+                                            '&::before': {
+                                                content: '""',
+                                                display: 'inline-block',
+                                                width: 8,
+                                                height: 8,
+                                                borderRadius: '50%',
+                                                backgroundColor: '#4CAF50',
+                                                marginRight: 1,
+                                                verticalAlign: 'middle',
+                                            },
+                                        }}
+                                    >
+                                        {project.name}
+                                    </MenuItem>
                                 ))}
                             </Select>
                         </FormControl>

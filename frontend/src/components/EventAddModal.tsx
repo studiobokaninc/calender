@@ -522,12 +522,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         next.endDate = undefined;
   
       } else if (newType === 'Meeting' || newType === 'Workshop') {
-        // 会議/WSは基本的に時間あり（終日OFF固定）。
+        // 会議/WSは実施日のみ（終了日は設定しない）。時間あり（終日OFF固定）。
         next.allDay = false;
-  
-        // 日付は既存値を尊重。無ければ taskDueDate を流用、無ければ空。
+
+        // 実施日のみ。既存値を尊重。無ければ taskDueDate を流用。
         next.startDate = prev.startDate || prev.taskDueDate || '';
-        next.endDate   = prev.endDate   || next.startDate || '';
+        next.endDate   = undefined; // 会議・WSは終了日を使わない
   
         // 時刻は既存値を優先、なければ軽いデフォルト（今日には依存しない）
         next.startTime = prev.startTime || '09:00';
@@ -602,15 +602,18 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         }
         if (!formData.allDay) {
             if (!formData.startTime) newErrors.startTime = '開始時間を入力してください';
-            if ((formData.type === 'Generic' || formData.type === 'Meeting' || formData.type === 'Workshop') && !formData.endDate) {
+            // Generic のみ終了日を必須（会議・ワークショップは実施日のみ）
+            if (formData.type === 'Generic' && !formData.endDate) {
                 newErrors.endDate = '終了日を入力してください';
-        }
+            }
             if ((formData.type === 'Generic' || formData.type === 'Meeting' || formData.type === 'Workshop') && !formData.endTime) {
                 newErrors.endTime = '終了時間を入力してください';
             }
-            // 時間の順序検証 (開始時刻 < 終了時刻)
-            if (formData.startDate && formData.endDate && formData.startTime && formData.endTime &&
-                `${formData.startDate} ${formData.startTime}` >= `${formData.endDate} ${formData.endTime}`) {
+            // 時間の順序検証 (開始時刻 < 終了時刻)。会議・WSは同一実施日で比較
+            const startDateForCompare = formData.startDate;
+            const endDateForCompare = (formData.type === 'Meeting' || formData.type === 'Workshop') ? formData.startDate : formData.endDate;
+            if (startDateForCompare && endDateForCompare && formData.startTime && formData.endTime &&
+                `${startDateForCompare} ${formData.startTime}` >= `${endDateForCompare} ${formData.endTime}`) {
                 newErrors.endTime = '終了時刻は開始時刻より後に設定してください';
             }
         }
@@ -858,9 +861,9 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
   const showEndDate = useMemo(() => {
     if (!formData?.type) return false;
-    // タスク、締切、マイルストーンでは非表示
-    if (['task', 'Task', 'Deadline', 'Milestone'].includes(formData.type)) return false;
-    return true; // Generic, Meeting, Workshop で表示
+    // タスク、締切、マイルストーン、会議、ワークショップでは非表示（会議・WSは実施日のみ）
+    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop'].includes(formData.type)) return false;
+    return true; // Generic のみ終了日を表示
   }, [formData?.type]);
 
   // 担当者オプション (ユーザー + グループ)
@@ -1014,22 +1017,22 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             {/* Task Specific Fields */}
             {(formData.type === 'task' || formData.type === 'Task') && (
               <Grid item xs={12} container spacing={1.5}> 
-                  {/* Task Due Date */}
-                  <Grid item xs={12}>
-                      <DatePicker
-                          label="期日 *"
-                          value={parseDateString(formData.taskDueDate)}
-                          onChange={(newValue) => handleDateChange('taskDueDate', newValue)}
-                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.taskDueDate, helperText: errors.taskDueDate } }}
-                      />
-                  </Grid>
-                  {/* Task Start Date */}
+                  {/* Task Start Date（開始日を上に） */}
                   <Grid item xs={12}>
                       <DatePicker
                           label="開始日"
                           value={parseDateString(formData.taskStartDate)}
                           onChange={(newValue) => handleDateChange('taskStartDate', newValue)}
                           slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+                      />
+                  </Grid>
+                  {/* Task Due Date（期日をその下に） */}
+                  <Grid item xs={12}>
+                      <DatePicker
+                          label="期日 *"
+                          value={parseDateString(formData.taskDueDate)}
+                          onChange={(newValue) => handleDateChange('taskDueDate', newValue)}
+                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.taskDueDate, helperText: errors.taskDueDate } }}
                       />
                   </Grid>
                   {/* Assignee, Cost, Status, Dependencies */}
@@ -1255,51 +1258,48 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                     </Grid>
                    )}
 
-                   {/* Start Date (or Due Date for Deadline/Milestone) */}
-                   <Grid item xs={(formData.allDay || !showTimeFields) ? 12 : 6}>
+                   {/* 実施日/開始日（会議・WSは1行で表示し、その下で開始・終了時間を横並びにするため xs=12） */}
+                   <Grid item xs={(formData.allDay || !showTimeFields) ? 12 : (formData.type === 'Meeting' || formData.type === 'Workshop') ? 12 : 6}>
                         <DatePicker
-                            label={(formData.type === 'Deadline' || formData.type === 'Milestone') ? "期日 *" : "開始日 *"}
+                            label={(formData.type === 'Deadline' || formData.type === 'Milestone') ? "期日 *" : (formData.type === 'Meeting' || formData.type === 'Workshop') ? "実施日 *" : "開始日 *"}
                             value={parseDateString(formData.startDate)}
                             onChange={(newValue) => handleDateChange('startDate', newValue)}
                             slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
                         />
                     </Grid>
 
-                    {/* Start Time */}
-                    {showTimeFields && (
-                         <Grid item xs={6}>
-                            <TimePicker
-                                label="開始時間 *"
-                                value={parseTimeString(formData.startTime, parseDateString(formData.startDate))}
-                                onChange={(newValue) => handleTimeChange('startTime', newValue)}
-                                slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startTime, helperText: errors.startTime } }}
-                            />
-                        </Grid>
-                     )}
-
-                    {/* End Date & End Time (only for Generic, Meeting, Workshop) */}
+                    {/* 終了日（Generic のみ。会議・WSは実施日のみのため非表示） */}
                     {showEndDate && (
+                        <Grid item xs={(formData.allDay || !showTimeFields) ? 12 : 6}>
+                            <DatePicker
+                                label="終了日 *"
+                                value={parseDateString(formData.endDate)}
+                                onChange={(newValue) => handleDateChange('endDate', newValue)}
+                                slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endDate, helperText: errors.endDate } }}
+                            />
+                        </Grid>
+                    )}
+                    {/* 開始時間・終了時間（会議・ワークショップ・Genericで時間ありのとき、横並びで表示） */}
+                    {showTimeFields && (
                         <>
-                            <Grid item xs={(formData.allDay || !showTimeFields) ? 12 : 6}>
-                                <DatePicker
-                                    label="終了日 *"
-                                    value={parseDateString(formData.endDate)}
-                                    onChange={(newValue) => handleDateChange('endDate', newValue)}
-                                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endDate, helperText: errors.endDate } }}
-                            />
-                        </Grid>
-                            {showTimeFields && (
-                        <Grid item xs={6}>
-                            <TimePicker
-                                        label="終了時間 *"
-                                value={parseTimeString(formData.endTime, parseDateString(formData.endDate) ?? parseDateString(formData.startDate))}
-                                onChange={(newValue) => handleTimeChange('endTime', newValue)}
-                                        slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endTime, helperText: errors.endTime } }}
-                            />
-                        </Grid>
-                            )}
-                    </>
-                  )}
+                            <Grid item xs={6}>
+                                <TimePicker
+                                    label="開始時間 *"
+                                    value={parseTimeString(formData.startTime, parseDateString(formData.startDate))}
+                                    onChange={(newValue) => handleTimeChange('startTime', newValue)}
+                                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startTime, helperText: errors.startTime } }}
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TimePicker
+                                    label="終了時間 *"
+                                    value={parseTimeString(formData.endTime, parseDateString(formData.endDate) ?? parseDateString(formData.startDate))}
+                                    onChange={(newValue) => handleTimeChange('endTime', newValue)}
+                                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endTime, helperText: errors.endTime } }}
+                                />
+                            </Grid>
+                        </>
+                    )}
                   {/* Location (for Meeting, Workshop, Generic) */}
                   {showLocation && (
                       <Grid item xs={12}>

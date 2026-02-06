@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 from .timezone import now_jst_naive
 from typing import List, Optional
 from sqlalchemy.orm import selectinload
@@ -906,3 +906,68 @@ def delete_note(db: Session, db_note: models.Note, upload_dir: str = None) -> mo
     db.delete(db_note)
     db.commit()
     return db_note
+
+# --- UserActivity CRUD ---
+
+def get_cycle_date(dt: datetime) -> datetime:
+    """5:00~28:59（翌日の4:59まで）の周期を計算し、その周期の開始日（5:00）を返す"""
+    # 現在時刻が5:00より前なら、前日の5:00を周期開始日とする
+    if dt.hour < 5:
+        # 前日の5:00を周期開始日とする
+        cycle_start = dt.replace(hour=5, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    else:
+        # 当日の5:00を周期開始日とする
+        cycle_start = dt.replace(hour=5, minute=0, second=0, microsecond=0)
+    return cycle_start
+
+def create_user_activity(db: Session, user_id: int, active_at: Optional[datetime] = None) -> models.UserActivity:
+    """ユーザーのアクティビティを記録"""
+    if active_at is None:
+        active_at = now_jst_naive()
+    
+    cycle_date = get_cycle_date(active_at)
+    
+    db_activity = models.UserActivity(
+        user_id=user_id,
+        active_at=active_at,
+        cycle_date=cycle_date,
+        created_at=now_jst_naive()
+    )
+    db.add(db_activity)
+    db.commit()
+    db.refresh(db_activity)
+    return db_activity
+
+def get_user_activities(
+    db: Session,
+    user_id: Optional[int] = None,
+    cycle_date: Optional[datetime] = None,
+    skip: int = 0,
+    limit: int = 10000
+) -> List[models.UserActivity]:
+    """ユーザーアクティビティを取得"""
+    from sqlalchemy import func, cast, Date
+    
+    query = db.query(models.UserActivity)
+    
+    if user_id is not None:
+        query = query.filter(models.UserActivity.user_id == user_id)
+    
+    if cycle_date is not None:
+        # 周期日の日付部分のみで比較（時刻を無視）
+        cycle_date_only = cycle_date.date()
+        query = query.filter(func.date(models.UserActivity.cycle_date) == cycle_date_only)
+    
+    return query.order_by(models.UserActivity.active_at.desc()).offset(skip).limit(limit).all()
+
+def get_user_activities_by_cycle(
+    db: Session,
+    cycle_date: Optional[datetime] = None,
+    skip: int = 0,
+    limit: int = 10000
+) -> List[models.UserActivity]:
+    """周期日でアクティビティを取得（全ユーザー）"""
+    if cycle_date is None:
+        cycle_date = get_cycle_date(now_jst_naive())
+    
+    return get_user_activities(db, user_id=None, cycle_date=cycle_date, skip=skip, limit=limit)

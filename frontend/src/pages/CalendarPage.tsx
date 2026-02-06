@@ -190,7 +190,7 @@ const CalendarPage: React.FC = () => {
     // デフォルトの種類フィルター（永続化のマージ用）
     // ※ 'event' はバックエンドが返す「通常」イベントの type に合わせる
     const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
-        project: true,
+        project: false, // プロジェクトはデフォルトでオフ（グループと同様）
         task: true,
         milestone: true,
         deadline: true,
@@ -369,8 +369,10 @@ const CalendarPage: React.FC = () => {
                         const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                             ? be.type
                             : 'Generic';
-                        // イベントの日付を決定（終了日があれば終了日、なければ開始日）
-                        const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                        // 会議・ワークショップは実施日（start_time）で過去/色判定。終日はAPIが翌日00:00で返すため end の前日で判定
+                        const eventDate = (normalizedType === 'Meeting' || normalizedType === 'Workshop')
+                            ? parseISO(originalStartTimeStr)
+                            : (originalEndTimeStr ? ((be.allDay ?? false) ? addDays(parseISO(originalEndTimeStr), -1) : parseISO(originalEndTimeStr)) : parseISO(originalStartTimeStr));
                         const eventColor = getEventColor(
                             normalizedType ?? 'Generic',
                             project?.status ?? undefined,
@@ -462,8 +464,10 @@ const CalendarPage: React.FC = () => {
                             const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                 ? be.type
                                 : 'Generic';
-                            // イベントの日付を決定（終了日があれば終了日、なければ開始日）
-                            const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                            // 会議・ワークショップは実施日（start_time）で過去/色判定。終日はAPIが翌日00:00で返すため end の前日で判定
+                            const eventDate = (normalizedType === 'Meeting' || normalizedType === 'Workshop')
+                                ? parseISO(originalStartTimeStr)
+                                : (originalEndTimeStr ? ((be.allDay ?? false) ? addDays(parseISO(originalEndTimeStr), -1) : parseISO(originalEndTimeStr)) : parseISO(originalStartTimeStr));
                             const eventColor = getEventColor(
                                 normalizedType ?? 'Generic',
                                 project?.status ?? undefined,
@@ -726,17 +730,20 @@ const CalendarPage: React.FC = () => {
                 const projectId = event.extendedProps?.projectId;
                 const project = projectId ? projectsMapForRecalc.get(String(projectId)) : undefined;
                 
-                // イベントの日付を決定（終了日があれば終了日、なければ開始日）
-                // event.end と event.start は Date オブジェクトまたは文字列の可能性がある
+                // 会議・ワークショップは実施日（start）で過去/色判定。終日は排他的終了日のため end の前日で判定
+                const eventType = event.extendedProps?.type;
                 let eventDate: string | Date | null = null;
-                if (event.end) {
-                    eventDate = typeof event.end === 'string' ? event.end : event.end;
+                if (eventType === 'Meeting' || eventType === 'Workshop') {
+                    eventDate = event.start ? (typeof event.start === 'string' ? event.start : event.start) : null;
+                } else if (event.end) {
+                    const endVal = typeof event.end === 'string' ? parseISO(event.end) : event.end;
+                    eventDate = event.allDay ? addDays(endVal, -1) : endVal;
                 } else if (event.start) {
                     eventDate = typeof event.start === 'string' ? event.start : event.start;
                 }
                 
                 const eventColor = getEventColor(
-                    event.extendedProps?.type ?? 'Generic',
+                    eventType ?? 'Generic',
                     project?.status ?? undefined,
                     eventDate
                 );
@@ -773,16 +780,20 @@ const CalendarPage: React.FC = () => {
             const updatedBackendEvents = backendEvents.map(event => {
                 const projectId = event.extendedProps?.projectId;
                 const project = projectId ? projectsMapForUpdate.get(String(projectId)) : undefined;
-                
+                const eventType = event.extendedProps?.type;
+                // 会議・ワークショップは実施日（start）で過去/色判定。終日は排他的終了日のため end の前日で判定
                 let eventDate: string | Date | null = null;
-                if (event.end) {
-                    eventDate = typeof event.end === 'string' ? event.end : event.end;
+                if (eventType === 'Meeting' || eventType === 'Workshop') {
+                    eventDate = event.start ? (typeof event.start === 'string' ? event.start : event.start) : null;
+                } else if (event.end) {
+                    const endVal = typeof event.end === 'string' ? parseISO(event.end) : event.end;
+                    eventDate = event.allDay ? addDays(endVal, -1) : endVal;
                 } else if (event.start) {
                     eventDate = typeof event.start === 'string' ? event.start : event.start;
                 }
                 
                 const eventColor = getEventColor(
-                    event.extendedProps?.type ?? 'Generic',
+                    eventType ?? 'Generic',
                     project?.status ?? undefined,
                     eventDate
                 );
@@ -841,8 +852,10 @@ const CalendarPage: React.FC = () => {
                                 const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                     ? be.type
                                     : 'Generic';
-                                // イベントの日付を決定（終了日があれば終了日、なければ開始日）
-                                const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                                // 会議・ワークショップは実施日（start_time）で過去/色判定。終日はAPIが翌日00:00で返すため end の前日で判定
+                                const eventDate = (normalizedType === 'Meeting' || normalizedType === 'Workshop')
+                                    ? parseISO(originalStartTimeStr)
+                                    : (originalEndTimeStr ? ((be.allDay ?? false) ? addDays(parseISO(originalEndTimeStr), -1) : parseISO(originalEndTimeStr)) : parseISO(originalStartTimeStr));
                                 const eventColor = getEventColor(
                                     normalizedType ?? 'Generic',
                                     project?.status ?? undefined,
@@ -1034,16 +1047,20 @@ const CalendarPage: React.FC = () => {
                 // バックエンドイベントの場合、色を再計算（Mapを使用してO(1)検索）
                 const projectId = event.extendedProps?.projectId;
                 const project = projectId ? projectsMap.get(String(projectId)) : undefined;
-                
+                const typeForColor = event.extendedProps?.type;
+                // 会議・ワークショップは実施日（start）で過去/色判定。終日は排他的終了日のため end の前日で判定
                 let eventDate: string | Date | null = null;
-                if (event.end) {
-                    eventDate = typeof event.end === 'string' ? event.end : event.end;
+                if (typeForColor === 'Meeting' || typeForColor === 'Workshop') {
+                    eventDate = event.start ? (typeof event.start === 'string' ? event.start : event.start) : null;
+                } else if (event.end) {
+                    const endVal = typeof event.end === 'string' ? parseISO(event.end) : event.end;
+                    eventDate = event.allDay ? addDays(endVal, -1) : endVal;
                 } else if (event.start) {
                     eventDate = typeof event.start === 'string' ? event.start : event.start;
                 }
                 
                 const recalculatedColor = getEventColor(
-                    event.extendedProps?.type ?? 'Generic',
+                    typeForColor ?? 'Generic',
                     project?.status ?? undefined,
                     eventDate
                 );
@@ -1524,8 +1541,10 @@ const CalendarPage: React.FC = () => {
                             const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                 ? be.type
                                 : 'Generic';
-                            // イベントの日付を決定（終了日があれば終了日、なければ開始日）
-                            const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                            // 会議・ワークショップは実施日（start_time）で過去/色判定。終日はAPIが翌日00:00で返すため end の前日で判定
+                            const eventDate = (normalizedType === 'Meeting' || normalizedType === 'Workshop')
+                                ? parseISO(originalStartTimeStr)
+                                : (originalEndTimeStr ? ((be.allDay ?? false) ? addDays(parseISO(originalEndTimeStr), -1) : parseISO(originalEndTimeStr)) : parseISO(originalStartTimeStr));
                             const eventColor = getEventColor(
                                 normalizedType ?? 'Generic',
                                 project?.status ?? undefined,
@@ -1635,8 +1654,10 @@ const CalendarPage: React.FC = () => {
                                 const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                     ? be.type
                                     : 'Generic';
-                                // イベントの日付を決定（終了日があれば終了日、なければ開始日）
-                                const eventDate = originalEndTimeStr ? parseISO(originalEndTimeStr) : parseISO(originalStartTimeStr);
+                                // 会議・ワークショップは実施日（start_time）で過去/色判定。終日はAPIが翌日00:00で返すため end の前日で判定
+                                const eventDate = (normalizedType === 'Meeting' || normalizedType === 'Workshop')
+                                    ? parseISO(originalStartTimeStr)
+                                    : (originalEndTimeStr ? ((be.allDay ?? false) ? addDays(parseISO(originalEndTimeStr), -1) : parseISO(originalEndTimeStr)) : parseISO(originalStartTimeStr));
                                 const eventColor = getEventColor(
                                     normalizedType ?? 'Generic',
                                     project?.status ?? undefined,
@@ -2283,12 +2304,27 @@ const CalendarPage: React.FC = () => {
                             const isCompletedProject = projectStatusStr === 'completed';
                             const isCancelledProject = projectStatusStr === 'cancelled';
                             
-                            // イベントの日付を確認
+                            // イベントの日付を確認（過去判定用）
+                            // 会議・ワークショップは実施日（start）で判定。
+                            // 終日イベントは FullCalendar が排他的終了日（翌日00:00）で持つため、実質の最終日は end の前日で判定する
                             let eventDate: string | Date | null = null;
-                            if (arg.event.end) {
-                                eventDate = arg.event.end;
+                            if (type === 'Meeting' || type === 'Workshop') {
+                                // 会議・ワークショップは実施日（start）で判定。FullCalendarのDateオブジェクトを確実に処理
+                                if (arg.event.start) {
+                                    eventDate = typeof arg.event.start === 'string' ? parseISO(arg.event.start) : arg.event.start;
+                                } else {
+                                    eventDate = null;
+                                }
+                            } else if (arg.event.end) {
+                                if (arg.event.allDay) {
+                                    const endVal = arg.event.end;
+                                    const endDate = typeof endVal === 'string' ? parseISO(endVal) : endVal;
+                                    eventDate = addDays(endDate, -1); // 排他的終了日のため前日が実質の最終日
+                                } else {
+                                    eventDate = typeof arg.event.end === 'string' ? parseISO(arg.event.end) : arg.event.end;
+                                }
                             } else if (arg.event.start) {
-                                eventDate = arg.event.start;
+                                eventDate = typeof arg.event.start === 'string' ? parseISO(arg.event.start) : arg.event.start;
                             }
                             const isPastEvent = eventDate ? isDatePast(eventDate) : false;
                             

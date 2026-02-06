@@ -163,9 +163,18 @@ const Dashboard: React.FC = () => {
 
     type TodayItem = { type: 'event'; name: string; projectName: string; id: number; timeLabel?: string; kindLabel: string; startTime?: string }
 
+    // キャンセル・完了したプロジェクトのイベントは今日の予定に含めない
+    const isExcludedProject = (projectId: number | null | undefined): boolean => {
+      if (projectId == null) return false
+      const p = projects.find((x: any) => x.id === projectId)
+      const status = (p?.status ?? '').toString().toLowerCase()
+      return status === 'completed' || status === 'cancelled'
+    }
+
     // 今日のイベントのみ表示。2/4 00:00〜2/5 00:00 のような「翌日 00:00」で終了するものは 2/4 のイベントとみなし、2/5 には出さない
     const eventList: TodayItem[] = []
     backendEvents.forEach((ev: BackendEvent) => {
+      if (isExcludedProject(ev.project_id ?? null)) return
       const startDate = toLocalDateStr(ev.start_time)
       const endDate = ev.end_time ? toLocalDateStr(ev.end_time) : startDate
       if (!startDate) return

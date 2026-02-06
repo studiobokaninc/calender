@@ -47,9 +47,10 @@ import {
   Note as NoteIcon,
   Person as PersonIcon,
   QuestionAnswer as ChatIcon,
+  AccessTime as AccessTimeIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
-import { mockDataApi, importMockData } from '../services/api'
+import { mockDataApi, importMockData, userActivityApi } from '../services/api'
 import { transformImportData } from '../utils/transformImportData'
 
 interface LayoutProps {
@@ -109,6 +110,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users' },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
+    { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
   ]
 
@@ -142,6 +144,132 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       return () => clearTimeout(timer)
     }
   }, [errorMessage])
+
+  // 5:00になったら自動ログアウト（一般ユーザーのみ）
+  useEffect(() => {
+    if (!user || user.role !== 'user') {
+      return
+    }
+
+    let checkTimeId: NodeJS.Timeout | null = null
+
+    // 5:00になったらログアウトする関数
+    const checkAndLogout = () => {
+      const now = new Date()
+      const hour = now.getHours()
+      const minute = now.getMinutes()
+      
+      // 5:00になったらログアウト（5:00〜5:01の間）
+      if (hour === 5 && minute === 0) {
+        console.log('[Layout] 5:00 reached, logging out user')
+        logout()
+      }
+    }
+
+    // 1分ごとに時刻をチェック
+    checkTimeId = setInterval(() => {
+      checkAndLogout()
+    }, 60 * 1000) // 1分 = 60 * 1000ミリ秒
+
+    return () => {
+      if (checkTimeId) {
+        clearInterval(checkTimeId)
+      }
+    }
+  }, [user, logout])
+
+  // ユーザーアクティビティ記録（一般ユーザーのみ）
+  useEffect(() => {
+    // 管理者は記録しない
+    if (!user || user.role !== 'user') {
+      return
+    }
+
+    // 既に実行中の場合はスキップ（重複防止）
+    const effectKey = `activity_recording_${user.id}`
+    if ((window as any)[effectKey]) {
+      console.log('[UserActivity] Already recording for user', user.id)
+      return
+    }
+    (window as any)[effectKey] = true
+
+    let intervalId: NodeJS.Timeout | null = null
+    let checkCycleId: NodeJS.Timeout | null = null
+    let lastCycleDate: string | null = null
+    let lastRecordTime: number = 0 // 最後に記録した時刻（ミリ秒）
+    const MIN_RECORD_INTERVAL = 4 * 60 * 1000 // 4分以内の重複記録を防ぐ
+
+    // 周期日を計算する関数（5:00~28:59の周期）
+    const getCycleDate = (date: Date): string => {
+      const hour = date.getHours()
+      const cycleDate = new Date(date)
+      if (hour < 5) {
+        // 5:00より前なら前日の5:00を周期開始日とする
+        cycleDate.setDate(cycleDate.getDate() - 1)
+      }
+      cycleDate.setHours(5, 0, 0, 0)
+      return cycleDate.toISOString().split('T')[0] // YYYY-MM-DD形式
+    }
+
+    // アクティビティを記録する関数（重複防止付き）
+    const recordActivity = async () => {
+      const now = Date.now()
+      // 最後の記録から4分以内の場合は記録しない（重複防止）
+      if (now - lastRecordTime < MIN_RECORD_INTERVAL) {
+        console.log('[UserActivity] Skipping duplicate record (too soon)')
+        return
+      }
+      
+      try {
+        await userActivityApi.recordActivity()
+        lastRecordTime = now
+        console.log('[UserActivity] Activity recorded')
+      } catch (error: any) {
+        // エラーは無視（サーバーが起動していない場合など）
+        console.warn('[UserActivity] Failed to record activity:', error.message)
+      }
+    }
+
+    // 周期が変わったかチェックする関数
+    const checkCycleChange = () => {
+      const now = new Date()
+      const currentCycleDate = getCycleDate(now)
+      
+      if (lastCycleDate !== null && lastCycleDate !== currentCycleDate) {
+        console.log('[UserActivity] Cycle changed:', lastCycleDate, '->', currentCycleDate)
+        // 周期が変わったらアクティビティを記録（重複防止はrecordActivity内で処理）
+        recordActivity()
+      }
+      
+      lastCycleDate = currentCycleDate
+    }
+
+    // 初回記録（即座に実行）
+    lastRecordTime = Date.now()
+    recordActivity()
+    lastCycleDate = getCycleDate(new Date())
+
+    // 5分ごとにアクティビティを記録
+    intervalId = setInterval(() => {
+      recordActivity()
+    }, 5 * 60 * 1000) // 5分 = 5 * 60 * 1000ミリ秒
+
+    // 1分ごとに周期の変更をチェック
+    checkCycleId = setInterval(() => {
+      checkCycleChange()
+    }, 60 * 1000) // 1分 = 60 * 1000ミリ秒
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+      }
+      if (checkCycleId) {
+        clearInterval(checkCycleId)
+      }
+      // クリーンアップ時にフラグをリセット
+      delete (window as any)[effectKey]
+    }
+  }, [user?.id, user?.role])
 
   // 一般ユーザーはチャットのみ表示。管理者は管理者以外のメニューを表示
   const menuItems = user?.role === 'admin'

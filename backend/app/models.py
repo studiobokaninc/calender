@@ -188,4 +188,15 @@ class Note(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
     owner: Mapped["User"] = relationship("User")
-    project: Mapped[Optional["Project"]] = relationship("Project") 
+    project: Mapped[Optional["Project"]] = relationship("Project")
+
+class UserActivity(Base):
+    __tablename__ = "user_activities"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    active_at: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)  # アクティブになった日時
+    cycle_date: Mapped[datetime] = mapped_column(index=True)  # 周期日（その日の5:00を基準とした日付）
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+    user: Mapped["User"] = relationship("User") 

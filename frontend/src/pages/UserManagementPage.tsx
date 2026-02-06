@@ -25,6 +25,11 @@ export type TaskDisplayCategory = 'today' | 'delayed' | 'dueSoon' | 'other';
 
 const DUE_SOON_DAYS = 3; // 期限「間近」の日数
 
+/** タスクリストのツールチップを大きく表示するための slotProps */
+const taskTooltipSlotProps = {
+  tooltip: { sx: { fontSize: '0.95rem' } as const }
+};
+
 /** タスクがどのカテゴリに属するか（優先度: 今日 > 遅延 > 期限間近 > その他） */
 function getTaskCategory(task: Task): TaskDisplayCategory {
   if (!task.due_date) return 'other';
@@ -569,6 +574,12 @@ const UserManagementPage: React.FC = () => {
     return users.filter(user => usersInGroups.has(user.id));
   }, [users, usersInGroups]);
 
+  // ユーザー別タスクリストとグループ所属の両方に属するユーザーID（薄く色づけして表示する）
+  const userIdsInBoth = useMemo(() => {
+    const withTasks = new Set(usersWithTasks.map(u => u.id));
+    return new Set([...withTasks].filter(id => usersInGroups.has(id)));
+  }, [usersWithTasks, usersInGroups]);
+
   // タスク未担当ユーザー（グループ所属ユーザーは除外）
   const usersWithoutTasks = useMemo(() => {
     const filtered = users.filter(user => {
@@ -630,7 +641,7 @@ const UserManagementPage: React.FC = () => {
                       const info = userTaskInfo[user.id];
                       const part = info ? partitionTasksByCategory(info.tasks) : { today: [], delayed: [], dueSoon: [], other: [] as Task[] };
                       return (
-                        <Card key={user.id} variant="outlined" sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : 'none' }}>
+                        <Card key={user.id} variant="outlined" sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : 'none', ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                           <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -655,7 +666,7 @@ const UserManagementPage: React.FC = () => {
                                   </Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.delayed.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                         <Chip size="small" label={t.name} sx={{ bgcolor: '#FFEBEE', color: '#C62828', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                       </Tooltip>
                                     ))}
@@ -669,7 +680,7 @@ const UserManagementPage: React.FC = () => {
                                   </Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.today.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                         <Chip size="small" label={t.name} sx={{ bgcolor: '#E3F2FD', color: '#1565C0', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                       </Tooltip>
                                     ))}
@@ -683,7 +694,7 @@ const UserManagementPage: React.FC = () => {
                                   </Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.dueSoon.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                         <Chip size="small" label={t.name} sx={{ bgcolor: '#FFF3E0', color: '#E65100', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                       </Tooltip>
                                     ))}
@@ -695,7 +706,7 @@ const UserManagementPage: React.FC = () => {
                                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', mb: 0.5, display: 'block' }}>余裕をもって進める</Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.other.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                         <Chip size="small" label={t.name} variant="outlined" sx={{ maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                       </Tooltip>
                                     ))}
@@ -726,7 +737,7 @@ const UserManagementPage: React.FC = () => {
                           const info = userTaskInfo[user.id];
                           const part = info ? partitionTasksByCategory(info.tasks) : { today: [], delayed: [], dueSoon: [], other: [] as Task[] };
                           return (
-                            <TableRow key={user.id} hover sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : undefined }}>
+                            <TableRow key={user.id} hover sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : undefined, ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                               <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                   <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
@@ -745,7 +756,7 @@ const UserManagementPage: React.FC = () => {
                               <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(244, 67, 54, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {part.delayed.length === 0 ? '—' : part.delayed.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                       <Chip size="small" label={t.name} sx={{ bgcolor: '#FFEBEE', color: '#C62828', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                     </Tooltip>
                                   ))}
@@ -754,7 +765,7 @@ const UserManagementPage: React.FC = () => {
                               <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(33, 150, 243, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {part.today.length === 0 ? '—' : part.today.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                       <Chip size="small" label={t.name} sx={{ bgcolor: '#E3F2FD', color: '#1565C0', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                     </Tooltip>
                                   ))}
@@ -763,7 +774,7 @@ const UserManagementPage: React.FC = () => {
                               <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(255, 152, 0, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {part.dueSoon.length === 0 ? '—' : part.dueSoon.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`}>
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                       <Chip size="small" label={t.name} sx={{ bgcolor: '#FFF3E0', color: '#E65100', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                     </Tooltip>
                                   ))}
@@ -772,7 +783,7 @@ const UserManagementPage: React.FC = () => {
                               <TableCell sx={{ verticalAlign: 'top' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {part.other.length === 0 ? '—' : part.other.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`}>
+                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
                                       <Chip size="small" label={t.name} variant="outlined" sx={{ cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                     </Tooltip>
                                   ))}
@@ -805,7 +816,7 @@ const UserManagementPage: React.FC = () => {
                     {usersInGroupsList.map((user) => {
                       const userGroupsList = userGroupMap.get(user.id) || [];
                       return (
-                        <Card key={user.id} variant="outlined" sx={{ borderLeft: '4px solid #9C27B0' }}>
+                        <Card key={user.id} variant="outlined" sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                           <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -869,7 +880,7 @@ const UserManagementPage: React.FC = () => {
                         {usersInGroupsList.map((user) => {
                           const userGroupsList = userGroupMap.get(user.id) || [];
                           return (
-                            <TableRow key={user.id} hover sx={{ borderLeft: '4px solid #9C27B0' }}>
+                            <TableRow key={user.id} hover sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                               <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                   <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>

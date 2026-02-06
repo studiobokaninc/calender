@@ -288,4 +288,24 @@ class NoteResponse(NoteBase):
         from_attributes = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
+        }
+
+# --- UserActivity Schemas ---
+
+class UserActivityBase(BaseModel):
+    user_id: int
+    active_at: datetime
+    cycle_date: datetime
+
+class UserActivityCreate(BaseModel):
+    user_id: Optional[int] = None  # 現在のユーザーから取得する場合はNone
+
+class UserActivityResponse(UserActivityBase):
+    id: int
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
         } 

@@ -144,9 +144,12 @@ def build_projects_list_for_chat(db: Session) -> str:
     """
     プロジェクトリストをCSV形式で生成する。
     チャットで「プロジェクトリスト」を送る際に使用。
+    キャンセル・完了済み（cancelled, completed）のプロジェクトは除外する。
     """
     try:
         projects = crud.get_projects(db, skip=0, limit=100000, display_status_in=None)
+        # キャンセル・完了済みを除外（チャットでは進行中・計画中などのみ送る）
+        projects = [p for p in projects if _project_status_value(p) not in ("cancelled", "completed")]
         if not projects:
             return ""
         

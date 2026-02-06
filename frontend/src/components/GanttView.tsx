@@ -24,7 +24,10 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Alert
+  Alert,
+  Popover,
+  Chip,
+  Snackbar
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Task, Project, User } from '../types'; // ★★★ パス修正 ../../types -> ../types ★★★
@@ -33,9 +36,12 @@ import api, { setAuthErrorCallback } from '../services/api';
 import axios from 'axios';
 import NavigateBefore from '@mui/icons-material/NavigateBefore';
 import NavigateNext from '@mui/icons-material/NavigateNext';
-import AddIcon from '@mui/icons-material/Add'; // ★★★ 追加 ★★★
-import RemoveIcon from '@mui/icons-material/Remove'; // ★★★ 追加 ★★★
-import { useNavigate, useLocation } from 'react-router-dom'; // useLocation をインポート
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
+import KeyboardIcon from '@mui/icons-material/Keyboard';
+import { useNavigate, useLocation } from 'react-router-dom';
+// ↓ このパスの import エラーを防ぐためにコメントアウトまたは適切なパスに修正してください
+// import { useSnackbar } from '../contexts/SnackbarContext';
 import styled from 'styled-components';
 
 // ★★★ getProjectName/getUserName 関数定義をコンポーネント外に移動 ★★★
@@ -316,10 +322,12 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
       {/* プロジェクト */}
       <div style={{ width: `${colWidths.project}%`, textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', boxSizing: 'border-box', padding: '0 2px' }}>Project</div>
 
-      {/* リサイズハンドル */}
+      {/* リサイズハンドル（タッチで押しやすい幅 8px） */}
       <div
-        style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
+        style={{ width: '8px', minWidth: 8, height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
         onMouseDown={(e) => startResize(e, 'project')}
+        role="separator"
+        aria-label="プロジェクト列の幅を調整"
       />
 
       {/* タスク名 */}
@@ -327,8 +335,10 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
 
       {/* リサイズハンドル */}
       <div
-        style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
+        style={{ width: '8px', minWidth: 8, height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
         onMouseDown={(e) => startResize(e, 'name')}
+        role="separator"
+        aria-label="タスク名列の幅を調整"
       />
 
       {/* 開始日 */}
@@ -341,8 +351,10 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
 
       {/* リサイズハンドル */}
       <div
-        style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
+        style={{ width: '8px', minWidth: 8, height: '100%', cursor: 'col-resize', backgroundColor: '#eee', flexShrink: 0 }}
         onMouseDown={(e) => startResize(e, 'from')}
+        role="separator"
+        aria-label="開始日列の幅を調整"
       />
 
       {/* 終了日 */}
@@ -355,8 +367,10 @@ const CustomTaskListHeader: React.FC<any> = ({ headerHeight, rowWidth }) => {
 
       {/* ガントチャート部分との境界リサイズハンドル */}
       <div
-        style={{ width: '5px', height: '100%', cursor: 'col-resize', backgroundColor: '#ccc', flexShrink: 0, marginLeft: 'auto' }}
+        style={{ width: '8px', minWidth: 8, height: '100%', cursor: 'col-resize', backgroundColor: '#ccc', flexShrink: 0, marginLeft: 'auto' }}
         onMouseDown={(e) => startResize(e, 'gantt')}
+        role="separator"
+        aria-label="リスト幅を調整"
       />
     </div>
   );
@@ -933,16 +947,34 @@ interface GanttViewProps {
 
 // MemoizedGanttをuseMemoで生成するように変更
 const MemoizedGantt = React.memo(ReactGantt, (prevProps, nextProps) => {
-  // columnWidth, viewMode も比較
-  if (!prevProps.tasks || !nextProps.tasks) return true;
+  // タスクデータの検証
+  if (!prevProps.tasks || !nextProps.tasks) {
+    return prevProps.tasks === nextProps.tasks;
+  }
+  
+  // 空の配列の場合は同じとみなす
+  if (prevProps.tasks.length === 0 && nextProps.tasks.length === 0) {
+    return prevProps.viewMode === nextProps.viewMode && prevProps.columnWidth === nextProps.columnWidth;
+  }
+  
+  // タスクデータの構造を検証
+  const prevTasksValid = prevProps.tasks.every(t => t && t.id && t.start && t.end);
+  const nextTasksValid = nextProps.tasks.every(t => t && t.id && t.start && t.end);
+  
+  if (!prevTasksValid || !nextTasksValid) {
+    return false; // 無効なデータの場合は再レンダリング
+  }
+  
   if (
     prevProps.tasks === nextProps.tasks &&
     prevProps.viewMode === nextProps.viewMode &&
     prevProps.columnWidth === nextProps.columnWidth
   ) return true;
+  
   if (prevProps.tasks.length !== nextProps.tasks.length) {
     return false;
   }
+  
   const sampleSize = Math.min(5, prevProps.tasks.length);
   for (let i = 0; i < sampleSize; i++) {
     if (prevProps.tasks[i].id !== nextProps.tasks[i].id) {
@@ -953,6 +985,9 @@ const MemoizedGantt = React.memo(ReactGantt, (prevProps, nextProps) => {
 });
 
 const GanttWrapper = styled.div`
+  overflow: hidden; /* 横スクロールの二重化を防ぐ */
+  width: 100%;
+  height: 100%;
   // ... existing styles ...
 
   /* ★★★ Adjust timeline header text font size ★★★ */
@@ -961,6 +996,13 @@ const GanttWrapper = styled.div`
       /* fill: #555; */ /* Optional: adjust color */
   }
   /* --------------------------------------------- */
+  
+  /* 親要素の横スクロールバーを非表示 */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 
   /* ★★★ タスクリスト: 選択時・ホバー時をはっきり表示 ★★★ */
   .widget-task-list-item {
@@ -1064,9 +1106,34 @@ const GanttView: React.FC<GanttViewProps> = memo(
     const [currentColumnWidth, setCurrentColumnWidth] = useState<number>(60);
     const debounceTimeoutRef = useRef<number | null>(null);
 
-    const [isGanttReady, setIsGanttReady] = useState(false); // ★ 新しいstate
+    const [isGanttReady, setIsGanttReady] = useState(false);
+    
+    // Snackbar用のstate
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({
+      open: false,
+      message: '',
+      severity: 'info',
+    });
 
-    // ★★★ tasksRef の代わりに localTasks state を使用 ★★★
+    const showSuccess = useCallback((message: string) => {
+      setSnackbar({ open: true, message, severity: 'success' });
+    }, []);
+
+    const showError = useCallback((message: string) => {
+      setSnackbar({ open: true, message, severity: 'error' });
+    }, []);
+
+    const showInfo = useCallback((message: string) => {
+      setSnackbar({ open: true, message, severity: 'info' });
+    }, []);
+
+    const handleCloseSnackbar = useCallback(() => {
+      setSnackbar(prev => ({ ...prev, open: false }));
+    }, []);
+
+    const [helpAnchorEl, setHelpAnchorEl] = useState<HTMLElement | null>(null);
+
+    // tasksRef の代わりに localTasks state を使用
     const [localTasks, setLocalTasks] = useState<Task[]>(initialTasks);
     // ★★★ tasksRef は削除 ★★★
     // const tasksRef = useRef<Task[]>(initialTasks);
@@ -1990,13 +2057,35 @@ const GanttView: React.FC<GanttViewProps> = memo(
 
     // ★★★ ライブラリ表示用タスクリスト：選択タスクと直接つながりのみハイライトし、矢印も選択タスクの出入りのみ ★★★
     const gtrTasksForDisplay = useMemo(() => {
-      if (!selectedTaskId) {
-        return gtrTasks;
+      // タスクデータの検証
+      if (!gtrTasks || gtrTasks.length === 0) {
+        return [];
       }
 
-      const directIds = getDirectlyRelatedTaskIds(selectedTaskId, gtrTasks);
+      // 各タスクのstartとendプロパティを検証
+      const validatedTasks = gtrTasks.filter((t: CustomGtrTask) => {
+        if (!t || !t.start || !t.end) {
+          console.warn(`Invalid task data: ${t?.id || 'unknown'} - missing start or end date`);
+          return false;
+        }
+        if (!(t.start instanceof Date) || !(t.end instanceof Date)) {
+          console.warn(`Invalid task data: ${t.id} - start or end is not a Date object`);
+          return false;
+        }
+        if (isNaN(t.start.getTime()) || isNaN(t.end.getTime())) {
+          console.warn(`Invalid task data: ${t.id} - start or end is an invalid date`);
+          return false;
+        }
+        return true;
+      });
 
-      return gtrTasks.map((t: CustomGtrTask) => {
+      if (!selectedTaskId) {
+        return validatedTasks;
+      }
+
+      const directIds = getDirectlyRelatedTaskIds(selectedTaskId, validatedTasks);
+
+      return validatedTasks.map((t: CustomGtrTask) => {
         if (directIds.has(t.id)) {
           // 選択タスクに直接つながるタスク：矢印は「選択タスクに入る／選択タスクから出る」だけにする
           let dependencies: string[] | undefined;
@@ -2437,7 +2526,7 @@ const GanttView: React.FC<GanttViewProps> = memo(
         // 変更がない場合
         if (updatedCount === 0) {
           console.log('変更が検出されませんでした。保存をスキップします。');
-          alert('変更はありませんでした。保存をスキップします。');
+          showInfo('変更はありませんでした。保存をスキップします。');
           return;
         }
 
@@ -2456,7 +2545,7 @@ const GanttView: React.FC<GanttViewProps> = memo(
         }
 
         // 成功メッセージを表示
-        alert(`タスク状態が正常に保存されました。${updatedCount}個のタスクが更新されました。`);
+        showSuccess(`タスク状態が正常に保存されました。${updatedCount}個のタスクが更新されました。`);
         console.log(`${updatedCount}個のタスクの永続化に成功しました。`);
 
         // ★★★ setLocalTasks を使用して State を更新 ★★★
@@ -2469,16 +2558,16 @@ const GanttView: React.FC<GanttViewProps> = memo(
         // エラーレスポンスを適切に処理
         if (error.response) {
           if (error.response.status === 401) {
-            alert('認証エラーが発生しました。再ログインが必要です。');
+            showError('認証エラーが発生しました。再ログインが必要です。');
           } else if (error.response.status === 403) {
-            alert('このアクションを実行する権限がありません。');
+            showError('このアクションを実行する権限がありません。');
           } else {
-            alert(`サーバーエラーが発生しました (${error.response.status}): ${error.response.data?.detail || 'エラー詳細不明'}`);
+            showError(`サーバーエラーが発生しました (${error.response.status}): ${error.response.data?.detail || 'エラー詳細不明'}`);
           }
         } else if (error.request) {
-          alert('サーバーに接続できませんでした。ネットワーク接続を確認してください。');
+          showError('サーバーに接続できませんでした。ネットワーク接続を確認してください。');
         } else {
-          alert(`エラーが発生しました: ${error.message}`);
+          showError(`エラーが発生しました: ${error.message}`);
         }
       }
     };
@@ -2537,21 +2626,50 @@ const GanttView: React.FC<GanttViewProps> = memo(
           </DialogActions>
         </Dialog>
 
-        <Paper sx={{ p: 2, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Popover
+          open={!!helpAnchorEl}
+          anchorEl={helpAnchorEl}
+          onClose={() => setHelpAnchorEl(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <Box sx={{ p: 2, minWidth: 240 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 700 }}>キーボードショートカット</Typography>
+            <Stack spacing={0.75}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip label="Esc" size="small" sx={{ fontFamily: 'monospace' }} /> 選択解除
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip label="←" size="small" sx={{ fontFamily: 'monospace' }} />
+                <Chip label="→" size="small" sx={{ fontFamily: 'monospace' }} /> 横スクロール
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip label="↑" size="small" sx={{ fontFamily: 'monospace' }} />
+                <Chip label="↓" size="small" sx={{ fontFamily: 'monospace' }} /> 縦スクロール
+              </Box>
+            </Stack>
+          </Box>
+        </Popover>
+
+
+        <Paper sx={{ p: 2, height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxSizing: 'border-box' }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1, flexShrink: 0 }}>
             <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold' }}>
               ガントチャート
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
-              {/* 表示モード選択 */}
-              <FormControl size="small" sx={{ minWidth: 90 }}>
-                <InputLabel sx={{ fontSize: '0.7rem' }}>表示</InputLabel>
-                <Select value={viewMode} label="表示" onChange={handleViewModeChange} sx={{ fontSize: '0.7rem' }}>
-                  <MenuItem value={ViewMode.Day} sx={{ fontSize: '0.7rem' }}>日</MenuItem>
-                  <MenuItem value={ViewMode.Week} sx={{ fontSize: '0.7rem' }}>週</MenuItem>
-                  <MenuItem value={ViewMode.Month} sx={{ fontSize: '0.7rem' }}>月</MenuItem>
-                </Select>
-              </FormControl>
+              <Tooltip title="表示単位（日/週/月）">
+                <Box component="span" sx={{ display: 'inline-flex' }}>
+                  <FormControl size="small" sx={{ minWidth: 90 }}>
+                    <InputLabel sx={{ fontSize: '0.7rem' }}>表示</InputLabel>
+                    <Select value={viewMode} label="表示" onChange={handleViewModeChange} sx={{ fontSize: '0.7rem' }}>
+                      <MenuItem value={ViewMode.Day} sx={{ fontSize: '0.7rem' }}>日</MenuItem>
+                      <MenuItem value={ViewMode.Week} sx={{ fontSize: '0.7rem' }}>週</MenuItem>
+                      <MenuItem value={ViewMode.Month} sx={{ fontSize: '0.7rem' }}>月</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Tooltip>
               {/* ★★★ ズームボタンを追加 ★★★ */}
               <Tooltip title="拡大 (+)">
                 <IconButton onClick={handleZoomIn} size="small">
@@ -2563,7 +2681,11 @@ const GanttView: React.FC<GanttViewProps> = memo(
                   <RemoveIcon />
                 </IconButton>
               </Tooltip>
-              {/* ★★★ ここまで ★★★ */}
+              <Tooltip title="キーボードショートカット">
+                <IconButton onClick={(e) => setHelpAnchorEl(e.currentTarget)} size="small">
+                  <KeyboardIcon />
+                </IconButton>
+              </Tooltip>
               {/* ナビゲーション */}
               {/* <IconButton onClick={handlePrevious} size="small"><NavigateBefore /></IconButton> */}
               {/* <IconButton onClick={handleNext} size="small"><NavigateNext /></IconButton> */}
@@ -2603,7 +2725,7 @@ const GanttView: React.FC<GanttViewProps> = memo(
           {fetchError && <Alert severity="error" sx={{ mb: 1 }}>{fetchError}</Alert>}
           {error && <Alert severity="warning" sx={{ mb: 1 }}>{error}</Alert>} {/* ★★★ 保存エラー表示を追加 ★★★ */}
 
-          <GanttWrapper style={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <GanttWrapper style={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%' }}>
             <div
             id="gantt-container"
             className="gantt-container"
@@ -2614,19 +2736,82 @@ const GanttView: React.FC<GanttViewProps> = memo(
               overflowX: 'hidden', // ★★★ 横方向はGantt内部に任せるためhiddenのまま ★★★
               position: 'relative', // スクロールバー用
               flexGrow: 1, // 残りのスペースを埋める
+              boxSizing: 'border-box', // パディングとボーダーを幅に含める
             }}
             ref={ganttContainerRef} // Ref を設定
           >
-            {isLoadingData || !isGanttReady ? ( // ★ isGanttReady も条件に追加
+            {isLoadingData || !isGanttReady ? (
               <Box display="flex" justifyContent="center" alignItems="center" height="100%">
                 <CircularProgress />
               </Box>
-            ) : (
-              <>
+            ) : (() => {
+              // タスクデータの最終検証
+              if (!gtrTasksForDisplay || gtrTasksForDisplay.length === 0) {
+                return (
+                  <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="100%" gap={2} sx={{ p: 3 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      表示可能なタスクがありません。タスクに開始日と終了日を設定してください。
+                    </Typography>
+                    {handleOpenCreateTask && (
+                      <Button variant="outlined" size="small" onClick={handleOpenCreateTask} sx={{ textTransform: 'none' }}>
+                        タスクを追加
+                      </Button>
+                    )}
+                  </Box>
+                );
+              }
 
+              // タスクデータの構造を検証
+              const invalidTasks = gtrTasksForDisplay.filter(t => {
+                if (!t || !t.id) return true;
+                if (!t.start || !t.end) return true;
+                if (!(t.start instanceof Date) || !(t.end instanceof Date)) return true;
+                if (isNaN(t.start.getTime()) || isNaN(t.end.getTime())) return true;
+                return false;
+              });
+              
+              if (invalidTasks.length > 0) {
+                console.error('Invalid task data detected:', invalidTasks);
+                return (
+                  <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="100%" gap={2} sx={{ p: 3 }}>
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                      <Typography variant="body2">
+                        タスクデータの形式に問題があります。{invalidTasks.length}個のタスクが無効です。
+                      </Typography>
+                    </Alert>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      ブラウザのコンソールで詳細を確認してください。
+                    </Typography>
+                  </Box>
+                );
+              }
+
+              // 有効なタスクのみをフィルタリング
+              const validTasks = gtrTasksForDisplay.filter(t => {
+                return t && t.id && t.start && t.end && 
+                       (t.start instanceof Date) && (t.end instanceof Date) &&
+                       !isNaN(t.start.getTime()) && !isNaN(t.end.getTime());
+              });
+
+              if (validTasks.length === 0) {
+                return (
+                  <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="100%" gap={2} sx={{ p: 3 }}>
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      <Typography variant="body2">
+                        すべてのタスクデータが無効です。
+                      </Typography>
+                    </Alert>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+                      タスクに開始日と終了日を設定してください。
+                    </Typography>
+                  </Box>
+                );
+              }
+
+              return (
                 <MemoizedGantt // Memoizedコンポーネントを使用
                   key="stable-gantt-key" // ★★★ 安定したキーを試す ★★★
-                  tasks={gtrTasksForDisplay} // ★★★ スタイル適用済みタスク ★★★
+                  tasks={validTasks} // ★★★ 検証済みの有効なタスクのみを渡す ★★★
                   viewMode={viewMode}
                   viewDate={new Date()} // ★ 再度追加: 今日の日付を指定
                   listCellWidth={listCellWidth}
@@ -2649,11 +2834,23 @@ const GanttView: React.FC<GanttViewProps> = memo(
                   TaskListTable={renderCustomTaskList}
                   TooltipContent={CustomTooltipContent}
                 />
-              </>
-            )}
+              );
+            })()}
             </div>
           </GanttWrapper>
         </Paper>
+        
+        {/* Snackbar通知 */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </ColumnWidthContext.Provider>
     );
   }
@@ -2661,3 +2858,4 @@ const GanttView: React.FC<GanttViewProps> = memo(
 
 // コンポーネント全体をメモ化して最適化
 export default GanttView; // ★★★ この行を残す ★★★
+

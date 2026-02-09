@@ -40,6 +40,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [backendEvents, setBackendEvents] = useState<BackendEvent[]>([])
+  const [eventsLoaded, setEventsLoaded] = useState(false)
   const [chatInput, setChatInput] = useState('')
   const [sending, setSending] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -112,6 +113,11 @@ const Dashboard: React.FC = () => {
     fetchMetrics()
   }, [])
 
+  // ダッシュボード表示用にタスク・プロジェクトを取得（ブラウザ更新直後など globalData が空のときも正しく表示するため）
+  useEffect(() => {
+    refreshGlobalData?.()
+  }, [refreshGlobalData])
+
   useEffect(() => {
     const fetchEvents = async () => {
       try {
@@ -119,6 +125,8 @@ const Dashboard: React.FC = () => {
         setBackendEvents(res.data ?? [])
       } catch {
         setBackendEvents([])
+      } finally {
+        setEventsLoaded(true)
       }
     }
     fetchEvents()
@@ -1139,7 +1147,11 @@ const Dashboard: React.FC = () => {
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今日の予定</Typography>
               </Box>
               <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-                {todayItems.length === 0 ? (
+                {!eventsLoaded && todayItems.length === 0 ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
+                  </Box>
+                ) : todayItems.length === 0 ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今日の予定はありません</Typography>
                   </Box>
@@ -1191,10 +1203,16 @@ const Dashboard: React.FC = () => {
                   <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
                 </Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今週の締切</Typography>
-                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'grey.300', color: 'text.primary', fontWeight: 600 }}>{weekDeadlineTasks.length}件</Typography>
+                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'grey.300', color: 'text.primary', fontWeight: 600 }}>
+                  {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${weekDeadlineTasks.length}件`}
+                </Typography>
               </Box>
               <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-                {weekDeadlineTasks.length === 0 ? (
+                {(globalData?.lastFetched ?? 0) === 0 && weekDeadlineTasks.length === 0 ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
+                  </Box>
+                ) : weekDeadlineTasks.length === 0 ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今週の締切はありません</Typography>
                   </Box>
@@ -1234,10 +1252,16 @@ const Dashboard: React.FC = () => {
                   <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
                 </Box>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク</Typography>
-                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>{delayedTasks.length}件</Typography>
+                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>
+                  {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${delayedTasks.length}件`}
+                </Typography>
               </Box>
               <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-                {delayedTasks.length === 0 ? (
+                {(globalData?.lastFetched ?? 0) === 0 && delayedTasks.length === 0 ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
+                  </Box>
+                ) : delayedTasks.length === 0 ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>遅延タスクはありません</Typography>
                   </Box>

@@ -180,6 +180,8 @@ const CalendarPage: React.FC = () => {
     const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'));
     const [isPanelMinimized, setIsPanelMinimized] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    /** モーダルで編集するイベント。null のときは新規作成。作成ボタンでは常に null にする */
+    const [modalEventToEdit, setModalEventToEdit] = useState<CalendarEvent | null>(null);
     const [users, setUsers] = useState<User[]>([]);
     const [groups, setGroups] = useState<Group[]>([]);
     const { user } = useAuth();
@@ -1230,6 +1232,7 @@ const CalendarPage: React.FC = () => {
     };
 
     const handleOpenAddModal = (selectInfo?: DateSelectArg) => {
+        setModalEventToEdit(null); // 作成ボタン・日付クリックは常に新規
         if (selectInfo) {
             const dateClickArg: DateClickArg = {
                 date: selectInfo.start,
@@ -1250,6 +1253,7 @@ const CalendarPage: React.FC = () => {
         console.log("Opening edit modal for:", event);
         const cost = event.extendedProps.type === 'task' ? (event.extendedProps.taskCost ?? 0) : undefined;
         setSelectedEventDetails({ event: event, totalCost: cost });
+        setModalEventToEdit(event); // 編集時のみモーダルに渡す
         setIsAddModalOpen(true);
     };
 
@@ -1295,15 +1299,15 @@ const CalendarPage: React.FC = () => {
         console.log("Constructed common apiData for save/update:", apiData); 
 
         const modalId = modalData.id;
-        const selectedId = selectedEventDetails.event?.id;
-        const eventId = modalId ? String(modalId) : selectedId;
-        console.log(`Determining eventId: modalData.id=${modalId}, selectedEventDetails.event?.id=${selectedId}, final eventId=${eventId}`);
+        const editingEventId = modalEventToEdit?.id;
+        const eventId = modalId ? String(modalId) : editingEventId;
+        console.log(`Determining eventId: modalData.id=${modalId}, modalEventToEdit?.id=${editingEventId}, final eventId=${eventId}`);
 
         try {
             let response;
             const numericIdForApi = eventId ? eventId.replace(/^(proj-|task-|event-)/, '') : null;
 
-            const typeForSave = modalData.type || selectedEventDetails.event?.extendedProps?.type || 'Generic';
+            const typeForSave = modalData.type || modalEventToEdit?.extendedProps?.type || 'Generic';
             const normalizedType = typeForSave.charAt(0).toUpperCase() + typeForSave.slice(1).toLowerCase();
 
             if (numericIdForApi) {
@@ -1990,7 +1994,7 @@ const CalendarPage: React.FC = () => {
                 onClose={handleCloseModal}
                 onSave={handleSaveEvent}
                 initialDate={selectedDate}
-                eventToEdit={selectedEventDetails.event}
+                eventToEdit={modalEventToEdit}
                 dateClickArg={dateClickArg}
                 projects={projects}
                 users={users}

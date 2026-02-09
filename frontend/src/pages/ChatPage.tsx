@@ -81,7 +81,7 @@ interface PendingAction {
 
 const ChatPage: React.FC = () => {
   const { user, token: authToken } = useAuth()
-  const { refreshGlobalData, globalData, updateGlobalData } = usePageState()
+  const { refreshGlobalData, globalData } = usePageState()
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([CHAT_WELCOME_MESSAGE])
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [chatInput, setChatInput] = useState('')
@@ -99,30 +99,10 @@ const ChatPage: React.FC = () => {
 
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
 
-  // 初回マウント時にglobalDataが空の場合はデータを取得
+  // 初回マウント時にタスク・プロジェクトを取得（レイアウト表示用）
   useEffect(() => {
-    if (!globalData || globalData.tasks.length === 0 || globalData.projects.length === 0) {
-      const fetchData = async () => {
-        try {
-          const [tasksResponse, projectsResponse, usersResponse] = await Promise.all([
-            api.get('/tasks'),
-            api.get('/projects'),
-            api.get('/api/users')
-          ])
-          if (updateGlobalData) {
-            updateGlobalData({
-              tasks: tasksResponse.data,
-              projects: projectsResponse.data,
-              users: usersResponse.data,
-            })
-          }
-        } catch (err) {
-          console.error('データの取得に失敗しました:', err)
-        }
-      }
-      fetchData()
-    }
-  }, [globalData, updateGlobalData])
+    refreshGlobalData?.()
+  }, [refreshGlobalData])
 
   const scrollToBottom = () => {
     if (listEndRef.current) listEndRef.current.scrollIntoView({ behavior: 'smooth' })
@@ -625,25 +605,32 @@ const ChatPage: React.FC = () => {
   }, [globalData?.projects])
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 1800, mx: 'auto', p: 2 }}>
-      <Paper sx={{ p: 2 }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-          <Typography variant="h6">チャット（ユーザー用）</Typography>
-          <Button size="small" variant="outlined" onClick={handleNewConversation}>new chat</Button>
+    <Box sx={{ width: '100%', maxWidth: 1200, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
+      {/* 会話エリア */}
+      <Paper sx={{ p: 2, borderRadius: 2, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            会話
+          </Typography>
+          <Button size="small" variant="outlined" onClick={handleNewConversation}>
+            新しい会話
+          </Button>
         </Box>
-        <Box sx={{ position: 'relative', height: 400 }}>
-          <Box sx={{
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            p: 1.5,
-            height: 340,
-            overflow: 'auto',
-            backgroundColor: 'background.default',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1,
-          }}>
+        <Box sx={{ position: 'relative', height: 440 }}>
+          <Box
+            sx={{
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1.5,
+              p: 1.5,
+              height: 380,
+              overflow: 'auto',
+              backgroundColor: 'grey.50',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.25,
+            }}
+          >
             {messages.map((m, i) => (
               <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <Box sx={{
@@ -797,7 +784,18 @@ const ChatPage: React.FC = () => {
             ))}
             <div ref={listEndRef} />
           </Box>
-          <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', gap: 1 }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              display: 'flex',
+              gap: 1,
+              pt: 1,
+              backgroundColor: 'background.paper',
+            }}
+          >
             <TextField
               fullWidth
               size="small"
@@ -824,16 +822,20 @@ const ChatPage: React.FC = () => {
         </Box>
       </Paper>
 
-      {/* ログインしているユーザーのタスク表示 */}
+      {/* あなたのタスク */}
       {user && (
-        <Paper sx={{ p: 3, mt: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <AssignmentIcon sx={{ mr: 1.5, color: 'primary.main', fontSize: 28 }} />
-            <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-              あなたのタスク ({currentUserTasks.length}件)
-            </Typography>
-          </Box>
-          {currentUserTasks.length === 0 ? (
+        <>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>
+            あなたのタスク
+          </Typography>
+          <Paper sx={{ p: 2.5, borderRadius: 2 }}>
+            {(globalData?.lastFetched ?? 0) === 0 && currentUserTasks.length === 0 ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+                <Typography variant="body2" color="text.secondary">
+                  読み込み中...
+                </Typography>
+              </Box>
+            ) : currentUserTasks.length === 0 ? (
             <Box
               sx={{
                 display: 'flex',
@@ -908,8 +910,21 @@ const ChatPage: React.FC = () => {
                 </Typography>
               </Box>
             </Box>
-          ) : (
-          <Grid container spacing={3}>
+            ) : (
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                <AssignmentIcon sx={{ color: 'primary.main', fontSize: 22 }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  {currentUserTasks.length}件のタスク
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {tasksByCategory.delayed.length > 0 && <Chip size="small" label={`遅延 ${tasksByCategory.delayed.length}`} sx={{ height: 22, bgcolor: 'error.light', color: 'error.dark' }} />}
+                  {tasksByCategory.today.length > 0 && <Chip size="small" label={`今日 ${tasksByCategory.today.length}`} sx={{ height: 22, bgcolor: 'info.light', color: 'info.dark' }} />}
+                  {tasksByCategory.dueSoon.length > 0 && <Chip size="small" label={`期限間近 ${tasksByCategory.dueSoon.length}`} sx={{ height: 22, bgcolor: 'warning.light', color: 'warning.dark' }} />}
+                  {tasksByCategory.other.length > 0 && <Chip size="small" label={`その他 ${tasksByCategory.other.length}`} variant="outlined" sx={{ height: 22 }} />}
+                </Typography>
+              </Box>
+              <Grid container spacing={3}>
             {tasksByCategory.delayed.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
@@ -1019,9 +1034,11 @@ const ChatPage: React.FC = () => {
                 </Box>
               </Grid>
             )}
-          </Grid>
+              </Grid>
+            </>
           )}
         </Paper>
+        </>
       )}
 
       <Dialog open={pendingActions != null && pendingActions.length > 0} onClose={() => setPendingActions(null)} maxWidth="sm" fullWidth>

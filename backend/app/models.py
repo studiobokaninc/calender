@@ -199,4 +199,27 @@ class UserActivity(Base):
     cycle_date: Mapped[datetime] = mapped_column(index=True)  # 周期日（その日の5:00を基準とした日付）
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
-    user: Mapped["User"] = relationship("User") 
+    user: Mapped["User"] = relationship("User")
+
+
+class UserGoogleToken(Base):
+    """ユーザーごとの Google OAuth トークン（カレンダー連携用）"""
+    __tablename__ = "user_google_tokens"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    access_token: Mapped[str] = mapped_column(Text)
+    refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+
+class TaskGoogleSync(Base):
+    """タスクをユーザーの Google カレンダーに表示する紐付け（ユーザー・タスクごと）"""
+    __tablename__ = "task_google_sync"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), primary_key=True)
+    google_event_id: Mapped[str] = mapped_column(String(512), index=True)  # Google Calendar のイベント ID
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)

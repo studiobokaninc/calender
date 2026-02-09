@@ -236,6 +236,15 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     shotID: Optional[str] = None
     seqID: Optional[str] = None
 
+class TaskBulkUpdateRequest(BaseModel):
+    """一括更新: 指定したタスクに同じ項目を適用"""
+    task_ids: List[int]
+    status: Optional[str] = None
+    assigned_to: Optional[int] = None
+    due_date: Optional[datetime] = None
+    priority: Optional[str] = None
+
+
 class TaskResponse(TaskBase):
     id: int
     project_id: Optional[int] = None

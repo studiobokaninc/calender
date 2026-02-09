@@ -4,16 +4,18 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
-import { EventClickArg, DayCellMountArg, DateSelectArg } from '@fullcalendar/core';
-import { DateClickArg } from '@fullcalendar/interaction';
+import { EventClickArg, DayCellMountArg, DateSelectArg, EventDropArg } from '@fullcalendar/core';
+import { DateClickArg, EventResizeDoneArg } from '@fullcalendar/interaction';
 import api from '../services/api';
 import { Project, Task, BackendEvent, CalendarEvent, User, Group } from '../types';
 import EventDetailsPanel from '../components/EventDetailsPanel';
 import EventAddModal from '../components/EventAddModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useCalendarPageState, usePageState } from '../contexts/PageStateContext';
-import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays } from 'date-fns';
-import { Box, CircularProgress, Typography, useMediaQuery, Theme, SelectChangeEvent } from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays, startOfDay } from 'date-fns';
+import { Box, CircularProgress, Typography, useMediaQuery, Theme, SelectChangeEvent, Button, Snackbar, Alert } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import { debounce } from 'lodash';
 
 
@@ -206,7 +208,10 @@ const CalendarPage: React.FC = () => {
     const [eventStatusFilter, setEventStatusFilter] = useState<string>('all'); // 'all' または プロジェクトID
     const [eventTypeFilter, setEventTypeFilter] = useState<Record<string, boolean>>(DEFAULT_EVENT_TYPE_FILTER);
     const [stateRestored, setStateRestored] = useState(false);
+    const [googleSnackbar, setGoogleSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
+    const location = useLocation();
+    const navigate = useNavigate();
     const calendarRef = useRef<FullCalendar>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     // ★★★ ダブルクリック判定用の Ref と閾値を追加 ★★★
@@ -227,6 +232,19 @@ const CalendarPage: React.FC = () => {
             window.removeEventListener('resize', handleResize);
         };
     }, [handleResize]);
+
+    // Google カレンダー連携コールバック後のメッセージ表示
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const google = params.get('google');
+        if (google === 'connected') {
+            setGoogleSnackbar({ open: true, message: 'Google カレンダーと連携しました。タスクページで「Googleに表示」をONにすると、タスクが個人のカレンダーに追加されます。', severity: 'success' });
+            navigate(location.pathname, { replace: true });
+        } else if (google === 'error') {
+            setGoogleSnackbar({ open: true, message: 'Google カレンダーとの連携に失敗しました。', severity: 'error' });
+            navigate(location.pathname, { replace: true });
+        }
+    }, [location.search, location.pathname, navigate]);
 
     // ★★★ パネルのミニマイズ状態が変わったらカレンダーをリサイズ ★★★
     useEffect(() => {
@@ -1729,11 +1747,119 @@ const CalendarPage: React.FC = () => {
     const handleViewChange = (_view: any) => {
         // サイズ更新を非同期で実行
         setTimeout(() => {
-          if (calendarRef.current) {
-            calendarRef.current.getApi().updateSize();
-          }
+            if (calendarRef.current) {
+                calendarRef.current.getApi().updateSize();
+            }
         }, 0);
     };
+
+    const formatForApi = (d: Date | null, allDay: boolean): string | undefined => {
+        if (!d) return undefined;
+        return allDay
+            ? formatDateFnsOriginal(startOfDay(d), 'yyyy-MM-dd')
+            : formatDateFnsOriginal(d, "yyyy-MM-dd'T'HH:mm:ssXXX");
+    };
+
+    const handleEventDrop = useCallback(async (arg: EventDropArg) => {
+        const ev = arg.event;
+        const idStr = ev.id;
+        const numericMatch = idStr.match(/\d+$/);
+        if (!numericMatch) {
+            arg.revert();
+            return;
+        }
+        const numericId = numericMatch[0];
+        const start = ev.start ? new Date(ev.start) : null;
+        const end = ev.end ? new Date(ev.end) : null;
+        const allDay = ev.allDay ?? false;
+        const type = (ev.extendedProps?.type as string)?.toLowerCase?.();
+
+        try {
+            if (type === 'task') {
+                const dueDate = formatForApi(start, true);
+                if (!dueDate) {
+                    arg.revert();
+                    return;
+                }
+                await api.put(`/tasks/${numericId}`, { due_date: `${dueDate}T00:00:00+09:00` });
+            } else if (type === 'project' || idStr.startsWith('proj-')) {
+                const startDate = formatForApi(start, true);
+                const endDate = end && allDay ? formatForApi(addDays(end, -1), true) : formatForApi(end, true);
+                if (!startDate) {
+                    arg.revert();
+                    return;
+                }
+                await api.put(`/projects/${numericId}`, {
+                    start_date: `${startDate}T00:00:00+09:00`,
+                    end_date: endDate ? `${endDate}T00:00:00+09:00` : undefined,
+                });
+            } else {
+                const startTime = formatForApi(start, allDay);
+                const endTime = formatForApi(end ?? start, allDay);
+                if (!startTime || !endTime) {
+                    arg.revert();
+                    return;
+                }
+                await api.put(`/calendar/events/${numericId}`, {
+                    start_time: allDay ? `${startTime}T00:00:00+09:00` : startTime,
+                    end_time: allDay ? `${endTime}T00:00:00+09:00` : endTime,
+                });
+            }
+            if (refreshGlobalData) await refreshGlobalData();
+        } catch (err) {
+            console.error('Event drop update failed:', err);
+            arg.revert();
+        }
+    }, [refreshGlobalData]);
+
+    const handleEventResize = useCallback(async (arg: EventResizeDoneArg) => {
+        const ev = arg.event;
+        const idStr = ev.id;
+        const numericMatch = idStr.match(/\d+$/);
+        if (!numericMatch) {
+            arg.revert();
+            return;
+        }
+        const numericId = numericMatch[0];
+        const start = ev.start ? new Date(ev.start) : null;
+        const end = ev.end ? new Date(ev.end) : null;
+        const allDay = ev.allDay ?? false;
+        const type = (ev.extendedProps?.type as string)?.toLowerCase?.();
+
+        if (type === 'task') {
+            arg.revert();
+            return;
+        }
+        try {
+            if (type === 'project' || idStr.startsWith('proj-')) {
+                const startDate = formatForApi(start, true);
+                const endDate = end && allDay ? formatForApi(addDays(end, -1), true) : formatForApi(end, true);
+                if (!startDate) {
+                    arg.revert();
+                    return;
+                }
+                await api.put(`/projects/${numericId}`, {
+                    start_date: `${startDate}T00:00:00+09:00`,
+                    end_date: endDate ? `${endDate}T00:00:00+09:00` : undefined,
+                });
+            } else {
+                const startTime = formatForApi(start, allDay);
+                const endTime = formatForApi(end ?? start, allDay);
+                if (!startTime || !endTime) {
+                    arg.revert();
+                    return;
+                }
+                await api.put(`/calendar/events/${numericId}`, {
+                    start_time: allDay ? `${startTime}T00:00:00+09:00` : startTime,
+                    end_time: allDay ? `${endTime}T00:00:00+09:00` : endTime,
+                });
+            }
+            if (refreshGlobalData) await refreshGlobalData();
+        } catch (err) {
+            console.error('Event resize update failed:', err);
+            arg.revert();
+        }
+    }, [refreshGlobalData]);
 
     if (loading && rawEvents.length === 0) {
         return <CircularProgress />;
@@ -1876,26 +2002,105 @@ const CalendarPage: React.FC = () => {
     };
 
     return (
-        <Box 
-            sx={{ 
-                display: 'flex', 
-                height: 'calc(100vh - 64px)', 
-                overflow: 'hidden',
-                p: { xs: 2, sm: 3 },
-            }} 
+        <Box
             ref={containerRef}
+            sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: 'calc(100vh - 64px)',
+                overflow: 'hidden',
+                p: { xs: 1, sm: 2 },
+                bgcolor: 'grey.50',
+            }}
         >
+            {/* Google風トップバー: 作成ボタン */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    minHeight: 48,
+                    px: { xs: 1, sm: 2 },
+                    mb: 1,
+                    flexShrink: 0,
+                }}
+            >
+                <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => handleOpenAddModal()}
+                    sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        borderRadius: 2,
+                        boxShadow: 0,
+                        '&:hover': { boxShadow: 1 },
+                    }}
+                >
+                    作成
+                </Button>
+            </Box>
+
+            {/* メイン: カレンダー + 右パネル */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    flex: 1,
+                    minHeight: 0,
+                    gap: 0,
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    bgcolor: 'background.paper',
+                    boxShadow: 0,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                }}
+            >
+                <Box
+                    sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        p: { xs: 1, sm: 2 },
+                        position: 'relative',
+                    }}
+                >
             <style>{`
+                /* Google風: ツールバーをフラットに */
+                .fc .fc-toolbar-chunk { display: flex; align-items: center; gap: 4px; }
+                .fc .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 500 !important; color: #202124; }
+                .fc .fc-button-primary {
+                    background: transparent !important;
+                    color: #5f6368 !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    text-transform: none;
+                    font-weight: 500;
+                }
+                .fc .fc-button-primary:hover {
+                    background: rgba(0,0,0,0.04) !important;
+                    color: #202124 !important;
+                }
+                .fc .fc-button-primary:not(:disabled).fc-button-active,
+                .fc .fc-button-primary:not(:disabled):active {
+                    background: rgba(0,0,0,0.08) !important;
+                    color: #202124 !important;
+                }
+                .fc .fc-scrollgrid { border-color: #e8eaed !important; }
+                .fc .fc-col-header-cell-cushion { color: #5f6368; font-weight: 500; font-size: 0.7rem; padding: 8px; }
+                .fc .fc-daygrid-day-number { color: #5f6368; font-size: 0.75rem; padding: 4px; }
                 .fc .fc-daygrid-day.fc-day-today {
-                    background-color: #e3f2fd; /* 今日: 薄い青 */
+                    background-color: #e8f0fe;
                 }
                 .fc .fc-daygrid-day.fc-day-selected {
                     background-color: #90caf9 !important; /* 選択中: 濃い青 */
                 }
                 .fc .fc-daygrid-day[data-weekend="true"] {
-                     background-color: #f8f8f8;
+                    background-color: #fafafa;
                 }
-                /* 月曜日から金曜日の文字色を黒に */
+                /* 月曜日から金曜日の文字色 */
                 .fc .fc-col-header-cell.fc-day-mon,
                 .fc .fc-col-header-cell.fc-day-mon a,
                 .fc .fc-col-header-cell.fc-day-mon .fc-scrollgrid-sync-inner,
@@ -1918,23 +2123,19 @@ const CalendarPage: React.FC = () => {
                 .fc .fc-daygrid-day.fc-day-fri .fc-daygrid-day-number {
                     color: #000000 !important;
                 }
-                /* 土曜日の文字色を青に */
+                /* 土曜日: 青系 */
                 .fc .fc-col-header-cell.fc-day-sat,
                 .fc .fc-col-header-cell.fc-day-sat a,
                 .fc .fc-col-header-cell.fc-day-sat .fc-scrollgrid-sync-inner,
                 .fc .fc-daygrid-day.fc-day-sat .fc-daygrid-day-number {
-                    color: #1976d2 !important;
+                    color: #1a73e8 !important;
                 }
-                /* 日曜日の文字色を赤に */
+                /* 日曜日: 赤系 */
                 .fc .fc-col-header-cell.fc-day-sun,
                 .fc .fc-col-header-cell.fc-day-sun a,
                 .fc .fc-col-header-cell.fc-day-sun .fc-scrollgrid-sync-inner,
                 .fc .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number {
-                    color: #d32f2f !important;
-                }
-                .fc .fc-button-primary {
-                    background-color: #556cd6;
-                    border-color: #556cd6;
+                    color: #d93025 !important;
                 }
                 .fc .fc-list-event-dot {
                     border-color: var(--fc-event-border-color, #3788d8);
@@ -2241,17 +2442,7 @@ const CalendarPage: React.FC = () => {
                 }
             `}</style>
 
-                <Box sx={{ 
-                    flexGrow: 1, 
-                    p: 2, 
-                    overflow: 'auto', 
-                    position: 'relative',
-                    backgroundColor: 'background.paper',
-                    borderRadius: 3,
-                    boxShadow: 2,
-                }}>
-                {/* ... (Error/Loading display) ... */}
-                    {error && <Typography color="error">{error}</Typography>}
+                    {error && <Typography color="error" sx={{ px: 1 }}>{error}</Typography>}
                     {loading && (
                         <Box sx={{ 
                             position: 'absolute', 
@@ -2415,27 +2606,31 @@ const CalendarPage: React.FC = () => {
                         moreLinkContent={(arg) => `+${arg.num}件`}
                         dayCellDidMount={handleDayCellMount}
                         selectable={false}
+                        editable={true}
+                        eventStartEditable={true}
+                        eventDurationEditable={true}
                         selectMirror={true}
                         unselectAuto={false}
                         nowIndicator={true}
                         datesSet={handleDatesSet}
                         viewDidMount={handleViewChange}
+                        eventDrop={handleEventDrop}
+                        eventResize={handleEventResize}
                     />
                 </Box>
 
-            {/* ... (EventDetailsPanel Box) ... */}
                 {!isSmallScreen && (
                     <Box
                         sx={{
-                            width: isPanelMinimized ? '65px' : '350px',
+                            width: isPanelMinimized ? 56 : 360,
                             flexShrink: 0,
                             borderLeft: '1px solid',
                             borderColor: 'divider',
                             overflowY: 'auto',
-                            transition: 'width 0.3s ease-in-out',
-                            position: 'relative',
+                            transition: 'width 0.2s ease',
                             display: 'flex',
                             flexDirection: 'column',
+                            bgcolor: 'background.paper',
                         }}
                     >
                         <EventDetailsPanel
@@ -2460,7 +2655,20 @@ const CalendarPage: React.FC = () => {
                     </Box>
                 )}
 
+            </Box>
+
             {renderEventModal()}
+
+            <Snackbar
+                open={googleSnackbar.open}
+                autoHideDuration={6000}
+                onClose={() => setGoogleSnackbar((s) => ({ ...s, open: false }))}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+                <Alert severity={googleSnackbar.severity} onClose={() => setGoogleSnackbar((s) => ({ ...s, open: false }))}>
+                    {googleSnackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

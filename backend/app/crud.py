@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from .timezone import now_jst_naive
 from typing import List, Optional
 from sqlalchemy.orm import selectinload
-from sqlalchemy import func
+from sqlalchemy import func, or_
 import logging
 from fastapi import HTTPException, status
 
@@ -536,8 +536,21 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
     
     # 期日を過ぎたタスクのステータスをチェックして更新
     _check_and_update_overdue_task(db, db_task)
-    
     return db_task
+
+
+def bulk_update_tasks(db: Session, task_ids: List[int], updates: dict) -> int:
+    """複数タスクに同じ更新を適用。更新したタスク数を返す。"""
+    updated = 0
+    for task_id in task_ids:
+        db_task = get_task(db=db, task_id=task_id)
+        if db_task is None:
+            continue
+        task_in = schemas.TaskUpdate(**updates)
+        update_task(db=db, db_task=db_task, task_in=task_in)
+        updated += 1
+    return updated
+
 
 def delete_task(db: Session, db_task: models.Task) -> models.Task:
     """タスクを削除"""
@@ -576,6 +589,106 @@ def get_events(
     print(f"[crud.get_events] Query returned {len(db_events)} events.")
     # print(f"[crud.get_events] First few events from DB: {db_events[:3]}") # 内容も確認する場合
     return db_events
+
+
+def search_projects(db: Session, q: str, limit: int = 10) -> List[models.Project]:
+    """検索文字列でプロジェクトを検索（name, description）"""
+    if not q or len(q.strip()) == 0:
+        return []
+    term = f"%{q.strip()}%"
+    return (
+        db.query(models.Project)
+        .filter(
+            or_(
+                models.Project.name.ilike(term),
+                (models.Project.description or "").ilike(term),
+            )
+        )
+        .limit(limit)
+        .all()
+    )
+
+
+def search_tasks(db: Session, q: str, limit: int = 10) -> List[models.Task]:
+    """検索文字列でタスクを検索（name, description）"""
+    if not q or len(q.strip()) == 0:
+        return []
+    term = f"%{q.strip()}%"
+    return (
+        db.query(models.Task)
+        .filter(
+            or_(
+                models.Task.name.ilike(term),
+                (models.Task.description or "").ilike(term),
+            )
+        )
+        .limit(limit)
+        .all()
+    )
+
+
+def search_events(db: Session, q: str, limit: int = 10) -> List[models.Event]:
+    """検索文字列でイベントを検索（title, description）"""
+    if not q or len(q.strip()) == 0:
+        return []
+    term = f"%{q.strip()}%"
+    return (
+        db.query(models.Event)
+        .filter(
+            or_(
+                models.Event.title.ilike(term),
+                (models.Event.description or "").ilike(term),
+            )
+        )
+        .limit(limit)
+        .all()
+    )
+
+
+def get_labor_report(
+    db: Session,
+    group_by: str,
+    from_date: Optional[datetime] = None,
+    to_date: Optional[datetime] = None,
+) -> List[dict]:
+    """工数集計: group_by が 'user' のとき担当者別、'project' のときプロジェクト別。due_date で期間フィルタ可能。"""
+    from collections import defaultdict
+
+    query = db.query(models.Task)
+    if from_date is not None:
+        query = query.filter(models.Task.due_date >= from_date)
+    if to_date is not None:
+        query = query.filter(models.Task.due_date <= to_date)
+    tasks = query.all()
+
+    groups: dict = defaultdict(lambda: {"total_cost": 0.0, "task_count": 0})
+    for t in tasks:
+        key = t.assigned_to if group_by == "user" else t.project_id
+        key = key if key is not None else 0
+        groups[key]["total_cost"] += float(t.cost or 0)
+        groups[key]["task_count"] += 1
+
+    result = []
+    if group_by == "user":
+        user_ids = [k for k in groups if k != 0]
+        users_map = {}
+        if user_ids:
+            for u in db.query(models.User).filter(models.User.id.in_(user_ids)).all():
+                users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+        for gid, data in sorted(groups.items(), key=lambda x: -x[1]["total_cost"]):
+            name = users_map.get(gid, "未割り当て") if gid != 0 else "未割り当て"
+            result.append({"group_id": gid, "group_name": name, "total_cost": round(data["total_cost"], 2), "task_count": data["task_count"]})
+    else:
+        project_ids = [k for k in groups if k != 0]
+        projects_map = {}
+        if project_ids:
+            for p in db.query(models.Project).filter(models.Project.id.in_(project_ids)).all():
+                projects_map[p.id] = p.name or f"Project {p.id}"
+        for gid, data in sorted(groups.items(), key=lambda x: -x[1]["total_cost"]):
+            name = projects_map.get(gid, "プロジェクトなし") if gid != 0 else "プロジェクトなし"
+            result.append({"group_id": gid, "group_name": name, "total_cost": round(data["total_cost"], 2), "task_count": data["task_count"]})
+    return result
+
 
 def create_event(db: Session, event: schemas.EventCreate) -> models.Event: # 型ヒント修正
     """新規イベントを作成"""
@@ -971,3 +1084,97 @@ def get_user_activities_by_cycle(
         cycle_date = get_cycle_date(now_jst_naive())
     
     return get_user_activities(db, user_id=None, cycle_date=cycle_date, skip=skip, limit=limit)
+
+
+# --- Google Calendar 連携 ---
+
+def get_user_google_token(db: Session, user_id: int) -> Optional[models.UserGoogleToken]:
+    """ユーザーの Google トークンを取得"""
+    return db.query(models.UserGoogleToken).filter(models.UserGoogleToken.user_id == user_id).first()
+
+
+def upsert_user_google_token(
+    db: Session,
+    user_id: int,
+    access_token: str,
+    refresh_token: Optional[str] = None,
+    expires_at: Optional[datetime] = None,
+) -> models.UserGoogleToken:
+    """Google トークンを保存（存在すれば更新）"""
+    now = now_jst_naive()
+    row = get_user_google_token(db, user_id)
+    if row:
+        row.access_token = access_token
+        row.refresh_token = refresh_token or row.refresh_token
+        row.expires_at = expires_at
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.UserGoogleToken(
+        user_id=user_id,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_at=expires_at,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def get_task_google_sync(db: Session, user_id: int, task_id: int) -> Optional[models.TaskGoogleSync]:
+    """ユーザー・タスクの Google 同期レコードを取得"""
+    return (
+        db.query(models.TaskGoogleSync)
+        .filter(models.TaskGoogleSync.user_id == user_id, models.TaskGoogleSync.task_id == task_id)
+        .first()
+    )
+
+
+def get_synced_task_ids_for_user(db: Session, user_id: int) -> List[int]:
+    """ユーザーが「Googleに表示」をONにしているタスクIDのリスト"""
+    rows = db.query(models.TaskGoogleSync.task_id).filter(models.TaskGoogleSync.user_id == user_id).all()
+    return [r[0] for r in rows]
+
+
+def set_task_google_sync(
+    db: Session, user_id: int, task_id: int, google_event_id: str
+) -> models.TaskGoogleSync:
+    """タスクの Google 同期を登録"""
+    now = now_jst_naive()
+    row = get_task_google_sync(db, user_id, task_id)
+    if row:
+        row.google_event_id = google_event_id
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.TaskGoogleSync(
+        user_id=user_id,
+        task_id=task_id,
+        google_event_id=google_event_id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def delete_task_google_sync(db: Session, user_id: int, task_id: int) -> bool:
+    """タスクの Google 同期を削除"""
+    row = get_task_google_sync(db, user_id, task_id)
+    if not row:
+        return False
+    db.delete(row)
+    db.commit()
+    return True
+
+
+def get_task_google_syncs_for_task(db: Session, task_id: int) -> List[models.TaskGoogleSync]:
+    """あるタスクを同期している全ユーザーのレコード"""
+    return db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.task_id == task_id).all()

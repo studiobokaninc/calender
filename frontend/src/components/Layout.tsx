@@ -1,4 +1,4 @@
-import React, { useState, ReactNode, useEffect } from 'react'
+import React, { useState, ReactNode, useEffect, useCallback } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar,
@@ -8,6 +8,7 @@ import {
   IconButton,
   List,
   ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Toolbar,
@@ -24,6 +25,8 @@ import {
   Alert,
   CircularProgress,
   ListSubheader,
+  TextField,
+  InputAdornment,
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -48,10 +51,13 @@ import {
   Person as PersonIcon,
   QuestionAnswer as ChatIcon,
   AccessTime as AccessTimeIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
-import { mockDataApi, importMockData, userActivityApi } from '../services/api'
+import api, { mockDataApi, importMockData, userActivityApi } from '../services/api'
 import { transformImportData } from '../utils/transformImportData'
+import { debounce } from 'lodash'
+import { ProjectEditDialog, TaskEditDialog, EventEditDialog } from './SearchEditDialogs'
 
 interface LayoutProps {
   children?: ReactNode;
@@ -88,6 +94,52 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const userDataFileInputRef = React.useRef<HTMLInputElement>(null)
   const eventDataFileInputRef = React.useRef<HTMLInputElement>(null)
+
+  // グローバル検索
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ projects: Array<{ id: number; name: string }>; tasks: Array<{ id: number; name: string; project_id: number | null }>; events: Array<{ id: number; title: string; start_time: string | null }> }>({ projects: [], tasks: [], events: [] })
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchEditTarget, setSearchEditTarget] = useState<{ type: 'project' | 'task' | 'event'; id: number } | null>(null)
+  const fetchSearch = useCallback(
+    debounce(async (q: string) => {
+      if (!q.trim()) {
+        setSearchResults({ projects: [], tasks: [], events: [] })
+        return
+      }
+      setSearchLoading(true)
+      try {
+        const res = await api.get<{ projects?: Array<{ id: number; name: string; description?: string }>; tasks?: Array<{ id: number; name: string; project_id: number | null }>; events?: Array<{ id: number; title: string; start_time: string | null }> }>('/search', { params: { q: q.trim(), limit: 8 } })
+        const data = res?.data
+        setSearchResults({
+          projects: Array.isArray(data?.projects) ? data.projects : [],
+          tasks: Array.isArray(data?.tasks) ? data.tasks : [],
+          events: Array.isArray(data?.events) ? data.events : [],
+        })
+      } catch {
+        setSearchResults({ projects: [], tasks: [], events: [] })
+      } finally {
+        setSearchLoading(false)
+      }
+    }, 300),
+    []
+  )
+  useEffect(() => {
+    if (searchOpen && searchQuery.trim()) fetchSearch(searchQuery)
+    else if (!searchQuery.trim()) setSearchResults({ projects: [], tasks: [], events: [] })
+  }, [searchQuery, searchOpen, fetchSearch])
+  const handleCloseSearch = () => {
+    setSearchOpen(false)
+    setSearchQuery('')
+    setSearchResults({ projects: [], tasks: [], events: [] })
+  }
+  const handleSearchResultClick = (type: 'project' | 'task' | 'event', id: number) => {
+    setSearchEditTarget({ type, id })
+    handleCloseSearch()
+  }
+  const handleSearchEditSaved = () => {
+    window.dispatchEvent(new CustomEvent('globalDataRefreshed', { detail: {} }))
+  }
 
   const drawerWidth = isDrawerCollapsed ? 65 : 240
 
@@ -632,6 +684,107 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* グローバル検索ダイアログ（disableScrollLock で背面レイアウトの白飛びを防止） */}
+      <Dialog open={searchOpen} onClose={handleCloseSearch} maxWidth="sm" fullWidth disableScrollLock PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle>検索</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            placeholder="プロジェクト・タスク・イベントを検索..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 2 }}
+          />
+          {searchLoading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          )}
+          {!searchLoading && (
+            <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
+              {Array.isArray(searchResults.projects) && searchResults.projects.length > 0 && (
+                <>
+                  <ListSubheader sx={{ lineHeight: 2 }}>プロジェクト</ListSubheader>
+                  <List dense disablePadding>
+                    {searchResults.projects.map((p) => (
+                      <ListItem key={`p-${p.id}`} disablePadding>
+                        <ListItemButton onClick={() => handleSearchResultClick('project', p.id)}>
+                          <ListItemIcon sx={{ minWidth: 36 }}><ProjectIcon fontSize="small" /></ListItemIcon>
+                          <ListItemText primary={p?.name ?? ''} secondary={p?.description ? `${String(p.description).slice(0, 60)}${String(p.description).length > 60 ? '…' : ''}` : undefined} />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                </>
+              )}
+              {Array.isArray(searchResults.tasks) && searchResults.tasks.length > 0 && (
+                <>
+                  <ListSubheader sx={{ lineHeight: 2 }}>タスク</ListSubheader>
+                  <List dense disablePadding>
+                    {searchResults.tasks.map((t) => (
+                      <ListItem key={`t-${t.id}`} disablePadding>
+                        <ListItemButton onClick={() => handleSearchResultClick('task', t.id)}>
+                          <ListItemIcon sx={{ minWidth: 36 }}><TaskIcon fontSize="small" /></ListItemIcon>
+                          <ListItemText primary={t?.name ?? ''} secondary={t?.project_id != null ? `プロジェクト ID: ${t.project_id}` : undefined} />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                </>
+              )}
+              {Array.isArray(searchResults.events) && searchResults.events.length > 0 && (
+                <>
+                  <ListSubheader sx={{ lineHeight: 2 }}>イベント</ListSubheader>
+                  <List dense disablePadding>
+                    {searchResults.events.map((e) => (
+                      <ListItem key={`e-${e.id}`} disablePadding>
+                        <ListItemButton onClick={() => handleSearchResultClick('event', e.id)}>
+                          <ListItemIcon sx={{ minWidth: 36 }}><CalendarIcon fontSize="small" /></ListItemIcon>
+                          <ListItemText primary={e?.title ?? ''} secondary={e?.start_time ? new Date(e.start_time).toLocaleString('ja-JP') : undefined} />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                </>
+              )}
+              {!searchLoading && searchQuery.trim() && (!Array.isArray(searchResults.projects) || searchResults.projects.length === 0) && (!Array.isArray(searchResults.tasks) || searchResults.tasks.length === 0) && (!Array.isArray(searchResults.events) || searchResults.events.length === 0) && (
+                <Typography color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>該当なし</Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseSearch}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
+
+      <ProjectEditDialog
+        open={searchEditTarget?.type === 'project'}
+        projectId={searchEditTarget?.type === 'project' ? searchEditTarget.id : null}
+        onClose={() => setSearchEditTarget(null)}
+        onSaved={handleSearchEditSaved}
+      />
+      <TaskEditDialog
+        open={searchEditTarget?.type === 'task'}
+        taskId={searchEditTarget?.type === 'task' ? searchEditTarget.id : null}
+        onClose={() => setSearchEditTarget(null)}
+        onSaved={handleSearchEditSaved}
+      />
+      <EventEditDialog
+        open={searchEditTarget?.type === 'event'}
+        eventId={searchEditTarget?.type === 'event' ? searchEditTarget.id : null}
+        onClose={() => setSearchEditTarget(null)}
+        onSaved={handleSearchEditSaved}
+      />
       
       <AppBar
         position="fixed"
@@ -662,6 +815,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {user?.role === 'admin' && (
+              <Tooltip title="グローバル検索">
+                <IconButton color="inherit" onClick={() => setSearchOpen(true)} size="small" aria-label="検索">
+                  <SearchIcon />
+                </IconButton>
+              </Tooltip>
+            )}
             <PersonIcon sx={{ fontSize: 20, opacity: 0.9 }} />
             <Typography variant="body2" component="span" sx={{ opacity: 0.95 }}>
               ログイン中: {user?.email || user?.username || user?.full_name || ''}

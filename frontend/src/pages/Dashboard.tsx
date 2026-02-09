@@ -26,6 +26,7 @@ import {
   Event as EventIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
+import { ja } from 'date-fns/locale'
 import api from '../services/api'
 import { DashboardMetrics, BackendEvent } from '../types'
 import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '../contexts/PageStateContext'
@@ -198,6 +199,46 @@ const Dashboard: React.FC = () => {
 
     return eventList
   }, [globalData?.projects, todayStr, backendEvents])
+
+  // 今週の締切（期日が今週で未完了のタスク）
+  const weekDeadlineTasks = useMemo(() => {
+    const tasks = globalData?.tasks ?? []
+    const now = new Date()
+    const startOfWeek = new Date(now)
+    startOfWeek.setDate(now.getDate() - now.getDay() + 1)
+    startOfWeek.setHours(0, 0, 0, 0)
+    const endOfWeek = new Date(startOfWeek)
+    endOfWeek.setDate(startOfWeek.getDate() + 6)
+    endOfWeek.setHours(23, 59, 59, 999)
+    const completed = ['completed', 'COMPLETED']
+    return tasks
+      .filter((t: any) => {
+        const due = t.due_date ? new Date(t.due_date) : null
+        if (!due || completed.includes(String(t.status ?? ''))) return false
+        return due >= startOfWeek && due <= endOfWeek
+      })
+      .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+      .slice(0, 10)
+  }, [globalData?.tasks])
+
+  // 遅延タスク（期日が過去で未完了、または status が delayed）
+  const delayedTasks = useMemo(() => {
+    const tasks = globalData?.tasks ?? []
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    const completed = ['completed', 'COMPLETED']
+    return tasks
+      .filter((t: any) => {
+        if (completed.includes(String(t.status ?? ''))) return false
+        if (String(t.status ?? '').toLowerCase() === 'delayed') return true
+        const due = t.due_date ? new Date(t.due_date) : null
+        if (!due) return false
+        due.setHours(0, 0, 0, 0)
+        return due < todayStart
+      })
+      .sort((a: any, b: any) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())
+      .slice(0, 10)
+  }, [globalData?.tasks])
 
   const scrollToBottom = () => {
     if (listEndRef.current) {
@@ -980,294 +1021,284 @@ const Dashboard: React.FC = () => {
   ]
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
-      <Typography 
-        variant="h4" 
-        gutterBottom 
-        sx={{ 
-          mb: 2,
-          fontWeight: 600,
-          color: 'text.primary',
-        }}
+    <Box
+      sx={{
+        p: { xs: 1.5, sm: 2 },
+        maxWidth: 1600,
+        mx: 'auto',
+      }}
+    >
+      <Typography
+        variant="h5"
+        sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}
       >
         ダッシュボード
       </Typography>
 
-      <Box 
-        sx={{ 
+      {/* サマリーカード（ユーザー・タスク・プロジェクト） */}
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>
+        サマリー
+      </Typography>
+      <Box
+        sx={{
           display: 'grid',
-          gridTemplateColumns: {
-            xs: '1fr',
-            sm: 'repeat(2, 1fr)',
-            md: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2.2fr)',
-          },
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
           gap: 2,
-          mb: 2,
+          mb: 3,
         }}
       >
         {statCards.map((card, index) => {
           const canNavigate = !card.requiresAdmin || isAdmin
-          
           return (
             <Paper
               key={index}
               elevation={2}
-              onClick={() => {
-                if (canNavigate) {
-                  navigate(card.path)
-                }
-              }}
+              onClick={() => canNavigate && navigate(card.path)}
               sx={{
                 p: 2,
                 borderRadius: 2,
                 position: 'relative',
                 overflow: 'hidden',
-                height: 252,
+                minHeight: 140,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
-                transition: 'all 0.3s ease-in-out',
+                transition: 'all 0.2s ease',
                 cursor: canNavigate ? 'pointer' : 'default',
                 opacity: canNavigate ? 1 : 0.7,
-                '&:hover': canNavigate ? {
-                  transform: 'translateY(-2px)',
-                  boxShadow: 4,
-                } : {},
+                '&:hover': canNavigate ? { boxShadow: 4 } : {},
               }}
             >
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 0,
-                right: 0,
-                width: '80px',
-                height: '80px',
-                background: card.bgGradient,
-                borderRadius: '50%',
-                transform: 'translate(24px, -24px)',
-                opacity: 0.1,
-              }}
-            />
-            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', height: '100%' }}>
-              <Box sx={{ display: 'inline-flex', p: 1.5, borderRadius: 2, background: card.bgGradient, mb: 1.25, boxShadow: 2 }}>
-                <Box sx={{ color: 'white' }}>{card.icon}</Box>
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  width: 72,
+                  height: 72,
+                  background: card.bgGradient,
+                  borderRadius: '50%',
+                  transform: 'translate(20px, -20px)',
+                  opacity: 0.12,
+                }}
+              />
+              <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <Box sx={{ display: 'inline-flex', p: 1.25, borderRadius: 1.5, background: card.bgGradient, mb: 1, boxShadow: 1 }}>
+                  <Box sx={{ color: 'white' }}>{card.icon}</Box>
+                </Box>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5, fontWeight: 500 }}>
+                  {card.title}
+                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
+                  {typeof card.value === 'number' && card.value < 0 ? '-' : (card.value ?? 0).toLocaleString()}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  {card.subValue}
+                </Typography>
               </Box>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 0.75, fontWeight: 500, fontSize: '0.95rem' }}>
-                {card.title}
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2, mb: 0.5 }}>
-                {typeof card.value === 'number' && card.value < 0 ? '-' : card.value.toLocaleString()}
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-                {card.subValue}
-              </Typography>
-            </Box>
-          </Paper>
+            </Paper>
           )
         })}
+      </Box>
 
-        {/* 今日の予定パネル：高さ固定（約3件表示）、4件以上はスクロール。種別（タスク/会議/締切等）を表示 */}
+      {/* 今日の予定・今週の締切・遅延タスク */}
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>
+        今週の概要
+      </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        {/* 今日の予定 */}
         <Paper
           elevation={2}
           onClick={() => navigate('/calendar')}
           sx={{
             p: 2,
-            borderRadius: 3,
+            borderRadius: 2,
             position: 'relative',
             overflow: 'hidden',
-            height: 252,
+            minHeight: 260,
             display: 'flex',
             flexDirection: 'column',
-            transition: 'all 0.3s ease-in-out',
+            transition: 'all 0.2s ease',
             cursor: 'pointer',
-            '&:hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: 6,
-            },
+            '&:hover': { boxShadow: 4 },
           }}
         >
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              width: '120px',
-              height: '120px',
-              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-              borderRadius: '50%',
-              transform: 'translate(36px, -36px)',
-              opacity: 0.12,
-            }}
-          />
-          <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
-              <Box
-                sx={{
-                  display: 'inline-flex',
-                  p: 1,
-                  borderRadius: 2,
-                  background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                  boxShadow: 2,
-                }}
-              >
-                <Box sx={{ color: 'white' }}>
-                  <CalendarTodayIcon sx={{ fontSize: 24 }} />
+            <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
+            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
+                <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', boxShadow: 2 }}>
+                  <Box sx={{ color: 'white' }}><CalendarTodayIcon sx={{ fontSize: 24 }} /></Box>
                 </Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今日の予定</Typography>
               </Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>
-                今日の予定
-              </Typography>
-            </Box>
-            <Box
-              sx={{
-                height: 200,
-                minHeight: 0,
-                overflowY: 'auto',
-                '&::-webkit-scrollbar': { width: 6 },
-                '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' },
-              }}
-            >
-              {todayItems.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-                    今日の予定はありません
-                  </Typography>
-                </Box>
-              ) : (
-                todayItems.map((item) => (
-                  <Box
-                    key={`${item.type}-${item.id}`}
-                    sx={{
-                      py: 1.25,
-                      px: 1.25,
-                      mb: 1,
-                      borderRadius: 1.5,
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderLeft: '4px solid',
-                      borderLeftColor: item.type === 'event' ? 'info.main' : 'secondary.main',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 1.25,
-                      '&:last-of-type': { mb: 0 },
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        flexShrink: 0,
-                        width: 32,
-                        height: 32,
-                        borderRadius: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: item.type === 'event' ? 'info.light' : 'secondary.light',
-                        color: item.type === 'event' ? 'info.dark' : 'secondary.dark',
-                      }}
-                    >
-                      {item.type === 'event' ? (
-                        <EventIcon sx={{ fontSize: 18 }} />
-                      ) : (
-                        <TaskIcon sx={{ fontSize: 18 }} />
-                      )}
-                    </Box>
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} title={item.name}>
-                          {item.name}
-                        </Typography>
-                        <Typography
-                          component="span"
-                          variant="caption"
-                          sx={{
-                            flexShrink: 0,
-                            px: 0.75,
-                            py: 0.2,
-                            borderRadius: 1,
-                            bgcolor: item.type === 'event' ? 'info.main' : 'secondary.main',
-                            color: 'white',
-                            fontWeight: 600,
-                            fontSize: '0.7rem',
-                          }}
-                        >
-                          {item.kindLabel}
-                        </Typography>
-                        {item.timeLabel != null && (
-                          <Typography
-                            component="span"
-                            variant="caption"
-                            sx={{
-                              flexShrink: 0,
-                              px: 0.6,
-                              py: 0.15,
-                              borderRadius: 0.75,
-                              bgcolor: 'action.selected',
-                              color: 'text.secondary',
-                              fontSize: '0.7rem',
-                              fontWeight: 500,
-                            }}
-                          >
-                            {item.timeLabel}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {item.projectName}
-                        </Typography>
-                      </Box>
-                    </Box>
+              <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+                {todayItems.length === 0 ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今日の予定はありません</Typography>
                   </Box>
-                ))
-              )}
+                ) : (
+                  todayItems.map((item) => (
+                    <Box key={`${item.type}-${item.id}`} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : 'secondary.main', display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 } }}>
+                      <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : 'secondary.light', color: item.type === 'event' ? 'info.dark' : 'secondary.dark' }}>
+                        {item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}
+                      </Box>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
+                          <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} title={item.name}>{item.name}</Typography>
+                          <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : 'secondary.main', color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
+                          {item.timeLabel != null && <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.6, py: 0.15, borderRadius: 0.75, bgcolor: 'action.selected', color: 'text.secondary', fontSize: '0.7rem', fontWeight: 500 }}>{item.timeLabel}</Typography>}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))
+                )}
+              </Box>
             </Box>
-          </Box>
+        </Paper>
+
+        {/* 今週の締切 */}
+        <Paper
+          elevation={2}
+          onClick={() => navigate('/tasks')}
+          sx={{
+            p: 2,
+            borderRadius: 2,
+            position: 'relative',
+            overflow: 'hidden',
+            minHeight: 260,
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer',
+            '&:hover': { boxShadow: 4 },
+          }}
+        >
+            <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
+            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
+                <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', boxShadow: 2 }}>
+                  <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
+                </Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今週の締切</Typography>
+                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'grey.300', color: 'text.primary', fontWeight: 600 }}>{weekDeadlineTasks.length}件</Typography>
+              </Box>
+              <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+                {weekDeadlineTasks.length === 0 ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今週の締切はありません</Typography>
+                  </Box>
+                ) : (
+                  weekDeadlineTasks.map((t: any) => (
+                    <Box key={t.id} sx={{ py: 1, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'warning.main', '&:last-of-type': { mb: 0 } }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }} noWrap>{t.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}</Typography>
+                    </Box>
+                  ))
+                )}
+              </Box>
+            </Box>
+        </Paper>
+
+        {/* 遅延タスク */}
+        <Paper
+          elevation={2}
+          onClick={() => navigate('/tasks')}
+          sx={{
+            p: 2,
+            borderRadius: 2,
+            position: 'relative',
+            overflow: 'hidden',
+            minHeight: 260,
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer',
+            '&:hover': { boxShadow: 4 },
+          }}
+        >
+            <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
+            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
+                <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', boxShadow: 2 }}>
+                  <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
+                </Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク</Typography>
+                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>{delayedTasks.length}件</Typography>
+              </Box>
+              <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+                {delayedTasks.length === 0 ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>遅延タスクはありません</Typography>
+                  </Box>
+                ) : (
+                  delayedTasks.map((t: any) => (
+                    <Box key={t.id} sx={{ py: 1, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'error.main', '&:last-of-type': { mb: 0 } }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }} noWrap>{t.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}</Typography>
+                    </Box>
+                  ))
+                )}
+              </Box>
+            </Box>
         </Paper>
       </Box>
 
-		{/* チャット欄 */}
-		<Box sx={{ width: '100%', mt: 2 }}>
-		  <Paper sx={{ p: 2 }}>
-			<Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-				<Typography variant="h6">
-				  チャット（管理者用）
-				</Typography>
-				<Button size="small" variant="outlined" onClick={handleNewConversation}>new chat</Button>
-			</Box>
-			
-			{/* チャットコンテナ */}
-			<Box sx={{ position: 'relative', height: 400 }}>
-			  {/* メッセージ一覧（LINE風 吹き出し） */}
-			  <Box sx={{
-			    border: '1px solid',
-			    borderColor: 'divider',
-			    borderRadius: 1,
-			    p: 1.5,
-			    height: 340,
-			    overflow: 'auto',
-			    backgroundColor: 'background.default',
-			    display: 'flex',
-			    flexDirection: 'column',
-			    gap: 1,
-			  }}>
-			    {messages.map((m, i) => (
-				  <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+      {/* チャット */}
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>
+        チャット（管理者用）
+      </Typography>
+      <Paper sx={{ p: 2, borderRadius: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+            会話
+          </Typography>
+          <Button size="small" variant="outlined" onClick={handleNewConversation}>
+            新しい会話
+          </Button>
+        </Box>
+        <Box sx={{ position: 'relative', height: 420 }}>
+          {/* メッセージ一覧 */}
+          <Box
+            sx={{
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1.5,
+              p: 1.5,
+              height: 360,
+              overflow: 'auto',
+              backgroundColor: 'grey.50',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.25,
+            }}
+          >
+            {messages.map((m, i) => (
+              <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <Box sx={{
-					  maxWidth: m.role === 'assistant' ? '95%' : '75%',
-					  px: 2,
-					  py: m.role === 'assistant' ? 1 : 1.5,
-					  bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
-					  color: m.role === 'user' ? 'primary.contrastText' : 'text.primary',
-					  borderRadius: 2,
-					  borderTopRightRadius: m.role === 'user' ? 0 : 12,
-					  borderTopLeftRadius: m.role === 'user' ? 12 : 0,
-					  whiteSpace: 'pre-wrap',
-					  wordBreak: 'break-word',
-					  boxShadow: m.role === 'user' ? 2 : 1,
-					  border: m.role === 'assistant' ? '1px solid' : 'none',
-					  borderColor: m.role === 'assistant' ? 'divider' : 'transparent',
+                  maxWidth: m.role === 'assistant' ? '95%' : '75%',
+                  px: 2,
+                  py: m.role === 'assistant' ? 1 : 1.5,
+                  bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
+                  color: m.role === 'user' ? 'primary.contrastText' : 'text.primary',
+                  borderRadius: 2,
+                  borderTopRightRadius: m.role === 'user' ? 0 : 12,
+                  borderTopLeftRadius: m.role === 'user' ? 12 : 0,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  boxShadow: m.role === 'user' ? 2 : 1,
+                  border: m.role === 'assistant' ? '1px solid' : 'none',
+                  borderColor: m.role === 'assistant' ? 'divider' : 'transparent',
                   '& .markdown-content': {
                     lineHeight: 1.35,
                     overflowX: 'auto',
@@ -1391,7 +1422,7 @@ const Dashboard: React.FC = () => {
                     color: 'common.white',
                     borderColor: 'info.main',
                   },
-				    }}>
+                }}>
                   {m.role === 'assistant' ? (
                     <div
                       className="message-content markdown-content"
@@ -1401,47 +1432,50 @@ const Dashboard: React.FC = () => {
                   ) : (
                     m.content
                   )}
-				    </Box>
-				  </Box>
-			    ))}
-			    <div ref={listEndRef} />
-			  </Box>
-			  
-			  {/* 入力欄と送信ボタン：固定位置 */}
-			  <Box sx={{ 
-			    position: 'absolute',
-			    bottom: 0,
-			    left: 0,
-			    right: 0,
-			    display: 'flex', 
-			    gap: 1,
-			  }}>
-			    <TextField
-				  fullWidth
-				  size="small"
-				  placeholder="メッセージを入力..."
-				  value={chatInput}
-				  onChange={(e) => setChatInput(e.target.value)}
-				  onKeyDown={(e) => {
-					if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-						e.preventDefault();
-						handleSend();
-					}
-				}}
-				  disabled={sending}
-			    />
-			    <Button 
-				  variant="contained" 
-				  onClick={isGenerating ? handleStopGeneration : handleSend} 
-				  disabled={!canSend && !isGenerating}
-				  color={isGenerating ? 'error' : 'primary'}
-			    >
-				  {isGenerating ? '停止' : sending ? '送信中...' : '送信'}
-			    </Button>
-			  </Box>
-			</Box>
-		  </Paper>
-		</Box>
+                </Box>
+              </Box>
+            ))}
+            <div ref={listEndRef} />
+          </Box>
+
+          {/* 入力欄 */}
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              display: 'flex',
+              gap: 1,
+              pt: 1,
+              backgroundColor: 'background.paper',
+            }}
+          >
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="メッセージを入力..."
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              disabled={sending}
+            />
+            <Button
+              variant="contained"
+              onClick={isGenerating ? handleStopGeneration : handleSend}
+              disabled={!canSend && !isGenerating}
+              color={isGenerating ? 'error' : 'primary'}
+            >
+              {isGenerating ? '停止' : sending ? '送信中...' : '送信'}
+            </Button>
+          </Box>
+        </Box>
+      </Paper>
       
       {/* アクション確認ダイアログ（単一・複数両対応） */}
       <Dialog

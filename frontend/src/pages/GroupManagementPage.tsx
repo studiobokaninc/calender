@@ -13,6 +13,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import api from '../services/api';
 import { Group, User, UserGroup } from '../types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -45,6 +46,14 @@ const GroupManagementPage: React.FC = () => {
   const [editGroupStartDate, setEditGroupStartDate] = useState('');
   const [editGroupEndDate, setEditGroupEndDate] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+
+  const [isCreateMeetingModalOpen, setIsCreateMeetingModalOpen] = useState(false);
+  const [meetingTitle, setMeetingTitle] = useState('');
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingStartTime, setMeetingStartTime] = useState('10:00');
+  const [meetingEndTime, setMeetingEndTime] = useState('11:00');
+  const [meetingLocation, setMeetingLocation] = useState('');
+  const [meetingSaving, setMeetingSaving] = useState(false);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'info' });
 
@@ -300,6 +309,56 @@ const GroupManagementPage: React.FC = () => {
     setSnackbar(s => ({ ...s, open: false }));
   };
 
+  const handleOpenCreateMeetingModal = () => {
+    if (!selectedGroup) return;
+    const today = format(new Date(), 'yyyy-MM-dd');
+    setMeetingTitle(`${selectedGroup.name} 会議`);
+    setMeetingDate(today);
+    setMeetingStartTime('10:00');
+    setMeetingEndTime('11:00');
+    setMeetingLocation('');
+    setIsCreateMeetingModalOpen(true);
+  };
+
+  const handleCloseCreateMeetingModal = () => {
+    setIsCreateMeetingModalOpen(false);
+    setMeetingTitle('');
+    setMeetingDate('');
+    setMeetingStartTime('');
+    setMeetingEndTime('');
+    setMeetingLocation('');
+  };
+
+  const handleCreateMeeting = async () => {
+    if (!selectedGroup || usersInSelectedGroup.length === 0) return;
+    const title = meetingTitle.trim() || `${selectedGroup.name} 会議`;
+    if (!meetingDate || !meetingStartTime || !meetingEndTime) {
+      setSnackbar({ open: true, message: '日付・開始時刻・終了時刻を入力してください', severity: 'warning' });
+      return;
+    }
+    setMeetingSaving(true);
+    try {
+      const startTimeStr = `${meetingDate}T${meetingStartTime}:00+09:00`;
+      const endTimeStr = `${meetingDate}T${meetingEndTime}:00+09:00`;
+      const participants = usersInSelectedGroup.map(u => ({ type: 'user' as const, id: u.id }));
+      await api.post('/calendar/events', {
+        title,
+        type: 'Meeting',
+        start_time: startTimeStr,
+        end_time: endTimeStr,
+        location: meetingLocation.trim() || null,
+        participants,
+      });
+      handleCloseCreateMeetingModal();
+      setSnackbar({ open: true, message: '会議を作成しました', severity: 'success' });
+    } catch (err) {
+      console.error('Failed to create meeting:', err);
+      setSnackbar({ open: true, message: '会議の作成に失敗しました', severity: 'error' });
+    } finally {
+      setMeetingSaving(false);
+    }
+  };
+
   if (loading && groups.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 'calc(100vh - 120px)' }}>
@@ -470,6 +529,19 @@ const GroupManagementPage: React.FC = () => {
                     >
                       メンバー追加
                     </Button>
+                    <Tooltip title={usersInSelectedGroup.length === 0 ? 'メンバーを追加してから会議を作成できます' : 'グループのメンバーを参加者とする会議を作成'}>
+                      <span>
+                        <Button 
+                          variant="outlined" 
+                          size="small" 
+                          startIcon={<MeetingRoomIcon />} 
+                          onClick={handleOpenCreateMeetingModal}
+                          disabled={usersInSelectedGroup.length === 0}
+                        >
+                          会議を作成
+                        </Button>
+                      </span>
+                    </Tooltip>
                     <Tooltip title="グループを削除">
                       <IconButton 
                         size="small" 
@@ -880,6 +952,82 @@ const GroupManagementPage: React.FC = () => {
           <Button onClick={handleCloseAddUserModal}>キャンセル</Button>
           <Button onClick={handleAddUserToGroup} variant="contained" disabled={usersToAdd.length === 0}>
             追加
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* グループ会議作成ダイアログ */}
+      <Dialog open={isCreateMeetingModalOpen} onClose={handleCloseCreateMeetingModal} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle>会議を作成（グループのメンバーが参加者）</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="タイトル"
+            fullWidth
+            variant="outlined"
+            value={meetingTitle}
+            onChange={e => setMeetingTitle(e.target.value)}
+            placeholder={selectedGroup ? `${selectedGroup.name} 会議` : ''}
+            sx={{ mt: 1 }}
+          />
+          <TextField
+            margin="dense"
+            label="実施日"
+            type="date"
+            fullWidth
+            variant="outlined"
+            value={meetingDate}
+            onChange={e => setMeetingDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+          />
+          <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+            <TextField
+              margin="dense"
+              label="開始時刻"
+              type="time"
+              fullWidth
+              variant="outlined"
+              value={meetingStartTime}
+              onChange={e => setMeetingStartTime(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ step: 300 }}
+            />
+            <TextField
+              margin="dense"
+              label="終了時刻"
+              type="time"
+              fullWidth
+              variant="outlined"
+              value={meetingEndTime}
+              onChange={e => setMeetingEndTime(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ step: 300 }}
+            />
+          </Box>
+          <TextField
+            margin="dense"
+            label="場所（任意）"
+            fullWidth
+            variant="outlined"
+            value={meetingLocation}
+            onChange={e => setMeetingLocation(e.target.value)}
+          />
+          <Box sx={{ mt: 2, p: 1.5, bgcolor: 'grey.100', borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
+              参加者（グループのメンバー）
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              {usersInSelectedGroup.map((u) => (
+                <Chip key={u.id} label={u.username || u.name || u.email || `User ${u.id}`} size="small" variant="outlined" />
+              ))}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleCloseCreateMeetingModal}>キャンセル</Button>
+          <Button onClick={handleCreateMeeting} variant="contained" disabled={meetingSaving || !meetingDate || !meetingStartTime || !meetingEndTime} startIcon={meetingSaving ? <CircularProgress size={16} /> : <MeetingRoomIcon />}>
+            {meetingSaving ? '作成中...' : '会議を作成'}
           </Button>
         </DialogActions>
       </Dialog>

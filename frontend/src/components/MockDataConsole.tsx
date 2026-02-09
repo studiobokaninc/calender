@@ -30,8 +30,9 @@ import {
   Event as EventIcon,
   Group as GroupIcon,
   Link as LinkIcon,
+  Backup as BackupIcon,
 } from '@mui/icons-material';
-import { exportMockData, importMockData } from '../services/api'; // API関数をインポート
+import api, { exportMockData, importMockData } from '../services/api'; // API関数をインポート
 import { MockDataImport } from '../types'; // 型をインポート
 import CsvParser from './CsvParser';
 import { transformImportData } from '../utils/transformImportData';
@@ -305,6 +306,46 @@ const MockDataConsole: React.FC = () => {
       )}
 
       {/* 操作パネル */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h6" gutterBottom>
+          バックアップ
+        </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          現在のデータベースをJSONファイルとしてダウンロードします（プロジェクト・タスク・イベント・ユーザー・グループ）。
+        </Typography>
+        <Stack direction="row" spacing={2}>
+          <Button
+            variant="contained"
+            startIcon={<BackupIcon />}
+            onClick={async () => {
+              setIsLoading(true);
+              setErrorMessage(null);
+              setSuccessMessage(null);
+              try {
+                const res = await api.get<Record<string, unknown>>('/admin/backup');
+                const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showTemporaryMessage(setSuccessMessage, 'バックアップをダウンロードしました');
+              } catch (err: any) {
+                showTemporaryMessage(setErrorMessage, `バックアップの取得に失敗しました: ${err?.response?.data?.detail || err?.message || '不明なエラー'}`);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            disabled={isLoading}
+          >
+            バックアップをダウンロード
+          </Button>
+        </Stack>
+      </Box>
+
+      <Divider sx={{ my: 3 }} />
+
       <Box sx={{ mb: 4 }}>
         <Typography variant="h6" gutterBottom>
           データのエクスポート

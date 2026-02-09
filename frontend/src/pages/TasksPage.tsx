@@ -3,9 +3,9 @@ import {
     Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider
+    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon } from '@mui/icons-material';
 import { IconButton } from '@mui/material';
 import api from '../services/api';
 import { Task, Project, User } from '../types'; // Import User type as well
@@ -182,6 +182,50 @@ const TasksPage: React.FC = () => {
     const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
+    // Google カレンダー連携（ユーザー個人のカレンダーにタスクを1件ずつ表示ON/OFF）
+    const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>({
+        configured: false,
+        connected: false,
+        synced_task_ids: [],
+    });
+    const [googleSyncingTaskId, setGoogleSyncingTaskId] = useState<number | null>(null);
+
+    // 一括編集（選択された行IDの配列）
+    const [selectionModel, setSelectionModel] = useState<number[]>([]);
+    const [bulkEditOpen, setBulkEditOpen] = useState(false);
+    const [bulkEditSaving, setBulkEditSaving] = useState(false);
+    const [bulkEditForm, setBulkEditForm] = useState<{ status: string; assigned_to: number | ''; due_date: string; priority: string }>({
+        status: '', assigned_to: '', due_date: '', priority: ''
+    });
+
+    const handleBulkEditApply = async () => {
+        const taskIds = selectionModel;
+        if (taskIds.length === 0) return;
+        const payload: { task_ids: number[]; status?: string; assigned_to?: number; due_date?: string; priority?: string } = { task_ids: taskIds };
+        if (bulkEditForm.status) payload.status = bulkEditForm.status;
+        if (bulkEditForm.assigned_to !== '') payload.assigned_to = bulkEditForm.assigned_to as number;
+        if (bulkEditForm.due_date) payload.due_date = bulkEditForm.due_date + 'T00:00:00+09:00';
+        if (bulkEditForm.priority) payload.priority = bulkEditForm.priority;
+        if (Object.keys(payload).length <= 1) {
+            setSnackbar({ open: true, message: '更新する項目を1つ以上選択してください', severity: 'warning' });
+            return;
+        }
+        setBulkEditSaving(true);
+        try {
+            const res = await api.post<{ updated: number; message: string }>('/tasks/bulk-update', payload);
+            setSnackbar({ open: true, message: res.data.message, severity: 'success' });
+            setBulkEditOpen(false);
+            setSelectionModel([] as number[]);
+            setBulkEditForm({ status: '', assigned_to: '', due_date: '', priority: '' });
+            if (refreshGlobalData) await refreshGlobalData();
+            fetchData();
+        } catch (err: any) {
+            setSnackbar({ open: true, message: err?.response?.data?.detail || '一括更新に失敗しました', severity: 'error' });
+        } finally {
+            setBulkEditSaving(false);
+        }
+    };
+
 
 
 
@@ -239,6 +283,51 @@ const TasksPage: React.FC = () => {
             fetchData();
         }
     }, []); // 初回マウント時のみ実行
+
+    // Google カレンダー連携状態の取得
+    const fetchGoogleStatus = useCallback(async () => {
+        try {
+            const res = await api.get<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>('/google/status');
+            setGoogleStatus({
+                configured: res.data.configured,
+                connected: res.data.connected,
+                synced_task_ids: res.data.synced_task_ids ?? [],
+            });
+        } catch {
+            setGoogleStatus({ configured: false, connected: false, synced_task_ids: [] });
+        }
+    }, []);
+    useEffect(() => {
+        fetchGoogleStatus();
+    }, [fetchGoogleStatus]);
+
+    const handleGoogleConnect = useCallback(async () => {
+        try {
+            const res = await api.get<{ url: string }>('/google/authorize');
+            if (res.data?.url) {
+                window.location.href = res.data.url;
+            }
+        } catch (err: any) {
+            setSnackbar({ open: true, message: err?.response?.data?.detail || 'Google 連携の開始に失敗しました', severity: 'error' });
+        }
+    }, []);
+
+    const handleGoogleSyncToggle = useCallback(async (taskId: number, currentSynced: boolean) => {
+        setGoogleSyncingTaskId(taskId);
+        try {
+            await api.post(`/google/sync/task/${taskId}`, { sync: !currentSynced });
+            await fetchGoogleStatus();
+            setSnackbar({
+                open: true,
+                message: currentSynced ? 'Google カレンダーから解除しました' : 'Google カレンダーに追加しました',
+                severity: 'success',
+            });
+        } catch (err: any) {
+            setSnackbar({ open: true, message: err?.response?.data?.detail || '更新に失敗しました', severity: 'error' });
+        } finally {
+            setGoogleSyncingTaskId(null);
+        }
+    }, [fetchGoogleStatus]);
 
     // globalDataRefreshedイベントをリッスンしてデータを強制更新
     useEffect(() => {
@@ -506,9 +595,6 @@ const TasksPage: React.FC = () => {
         });
         setOpenDialog(true);
     };
-
-
-
 
     const handleDeleteTask = async (taskId: number) => {
         try {
@@ -876,6 +962,32 @@ const TasksPage: React.FC = () => {
                 return row.cost ?? '-';
             }
         },
+        ...(googleStatus.connected
+            ? [{
+                field: 'google_sync',
+                headerName: 'Google',
+                width: 90,
+                headerAlign: 'center',
+                align: 'center',
+                sortable: false,
+                renderCell: (params: GridRenderCellParams) => {
+                    const row = params.row as Task;
+                    const synced = googleStatus.synced_task_ids.includes(row.id);
+                    const loading = googleSyncingTaskId === row.id;
+                    return (
+                        <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                            <Checkbox
+                                size="small"
+                                checked={synced}
+                                disabled={loading}
+                                onChange={() => handleGoogleSyncToggle(row.id, synced)}
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </Tooltip>
+                    );
+                },
+            } as GridColDef]
+            : []),
         {
             field: '_actionsSortKey',
             headerName: '操作',
@@ -939,7 +1051,7 @@ const TasksPage: React.FC = () => {
                 );
             },
         },
-    ], [users, projects, taskMap]);
+    ], [users, projects, taskMap, googleStatus.connected, googleStatus.synced_task_ids, googleSyncingTaskId, handleGoogleSyncToggle]);
 
 
 
@@ -1123,6 +1235,30 @@ const TasksPage: React.FC = () => {
                     overflow: 'hidden',
                 }}
             >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<BulkEditIcon />}
+                        onClick={() => setBulkEditOpen(true)}
+                        disabled={selectionModel.length === 0}
+                    >
+                        一括編集
+                    </Button>
+                    {selectionModel.length > 0 && (
+                        <Typography variant="body2" color="text.secondary">
+                            {selectionModel.length}件を選択中
+                        </Typography>
+                    )}
+                    {googleStatus.configured && !googleStatus.connected && (
+                        <Button size="small" variant="outlined" color="primary" onClick={handleGoogleConnect}>
+                            Google カレンダーと連携
+                        </Button>
+                    )}
+                    {googleStatus.connected && (
+                        <Typography variant="body2" color="success.main">Google カレンダー連携済み</Typography>
+                    )}
+                </Box>
                 <Box
                     ref={dataGridContainerRef}
                     sx={{
@@ -1147,6 +1283,14 @@ const TasksPage: React.FC = () => {
                         rows={rows}
                         columns={columns}
                         getRowId={(row) => row.id}
+                        checkboxSelection
+                        rowSelectionModel={{ type: 'include' as const, ids: new Set(selectionModel) }}
+                        onRowSelectionModelChange={(newSelection) => {
+                            const ids = newSelection && typeof newSelection === 'object' && 'ids' in newSelection
+                                ? Array.from((newSelection as { ids: Set<unknown> }).ids).map((id): number => typeof id === 'number' ? id : Number(id))
+                                : [];
+                            setSelectionModel(ids);
+                        }}
                         sortingMode="client"
                         sortingOrder={['asc', 'desc']}
                         sortModel={sortModel}
@@ -1264,8 +1408,70 @@ const TasksPage: React.FC = () => {
                 </Dialog>
             )}
 
-
-
+            {/* 一括編集ダイアログ */}
+            <Dialog open={bulkEditOpen} onClose={() => setBulkEditOpen(false)} maxWidth="xs" fullWidth>
+                <DialogTitle>一括編集（{selectionModel.length}件）</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>ステータス</InputLabel>
+                            <Select
+                                value={bulkEditForm.status}
+                                label="ステータス"
+                                onChange={(e) => setBulkEditForm(f => ({ ...f, status: e.target.value }))}
+                            >
+                                <MenuItem value="">変更しない</MenuItem>
+                                <MenuItem value="todo">未着手</MenuItem>
+                                <MenuItem value="in-progress">進行中</MenuItem>
+                                <MenuItem value="review">レビュー中</MenuItem>
+                                <MenuItem value="completed">完了</MenuItem>
+                                <MenuItem value="delayed">遅延</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>担当者</InputLabel>
+                            <Select
+                                value={bulkEditForm.assigned_to}
+                                label="担当者"
+                                onChange={(e) => setBulkEditForm(f => ({ ...f, assigned_to: e.target.value === '' ? '' : Number(e.target.value) }))}
+                            >
+                                <MenuItem value="">変更しない</MenuItem>
+                                {users.map(user => (
+                                    <MenuItem key={user.id} value={user.id}>{user.username || user.name || user.email}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            label="期日"
+                            type="date"
+                            value={bulkEditForm.due_date}
+                            onChange={(e) => setBulkEditForm(f => ({ ...f, due_date: e.target.value }))}
+                            fullWidth
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                        />
+                        <FormControl fullWidth size="small">
+                            <InputLabel>優先度</InputLabel>
+                            <Select
+                                value={bulkEditForm.priority}
+                                label="優先度"
+                                onChange={(e) => setBulkEditForm(f => ({ ...f, priority: e.target.value }))}
+                            >
+                                <MenuItem value="">変更しない</MenuItem>
+                                <MenuItem value="low">low</MenuItem>
+                                <MenuItem value="medium">medium</MenuItem>
+                                <MenuItem value="high">high</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setBulkEditOpen(false)}>キャンセル</Button>
+                    <Button variant="contained" onClick={handleBulkEditApply} disabled={bulkEditSaving}>
+                        {bulkEditSaving ? '適用中...' : '適用'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontSize: '1rem' }}>{isEditMode ? 'タスク編集' : '新規タスク'}</DialogTitle>

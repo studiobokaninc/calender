@@ -107,7 +107,7 @@ const App: React.FC = () => {
           }
         >
           <Route path="event-management" element={<EventManagementPage />} />
-          <Route path="metrics" element={<MetricsPage />} /> 
+<Route path="metrics" element={<MetricsPage />} />
           <Route path="admin/groups" element={<GroupManagementPage />} />
           <Route path="admin/data" element={<MockDataConsole />} />
           <Route path="admin/user-activities" element={<UserActivityPage />} />

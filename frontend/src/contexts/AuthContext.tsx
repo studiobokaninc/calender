@@ -36,37 +36,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log("Checking auth status...");
       const storedToken = localStorage.getItem('token');
       
-      if (storedToken) {
-        console.log("Token found in localStorage, validating...");
-        setToken(storedToken);
-        
-        try {
-          // Verify token by fetching user data
-          const response = await api.get<User>('/users/me');
-          console.log("User info retrieved successfully:", response.data);
-          setUser(response.data);
-        } catch (error: any) {
-          console.error('Failed to verify token or fetch user:', error);
+      try {
+        if (storedToken) {
+          console.log("Token found in localStorage, validating...");
+          setToken(storedToken);
           
-          // タイムアウトエラーの場合は、トークンを削除せずに警告のみ（サーバーが起動していない可能性）
-          if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-            console.warn('サーバーへの接続がタイムアウトしました。バックエンドサーバーが起動しているか確認してください。');
-            // トークンは保持（サーバーが起動したら再認証できるように）
-          } else {
-            // 認証エラーの場合はトークンを削除
-            localStorage.removeItem('token');
-            setToken(null);
-            setUser(null);
+          try {
+            // Verify token by fetching user data
+            console.log("Calling /users/me endpoint...");
+            const response = await api.get<User>('/users/me', { timeout: 10000 });
+            console.log("User info retrieved successfully:", response.data);
+            setUser(response.data);
+          } catch (error: any) {
+            console.error('Failed to verify token or fetch user:', error);
+            console.error('Error details:', {
+              code: error.code,
+              message: error.message,
+              response: error.response?.data,
+              status: error.response?.status,
+            });
+            
+            // タイムアウトエラーまたはネットワークエラーの場合
+            if (error.code === 'ECONNABORTED' || 
+                error.message?.includes('timeout') ||
+                error.code === 'ERR_NETWORK' ||
+                error.message?.includes('Network Error')) {
+              console.warn('サーバーへの接続に失敗しました。バックエンドサーバーが起動しているか確認してください。');
+              // トークンは保持（サーバーが起動したら再認証できるように）
+            } else if (error.response?.status === 401 || error.response?.status === 403) {
+              // 認証エラーの場合はトークンを削除
+              console.warn('認証エラー: トークンを削除します');
+              localStorage.removeItem('token');
+              setToken(null);
+              setUser(null);
+            } else {
+              // その他のエラーもトークンを削除（サーバーエラーなど）
+              console.warn('予期しないエラー: トークンを削除します');
+              localStorage.removeItem('token');
+              setToken(null);
+              setUser(null);
+            }
           }
+        } else {
+          console.log("No token found in localStorage");
+          // No token found
+          setUser(null);
+          setToken(null);
         }
-      } else {
-        console.log("No token found in localStorage");
-        // No token found
+      } catch (error: any) {
+        console.error('Unexpected error in checkAuthStatus:', error);
         setUser(null);
         setToken(null);
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
 
     checkAuthStatus();

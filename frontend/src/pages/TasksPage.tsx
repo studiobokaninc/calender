@@ -306,9 +306,14 @@ const TasksPage: React.FC = () => {
             const res = await api.get<{ url: string }>('/google/authorize');
             if (res.data?.url) {
                 window.location.href = res.data.url;
+            } else {
+                console.error('Google authorize URL not found in response:', res.data);
+                setSnackbar({ open: true, message: 'Google認証URLの取得に失敗しました', severity: 'error' });
             }
         } catch (err: any) {
-            setSnackbar({ open: true, message: err?.response?.data?.detail || 'Google 連携の開始に失敗しました', severity: 'error' });
+            console.error('Google connect error:', err);
+            const errorMessage = err?.response?.data?.detail || err?.message || 'Google 連携の開始に失敗しました';
+            setSnackbar({ open: true, message: `Google連携エラー: ${errorMessage}`, severity: 'error' });
         }
     }, []);
 
@@ -1098,17 +1103,32 @@ const TasksPage: React.FC = () => {
 
 
     return (
-        <Box sx={{ p: { xs: 2, sm: 3 } }}>
+        <Box
+            sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                maxHeight: 'calc(100vh - 120px)',
+                minHeight: 0,
+                overflow: 'hidden',
+                p: { xs: 1.5, sm: 2 },
+                maxWidth: 1600,
+                mx: 'auto',
+                width: '100%',
+            }}
+        >
             <Paper
-                elevation={2}
+                elevation={0}
                 sx={{
-                    mb: 3,
-                    p: 3,
-                    borderRadius: 3,
-                    transition: 'all 0.3s ease-in-out',
+                    flexShrink: 0,
+                    mb: 1.5,
+                    p: 2,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
                 }}
             >
-                <Grid container spacing={3} alignItems="center">
+                <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} sm={4}>
                         <FormControl fullWidth variant="outlined" size="small">
                             <InputLabel id="status-filter-label" shrink>ステータス</InputLabel>
@@ -1225,17 +1245,20 @@ const TasksPage: React.FC = () => {
                 </Grid>
             </Paper>
 
-
-
-
             <Paper
-                elevation={2}
+                elevation={0}
                 sx={{
-                    borderRadius: 3,
+                    flex: 1,
+                    minHeight: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
                     overflow: 'hidden',
                 }}
             >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', flexShrink: 0 }}>
                     <Button
                         size="small"
                         variant="outlined"
@@ -1250,33 +1273,51 @@ const TasksPage: React.FC = () => {
                             {selectionModel.length}件を選択中
                         </Typography>
                     )}
-                    {googleStatus.configured && !googleStatus.connected && (
-                        <Button size="small" variant="outlined" color="primary" onClick={handleGoogleConnect}>
-                            Google カレンダーと連携
-                        </Button>
-                    )}
-                    {googleStatus.connected && (
-                        <Typography variant="body2" color="success.main">Google カレンダー連携済み</Typography>
-                    )}
+                    {/* Google カレンダー連携（タスクを個人のカレンダーに1件ずつ表示する機能） */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 1, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
+                        {!googleStatus.configured ? (
+                            <Tooltip title="Google連携はバックエンドで設定されていません（GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET が必要です）">
+                                <Chip
+                                    size="small"
+                                    label="Google連携未設定"
+                                    variant="outlined"
+                                    sx={{ color: 'text.secondary', cursor: 'default' }}
+                                />
+                            </Tooltip>
+                        ) : !googleStatus.connected ? (
+                            <Tooltip title="連携後、タスク一覧の「Google」列で各タスクを個人のGoogleカレンダーに表示するか選べます">
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    color="primary"
+                                    onClick={handleGoogleConnect}
+                                    sx={{ textTransform: 'none', fontWeight: 600 }}
+                                >
+                                    Google カレンダーと連携
+                                </Button>
+                            </Tooltip>
+                        ) : (
+                            <Tooltip title="タスク一覧の「Google」列のチェックで、各タスクを自分のGoogleカレンダーに表示・非表示できます">
+                                <Chip
+                                    size="small"
+                                    label="Google 連携済み"
+                                    color="success"
+                                    sx={{ fontWeight: 600, cursor: 'default' }}
+                                />
+                            </Tooltip>
+                        )}
+                    </Box>
                 </Box>
                 <Box
                     ref={dataGridContainerRef}
                     sx={{
+                        flex: 1,
+                        minHeight: 0,
                         width: '100%',
-                        // 横スクロールのサポートを強化
-                        // タッチデバイスでの横スクロールをサポート
                         WebkitOverflowScrolling: 'touch',
-                        // スクロールバーのスタイリング（横スクロールバーのみ）
-                        '&::-webkit-scrollbar': {
-                            height: '8px'
-                        },
-                        '&::-webkit-scrollbar-thumb': {
-                            backgroundColor: 'rgba(0,0,0,0.2)',
-                            borderRadius: '4px'
-                        },
-                        '&::-webkit-scrollbar-thumb:hover': {
-                            backgroundColor: 'rgba(0,0,0,0.3)'
-                        }
+                        '&::-webkit-scrollbar': { height: '8px' },
+                        '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '4px' },
+                        '&::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(0,0,0,0.3)' },
                     }}
                 >
                     <DataGrid
@@ -1299,13 +1340,13 @@ const TasksPage: React.FC = () => {
                         onPaginationModelChange={setPaginationModel}
                         pageSizeOptions={[5, 10, 15, 20, 50]}
                         rowHeight={40}
-                        autoHeight
                         onRowDoubleClick={(params) => {
                             handleEditTask(params.row as Task);
                         }}
                         disableColumnMenu={false}
                         disableColumnSelector={false}
                         sx={{
+                            height: '100%',
                             '& .MuiDataGrid-columnHeaders': {
                                 background: '#f5f5f5',
                                 fontSize: '0.8rem'
@@ -1321,11 +1362,9 @@ const TasksPage: React.FC = () => {
                             '& .MuiDataGrid-footerContainer': {
                                 fontSize: '0.8rem'
                             },
-                            // DataGrid内部の横スクロールサポート
                             '& .MuiDataGrid-virtualScroller': {
                                 overflowX: 'auto !important'
                             },
-                            // 固定カラムのスタイル
                             '& .MuiDataGrid-pinnedColumns': {
                                 backgroundColor: 'background.paper',
                                 boxShadow: '-2px 0 4px rgba(0,0,0,0.1)'

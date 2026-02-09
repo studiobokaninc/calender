@@ -96,6 +96,13 @@ const ChatPage: React.FC = () => {
   const eventSourceRef = useRef<EventSource | null>(null)
   const hasReceivedTaskActionRef = useRef<boolean>(false)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Google カレンダー連携（ユーザー個人のカレンダーにタスクを1件ずつ表示ON/OFF）
+  const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>({
+    configured: false,
+    connected: false,
+    synced_task_ids: [],
+  })
 
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
 
@@ -103,6 +110,40 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     refreshGlobalData?.()
   }, [refreshGlobalData])
+
+  // Google カレンダー連携状態の取得
+  const fetchGoogleStatus = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>('/google/status')
+      setGoogleStatus({
+        configured: res.data.configured,
+        connected: res.data.connected,
+        synced_task_ids: res.data.synced_task_ids ?? [],
+      })
+    } catch (err) {
+      console.error('Google status fetch error:', err)
+      setGoogleStatus({ configured: false, connected: false, synced_task_ids: [] })
+    }
+  }, [])
+  
+  useEffect(() => {
+    fetchGoogleStatus()
+  }, [fetchGoogleStatus])
+
+  const handleGoogleConnect = React.useCallback(async () => {
+    try {
+      const res = await api.get<{ url: string }>('/google/authorize')
+      if (res.data?.url) {
+        window.location.href = res.data.url
+      } else {
+        console.error('Google authorize URL not found in response:', res.data)
+      }
+    } catch (err: any) {
+      console.error('Google connect error:', err)
+      const errorMessage = err?.response?.data?.detail || err?.message || 'Google 連携の開始に失敗しました'
+      alert(`Google連携エラー: ${errorMessage}`)
+    }
+  }, [])
 
   const scrollToBottom = () => {
     if (listEndRef.current) listEndRef.current.scrollIntoView({ behavior: 'smooth' })
@@ -608,13 +649,52 @@ const ChatPage: React.FC = () => {
     <Box sx={{ width: '100%', maxWidth: 1200, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
       {/* 会話エリア */}
       <Paper sx={{ p: 2, borderRadius: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
             会話
           </Typography>
-          <Button size="small" variant="outlined" onClick={handleNewConversation}>
-            新しい会話
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Google カレンダー連携 */}
+            {googleStatus.configured && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                {!googleStatus.connected ? (
+                  <Tooltip title="連携後、チャットでタスクをGoogleカレンダーに追加できます">
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="primary"
+                      onClick={handleGoogleConnect}
+                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                    >
+                      Google カレンダーと連携
+                    </Button>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="Googleカレンダーと連携済みです">
+                    <Chip
+                      size="small"
+                      label="Google 連携済み"
+                      color="success"
+                      sx={{ fontWeight: 600, cursor: 'default' }}
+                    />
+                  </Tooltip>
+                )}
+              </Box>
+            )}
+            {!googleStatus.configured && (
+              <Tooltip title="Google連携はバックエンドで設定されていません（GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET が必要です）">
+                <Chip
+                  size="small"
+                  label="Google連携未設定"
+                  variant="outlined"
+                  sx={{ color: 'text.secondary', cursor: 'default' }}
+                />
+              </Tooltip>
+            )}
+            <Button size="small" variant="outlined" onClick={handleNewConversation}>
+              新しい会話
+            </Button>
+          </Box>
         </Box>
         <Box sx={{ position: 'relative', height: 440 }}>
           <Box

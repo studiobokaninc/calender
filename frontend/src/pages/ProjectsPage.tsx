@@ -562,16 +562,31 @@ const ProjectsPage: React.FC = () => {
     }
 
     return (
-        <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography variant="h4" component="h1">
-                    プロジェクト管理
+        <Box
+            sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+                maxHeight: 'calc(100vh - 120px)',
+                minHeight: 0,
+                overflow: 'hidden',
+                p: { xs: 1.5, sm: 2 },
+                maxWidth: 1600,
+                mx: 'auto',
+                width: '100%',
+            }}
+        >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, mb: 2 }}>
+                <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
+                    プロジェクト
                 </Typography>
                 {isAdmin && (
                     <Button
                         variant="contained"
+                        size="medium"
                         startIcon={<AddIcon />}
                         onClick={handleAddProject}
+                        sx={{ textTransform: 'none', borderRadius: 2 }}
                     >
                         新規プロジェクト
                     </Button>
@@ -579,7 +594,7 @@ const ProjectsPage: React.FC = () => {
             </Box>
 
             {isAdmin && (
-                <Box sx={{ mb: 3 }}>
+                <Box sx={{ flexShrink: 0, mb: 1.5 }}>
                     <CsvParser onImportComplete={async () => {
                         await fetchData();
                         if (refreshGlobalData) {
@@ -590,13 +605,19 @@ const ProjectsPage: React.FC = () => {
             )}
 
             <Paper
-                elevation={2}
+                elevation={0}
                 sx={{
-                    borderRadius: 3,
+                    flex: 1,
+                    minHeight: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
                     overflow: 'hidden',
                 }}
             >
-                <Box sx={{ width: '100%', mb: 2 }}>
+                <Box sx={{ flex: 1, minHeight: 0, width: '100%' }}>
                     <DataGrid<ProjectWithProgress>
                         rows={filteredProjects}
                         columns={columns}
@@ -606,13 +627,13 @@ const ProjectsPage: React.FC = () => {
                         pageSizeOptions={[10, 20, 50]}
                         checkboxSelection={false}
                         disableRowSelectionOnClick
-                        autoHeight
                         getRowId={(row) => row.id}
                         rowHeight={40}
                         onRowDoubleClick={isAdmin ? (params) => {
                             handleEditProject(params.row);
                         } : undefined}
                         sx={{
+                            height: '100%',
                             '& .MuiDataGrid-columnHeaders': {
                                 background: '#f5f5f5',
                                 fontSize: '0.8rem'

@@ -239,14 +239,28 @@ const CalendarPage: React.FC = () => {
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const google = params.get('google');
-        if (google === 'connected') {
-            setGoogleSnackbar({ open: true, message: 'Google カレンダーと連携しました。タスクページで「Googleに表示」をONにすると、タスクが個人のカレンダーに追加されます。', severity: 'success' });
-            navigate(location.pathname, { replace: true });
-        } else if (google === 'error') {
-            setGoogleSnackbar({ open: true, message: 'Google カレンダーとの連携に失敗しました。', severity: 'error' });
-            navigate(location.pathname, { replace: true });
+        if (google === 'connected' || google === 'error') {
+            if (google === 'connected') {
+                setGoogleSnackbar({ open: true, message: 'Google カレンダーと連携しました。タスクページで「Googleに表示」をONにすると、タスクが個人のカレンダーに追加されます。', severity: 'success' });
+            } else {
+                const reason = params.get('reason');
+                let errorMessage = 'Google カレンダーとの連携に失敗しました。';
+                if (reason) {
+                    const reasonMessages: Record<string, string> = {
+                        'missing_params': '認証パラメータが不足しています。',
+                        'invalid_state': '認証状態が無効です。再度お試しください。',
+                        'token_exchange_failed': 'トークンの交換に失敗しました。',
+                        'token_exchange_exception': 'トークンの交換中にエラーが発生しました。',
+                        'save_failed': 'トークンの保存に失敗しました。',
+                    };
+                    errorMessage += ` ${reasonMessages[reason] || `理由: ${reason}`}`;
+                }
+                setGoogleSnackbar({ open: true, message: errorMessage, severity: 'error' });
+            }
+            // クエリパラメータを削除してクリーンなURLにリダイレクト
+            navigate('/calendar', { replace: true });
         }
-    }, [location.search, location.pathname, navigate]);
+    }, [location.search, navigate]);
 
     // ★★★ パネルのミニマイズ状態が変わったらカレンダーをリサイズ ★★★
     useEffect(() => {
@@ -2029,20 +2043,25 @@ const CalendarPage: React.FC = () => {
                     flexShrink: 0,
                 }}
             >
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={() => handleOpenAddModal()}
-                    sx={{
-                        textTransform: 'none',
-                        fontWeight: 600,
-                        borderRadius: 2,
-                        boxShadow: 0,
-                        '&:hover': { boxShadow: 1 },
-                    }}
-                >
-                    作成
-                </Button>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => handleOpenAddModal()}
+                        sx={{
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            boxShadow: 0,
+                            '&:hover': { boxShadow: 1 },
+                        }}
+                    >
+                        作成
+                    </Button>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                        予定はドラッグ&ドロップで移動できます
+                    </Typography>
+                </Box>
             </Box>
 
             {/* メイン: カレンダー + 右パネル */}

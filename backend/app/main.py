@@ -357,11 +357,17 @@ async def google_calendar_authorize(
 ):
     """Google 認証ページの URL を返す。フロントはこの URL に window.location で遷移させる（JWT は送れないためリダイレクトは API 側で行わない）"""
     if not google_cal.is_google_configured():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Google 連携が設定されていません")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google 連携が設定されていません。バックエンドの環境変数 GOOGLE_CLIENT_ID と GOOGLE_CLIENT_SECRET を設定してください。"
+        )
     state = _google_state_sign(current_user.id)
     url = google_cal.get_authorize_url(state=state)
     if not url:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="認証URLを生成できません")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="認証URLを生成できません。GOOGLE_CLIENT_ID または GOOGLE_REDIRECT_URI が正しく設定されているか確認してください。"
+        )
     return {"url": url}
 
 
@@ -369,28 +375,55 @@ async def google_calendar_authorize(
 async def google_calendar_callback(
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """OAuth コールバック。コードをトークンに交換し、ユーザーに紐付けて保存。その後フロントへリダイレクト。"""
+    frontend_base = os.getenv("FRONTEND_URL", "http://localhost:5175")
+    
+    # Google OAuth エラーがある場合
+    if error:
+        logger.error(f"Google OAuth error: {error}")
+        return RedirectResponse(url=f"{frontend_base}/calendar?google=error&reason={error}")
+    
+    # code と state がない場合
     if not code or not state:
-        return RedirectResponse(url="/calendar?google=error")
+        logger.error("Google callback missing code or state")
+        return RedirectResponse(url=f"{frontend_base}/calendar?google=error&reason=missing_params")
+    
+    # state の検証
     user_id = _google_state_verify(state)
     if user_id is None:
-        return RedirectResponse(url="/calendar?google=error")
-    tokens = google_cal.exchange_code_for_tokens(code)
-    if not tokens:
-        return RedirectResponse(url="/calendar?google=error")
-    access_token = tokens.get("access_token")
-    refresh_token = tokens.get("refresh_token")
-    expires_in = tokens.get("expires_in")
-    expires_at = None
-    if expires_in is not None:
-        expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
-    crud.upsert_user_google_token(
-        db, user_id=user_id, access_token=access_token, refresh_token=refresh_token, expires_at=expires_at
-    )
-    # フロントのカレンダーまたはタスクページへ（クエリで成功を伝える）
-    frontend_base = os.getenv("FRONTEND_URL", "http://localhost:5175")
+        logger.error("Google callback invalid state")
+        return RedirectResponse(url=f"{frontend_base}/calendar?google=error&reason=invalid_state")
+    
+    # トークン交換
+    try:
+        tokens = google_cal.exchange_code_for_tokens(code)
+        if not tokens:
+            logger.error("Google token exchange failed")
+            return RedirectResponse(url=f"{frontend_base}/calendar?google=error&reason=token_exchange_failed")
+    except Exception as e:
+        logger.exception(f"Google token exchange exception: {e}")
+        return RedirectResponse(url=f"{frontend_base}/calendar?google=error&reason=token_exchange_exception")
+    
+    # トークンの保存
+    try:
+        access_token = tokens.get("access_token")
+        refresh_token = tokens.get("refresh_token")
+        expires_in = tokens.get("expires_in")
+        expires_at = None
+        if expires_in is not None:
+            expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
+        crud.upsert_user_google_token(
+            db, user_id=user_id, access_token=access_token, refresh_token=refresh_token, expires_at=expires_at
+        )
+        logger.info(f"Google token saved for user {user_id}")
+    except Exception as e:
+        logger.exception(f"Failed to save Google token: {e}")
+        return RedirectResponse(url=f"{frontend_base}/calendar?google=error&reason=save_failed")
+    
+    # フロントのカレンダーページへ（クエリで成功を伝える）
     return RedirectResponse(url=f"{frontend_base}/calendar?google=connected")
 
 

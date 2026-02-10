@@ -4,7 +4,6 @@ import {
   Paper,
   Typography,
   Button,
-  Divider,
   Alert,
   CircularProgress,
   TextField,
@@ -33,10 +32,10 @@ import {
   Backup as BackupIcon,
 } from '@mui/icons-material';
 import api, { exportMockData, importMockData } from '../services/api'; // API関数をインポート
+import axios from 'axios';
 import { MockDataImport } from '../types'; // 型をインポート
 import CsvParser from './CsvParser';
 import { transformImportData } from '../utils/transformImportData';
-import { usePageState } from '../contexts/PageStateContext';
 
 const MockDataConsole: React.FC = () => {
   // 状態管理
@@ -50,9 +49,6 @@ const MockDataConsole: React.FC = () => {
 
   // ファイル入力用のref
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // グローバルデータ更新用
-  const { refreshGlobalData } = usePageState();
 
   // メッセージを一定時間後に消すヘルパー
   const showTemporaryMessage = (
@@ -189,73 +185,6 @@ const MockDataConsole: React.FC = () => {
     reader.readAsText(file);
   };
 
-  const handleCsvDataParsed = async (parsedData: any) => {
-    try {
-      setIsLoading(true);
-      setErrorMessage(null);
-      setSuccessMessage(null);
-      setImportSummary(null);
-      setImportErrors([]);
-
-      // プロジェクトデータを整形
-      const projects = parsedData.projects.map((project: any) => ({
-        name: project.name,
-        description: project.description,
-        status: project.status || 'in-progress',
-        startDate: project.startDate,
-        endDate: project.endDate
-      }));
-
-      // タスクデータを整形
-      const tasks = parsedData.tasks.map((task: any) => ({
-        title: task.title,
-        description: task.description,
-        projectId: task.project_name,
-        assigneeEmail: task.assigneeName ? `${task.assigneeName}@example.com` : undefined,
-        taskDueDate: task.due_date,
-        taskStatus: task.status,
-        taskCost: task.cost,
-        dependsOn: task.dependent_tasks ? task.dependent_tasks.split(',').map((s: string) => s.trim()).filter(Boolean) : []
-      }));
-
-      // インポートデータを作成
-      const importData = {
-        users: parsedData.users,
-        projects,
-        tasks,
-        events: [],
-        append_mode: true // 追加モードを明示的に指定
-      };
-
-      const response = await importMockData(importData);
-      
-      // レスポンスのフォールバック処理を追加
-      const summary = response?.summary || {
-        users: response?.users_added_count || 0,
-        projects: response?.projects_added_count || 0,
-        tasks: response?.tasks_added_count || 0,
-        events: response?.events_added_count || 0,
-        groups: response?.groups_added_count || 0,
-        user_groups: response?.user_groups_added_count || 0
-      };
-      
-      setImportSummary(summary);
-      setImportErrors(response?.errors || []);
-      
-      if (response?.errors && response.errors.length > 0) {
-        showTemporaryMessage(setErrorMessage, `インポート中に${response.errors.length}件のエラーが発生しました。詳細はリストを確認してください。`, 10000);
-      } else {
-        showTemporaryMessage(setSuccessMessage, 'データのインポートが完了しました。');
-        // グローバルデータを更新
-        await refreshGlobalData();
-      }
-    } catch (error: any) {
-      console.error('Import processing error:', error);
-      showTemporaryMessage(setErrorMessage, `データのインポート処理に失敗しました: ${error.message}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // アイコンを返すヘルパー
   const getIconForDataType = (type: string) => {
@@ -271,49 +200,50 @@ const MockDataConsole: React.FC = () => {
   }
 
   return (
-    <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', gap: 3, overflow: 'auto' }}>
       {/* タイトル */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <StorageIcon sx={{ mr: 1 }} color="primary" />
-        <Typography variant="h5" component="h1">
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <StorageIcon sx={{ mr: 1.5, fontSize: '2rem' }} color="primary" />
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
           データ管理コンソール
         </Typography>
       </Box>
 
-      <Divider sx={{ mb: 3 }} />
-
-      {/* CSVパーサー */}
-      <CsvParser onDataParsed={handleCsvDataParsed} />
-
       {/* 通知メッセージ */}
       {successMessage && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage(null)}>
+        <Alert severity="success" onClose={() => setSuccessMessage(null)}>
           {successMessage}
         </Alert>
       )}
       {errorMessage && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setErrorMessage(null)}>
+        <Alert severity="error" onClose={() => setErrorMessage(null)}>
           {errorMessage}
         </Alert>
       )}
 
       {/* ローディングインジケーター */}
       {isLoading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', my: 2 }}>
-          <CircularProgress size={24} sx={{ mr: 1 }} />
-          <Typography>処理中...</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 3 }}>
+          <CircularProgress size={32} sx={{ mr: 2 }} />
+          <Typography variant="body1">処理中...</Typography>
         </Box>
       )}
 
-      {/* 操作パネル */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          バックアップ
+      {/* CSVパーサー */}
+      <CsvParser />
+
+      {/* バックアップセクション */}
+      <Paper sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <BackupIcon sx={{ mr: 1.5, color: 'primary.main' }} />
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            バックアップ
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
+          データベースのバックアップをダウンロードします。JSON形式またはデータベースファイル（.db）形式を選択できます。
         </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
-          現在のデータベースをJSONファイルとしてダウンロードします（プロジェクト・タスク・イベント・ユーザー・グループ）。
-        </Typography>
-        <Stack direction="row" spacing={2}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ ml: 4.5 }}>
           <Button
             variant="contained"
             startIcon={<BackupIcon />}
@@ -330,7 +260,7 @@ const MockDataConsole: React.FC = () => {
                 a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
-                showTemporaryMessage(setSuccessMessage, 'バックアップをダウンロードしました');
+                showTemporaryMessage(setSuccessMessage, 'JSONバックアップをダウンロードしました');
               } catch (err: any) {
                 showTemporaryMessage(setErrorMessage, `バックアップの取得に失敗しました: ${err?.response?.data?.detail || err?.message || '不明なエラー'}`);
               } finally {
@@ -338,90 +268,174 @@ const MockDataConsole: React.FC = () => {
               }
             }}
             disabled={isLoading}
+            sx={{ minWidth: 200 }}
           >
-            バックアップをダウンロード
+            JSONバックアップをダウンロード
+          </Button>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={<BackupIcon />}
+            onClick={async () => {
+              setIsLoading(true);
+              setErrorMessage(null);
+              setSuccessMessage(null);
+              try {
+                // タイムアウトを延長したaxiosインスタンスを作成
+                const token = localStorage.getItem('token');
+                const backupApi = axios.create({
+                  baseURL: '/api',
+                  timeout: 120000, // 2分に延長
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                  },
+                  withCredentials: true,
+                });
+                
+                const response = await backupApi.get('/admin/backup-db', {
+                  responseType: 'blob',
+                });
+                const blob = new Blob([response.data], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+                a.download = `project_management_backup_${timestamp}.db`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showTemporaryMessage(setSuccessMessage, 'データベースファイル（.db）をダウンロードしました');
+              } catch (err: any) {
+                showTemporaryMessage(setErrorMessage, `データベースファイルの取得に失敗しました: ${err?.response?.data?.detail || err?.message || '不明なエラー'}`);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            disabled={isLoading}
+            sx={{ minWidth: 200 }}
+          >
+            データベースファイル（.db）をダウンロード
           </Button>
         </Stack>
-      </Box>
+      </Paper>
 
-      <Divider sx={{ my: 3 }} />
-
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          データのエクスポート
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
+      {/* データのエクスポートセクション */}
+      <Paper sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <FileDownloadIcon sx={{ mr: 1.5, color: 'primary.main' }} />
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            データのエクスポート
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
           現在のデータベース内の全データ（ユーザー、プロジェクト、タスク、イベント等）をJSONファイルとしてエクスポートします。
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<FileDownloadIcon />}
-          onClick={handleExport}
-          disabled={isLoading}
-        >
-          全データをエクスポート
-        </Button>
-      </Box>
+        <Box sx={{ ml: 4.5 }}>
+          <Button
+            variant="contained"
+            startIcon={<FileDownloadIcon />}
+            onClick={handleExport}
+            disabled={isLoading}
+            sx={{ minWidth: 200 }}
+          >
+            全データをエクスポート
+          </Button>
+        </Box>
+      </Paper>
 
-      <Divider sx={{ my: 3 }} />
-
-      <Box>
-        <Typography variant="h6" gutterBottom>
-          データのインポート
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
+      {/* データのインポートセクション */}
+      <Paper sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <FileUploadIcon sx={{ mr: 1.5, color: 'primary.main' }} />
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            データのインポート
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
           エクスポートされた形式のJSONファイルを選択して、データをデータベースに追加します。既存のデータと重複する場合（例：同じメールアドレスのユーザー）はスキップされます。
         </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<FileUploadIcon />}
-          onClick={handleOpenImportDialog}
-          disabled={isLoading}
-        >
-          ファイルを選択してインポート
-        </Button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept=".json"
-          style={{ display: 'none' }}
-        />
-      </Box>
+        <Box sx={{ ml: 4.5 }}>
+          <Button
+            variant="outlined"
+            startIcon={<FileUploadIcon />}
+            onClick={handleOpenImportDialog}
+            disabled={isLoading}
+            sx={{ minWidth: 200 }}
+          >
+            ファイルを選択してインポート
+          </Button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".json"
+            style={{ display: 'none' }}
+          />
+        </Box>
+      </Paper>
 
-       {/* インポート結果表示 */}
-        {importSummary && !isLoading && (
-            <Box sx={{ mt: 4 }}>
-                <Typography variant="h6" gutterBottom>インポート結果</Typography>
-                <List dense>
-                    {Object.entries(importSummary).map(([key, value]) => (
-                        typeof value === 'number' && // サマリの数値のみ表示
-                        <ListItem key={key}>
-                            <ListItemIcon sx={{minWidth: '40px'}}>
-                                {getIconForDataType(key)}
-                            </ListItemIcon>
-                            <ListItemText primary={`${key.charAt(0).toUpperCase() + key.slice(1)}: ${value} 件`} />
-                        </ListItem>
-                    ))}
-                </List>
-            </Box>
-        )}
+      {/* インポート結果表示 */}
+      {importSummary && !isLoading && (
+        <Paper sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <SuccessIcon sx={{ mr: 1.5, color: 'success.main' }} />
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              インポート結果
+            </Typography>
+          </Box>
+          <List dense sx={{ ml: 4.5 }}>
+            {Object.entries(importSummary).map(([key, value]) => (
+              typeof value === 'number' && // サマリの数値のみ表示
+              <ListItem key={key} sx={{ pl: 0 }}>
+                <ListItemIcon sx={{ minWidth: '40px' }}>
+                  {getIconForDataType(key)}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={`${key.charAt(0).toUpperCase() + key.slice(1)}: ${value} 件`}
+                  primaryTypographyProps={{ variant: 'body1' }}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Paper>
+      )}
 
-        {importErrors.length > 0 && !isLoading && (
-            <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle1" color="error" gutterBottom>インポートエラー詳細 ({importErrors.length}件)</Typography>
-                <List dense sx={{ maxHeight: 200, overflow: 'auto', border: '1px solid #ccc', borderRadius: '4px', p:1, backgroundColor: '#f9f9f9' }}>
-                    {importErrors.map((errorMsg, index) => (
-                        <ListItem key={index}>
-                            <ListItemIcon sx={{minWidth: '30px', color: 'error.main'}}>
-                                <ErrorIcon fontSize="small" />
-                            </ListItemIcon>
-                            <ListItemText primary={errorMsg} primaryTypographyProps={{ variant: 'body2', color: 'text.secondary' }}/>
-                        </ListItem>
-                    ))}
-                </List>
-            </Box>
-        )}
+      {/* インポートエラー表示 */}
+      {importErrors.length > 0 && !isLoading && (
+        <Paper sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <ErrorIcon sx={{ mr: 1.5, color: 'error.main' }} />
+            <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+              インポートエラー詳細 ({importErrors.length}件)
+            </Typography>
+          </Box>
+          <List 
+            dense 
+            sx={{ 
+              ml: 4.5,
+              maxHeight: 300, 
+              overflow: 'auto', 
+              border: '1px solid', 
+              borderColor: 'error.light',
+              borderRadius: 1, 
+              p: 1, 
+              backgroundColor: 'rgba(211, 47, 47, 0.08)' 
+            }}
+          >
+            {importErrors.map((errorMsg, index) => (
+              <ListItem key={index} sx={{ pl: 1 }}>
+                <ListItemIcon sx={{ minWidth: '30px', color: 'error.main' }}>
+                  <ErrorIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText 
+                  primary={errorMsg} 
+                  primaryTypographyProps={{ variant: 'body2', color: 'text.primary' }}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Paper>
+      )}
 
 
       {/* エクスポートデータ表示ダイアログ */}
@@ -452,7 +466,7 @@ const MockDataConsole: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Paper>
+    </Box>
   );
 };
 

@@ -116,3 +116,62 @@ button:focus-visible {
 .gantt-container .arrows path {
   stroke-width: 2;
 }
+
+/* ==== ダークテーマ用の調整 ==== */
+
+body[data-theme='dark'] {
+  background-color: #121212;
+}
+
+/* FullCalendar の背景・ボーダーをダーク化 */
+body[data-theme='dark'] .fc,
+body[data-theme='dark'] .fc .fc-scrollgrid {
+  background-color: #121212;
+}
+
+body[data-theme='dark'] .fc-theme-standard td,
+body[data-theme='dark'] .fc-theme-standard th {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+body[data-theme='dark'] .fc-daygrid-day,
+body[data-theme='dark'] .fc-timegrid-slot {
+  background-color: #1e1e1e;
+}
+
+body[data-theme='dark'] .fc-day-today {
+  background-color: rgba(25, 118, 210, 0.2) !important;
+}
+
+/* FullCalendar ヘッダー */
+body[data-theme='dark'] .fc-toolbar-title,
+body[data-theme='dark'] .fc-col-header-cell-cushion,
+body[data-theme='dark'] .fc-daygrid-day-number {
+  color: #ffffff;
+}
+
+/* ダークモード時のカレンダー日付（平日・週末の色分け） */
+body[data-theme='dark'] .fc-daygrid-day-number,
+body[data-theme='dark'] a.fc-daygrid-day-number {
+  color: #ffffff !important; /* 平日は白 */
+}
+
+body[data-theme='dark'] .fc-day-sat .fc-daygrid-day-number,
+body[data-theme='dark'] .fc-day-sun .fc-daygrid-day-number,
+body[data-theme='dark'] .fc-day-sat a.fc-daygrid-day-number,
+body[data-theme='dark'] .fc-day-sun a.fc-daygrid-day-number {
+  color: rgba(255, 255, 255, 0.7) !important; /* 土日は少しトーンを落とす */
+}
+
+/* ガントチャート全体の背景 */
+body[data-theme='dark'] .gantt-container {
+  background-color: #121212;
+}
+
+body[data-theme='dark'] .gantt .grid-row.project-summary-task .grid-row-cell {
+  background-color: #1e1e1e;
+}
+
+body[data-theme='dark'] .gantt .grid-row.project-summary-task {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}

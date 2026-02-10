@@ -208,9 +208,24 @@ const Dashboard: React.FC = () => {
     return eventList
   }, [globalData?.projects, todayStr, backendEvents])
 
-  // 今週の締切（期日が今週で未完了のタスク）
+  // 今週の締切（期日が今週で未完了のタスク）※プロジェクト名・担当者名も付与
   const weekDeadlineTasks = useMemo(() => {
     const tasks = globalData?.tasks ?? []
+    const projects = globalData?.projects ?? []
+    const users = globalData?.users ?? []
+
+    const getProjectName = (projectId: number | null | undefined): string => {
+      if (projectId == null) return '（プロジェクトなし）'
+      const p = projects.find((x: any) => x.id === projectId)
+      return p?.name ?? `ID:${projectId}`
+    }
+
+    const getAssigneeName = (userId: number | null | undefined): string => {
+      if (userId == null) return ''
+      const u = users.find((x: any) => x.id === userId)
+      return u?.username || u?.full_name || u?.name || u?.email || `User ${userId}`
+    }
+
     const now = new Date()
     const startOfWeek = new Date(now)
     startOfWeek.setDate(now.getDate() - now.getDay() + 1)
@@ -226,8 +241,13 @@ const Dashboard: React.FC = () => {
         return due >= startOfWeek && due <= endOfWeek
       })
       .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+      .map((t: any) => ({
+        ...t,
+        projectName: getProjectName(t.project_id ?? null),
+        assigneeName: getAssigneeName(t.assigned_to ?? null),
+      }))
       .slice(0, 10)
-  }, [globalData?.tasks])
+  }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
   // 遅延タスク（期日が過去で未完了、または status が delayed）
   const delayedTasks = useMemo(() => {
@@ -738,7 +758,6 @@ const Dashboard: React.FC = () => {
     let aiStarted = false
     let streamEnded = false
     let accumulatedContent = '' // 累積されたコンテンツを追跡
-    let latestMessageId: string | null = null // 最新のmessage_idを直接保存
 
     eventSource.addEventListener('message', (event) => {
       try {
@@ -774,7 +793,6 @@ const Dashboard: React.FC = () => {
          if (foundMessageId) {
            setCurrentMessageId(foundMessageId)
            messageIdRef.current = foundMessageId // refにも保存
-           latestMessageId = foundMessageId // 直接変数にも保存
          }
          
         if (data.conversation_id && !conversationId) {
@@ -845,27 +863,19 @@ const Dashboard: React.FC = () => {
     eventSource.addEventListener('message_end', (event) => {
       streamEnded = true
       
-      // message_endイベントでもmessage_idを確認
-      let messageIdFromEnd = null
       try {
         const data = JSON.parse(event.data)
         
          // 複数の場所でmessage_idを探す
          if (data.message_id) {
-           messageIdFromEnd = data.message_id
            setCurrentMessageId(data.message_id)
            messageIdRef.current = data.message_id // refにも保存
-           latestMessageId = data.message_id // 直接変数にも保存
          } else if (data.data && data.data.message_id) {
-           messageIdFromEnd = data.data.message_id
            setCurrentMessageId(data.data.message_id)
            messageIdRef.current = data.data.message_id // refにも保存
-           latestMessageId = data.data.message_id // 直接変数にも保存
          } else if (data.data && data.data.outputs && data.data.outputs.answer && data.data.outputs.answer.message_id) {
-           messageIdFromEnd = data.data.outputs.answer.message_id
            setCurrentMessageId(data.data.outputs.answer.message_id)
            messageIdRef.current = data.data.outputs.answer.message_id // refにも保存
-           latestMessageId = data.data.outputs.answer.message_id // 直接変数にも保存
          }
       } catch (error) {
         // Error parsing message_end data - silently handle
@@ -1218,9 +1228,46 @@ const Dashboard: React.FC = () => {
                   </Box>
                 ) : (
                   weekDeadlineTasks.map((t: any) => (
-                    <Box key={t.id} sx={{ py: 1, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'warning.main', '&:last-of-type': { mb: 0 } }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }} noWrap>{t.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}</Typography>
+                    <Box
+                      key={t.id}
+                      sx={{
+                        py: 1,
+                        px: 1.25,
+                        mb: 1,
+                        borderRadius: 1.5,
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderLeft: '4px solid',
+                        borderLeftColor: 'warning.main',
+                        '&:last-of-type': { mb: 0 },
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: 'text.primary' }}
+                        noWrap
+                        title={t.name}
+                      >
+                        {t.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                          {t.projectName}
+                        </Typography>
+                      </Box>
+                      {t.assigneeName && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            {t.assigneeName}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
                   ))
                 )}

@@ -18,6 +18,7 @@ import {
   Chip,
   Tooltip,
   Grid,
+  Checkbox,
 } from '@mui/material'
 import {
   Assignment as AssignmentIcon,
@@ -103,6 +104,7 @@ const ChatPage: React.FC = () => {
     connected: false,
     synced_task_ids: [],
   })
+  const [googleSyncingTaskId, setGoogleSyncingTaskId] = useState<number | null>(null)
 
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
 
@@ -144,6 +146,20 @@ const ChatPage: React.FC = () => {
       alert(`Google連携エラー: ${errorMessage}`)
     }
   }, [])
+
+  const handleGoogleSyncToggle = React.useCallback(async (taskId: number, currentSynced: boolean) => {
+    setGoogleSyncingTaskId(taskId)
+    try {
+      await api.post(`/google/sync/task/${taskId}`, { sync: !currentSynced })
+      await fetchGoogleStatus()
+      // 成功メッセージは表示しない（UIでチェック状態が変わるので）
+    } catch (err: any) {
+      console.error('Google sync toggle error:', err)
+      alert(`Googleカレンダーへの追加に失敗しました: ${err?.response?.data?.detail || err?.message || '不明なエラー'}`)
+    } finally {
+      setGoogleSyncingTaskId(null)
+    }
+  }, [fetchGoogleStatus])
 
   const scrollToBottom = () => {
     if (listEndRef.current) listEndRef.current.scrollIntoView({ behavior: 'smooth' })
@@ -658,7 +674,7 @@ const ChatPage: React.FC = () => {
             {googleStatus.configured && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                 {!googleStatus.connected ? (
-                  <Tooltip title="連携後、チャットでタスクをGoogleカレンダーに追加できます">
+                  <Tooltip title="連携後、タスクページで各タスクの「Google」列のチェックで、Googleカレンダーに表示できます">
                     <Button
                       size="small"
                       variant="contained"
@@ -670,7 +686,7 @@ const ChatPage: React.FC = () => {
                     </Button>
                   </Tooltip>
                 ) : (
-                  <Tooltip title="Googleカレンダーと連携済みです">
+                  <Tooltip title="下の「あなたのタスク」で各タスクのチェックボックスから、Googleカレンダーに表示できます">
                     <Chip
                       size="small"
                       label="Google 連携済み"
@@ -1012,23 +1028,40 @@ const ChatPage: React.FC = () => {
                     <WarningIcon fontSize="medium" /> 遅れている
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.delayed.map((t) => (
-                      <Tooltip key={t.id} title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
-                        <Chip 
-                          label={t.name} 
-                          sx={{ 
-                            bgcolor: '#FFEBEE', 
-                            color: '#C62828', 
-                            fontSize: '0.95rem',
-                            height: 36,
-                            padding: '0 12px',
-                            '& .MuiChip-label': {
-                              padding: '0 8px',
-                            }
-                          }} 
-                        />
-                      </Tooltip>
-                    ))}
+                    {tasksByCategory.delayed.map((t) => {
+                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                      const loading = googleSyncingTaskId === t.id
+                      return (
+                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
+                            <Chip 
+                              label={t.name} 
+                              sx={{ 
+                                bgcolor: '#FFEBEE', 
+                                color: '#C62828', 
+                                fontSize: '0.95rem',
+                                height: 36,
+                                padding: '0 12px',
+                                '& .MuiChip-label': {
+                                  padding: '0 8px',
+                                }
+                              }} 
+                            />
+                          </Tooltip>
+                          {googleStatus.connected && (
+                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                              <Checkbox
+                                size="small"
+                                checked={synced}
+                                disabled={loading}
+                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                sx={{ p: 0.5 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      )
+                    })}
                   </Box>
                 </Box>
               </Grid>
@@ -1040,23 +1073,40 @@ const ChatPage: React.FC = () => {
                     <TodayIcon fontSize="medium" /> 今日中
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.today.map((t) => (
-                      <Tooltip key={t.id} title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
-                        <Chip 
-                          label={t.name} 
-                          sx={{ 
-                            bgcolor: '#E3F2FD', 
-                            color: '#1565C0', 
-                            fontSize: '0.95rem',
-                            height: 36,
-                            padding: '0 12px',
-                            '& .MuiChip-label': {
-                              padding: '0 8px',
-                            }
-                          }} 
-                        />
-                      </Tooltip>
-                    ))}
+                    {tasksByCategory.today.map((t) => {
+                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                      const loading = googleSyncingTaskId === t.id
+                      return (
+                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
+                            <Chip 
+                              label={t.name} 
+                              sx={{ 
+                                bgcolor: '#E3F2FD', 
+                                color: '#1565C0', 
+                                fontSize: '0.95rem',
+                                height: 36,
+                                padding: '0 12px',
+                                '& .MuiChip-label': {
+                                  padding: '0 8px',
+                                }
+                              }} 
+                            />
+                          </Tooltip>
+                          {googleStatus.connected && (
+                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                              <Checkbox
+                                size="small"
+                                checked={synced}
+                                disabled={loading}
+                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                sx={{ p: 0.5 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      )
+                    })}
                   </Box>
                 </Box>
               </Grid>
@@ -1068,23 +1118,40 @@ const ChatPage: React.FC = () => {
                     <ScheduleIcon fontSize="medium" /> 期限が近い
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.dueSoon.map((t) => (
-                      <Tooltip key={t.id} title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
-                        <Chip 
-                          label={t.name} 
-                          sx={{ 
-                            bgcolor: '#FFF3E0', 
-                            color: '#E65100', 
-                            fontSize: '0.95rem',
-                            height: 36,
-                            padding: '0 12px',
-                            '& .MuiChip-label': {
-                              padding: '0 8px',
-                            }
-                          }} 
-                        />
-                      </Tooltip>
-                    ))}
+                    {tasksByCategory.dueSoon.map((t) => {
+                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                      const loading = googleSyncingTaskId === t.id
+                      return (
+                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
+                            <Chip 
+                              label={t.name} 
+                              sx={{ 
+                                bgcolor: '#FFF3E0', 
+                                color: '#E65100', 
+                                fontSize: '0.95rem',
+                                height: 36,
+                                padding: '0 12px',
+                                '& .MuiChip-label': {
+                                  padding: '0 8px',
+                                }
+                              }} 
+                            />
+                          </Tooltip>
+                          {googleStatus.connected && (
+                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                              <Checkbox
+                                size="small"
+                                checked={synced}
+                                disabled={loading}
+                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                sx={{ p: 0.5 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      )
+                    })}
                   </Box>
                 </Box>
               </Grid>
@@ -1094,22 +1161,39 @@ const ChatPage: React.FC = () => {
                 <Box sx={{ height: '100%' }}>
                   <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 'bold', mb: 1.5, display: 'block', fontSize: '1.1rem' }}>余裕をもって進める</Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.other.map((t) => (
-                      <Tooltip key={t.id} title={`📁 ${projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''}`}>
-                        <Chip 
-                          label={t.name} 
-                          variant="outlined" 
-                          sx={{ 
-                            fontSize: '0.95rem',
-                            height: 36,
-                            padding: '0 12px',
-                            '& .MuiChip-label': {
-                              padding: '0 8px',
-                            }
-                          }} 
-                        />
-                      </Tooltip>
-                    ))}
+                    {tasksByCategory.other.map((t) => {
+                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                      const loading = googleSyncingTaskId === t.id
+                      return (
+                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''}`}>
+                            <Chip 
+                              label={t.name} 
+                              variant="outlined" 
+                              sx={{ 
+                                fontSize: '0.95rem',
+                                height: 36,
+                                padding: '0 12px',
+                                '& .MuiChip-label': {
+                                  padding: '0 8px',
+                                }
+                              }} 
+                            />
+                          </Tooltip>
+                          {googleStatus.connected && (
+                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                              <Checkbox
+                                size="small"
+                                checked={synced}
+                                disabled={loading}
+                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                sx={{ p: 0.5 }}
+                              />
+                            </Tooltip>
+                          )}
+                        </Box>
+                      )
+                    })}
                   </Box>
                 </Box>
               </Grid>

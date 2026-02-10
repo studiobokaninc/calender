@@ -27,7 +27,8 @@ import {
   Alert,
   Popover,
   Chip,
-  Snackbar
+  Snackbar,
+  useTheme,
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Task, Project, User } from '../types'; // ★★★ パス修正 ../../types -> ../types ★★★
@@ -1044,7 +1045,15 @@ const CustomTooltipContent: React.FC<{
   const assigneeLabel = (task.assignee && task.assignee !== 'Unassigned') ? task.assignee : '担当者なし';
   const style = { fontSize, fontFamily };
   return (
-    <div style={{ ...style, padding: 12, background: '#fff', boxShadow: '0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23)' }}>
+    <div
+      style={{
+        ...style,
+        padding: 12,
+        background: 'rgba(33, 33, 33, 0.96)',
+        color: '#fff',
+        boxShadow: '0 3px 6px rgba(0,0,0,0.4), 0 3px 6px rgba(0,0,0,0.6)',
+      }}
+    >
       <b style={{ fontSize: '14px' }}>
         {task.name}: {formatDate(task.start, 'yyyy/MM/dd')} - {formatDate(task.end, 'yyyy/MM/dd')}
       </b>
@@ -1059,6 +1068,8 @@ const GanttView: React.FC<GanttViewProps> = memo(
   ({ tasks: initialTasks, initialViewMode = ViewMode.Week, onTaskSelect, handleOpenCreateTask, readOnly = false, projects, users }) => {
 
     // ================= HOOKS =================
+    const theme = useTheme();
+    const isDarkMode = theme.palette.mode === 'dark';
     const [colWidths, setColWidths] = useState({
       project: 25,
       name: 35,
@@ -2725,7 +2736,17 @@ const GanttView: React.FC<GanttViewProps> = memo(
           {fetchError && <Alert severity="error" sx={{ mb: 1 }}>{fetchError}</Alert>}
           {error && <Alert severity="warning" sx={{ mb: 1 }}>{error}</Alert>} {/* ★★★ 保存エラー表示を追加 ★★★ */}
 
-          <GanttWrapper style={{ flexGrow: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', width: '100%' }}>
+          <GanttWrapper
+            style={{
+              flexGrow: 1,
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              width: '100%',
+              backgroundColor: isDarkMode ? '#121212' : undefined,
+            }}
+          >
             <div
             id="gantt-container"
             className="gantt-container"

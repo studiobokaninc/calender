@@ -1035,7 +1035,10 @@ const NotesPage: React.FC = () => {
             position: 'relative',
             overflow: 'auto',
             p: 3,
-            backgroundColor: '#ffffff',
+            backgroundColor: (theme) =>
+              theme.palette.mode === 'dark'
+                ? theme.palette.background.default
+                : '#ffffff',
             minHeight: `${minHeight}px`,
             cursor: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'grabbing' : 'text',
             userSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
@@ -1088,24 +1091,29 @@ const NotesPage: React.FC = () => {
                     handleTextBoxDragEnd();
                   }
                 }}
-                sx={{
+                sx={(theme) => ({
                   position: 'absolute',
                   left: `${textBox.x}px`,
                   top: `${textBox.y}px`,
                   width: `${textBox.width}px`,
                   minHeight: `${textBox.height}px`,
-                  border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
+                  border: isSelected
+                    ? `3px solid ${theme.palette.primary.main}`
+                    : `2px solid ${theme.palette.divider}`,
                   borderRadius: 1,
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  backgroundColor:
+                    theme.palette.mode === 'dark'
+                      ? theme.palette.background.paper
+                      : 'rgba(255, 255, 255, 0.95)',
                   boxShadow: isSelected ? 4 : 2,
                   zIndex: 1,
                   cursor: isDragging ? 'grabbing' : (isSelected ? 'move' : 'text'),
                   transition: isDragging ? 'none' : 'box-shadow 0.2s',
                   '&:hover': {
                     boxShadow: 4,
-                    borderColor: isSelected ? '#1976d2' : '#bdbdbd',
+                    borderColor: isSelected ? theme.palette.primary.main : theme.palette.divider,
                   },
-                }}
+                })}
               >
                 {/* 削除ボタン（選択時のみ表示） */}
                 {isSelected && (
@@ -1120,7 +1128,7 @@ const NotesPage: React.FC = () => {
                       top: -12,
                       right: -12,
                       backgroundColor: 'error.main',
-                      color: 'white',
+                      color: 'common.white',
                       width: 24,
                       height: 24,
                       boxShadow: 2,
@@ -1201,13 +1209,15 @@ const NotesPage: React.FC = () => {
                   e.stopPropagation();
                   handleImageDragEnd();
                 }}
-                sx={{
+                sx={(theme) => ({
                   position: 'absolute',
                   left: `${image.x}px`,
                   top: `${image.y}px`,
                   width: `${image.width}px`,
                   height: `${image.height}px`,
-                  border: isSelected ? '3px solid #1976d2' : '2px solid #e0e0e0',
+                  border: isSelected
+                    ? `3px solid ${theme.palette.primary.main}`
+                    : `2px solid ${theme.palette.divider}`,
                   borderRadius: 1,
                   overflow: 'visible', // 削除ボタンとリサイズハンドルが見えるように
                   cursor: draggingImageIndex === index ? 'grabbing' : 'move',
@@ -1217,9 +1227,9 @@ const NotesPage: React.FC = () => {
                   transition: (draggingImageIndex === index || resizingImageIndex === index) ? 'none' : 'box-shadow 0.2s',
                   '&:hover': {
                     boxShadow: 4,
-                    borderColor: isSelected ? '#1976d2' : '#bdbdbd',
+                    borderColor: isSelected ? theme.palette.primary.main : theme.palette.divider,
                   },
-                }}
+                })}
               >
                 <Box
                   sx={{
@@ -1257,7 +1267,7 @@ const NotesPage: React.FC = () => {
                         top: -12,
                         right: -12,
                         backgroundColor: 'error.main',
-                        color: 'white',
+                        color: 'common.white',
                         width: 24,
                         height: 24,
                         boxShadow: 2,
@@ -1352,23 +1362,23 @@ const NotesPage: React.FC = () => {
                         document.addEventListener('mousemove', handleMouseMove, { passive: false });
                         document.addEventListener('mouseup', handleMouseUp, { capture: true, once: false });
                       }}
-                      sx={{
+                      sx={(theme) => ({
                         position: 'absolute',
                         bottom: -6,
                         right: -6,
                         width: 16,
                         height: 16,
-                        backgroundColor: '#1976d2',
-                        border: '2px solid white',
+                        backgroundColor: theme.palette.primary.main,
+                        border: `2px solid ${theme.palette.background.paper}`,
                         borderRadius: '50%',
                         cursor: 'nwse-resize',
                         boxShadow: 2,
                         zIndex: 10,
                         '&:hover': {
-                          backgroundColor: '#1565c0',
+                          backgroundColor: theme.palette.primary.dark,
                           transform: 'scale(1.2)',
                         },
-                      }}
+                      })}
                     />
                   </>
                 )}
@@ -1384,25 +1394,30 @@ const NotesPage: React.FC = () => {
               <Box
                 key={index}
                 data-pdf-box
-                sx={{
+                sx={(theme) => ({
                   position: 'absolute',
                   left: `${pdf.x}px`,
                   top: `${pdf.y}px`,
                   width: `${pdf.width}px`,
                   height: `${pdf.height}px`,
-                  border: isSelected ? '3px solid #d32f2f' : '2px solid #e0e0e0',
+                  border: isSelected
+                    ? `3px solid ${theme.palette.error.main}`
+                    : `2px solid ${theme.palette.divider}`,
                   borderRadius: 1,
                   overflow: 'hidden',
-                  backgroundColor: '#fff',
+                  backgroundColor:
+                    theme.palette.mode === 'dark'
+                      ? theme.palette.background.paper
+                      : '#fff',
                   boxShadow: isSelected ? 4 : 2,
                   zIndex: getZIndex(`pdf-${index}`, 2, isSelected),
                   display: 'flex',
                   flexDirection: 'column',
                   '&:hover': {
                     boxShadow: 4,
-                    borderColor: isSelected ? '#d32f2f' : '#bdbdbd',
+                    borderColor: isSelected ? theme.palette.error.main : theme.palette.divider,
                   },
-                }}
+                })}
               >
                 {/* ドラッグ用ヘッダー（ここをつかんで移動） */}
                 <Box
@@ -1415,17 +1430,20 @@ const NotesPage: React.FC = () => {
                     setSelectedTextBoxId(null);
                     bringToFront(`pdf-${index}`);
                   }}
-                  sx={{
+                  sx={(theme) => ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 0.5,
                     px: 1,
                     py: 0.5,
-                    backgroundColor: '#f5f5f5',
-                    borderBottom: '1px solid #e0e0e0',
+                    backgroundColor:
+                      theme.palette.mode === 'dark'
+                        ? theme.palette.background.default
+                        : '#f5f5f5',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
                     cursor: draggingPdfIndex === index ? 'grabbing' : 'move',
                     flexShrink: 0,
-                  }}
+                  })}
                 >
                   <PdfIcon sx={{ fontSize: 20, color: '#d32f2f' }} />
                   <Typography variant="caption" noWrap sx={{ flex: 1, fontWeight: 500 }}>
@@ -1450,9 +1468,9 @@ const NotesPage: React.FC = () => {
                         e.stopPropagation();
                         handleRemovePdf(index);
                       }}
-                      sx={{
-                        backgroundColor: 'error.main',
-                        color: 'white',
+                    sx={{
+                      backgroundColor: 'error.main',
+                      color: 'common.white',
                         width: 24,
                         height: 24,
                         p: 0,

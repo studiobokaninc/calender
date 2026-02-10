@@ -4,13 +4,14 @@ import {
   Divider, Button, IconButton, TextField, Dialog,
   DialogActions, DialogContent, DialogTitle, Select, MenuItem, FormControl,
   InputLabel, Tooltip, Stack, Snackbar, Alert, Card, CardContent, InputAdornment,
-  Chip
+  Chip, useTheme
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import GroupIcon from '@mui/icons-material/Group';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
@@ -278,13 +279,13 @@ const GroupManagementPage: React.FC = () => {
   const handleRemoveUser = async (userId: number) => {
     if (!selectedGroup) return;
     const name = userMap.get(userId) || `ID ${userId}`;
-    if (!window.confirm(`${name} をグループ「${selectedGroup.name}」から削除しますか？`)) return;
+    if (!window.confirm(`${name} をグループ「${selectedGroup.name}」から外しますか？`)) return;
     try {
       await api.delete(`/api/user_groups/${String(userId)}/${String(selectedGroup.id)}`);
       setSelectedGroupMembers(prev => prev.filter(ug => ug.user_id !== userId));
-      setSnackbar({ open: true, message: 'メンバーを削除しました', severity: 'success' });
+      setSnackbar({ open: true, message: 'メンバーをグループから外しました', severity: 'success' });
     } catch (err) {
-      setSnackbar({ open: true, message: '削除に失敗しました', severity: 'error' });
+      setSnackbar({ open: true, message: 'グループから外すのに失敗しました', severity: 'error' });
     }
   };
 
@@ -359,6 +360,9 @@ const GroupManagementPage: React.FC = () => {
     }
   };
 
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
+
   if (loading && groups.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 'calc(100vh - 120px)' }}>
@@ -377,7 +381,7 @@ const GroupManagementPage: React.FC = () => {
   }
 
   return (
-    <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
       {/* 左: グループ一覧 */}
       <Paper
         elevation={0}
@@ -483,7 +487,15 @@ const GroupManagementPage: React.FC = () => {
       </Paper>
 
       {/* 右: 選択グループの詳細 */}
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', bgcolor: 'grey.50' }}>
+      <Box
+        sx={{
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          bgcolor: isDarkMode ? 'background.default' : 'grey.50',
+        }}
+      >
         {selectedGroup ? (
           <Card sx={{ m: 2, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 2 }}>
             <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', pb: 2 }}>
@@ -583,13 +595,13 @@ const GroupManagementPage: React.FC = () => {
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {/* 説明 */}
-                  <Box sx={{ 
+                  <Box sx={(theme) => ({ 
                     p: 1.5, 
-                    bgcolor: 'grey.50', 
+                    bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.50', 
                     borderRadius: 1,
                     border: 1,
                     borderColor: 'divider',
-                  }}>
+                  })}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                         説明
@@ -607,13 +619,13 @@ const GroupManagementPage: React.FC = () => {
                   </Box>
                   
                   {/* 期間情報 */}
-                  <Box sx={{ 
+                  <Box sx={(theme) => ({ 
                     p: 1.5, 
-                    bgcolor: 'grey.100', 
+                    bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.100', 
                     borderRadius: 1,
                     border: 1,
-                    borderColor: 'grey.300',
-                  }}>
+                    borderColor: theme.palette.mode === 'dark' ? 'divider' : 'grey.300',
+                  })}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>
                         期間
@@ -661,16 +673,16 @@ const GroupManagementPage: React.FC = () => {
                     <ListItem
                       key={user.id}
                       secondaryAction={
-                        <Tooltip title="グループから削除">
+                        <Tooltip title="グループから外す">
                           <IconButton 
                             size="small" 
                             onClick={() => handleRemoveUser(user.id)} 
                             sx={{ 
-                              color: 'error.main',
-                              '&:hover': { bgcolor: 'error.light', color: 'error.dark' }
+                              color: 'warning.main',
+                              '&:hover': { bgcolor: 'warning.light', color: 'warning.dark' }
                             }}
                           >
-                            <DeleteIcon fontSize="small" />
+                            <PersonRemoveIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       }
@@ -1013,7 +1025,14 @@ const GroupManagementPage: React.FC = () => {
             value={meetingLocation}
             onChange={e => setMeetingLocation(e.target.value)}
           />
-          <Box sx={{ mt: 2, p: 1.5, bgcolor: 'grey.100', borderRadius: 1 }}>
+          <Box
+            sx={(theme) => ({
+              mt: 2,
+              p: 1.5,
+              bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.100',
+              borderRadius: 1,
+            })}
+          >
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 1 }}>
               参加者（グループのメンバー）
             </Typography>

@@ -53,7 +53,10 @@ import {
   AccessTime as AccessTimeIcon,
   Search as SearchIcon,
 } from '@mui/icons-material'
+import DarkModeIcon from '@mui/icons-material/DarkMode'
+import LightModeIcon from '@mui/icons-material/LightMode'
 import { useAuth } from '../contexts/AuthContext'
+import { useThemeMode } from '../contexts/ThemeModeContext'
 import api, { mockDataApi, importMockData, userActivityApi } from '../services/api'
 import { transformImportData } from '../utils/transformImportData'
 import { debounce } from 'lodash'
@@ -80,6 +83,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const shouldAutoCollapse = useMediaQuery(theme.breakpoints.down('md'))
   const location = useLocation()
   const [currentTitle, setCurrentTitle] = useState('')
+  const { mode, toggleMode } = useThemeMode()
   
   // モックデータ管理用の状態
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
@@ -815,6 +819,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title={mode === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え'}>
+              <IconButton
+                color="inherit"
+                onClick={toggleMode}
+                size="small"
+                aria-label="toggle color mode"
+              >
+                {mode === 'light' ? <DarkModeIcon fontSize="small" /> : <LightModeIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
             {user?.role === 'admin' && (
               <Tooltip title="グローバル検索">
                 <IconButton color="inherit" onClick={() => setSearchOpen(true)} size="small" aria-label="検索">

@@ -456,7 +456,9 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
 
   const handleTimeChange = (name: keyof EventFormData, newValue: Date | null) => {
-    const baseDateStr = name === 'startTime' ? formData.startDate : formData.endDate;
+    // GenericとMeetingで時間指定の場合は実施日のみを使用（終了日は使用しない）
+    const useStartDateForEndTime = (formData.type === 'Generic' || formData.type === 'Meeting') && !formData.allDay;
+    const baseDateStr = name === 'startTime' ? formData.startDate : (useStartDateForEndTime ? formData.startDate : formData.endDate);
     const baseDate = baseDateStr ? parseDateString(baseDateStr) : null;
 
     if (newValue && isDateValid(newValue) && baseDate && isDateValid(baseDate)) {
@@ -521,27 +523,40 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         next.startDate = prev.startDate || prev.taskDueDate || prev.endDate || '';
         next.endDate = undefined;
   
-      } else if (newType === 'Meeting' || newType === 'Workshop') {
-        // 会議/WSは実施日のみ（終了日は設定しない）。時間あり（終日OFF固定）。
+      } else if (newType === 'Meeting') {
+        // 会議は実施日のみ（終了日は設定しない）。時間あり（終日OFF固定）。
         next.allDay = false;
 
         // 実施日のみ。既存値を尊重。無ければ taskDueDate を流用。
         next.startDate = prev.startDate || prev.taskDueDate || '';
-        next.endDate   = undefined; // 会議・WSは終了日を使わない
+        next.endDate   = undefined; // 会議は終了日を使わない
   
         // 時刻は既存値を優先、なければ軽いデフォルト（今日には依存しない）
         next.startTime = prev.startTime || '09:00';
         next.endTime   = prev.endTime   || '10:00';
   
-      } else { // Generic
-        // Generic は終日ON/OFFをユーザーに委ねる（既存をそのまま）
+      } else if (newType === 'Workshop') {
+        // ワークショップは終日のみ
+        next.allDay = true;
+        next.startTime = undefined;
+        next.endTime = undefined;
+        
+        // 実施日のみ。既存値を尊重。無ければ taskDueDate を流用。
         next.startDate = prev.startDate || prev.taskDueDate || '';
-        next.endDate   = prev.endDate   || (prev.allDay ? '' : prev.startDate) || '';
+        next.endDate   = undefined; // ワークショップは終了日を使わない
   
+      } else { // Generic
+        // Generic は終日ON/OFFをユーザーに委ねる
+        next.startDate = prev.startDate || prev.taskDueDate || '';
+        
         if (prev.allDay) {
+          // 終日の場合は終了日を表示
+          next.endDate   = prev.endDate || '';
           next.startTime = '';
           next.endTime   = '';
         } else {
+          // 時間指定の場合は実施日のみ（終了日は非表示）
+          next.endDate   = undefined;
           next.startTime = prev.startTime || '09:00';
           next.endTime   = prev.endTime   || '10:00';
         }
@@ -602,19 +617,24 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         }
         if (!formData.allDay) {
             if (!formData.startTime) newErrors.startTime = '開始時間を入力してください';
-            // Generic のみ終了日を必須（会議・ワークショップは実施日のみ）
-            if (formData.type === 'Generic' && !formData.endDate) {
-                newErrors.endDate = '終了日を入力してください';
-            }
-            if ((formData.type === 'Generic' || formData.type === 'Meeting' || formData.type === 'Workshop') && !formData.endTime) {
+            // GenericとMeetingは時間指定の場合、終了時間を必須
+            if ((formData.type === 'Generic' || formData.type === 'Meeting') && !formData.endTime) {
                 newErrors.endTime = '終了時間を入力してください';
             }
-            // 時間の順序検証 (開始時刻 < 終了時刻)。会議・WSは同一実施日で比較
+            // 時間の順序検証 (開始時刻 < 終了時刻)。GenericとMeetingは同一実施日で比較
             const startDateForCompare = formData.startDate;
-            const endDateForCompare = (formData.type === 'Meeting' || formData.type === 'Workshop') ? formData.startDate : formData.endDate;
-            if (startDateForCompare && endDateForCompare && formData.startTime && formData.endTime &&
-                `${startDateForCompare} ${formData.startTime}` >= `${endDateForCompare} ${formData.endTime}`) {
+            if (startDateForCompare && formData.startTime && formData.endTime &&
+                `${startDateForCompare} ${formData.startTime}` >= `${startDateForCompare} ${formData.endTime}`) {
                 newErrors.endTime = '終了時刻は開始時刻より後に設定してください';
+            }
+        } else if (formData.type === 'Generic') {
+            // Genericで終日の場合は終了日を必須
+            if (!formData.endDate) {
+                newErrors.endDate = '終了日を入力してください';
+            }
+            // 日付の順序検証
+            if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
+                newErrors.endDate = '終了日は開始日より後に設定してください';
             }
         }
         // プロジェクトは任意（指定しなくてもよい）
@@ -765,12 +785,18 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         // ★新しいログ出力 END
         // onSave(dataToSave); // この行をコメントアウトまたは削除
       } else { // Other event types
-        dataToSave.allDay = formData.allDay;
+        // Workshop, Deadline, Milestoneは常に終日
+        if (normalizedType === 'Workshop' || normalizedType === 'Deadline' || normalizedType === 'Milestone') {
+          dataToSave.allDay = true;
+        } else {
+          dataToSave.allDay = formData.allDay;
+        }
+        
           if (formData.startDate) {
           const startDateObj = parseDateString(formData.startDate);
           if (startDateObj) {
-            if (formData.allDay || normalizedType === 'Deadline' || normalizedType === 'Milestone') {
-              // 締切・マイルストーンの場合は、日付をそのまま使用（タイムゾーン問題を回避）
+            if (dataToSave.allDay || normalizedType === 'Deadline' || normalizedType === 'Milestone' || normalizedType === 'Workshop') {
+              // 締切・マイルストーン・ワークショップは常に終日。日付をそのまま使用（タイムゾーン問題を回避）
               const dateStr = format(startDateObj, 'yyyy-MM-dd');
               dataToSave.start_time = `${dateStr}T00:00:00+09:00`;
               dataToSave.end_time = `${dateStr}T00:00:00+09:00`;
@@ -781,16 +807,16 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           }
         }
 
-        if (!formData.allDay && (normalizedType === 'Generic' || normalizedType === 'Meeting' || normalizedType === 'Workshop')) {
-          const endDateForCalc = formData.endDate || formData.startDate;
-          const endDateObj = parseDateString(endDateForCalc);
+        if (!dataToSave.allDay && (normalizedType === 'Generic' || normalizedType === 'Meeting')) {
+          // 時間指定の場合、実施日のみを使用（終了日は使用しない）
+          const endDateObj = parseDateString(formData.startDate);
           if (endDateObj && formData.endTime) {
             const endDateTime = parseTimeString(formData.endTime, endDateObj);
             if (endDateTime) dataToSave.end_time = format(endDateTime, "yyyy-MM-dd'T'HH:mm:ssxxx");
           } else if (endDateObj && !formData.endTime && dataToSave.start_time) {
             dataToSave.end_time = format(addHours(parseISO(dataToSave.start_time), 1), "yyyy-MM-dd'T'HH:mm:ssxxx");
           }
-        } else if (formData.allDay && (normalizedType === 'Generic' || normalizedType === 'Meeting' || normalizedType === 'Workshop')) {
+        } else if (dataToSave.allDay && normalizedType === 'Generic') {
             if(dataToSave.start_time) {
                  const startDateForEnd = parseISO(dataToSave.start_time);
                  const endDateForEnd = formData.endDate ? parseDateString(formData.endDate) : startDateForEnd;
@@ -806,7 +832,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         if (formData.projectId) {
           dataToSave.project_id = parseInt(formData.projectId, 10);
         }
-        if (normalizedType === 'Meeting' || normalizedType === 'Workshop' || normalizedType === 'Generic' ) {
+        if (normalizedType === 'Meeting' || normalizedType === 'Generic' ) {
            dataToSave.participants = selectedParticipants.map(p => ({
              type: p.type,
              id: p.type === 'user' ? parseInt(p.id, 10) : p.id 
@@ -854,17 +880,19 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
   const showTimeFields = useMemo(() => {
     if (!formData?.type || formData.allDay) return false;
-    // タスク、締切、マイルストーンでは非表示
-    if (['task', 'Task', 'Deadline', 'Milestone'].includes(formData.type)) return false;
-    return true; // Generic, Meeting, Workshop で表示 (かつ終日でない場合)
+    // タスク、締切、マイルストーン、ワークショップでは非表示
+    if (['task', 'Task', 'Deadline', 'Milestone', 'Workshop'].includes(formData.type)) return false;
+    return true; // Generic, Meeting のみ表示 (かつ終日でない場合)
   }, [formData?.type, formData.allDay]);
 
   const showEndDate = useMemo(() => {
     if (!formData?.type) return false;
     // タスク、締切、マイルストーン、会議、ワークショップでは非表示（会議・WSは実施日のみ）
     if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop'].includes(formData.type)) return false;
-    return true; // Generic のみ終了日を表示
-  }, [formData?.type]);
+    // Genericは終日の場合のみ終了日を表示（時間指定の場合は実施日のみ）
+    if (formData.type === 'Generic' && !formData.allDay) return false;
+    return true; // Genericで終日の場合は終了日を表示
+  }, [formData?.type, formData.allDay]);
 
   // 担当者オプション (ユーザー + グループ)
   const assigneeOptions = useMemo((): Array<{ id: string; label: string; type: string; }> => {
@@ -1258,19 +1286,19 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                     </Grid>
                    )}
 
-                   {/* 実施日/開始日（会議・WSは1行で表示し、その下で開始・終了時間を横並びにするため xs=12） */}
-                   <Grid item xs={(formData.allDay || !showTimeFields) ? 12 : (formData.type === 'Meeting' || formData.type === 'Workshop') ? 12 : 6}>
+                   {/* 実施日/開始日 */}
+                   <Grid item xs={(formData.allDay || !showTimeFields) ? (showEndDate ? 6 : 12) : 12}>
                         <DatePicker
-                            label={(formData.type === 'Deadline' || formData.type === 'Milestone') ? "期日 *" : (formData.type === 'Meeting' || formData.type === 'Workshop') ? "実施日 *" : "開始日 *"}
+                            label={(formData.type === 'Deadline' || formData.type === 'Milestone') ? "期日 *" : (formData.type === 'Meeting' || formData.type === 'Workshop' || (formData.type === 'Generic' && !formData.allDay)) ? "実施日 *" : "開始日 *"}
                             value={parseDateString(formData.startDate)}
                             onChange={(newValue) => handleDateChange('startDate', newValue)}
                             slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
                         />
                     </Grid>
 
-                    {/* 終了日（Generic のみ。会議・WSは実施日のみのため非表示） */}
+                    {/* 終了日（Genericで終日の場合のみ表示） */}
                     {showEndDate && (
-                        <Grid item xs={(formData.allDay || !showTimeFields) ? 12 : 6}>
+                        <Grid item xs={6}>
                             <DatePicker
                                 label="終了日 *"
                                 value={parseDateString(formData.endDate)}
@@ -1293,7 +1321,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                             <Grid item xs={6}>
                                 <TimePicker
                                     label="終了時間 *"
-                                    value={parseTimeString(formData.endTime, parseDateString(formData.endDate) ?? parseDateString(formData.startDate))}
+                                    value={parseTimeString(formData.endTime, parseDateString(formData.startDate))}
                                     onChange={(newValue) => handleTimeChange('endTime', newValue)}
                                     slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endTime, helperText: errors.endTime } }}
                                 />

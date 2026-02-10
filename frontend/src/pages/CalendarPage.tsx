@@ -13,7 +13,7 @@ import EventAddModal from '../components/EventAddModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useCalendarPageState, usePageState } from '../contexts/PageStateContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays, startOfDay } from 'date-fns';
+import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
 import { Box, CircularProgress, Typography, useMediaQuery, Theme, SelectChangeEvent, Button, Snackbar, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { debounce } from 'lodash';
@@ -383,12 +383,54 @@ const CalendarPage: React.FC = () => {
             const processedBackendEvents: CalendarEvent[] = backendEventsData
                 .map((be): CalendarEvent | null => {
                     const eventType = be.type;
-                    const originalStartTimeStr = be.start_time as string;
-                    const originalEndTimeStr = be.end_time as string;
+                    let originalStartTimeStr = be.start_time as string;
+                    let originalEndTimeStr = be.end_time as string;
 
                     if (!originalStartTimeStr) {
                         console.warn("Event without start_time skipped:", be);
                         return null;
+                    }
+
+                    // 会議のみ00:00~00:00の予定を5:00~28:59に変換（会議以外は終日として扱う）
+                    const normalizedTypeForConversion = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
+                        ? be.type
+                        : 'Generic';
+                    
+                    if (normalizedTypeForConversion === 'Meeting' && originalStartTimeStr && originalEndTimeStr) {
+                        const startDate = parseISO(originalStartTimeStr);
+                        const endDate = parseISO(originalEndTimeStr);
+                        
+                        // 同じ日付で、両方が00:00:00の場合
+                        if (isSameDay(startDate, endDate) && 
+                            startDate.getHours() === 0 && startDate.getMinutes() === 0 &&
+                            endDate.getHours() === 0 && endDate.getMinutes() === 0) {
+                            // start_timeをその日の5:00:00に変換
+                            const newStartDate = setHours(setMinutes(startDate, 0), 5);
+                            // end_timeを翌日の4:59:00に変換（28:59:00を意味する）
+                            const newEndDate = addDays(setHours(setMinutes(startDate, 59), 4), 1);
+                            
+                            originalStartTimeStr = newStartDate.toISOString();
+                            originalEndTimeStr = newEndDate.toISOString();
+                            
+                            // allDayフラグをfalseに変更（時間指定イベントになるため）
+                            be.allDay = false;
+                            
+                            console.log(`[fetchData] Converted 00:00~00:00 Meeting event to 5:00~28:59: ${be.title}`, {
+                                original: { start: be.start_time, end: be.end_time },
+                                converted: { start: originalStartTimeStr, end: originalEndTimeStr }
+                            });
+                        }
+                    } else if (normalizedTypeForConversion !== 'Meeting' && originalStartTimeStr && originalEndTimeStr) {
+                        // 会議以外は終日として扱う（allDay=trueに設定）
+                        const startDate = parseISO(originalStartTimeStr);
+                        const endDate = parseISO(originalEndTimeStr);
+                        
+                        // 同じ日付で、両方が00:00:00の場合、終日として扱う
+                        if (isSameDay(startDate, endDate) && 
+                            startDate.getHours() === 0 && startDate.getMinutes() === 0 &&
+                            endDate.getHours() === 0 && endDate.getMinutes() === 0) {
+                            be.allDay = true;
+                        }
                     }
 
                     if (eventType === 'Task') {
@@ -1967,12 +2009,18 @@ const CalendarPage: React.FC = () => {
             );
         }
         
-        // 通常イベント（Generic / Event）- ラベルを付けてわかりやすく
+        // 通常イベント（Generic / Event）- 時間指定の場合は時間を表示
         if (type === 'Generic' || (type && type.toLowerCase() === 'generic') || (type && type.toLowerCase() === 'event')) {
+            const isTimedEvent = !eventInfo.event.allDay && eventInfo.timeText;
+            const timeText = eventInfo.timeText || '';
+            const displayTitle = timeText ? `${timeText} ${title}` : title;
             return (
                 <div className="calendar-event-inner calendar-event-generic" style={{ width: '100%', overflow: 'hidden' }}>
                     <span className="calendar-event-type-badge calendar-event-type-generic" title={typeLabel}>予定</span>
-                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
+                    {isTimedEvent && <span className="calendar-event-time" style={{ fontWeight: 600 }}>{timeText}</span>}
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={displayTitle}>
+                        {isTimedEvent && ' '}{title}
+                    </span>
                 </div>
             );
         }
@@ -2022,14 +2070,16 @@ const CalendarPage: React.FC = () => {
     return (
         <Box
             ref={containerRef}
-            sx={{
+            sx={(theme) => ({
                 display: 'flex',
                 flexDirection: 'column',
                 height: 'calc(100vh - 64px)',
                 overflow: 'hidden',
                 p: { xs: 1, sm: 2 },
-                bgcolor: 'grey.50',
-            }}
+                bgcolor: theme.palette.mode === 'dark'
+                    ? theme.palette.background.default
+                    : 'grey.50',
+            })}
         >
             {/* Google風トップバー: 作成ボタン */}
             <Box
@@ -2059,7 +2109,7 @@ const CalendarPage: React.FC = () => {
                         作成
                     </Button>
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                        予定はドラッグ&ドロップで移動できます
+                        予定はドラッグ&ドロップで移動できます。タスクは期日が更新されます。
                     </Typography>
                 </Box>
             </Box>
@@ -2494,6 +2544,8 @@ const CalendarPage: React.FC = () => {
                         events={eventsForFullCalendar}
                     locale={'ja'}
                         timeZone={'Asia/Tokyo'}
+                        slotMinTime="05:00:00"
+                        slotMaxTime="29:00:00"
                         eventTimeFormat={{
                             hour: '2-digit',
                             minute: '2-digit',

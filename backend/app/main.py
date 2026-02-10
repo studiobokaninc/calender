@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Body, BackgroundTasks, Response, Request, Query, Path, UploadFile, File
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -10,9 +10,12 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field
 from . import models, database, crud, schemas
 from . import mock_data
-from .database import engine, get_db
+from .database import engine, get_db, DATABASE_FILE_PATH
 import uuid
 import os
+import tempfile
+import shutil
+from pathlib import Path as PathLibPath
 from . import security
 from . import google_calendar as google_cal
 from .routers import chat as chat_router
@@ -254,6 +257,8 @@ async def get_labor_report_endpoint(
     group_by: str = Query("user", description="集計単位: user または project"),
     from_date: Optional[str] = Query(None, description="集計開始日 YYYY-MM-DD"),
     to_date: Optional[str] = Query(None, description="集計終了日 YYYY-MM-DD"),
+    include_offline: bool = Query(False, description="オフラインのプロジェクトを含めるかどうか"),
+    include_completed: bool = Query(False, description="完了タスクを含めるかどうか"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -272,7 +277,92 @@ async def get_labor_report_endpoint(
             to_dt = datetime.strptime(to_date + " 23:59:59", "%Y-%m-%d %H:%M:%S")
         except ValueError:
             raise HTTPException(status_code=400, detail="to_date は YYYY-MM-DD 形式で指定してください")
-    return crud.get_labor_report(db=db, group_by=group_by, from_date=from_dt, to_date=to_dt)
+    return crud.get_labor_report(db=db, group_by=group_by, from_date=from_dt, to_date=to_dt, include_offline=include_offline, include_completed=include_completed)
+
+
+@app.get("/metrics/weekly-availability", tags=["Metrics"])
+async def get_weekly_availability_endpoint(
+    week_start: Optional[str] = Query(None, description="週の開始日（月曜）YYYY-MM-DD。未指定時は今週の月曜"),
+    only_free: bool = Query(False, description="True の場合、その週に余裕があるユーザーのみ返す"),
+    include_offline: bool = Query(False, description="オフラインのプロジェクトのタスクを含めるか"),
+    include_completed: bool = Query(True, description="完了タスクの工数を含めるか"),
+    consider_dependencies: bool = Query(True, description="依存タスクを考慮する（依存先が未完の日は工数に含めない）"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    指定週のユーザー別「割り当て工数」と「余裕時間」を返す。
+    タスクの開始日・期日とコスト（所要時間＝時間、cost/8で日数）からその週に重なる工数を按分。
+    依存関係を考慮する場合、依存先が「完了」または「その日までに期日」の日のみ工数にカウントする。
+    週の稼働可能時間は40時間。余裕時間 = 40 - 割り当て工数。
+    """
+    if week_start:
+        try:
+            week_start_date = datetime.strptime(week_start, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="week_start は YYYY-MM-DD 形式で指定してください")
+    else:
+        today = date.today()
+        week_start_date = today - timedelta(days=today.weekday())  # 月曜
+    # 今日を基準に経過・残りを計算。計算対象は未完了タスクのみ（include_completed は使わない）
+    reference_date = date.today()
+    items = crud.get_weekly_workload(
+        db=db,
+        week_start=week_start_date,
+        reference_date=reference_date,
+        include_offline=include_offline,
+        include_completed=False,
+        consider_dependencies=consider_dependencies,
+    )
+    if only_free:
+        items = [x for x in items if x["free_hours"] > 0]
+    return {
+        "week_start": week_start_date.isoformat(),
+        "hours_per_day": 8,
+        "max_hours_per_week": 40,
+        "consider_dependencies": consider_dependencies,
+        "users": items,
+    }
+
+
+@app.get("/metrics/daily-availability", tags=["Metrics"])
+async def get_daily_availability_endpoint(
+    target_date: Optional[str] = Query(None, description="対象日 YYYY-MM-DD。未指定時は今日"),
+    only_free: bool = Query(False, description="True の場合、その日に余裕があるユーザーのみ返す"),
+    include_offline: bool = Query(False, description="オフラインのプロジェクトのタスクを含めるか"),
+    include_completed: bool = Query(True, description="完了タスクの工数を含めるか"),
+    consider_dependencies: bool = Query(True, description="依存タスクを考慮する（依存先が未完ならそのタスクの工数は含めない）"),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    指定日のユーザー別「割り当て工数」と「余裕時間」を返す。
+    コスト/8で日数、開始日・期日でその日に重なる工数を按分。1日8時間を上限に余裕 = 8 - 割り当て。
+    依存関係を考慮する場合、依存先が完了または期日がその日以前のときのみ工数にカウントする。
+    """
+    if target_date:
+        try:
+            target_date_parsed = datetime.strptime(target_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="target_date は YYYY-MM-DD 形式で指定してください")
+    else:
+        target_date_parsed = date.today()
+    # 計算対象は未完了タスクのみ。基準日は target_date（今日から見た情報）
+    items = crud.get_daily_workload(
+        db=db,
+        target_date=target_date_parsed,
+        include_offline=include_offline,
+        include_completed=False,
+        consider_dependencies=consider_dependencies,
+    )
+    if only_free:
+        items = [x for x in items if x["free_hours"] > 0]
+    return {
+        "date": target_date_parsed.isoformat(),
+        "hours_per_day": 8,
+        "consider_dependencies": consider_dependencies,
+        "users": items,
+    }
 
 
 @app.get("/search", tags=["Search"])
@@ -2122,6 +2212,62 @@ async def create_backup(
         "groups": [_serialize(g) for g in groups],
         "user_groups": [_serialize(ug) for ug in user_groups],
     }
+
+
+@app.get("/admin/backup-db", tags=["Admin"])
+async def backup_database_file(
+    current_user: models.User = Depends(get_current_active_admin),
+    db: Session = Depends(get_db)
+):
+    """データベースファイル（.db）をバックアップしてダウンロード（管理者のみ）"""
+    import sqlite3
+    temp_backup_path = None
+    try:
+        logger.info("データベースバックアップの作成を開始します")
+        
+        # SQLiteのバックアップコマンドを使用して一時ファイルにバックアップを作成
+        temp_backup = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+        temp_backup_path = temp_backup.name
+        temp_backup.close()
+        
+        logger.info(f"一時バックアップファイルを作成しました: {temp_backup_path}")
+        
+        # SQLiteのバックアップコマンドを実行
+        # SQLAlchemyのエンジンから直接SQLiteのバックアップを実行
+        logger.info("データベースのバックアップを実行中...")
+        source_conn = sqlite3.connect(str(DATABASE_FILE_PATH), timeout=30.0)
+        backup_conn = sqlite3.connect(temp_backup_path, timeout=30.0)
+        source_conn.backup(backup_conn, pages=100, progress=None)  # pagesパラメータで進捗を制御
+        source_conn.close()
+        backup_conn.close()
+        
+        logger.info("データベースのバックアップが完了しました")
+        
+        # タイムスタンプ付きファイル名を生成
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"project_management_backup_{timestamp}.db"
+        
+        logger.info(f"バックアップファイルを返します: {filename}")
+        
+        # ファイルを返す
+        return FileResponse(
+            temp_backup_path,
+            media_type='application/octet-stream',
+            filename=filename,
+            background=BackgroundTasks([lambda p=temp_backup_path: os.unlink(p) if p and os.path.exists(p) else None])  # ダウンロード後に削除
+        )
+    except Exception as e:
+        logger.exception("データベースバックアップの作成に失敗しました")
+        # エラー時も一時ファイルを削除
+        if temp_backup_path and os.path.exists(temp_backup_path):
+            try:
+                os.unlink(temp_backup_path)
+            except:
+                pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"データベースバックアップの作成に失敗しました: {str(e)}"
+        )
 
 
 @app.get("/admin/csv-template", tags=["Admin"])

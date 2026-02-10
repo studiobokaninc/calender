@@ -108,6 +108,8 @@ const UserManagementPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedDeleteUserId, setSelectedDeleteUserId] = useState<string>('');
   const [currentEditUser, setCurrentEditUser] = useState<EditUserData | null>(null);
   const [editPassword, setEditPassword] = useState('');
   const [editConfirmPassword, setEditConfirmPassword] = useState('');
@@ -210,12 +212,19 @@ const UserManagementPage: React.FC = () => {
 
   const processUserTaskInfo = () => {
     const projectMap = new Map<number, string>();
+    const projectObjMap = new Map<number, Project>();
     const completedProjectIds = new Set<number>();
+    const offlineProjectIds = new Set<number>();
     projects.forEach(project => {
       projectMap.set(project.id, project.name);
+      projectObjMap.set(project.id, project);
       const status = (project.status || '').toLowerCase();
       if (status === 'completed' || status === '完了') {
         completedProjectIds.add(project.id);
+      }
+      // オフラインのプロジェクトIDを記録
+      if (project.display_status === 'offline') {
+        offlineProjectIds.add(project.id);
       }
     });
 
@@ -238,43 +247,50 @@ const UserManagementPage: React.FC = () => {
       };
     });
 
-    // タスクをユーザーごとにグループ化（完了タスク・完了プロジェクトのタスクは含めない）
+    // タスクをユーザーごとにグループ化（完了タスク・完了プロジェクトのタスク・オフラインプロジェクトのタスクは含めない）
     tasks.forEach(task => {
-      if (task.assigned_to && task.display_status === 'online') {
-        if (isTaskCompleted(task)) return;
-        const projectId = task.project_id ?? 0;
-        if (projectId !== 0 && completedProjectIds.has(projectId)) return;
+      if (!task.assigned_to) return;
+      
+      // 完了タスクを除外
+      if (isTaskCompleted(task)) return;
+      
+      const projectId = task.project_id ?? 0;
+      
+      // 完了プロジェクトのタスクを除外
+      if (projectId !== 0 && completedProjectIds.has(projectId)) return;
+      
+      // オフラインのプロジェクトのタスクを除外
+      if (projectId !== 0 && offlineProjectIds.has(projectId)) return;
 
-        const userId = task.assigned_to;
-        if (!infoMap[userId]) {
-          infoMap[userId] = {
-            userId,
-            tasks: [],
-            tasksByProject: {},
-            projectNames: {},
-            totalTasks: 0,
-            totalCost: 0
-          };
-        }
+      const userId = task.assigned_to;
+      if (!infoMap[userId]) {
+        infoMap[userId] = {
+          userId,
+          tasks: [],
+          tasksByProject: {},
+          projectNames: {},
+          totalTasks: 0,
+          totalCost: 0
+        };
+      }
 
-        infoMap[userId].tasks.push(task);
-        infoMap[userId].totalTasks++;
-        
-        // コスト（所要時間）を集計（コストが設定されている場合のみ）
-        if (task.cost && typeof task.cost === 'number' && task.cost > 0) {
-          infoMap[userId].totalCost += task.cost;
-        }
+      infoMap[userId].tasks.push(task);
+      infoMap[userId].totalTasks++;
+      
+      // コスト（所要時間）を集計（コストが設定されている場合のみ）
+      if (task.cost && typeof task.cost === 'number' && task.cost > 0) {
+        infoMap[userId].totalCost += task.cost;
+      }
 
-        if (!infoMap[userId].tasksByProject[projectId]) {
-          infoMap[userId].tasksByProject[projectId] = [];
-        }
-        infoMap[userId].tasksByProject[projectId].push(task);
+      if (!infoMap[userId].tasksByProject[projectId]) {
+        infoMap[userId].tasksByProject[projectId] = [];
+      }
+      infoMap[userId].tasksByProject[projectId].push(task);
 
-        if (projectId && projectMap.has(projectId)) {
-          infoMap[userId].projectNames[projectId] = projectMap.get(projectId)!;
-        } else if (projectId === 0 || !projectId) {
-          infoMap[userId].projectNames[0] = 'プロジェクト未設定';
-        }
+      if (projectId && projectMap.has(projectId)) {
+        infoMap[userId].projectNames[projectId] = projectMap.get(projectId)!;
+      } else if (projectId === 0 || !projectId) {
+        infoMap[userId].projectNames[0] = 'プロジェクト未設定';
       }
     });
 
@@ -287,6 +303,16 @@ const UserManagementPage: React.FC = () => {
 
   const handleCloseAddModal = () => {
     setIsAddModalOpen(false);
+  };
+
+  const handleOpenDeleteDialog = () => {
+    setSelectedDeleteUserId('');
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setIsDeleteDialogOpen(false);
+    setSelectedDeleteUserId('');
   };
 
   const handleSaveNewUser = async (newUserData: NewUserData): Promise<void> => {
@@ -425,6 +451,24 @@ const UserManagementPage: React.FC = () => {
 
   const handleCloseSnackbar = () => {
     setSnackbar({...snackbar, open: false});
+  };
+
+  const handleDeleteUserFromDialog = async () => {
+    if (!selectedDeleteUserId) {
+      setSnackbar({
+        open: true,
+        message: '削除するユーザーを選択してください',
+        severity: 'error'
+      });
+      return;
+    }
+    const targetUser = users.find(u => String(u.id) === selectedDeleteUserId);
+    await handleDeleteUserClick(
+      selectedDeleteUserId,
+      targetUser ? (targetUser.name || targetUser.username || '') : ''
+    );
+    setIsDeleteDialogOpen(false);
+    setSelectedDeleteUserId('');
   };
 
   const safeParseDate = (dateStr: string | null | undefined): Date | null => {
@@ -600,6 +644,7 @@ const UserManagementPage: React.FC = () => {
   }, [users, userTaskInfo, usersInGroups]);
 
   const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
@@ -609,13 +654,24 @@ const UserManagementPage: React.FC = () => {
           ユーザー
         </Typography>
         {isAdmin && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddUserClick}
-          >
-            ユーザー追加
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddUserClick}
+            >
+              ユーザー追加
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleOpenDeleteDialog}
+              disabled={users.length === 0}
+            >
+              ユーザー削除
+            </Button>
+          </Box>
         )}
       </Box>
 
@@ -654,7 +710,6 @@ const UserManagementPage: React.FC = () => {
                               {isAdmin && (
                                 <Box>
                                   <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
-                                  <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
                                 </Box>
                               )}
                             </Box>
@@ -748,7 +803,6 @@ const UserManagementPage: React.FC = () => {
                                   {isAdmin && (
                                     <Box sx={{ ml: 'auto' }}>
                                       <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
-                                      <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
                                     </Box>
                                   )}
                                 </Box>
@@ -829,7 +883,6 @@ const UserManagementPage: React.FC = () => {
                               {isAdmin && (
                                 <Box>
                                   <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
-                                  <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
                                 </Box>
                               )}
                             </Box>
@@ -891,7 +944,6 @@ const UserManagementPage: React.FC = () => {
                                   {isAdmin && (
                                     <Box sx={{ ml: 'auto' }}>
                                       <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
-                                      <IconButton size="small" onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')} aria-label="delete"><DeleteIcon fontSize="small" /></IconButton>
                                     </Box>
                                   )}
                                 </Box>
@@ -933,7 +985,12 @@ const UserManagementPage: React.FC = () => {
           {/* タスクを持っていないユーザー */}
           {usersWithoutTasks.length > 0 && (
             <Grid item xs={12}>
-              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+              <Paper
+                sx={{
+                  p: 2,
+                  bgcolor: isDarkMode ? 'background.default' : 'grey.50',
+                }}
+              >
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                   <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
                   <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
@@ -981,14 +1038,6 @@ const UserManagementPage: React.FC = () => {
                                   onClick={() => handleEditUserClick(user)}
                                 >
                                   <EditIcon fontSize="small" />
-                                </IconButton>
-                                <IconButton 
-                                  size="small"
-                                  edge="end" 
-                                  aria-label="delete" 
-                                  onClick={() => handleDeleteUserClick(String(user.id), user.name || user.username || '')}
-                                >
-                                  <DeleteIcon fontSize="small" />
                                 </IconButton>
                               </Box>
                             )}
@@ -1215,6 +1264,46 @@ const UserManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* ユーザー削除ダイアログ（管理者のみ） */}
+      {isAdmin && (
+        <Dialog open={isDeleteDialogOpen} onClose={handleCloseDeleteDialog} maxWidth="xs" fullWidth>
+          <DialogTitle>ユーザー削除</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                削除するユーザーを選択してください。関連するタスクや設定も影響を受ける可能性があります。
+              </Typography>
+              <FormControl fullWidth>
+                <InputLabel id="delete-user-select-label">ユーザー</InputLabel>
+                <Select
+                  labelId="delete-user-select-label"
+                  value={selectedDeleteUserId}
+                  label="ユーザー"
+                  onChange={(e) => setSelectedDeleteUserId(e.target.value as string)}
+                >
+                  {users.map((u) => (
+                    <MenuItem key={u.id} value={String(u.id)}>
+                      {u.name || u.username || u.email || `ID: ${u.id}`}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDeleteDialog}>キャンセル</Button>
+            <Button 
+              onClick={handleDeleteUserFromDialog} 
+              variant="contained" 
+              color="error"
+              disabled={!selectedDeleteUserId}
+            >
+              削除する
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
       {/* 操作結果の通知 */}
       <Snackbar 

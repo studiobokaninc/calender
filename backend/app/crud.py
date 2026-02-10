@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+import math
 from .timezone import now_jst_naive
 from typing import List, Optional
 from sqlalchemy.orm import selectinload
@@ -650,8 +651,10 @@ def get_labor_report(
     group_by: str,
     from_date: Optional[datetime] = None,
     to_date: Optional[datetime] = None,
+    include_offline: bool = False,
+    include_completed: bool = False,
 ) -> List[dict]:
-    """工数集計: group_by が 'user' のとき担当者別、'project' のときプロジェクト別。due_date で期間フィルタ可能。"""
+    """工数集計: group_by が 'user' のとき担当者別、'project' のときプロジェクト別。due_date で期間フィルタ可能。include_offlineがFalseの場合、オフラインのプロジェクトを除外。include_completedがFalseの場合、完了タスクを除外。"""
     from collections import defaultdict
 
     query = db.query(models.Task)
@@ -659,6 +662,19 @@ def get_labor_report(
         query = query.filter(models.Task.due_date >= from_date)
     if to_date is not None:
         query = query.filter(models.Task.due_date <= to_date)
+    
+    # オフラインを含めない場合、オフラインのプロジェクトに属するタスクを除外
+    if not include_offline:
+        offline_project_ids = [
+            p.id for p in db.query(models.Project).filter(models.Project.display_status == 'offline').all()
+        ]
+        if offline_project_ids:
+            query = query.filter(~models.Task.project_id.in_(offline_project_ids))
+    
+    # 完了タスクを含めない場合、完了タスクを除外
+    if not include_completed:
+        query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    
     tasks = query.all()
 
     groups: dict = defaultdict(lambda: {"total_cost": 0.0, "task_count": 0})
@@ -682,11 +698,391 @@ def get_labor_report(
         project_ids = [k for k in groups if k != 0]
         projects_map = {}
         if project_ids:
-            for p in db.query(models.Project).filter(models.Project.id.in_(project_ids)).all():
+            project_query = db.query(models.Project).filter(models.Project.id.in_(project_ids))
+            # オフラインを含めない場合、オフラインのプロジェクトを除外
+            if not include_offline:
+                project_query = project_query.filter(models.Project.display_status != 'offline')
+            for p in project_query.all():
                 projects_map[p.id] = p.name or f"Project {p.id}"
+        # オフラインを含めない場合、オフラインのプロジェクトのタスクを除外
         for gid, data in sorted(groups.items(), key=lambda x: -x[1]["total_cost"]):
-            name = projects_map.get(gid, "プロジェクトなし") if gid != 0 else "プロジェクトなし"
+            if gid == 0:
+                name = "プロジェクトなし"
+            elif gid in projects_map:
+                name = projects_map[gid]
+            else:
+                # オフラインを含めない場合、プロジェクトが見つからない（オフライン）場合はスキップ
+                if not include_offline:
+                    continue
+                name = f"Project {gid}"
             result.append({"group_id": gid, "group_name": name, "total_cost": round(data["total_cost"], 2), "task_count": data["task_count"]})
+    return result
+
+
+# 週次・日次工数・余裕時間（1日=8時間、週=5営業日=40時間）
+# コスト/8＝タスク完了までのおおよその日数。開始日・期日は管理者が設定。依存タスクは依存先が完了/進捗するまで着手不可。
+# 計算対象は未完了タスクのみ。基準日は「今日」で経過平日・経過労働時間・残りコストを算出。
+HOURS_PER_DAY = 8
+WORKING_DAYS_PER_WEEK = 5
+MAX_HOURS_PER_WEEK = HOURS_PER_DAY * WORKING_DAYS_PER_WEEK  # 40
+
+
+def _count_weekdays(start_d: date, end_d: date) -> int:
+    """start_d から end_d まで（両端含む）の平日（月〜金）の日数を返す"""
+    if start_d > end_d:
+        return 0
+    n = 0
+    d = start_d
+    while d <= end_d:
+        if d.weekday() < 5:  # 0=月 .. 4=金
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
+def _parse_depends_on_ids(depends_on) -> List[int]:
+    """dependsOn（JSONのリスト、要素はstrまたはint）をタスクIDのリストに変換"""
+    if not depends_on or not isinstance(depends_on, list):
+        return []
+    ids = []
+    for x in depends_on:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+def _is_task_unblocked_on_date(task, d: date, tasks_by_id: dict, to_date) -> bool:
+    """
+    指定日 d の時点で、そのタスクに着手可能か。
+    依存先がすべて「完了」または「期日が d 以前」（その日までに終わっている想定）なら True。
+    """
+    dep_ids = _parse_depends_on_ids(getattr(task, "dependsOn", None) or getattr(task, "depends_on", None))
+    if not dep_ids:
+        return True
+    for dep_id in dep_ids:
+        dep = tasks_by_id.get(dep_id)
+        if dep is None:
+            continue  # 参照先が無い場合はブロックしない
+        status = getattr(dep, "status", None)
+        if status == models.TaskStatus.COMPLETED or (str(status).lower() if status else "") == "completed":
+            continue
+        dep_due = to_date(getattr(dep, "due_date", None))
+        if dep_due is not None and dep_due <= d:
+            continue  # 期日が d 以前ならその日までに終わっているとみなす
+        return False  # 未完了かつ期日が d より後 → ブロック
+    return True
+
+
+def _task_calendar_range(task, to_date):
+    """タスクのカレンダー上の開始日・終了日（date）とコスト（時間）を返す。(task_start, task_end, cost) または (None, None, 0)"""
+    cost = float(getattr(task, "cost", None) or 0)
+    if cost <= 0:
+        return None, None, 0
+    start_d = to_date(getattr(task, "start_date", None))
+    end_d = to_date(getattr(task, "due_date", None))
+    if start_d is None and end_d is None:
+        return None, None, 0
+    if start_d is None:
+        days_span = max(1, math.ceil(cost / HOURS_PER_DAY))
+        task_start = end_d - timedelta(days=days_span - 1)
+        task_end = end_d
+    elif end_d is None:
+        days_span = max(1, math.ceil(cost / HOURS_PER_DAY))
+        task_start = start_d
+        task_end = start_d + timedelta(days=days_span - 1)
+    else:
+        task_start = min(start_d, end_d)
+        task_end = max(start_d, end_d)
+    return task_start, task_end, cost
+
+
+def get_weekly_workload(
+    db: Session,
+    week_start: date,
+    reference_date: Optional[date] = None,
+    include_offline: bool = False,
+    include_completed: bool = False,
+    consider_dependencies: bool = True,
+) -> List[dict]:
+    """
+    指定週のユーザー別工数（時間）を計算する。計算対象は未完了タスクのみ。
+    基準日（reference_date、省略時は今日）から見て、開始日からの経過平日・経過労働時間・残りコストを考慮。
+    残りコストを「基準日以降の平日」に按分して割り当て。余裕時間 = 40 - 割り当て工数。
+    """
+    from collections import defaultdict
+
+    if reference_date is None:
+        reference_date = date.today()
+    week_end = week_start + timedelta(days=6)  # 月〜日
+
+    def to_date(d):
+        if d is None:
+            return None
+        if hasattr(d, "date"):
+            return d.date()
+        if isinstance(d, str):
+            try:
+                return datetime.strptime(d[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        return None
+
+    # 未完了タスクのみ対象（担当者あり）。プロジェクト未設定のタスクも含める。
+    query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None))
+    query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    if not include_offline:
+        offline_project_ids = [
+            p.id for p in db.query(models.Project).filter(models.Project.display_status == "offline").all()
+        ]
+        if offline_project_ids:
+            # オフラインプロジェクトは除外するが、project_id が NULL（プロジェクト未設定）のタスクは含める
+            query = query.filter(
+                or_(
+                    models.Task.project_id.is_(None),
+                    ~models.Task.project_id.in_(offline_project_ids),
+                )
+            )
+    tasks = list(query.all())
+
+    dependency_ids = set()
+    for t in tasks:
+        dependency_ids.update(_parse_depends_on_ids(getattr(t, "dependsOn", None)))
+    if dependency_ids:
+        dep_tasks = db.query(models.Task).filter(models.Task.id.in_(list(dependency_ids))).all()
+        tasks_by_id = {t.id: t for t in list(tasks) + list(dep_tasks)}
+    else:
+        tasks_by_id = {t.id: t for t in tasks}
+
+    user_hours: dict = defaultdict(float)
+    user_daily_hours: dict = defaultdict(float)
+    user_labor_passed: dict = defaultdict(float)
+    user_remaining_cost: dict = defaultdict(float)
+    user_weekdays_passed: dict = defaultdict(int)
+    user_tasks: dict = defaultdict(list)
+
+    for t in tasks:
+        task_start, task_end, cost = _task_calendar_range(t, to_date)
+        if task_start is None or cost <= 0:
+            continue
+        total_weekdays = _count_weekdays(task_start, task_end)
+        if total_weekdays <= 0:
+            total_weekdays = 1
+        # 基準日までに経過した平日・経過労働時間・残りコスト（タスクごと）
+        # 経過労働 = 経過平日×8（1日8時間）。コストを超えないよう min(cost, 経過平日×8)
+        if reference_date < task_start:
+            weekdays_passed = 0
+            labor_passed = 0
+            remaining = cost
+        elif reference_date > task_end:
+            weekdays_passed = total_weekdays
+            labor_passed = cost
+            remaining = 0
+        else:
+            end_for_passed = min(reference_date, task_end)
+            weekdays_passed = _count_weekdays(task_start, end_for_passed)
+            weekdays_passed = min(weekdays_passed, total_weekdays)
+            labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
+            labor_passed = round(labor_passed, 2)
+            remaining = max(0, round(cost - labor_passed, 2))
+        # 開始日〜期日までの平日数でコストを按分した「1日あたりの時間」
+        hours_per_weekday = round(cost / total_weekdays, 2) if total_weekdays else 0
+        # 今週に「期間がかかっている」タスクか（今週内に1日でも平日が重なる）
+        _in_week_start = max(task_start, week_start)
+        _in_week_end = min(task_end, week_end)
+        overlaps_week = _count_weekdays(_in_week_start, _in_week_end) > 0
+        user_tasks[t.assigned_to].append({
+            "task_id": t.id,
+            "task_name": t.name or "",
+            "cost": round(cost, 2),
+            "start_date": task_start.isoformat() if task_start else None,
+            "due_date": task_end.isoformat() if task_end else None,
+            "total_weekdays": total_weekdays,
+            "hours_per_weekday": hours_per_weekday,
+            "overlaps_week": overlaps_week,
+            "weekdays_passed": weekdays_passed,
+            "labor_hours_passed": round(labor_passed, 2),
+            "remaining_cost_hours": round(remaining, 2),
+        })
+        user_labor_passed[t.assigned_to] += labor_passed
+        user_remaining_cost[t.assigned_to] += remaining
+        user_weekdays_passed[t.assigned_to] = max(user_weekdays_passed[t.assigned_to], weekdays_passed)
+        # 週内日別: 「開始日〜期日」の平日に、コストを等分して割り当てる（週を跨ぐ場合も全期間で按分）。
+        # 例: 月開始・火期日・コスト4（平日2日）→ 月2, 火2
+        # 例: 火開始・木期日・コスト18（平日3日）→ 火6, 水6, 木6（週内の月・金は0）
+        in_week_start = max(task_start, week_start)
+        in_week_end = min(task_end, week_end)
+        weekdays_in_week = _count_weekdays(in_week_start, in_week_end)
+        if weekdays_in_week <= 0:
+            continue
+        per_day_in_week = hours_per_weekday  # cost / total_weekdays
+        d = week_start
+        while d <= week_end:
+            if not (in_week_start <= d <= in_week_end):
+                d += timedelta(days=1)
+                continue
+            if d.weekday() >= 5:
+                d += timedelta(days=1)
+                continue
+            if consider_dependencies and not _is_task_unblocked_on_date(t, d, tasks_by_id, to_date):
+                d += timedelta(days=1)
+                continue
+            user_hours[t.assigned_to] += per_day_in_week
+            user_daily_hours[(t.assigned_to, d)] += per_day_in_week
+            d += timedelta(days=1)
+
+    all_user_ids = {u.id for u in db.query(models.User).all()}
+    for uid in user_hours:
+        all_user_ids.add(uid)
+    for uid in user_labor_passed:
+        all_user_ids.add(uid)
+    users_map = {}
+    for u in db.query(models.User).filter(models.User.id.in_(all_user_ids)).all():
+        users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+
+    result = []
+    for uid in sorted(all_user_ids):
+        assigned = round(user_hours.get(uid, 0), 2)
+        free = max(0, MAX_HOURS_PER_WEEK - assigned)
+        daily_breakdown = []
+        d = week_start
+        while d <= week_end:
+            day_assigned = round(user_daily_hours.get((uid, d), 0), 2)
+            day_free = round(max(0, HOURS_PER_DAY - day_assigned) if d.weekday() < 5 else 0, 2)
+            daily_breakdown.append({
+                "date": d.isoformat(),
+                "assigned_hours": day_assigned,
+                "free_hours": day_free,
+            })
+            d += timedelta(days=1)
+        task_list = user_tasks.get(uid, [])
+        total_cost_hours = round(sum(x["cost"] for x in task_list), 2)
+        result.append({
+            "user_id": uid,
+            "user_name": users_map.get(uid, ""),
+            "total_cost_hours": total_cost_hours,
+            "assigned_hours": assigned,
+            "free_hours": round(free, 2),
+            "labor_hours_passed": round(user_labor_passed.get(uid, 0), 2),
+            "remaining_cost_hours": round(user_remaining_cost.get(uid, 0), 2),
+            "weekdays_passed": user_weekdays_passed.get(uid, 0),
+            "tasks": task_list,
+            "daily_breakdown": daily_breakdown,
+        })
+    result.sort(key=lambda x: (-x["free_hours"], x["user_name"] or str(x["user_id"])))
+    return result
+
+
+def get_daily_workload(
+    db: Session,
+    target_date: date,
+    include_offline: bool = False,
+    include_completed: bool = False,
+    consider_dependencies: bool = True,
+) -> List[dict]:
+    """
+    指定日のユーザー別工数（時間）を計算する。計算対象は未完了タスクのみ。
+    基準日は target_date（今日から見た情報）。開始日からの経過平日・経過労働時間・残りコストを返す。
+    その日の割り当ては残りコストを基準日以降の平日に按分したうちの対象日分。1日=8時間上限。
+    """
+    from collections import defaultdict
+
+    def to_date(d):
+        if d is None:
+            return None
+        if hasattr(d, "date"):
+            return d.date()
+        if isinstance(d, str):
+            try:
+                return datetime.strptime(d[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        return None
+
+    query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None))
+    query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    if not include_offline:
+        offline_project_ids = [
+            p.id for p in db.query(models.Project).filter(models.Project.display_status == "offline").all()
+        ]
+        if offline_project_ids:
+            query = query.filter(~models.Task.project_id.in_(offline_project_ids))
+    tasks = list(query.all())
+
+    dependency_ids = set()
+    for t in tasks:
+        dependency_ids.update(_parse_depends_on_ids(getattr(t, "dependsOn", None)))
+    if dependency_ids:
+        dep_tasks = db.query(models.Task).filter(models.Task.id.in_(list(dependency_ids))).all()
+        tasks_by_id = {t.id: t for t in list(tasks) + list(dep_tasks)}
+    else:
+        tasks_by_id = {t.id: t for t in tasks}
+
+    user_hours: dict = defaultdict(float)
+    user_labor_passed: dict = defaultdict(float)
+    user_remaining_cost: dict = defaultdict(float)
+    user_weekdays_passed: dict = defaultdict(int)
+
+    for t in tasks:
+        task_start, task_end, cost = _task_calendar_range(t, to_date)
+        if task_start is None or cost <= 0:
+            continue
+        total_weekdays = _count_weekdays(task_start, task_end)
+        if total_weekdays <= 0:
+            total_weekdays = 1
+        if target_date < task_start:
+            weekdays_passed = 0
+            labor_passed = 0
+            remaining = cost
+        elif target_date > task_end:
+            weekdays_passed = total_weekdays
+            labor_passed = cost
+            remaining = 0
+        else:
+            end_for_passed = min(target_date, task_end)
+            weekdays_passed = _count_weekdays(task_start, end_for_passed)
+            weekdays_passed = min(weekdays_passed, total_weekdays)
+            labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
+            labor_passed = round(labor_passed, 2)
+            remaining = max(0, round(cost - labor_passed, 2))
+        effective_start = max(task_start, target_date)
+        remaining_weekdays = _count_weekdays(effective_start, task_end)
+        overlaps_today = task_start <= target_date <= task_end
+        if overlaps_today and consider_dependencies and not _is_task_unblocked_on_date(t, target_date, tasks_by_id, to_date):
+            user_labor_passed[t.assigned_to] += labor_passed
+            user_remaining_cost[t.assigned_to] += remaining
+            user_weekdays_passed[t.assigned_to] = max(user_weekdays_passed[t.assigned_to], weekdays_passed)
+            continue
+        if overlaps_today and remaining_weekdays > 0 and target_date.weekday() < 5:
+            user_hours[t.assigned_to] += remaining / remaining_weekdays
+        user_labor_passed[t.assigned_to] += labor_passed
+        user_remaining_cost[t.assigned_to] += remaining
+        user_weekdays_passed[t.assigned_to] = max(user_weekdays_passed[t.assigned_to], weekdays_passed)
+
+    all_user_ids = {u.id for u in db.query(models.User).all()}
+    for uid in user_hours:
+        all_user_ids.add(uid)
+    for uid in user_labor_passed:
+        all_user_ids.add(uid)
+    users_map = {}
+    for u in db.query(models.User).filter(models.User.id.in_(all_user_ids)).all():
+        users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+
+    result = []
+    for uid in sorted(all_user_ids):
+        assigned = round(user_hours.get(uid, 0), 2)
+        free = max(0, HOURS_PER_DAY - assigned) if target_date.weekday() < 5 else 0
+        result.append({
+            "user_id": uid,
+            "user_name": users_map.get(uid, ""),
+            "assigned_hours": assigned,
+            "free_hours": round(free, 2),
+            "labor_hours_passed": round(user_labor_passed.get(uid, 0), 2),
+            "remaining_cost_hours": round(user_remaining_cost.get(uid, 0), 2),
+            "weekdays_passed": user_weekdays_passed.get(uid, 0),
+        })
+    result.sort(key=lambda x: (-x["free_hours"], x["user_name"] or str(x["user_id"])))
     return result
 
 

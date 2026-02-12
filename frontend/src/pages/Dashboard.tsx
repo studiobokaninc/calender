@@ -249,9 +249,24 @@ const Dashboard: React.FC = () => {
       .slice(0, 10)
   }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
-  // 遅延タスク（期日が過去で未完了、または status が delayed）
+  // 遅延タスク（期日が過去で未完了、または status が delayed）※プロジェクト名・担当者名も付与
   const delayedTasks = useMemo(() => {
     const tasks = globalData?.tasks ?? []
+    const projects = globalData?.projects ?? []
+    const users = globalData?.users ?? []
+
+    const getProjectName = (projectId: number | null | undefined): string => {
+      if (projectId == null) return '（プロジェクトなし）'
+      const p = projects.find((x: any) => x.id === projectId)
+      return p?.name ?? `ID:${projectId}`
+    }
+
+    const getAssigneeName = (userId: number | null | undefined): string => {
+      if (userId == null) return ''
+      const u = users.find((x: any) => x.id === userId)
+      return u?.username || u?.full_name || u?.name || u?.email || `User ${userId}`
+    }
+
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
     const completed = ['completed', 'COMPLETED']
@@ -265,8 +280,30 @@ const Dashboard: React.FC = () => {
         return due < todayStart
       })
       .sort((a: any, b: any) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())
+      .map((t: any) => ({
+        ...t,
+        projectName: getProjectName(t.project_id ?? null),
+        assigneeName: getAssigneeName(t.assigned_to ?? null),
+      }))
       .slice(0, 10)
-  }, [globalData?.tasks])
+  }, [globalData?.tasks, globalData?.projects, globalData?.users])
+
+  // サマリー用：オフラインを除いたプロジェクト数・タスク数（globalData があるときのみ使用）
+  const summaryCounts = useMemo(() => {
+    const projects = globalData?.projects ?? []
+    const tasks = globalData?.tasks ?? []
+    const onlineProjects = projects.filter((p: any) => (p.display_status ?? 'online') === 'online')
+    const onlineProjectIds = new Set(onlineProjects.map((p: any) => p.id))
+    const tasksInOnlineProjects = tasks.filter((t: any) => {
+      const pid = t.project_id ?? null
+      if (pid == null) return true
+      return onlineProjectIds.has(pid)
+    })
+    return {
+      projects: onlineProjects.length,
+      tasks: tasksInOnlineProjects.length,
+    }
+  }, [globalData?.projects, globalData?.tasks])
 
   const scrollToBottom = () => {
     if (listEndRef.current) {
@@ -1018,8 +1055,8 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'タスク',
-      value: metrics?.tasks || 0,
-      subValue: '登録済みタスク',
+      value: globalData?.lastFetched != null ? summaryCounts.tasks : (metrics?.tasks ?? 0),
+      subValue: '登録済みタスク（オンラインのみ）',
       icon: <TaskIcon sx={{ fontSize: 40 }} />,
       color: 'secondary',
       bgGradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
@@ -1028,8 +1065,8 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'プロジェクト',
-      value: metrics?.projects || 0,
-      subValue: '登録済みプロジェクト',
+      value: globalData?.lastFetched != null ? summaryCounts.projects : (metrics?.projects ?? 0),
+      subValue: '登録済みプロジェクト（オンラインのみ）',
       icon: <ProjectIcon sx={{ fontSize: 40 }} />,
       color: 'success',
       bgGradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
@@ -1314,9 +1351,46 @@ const Dashboard: React.FC = () => {
                   </Box>
                 ) : (
                   delayedTasks.map((t: any) => (
-                    <Box key={t.id} sx={{ py: 1, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'error.main', '&:last-of-type': { mb: 0 } }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }} noWrap>{t.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}</Typography>
+                    <Box
+                      key={t.id}
+                      sx={{
+                        py: 1,
+                        px: 1.25,
+                        mb: 1,
+                        borderRadius: 1.5,
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderLeft: '4px solid',
+                        borderLeftColor: 'error.main',
+                        '&:last-of-type': { mb: 0 },
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: 'text.primary' }}
+                        noWrap
+                        title={t.name}
+                      >
+                        {t.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                          {t.projectName}
+                        </Typography>
+                      </Box>
+                      {t.assigneeName && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            {t.assigneeName}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
                   ))
                 )}

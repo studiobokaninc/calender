@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'; //Reactとは、フロントエンドのUIを作成するためのライブラリです。
-import { Box, Typography, Paper, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Tab, Tabs, Button, TextField, Autocomplete, FormGroup, FormControlLabel, Checkbox, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Divider, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert as MuiAlert } from '@mui/material';
+import { Box, Typography, Paper, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Tab, Tabs, Button, TextField, Autocomplete, FormGroup, FormControlLabel, Checkbox, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert as MuiAlert } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import api from '../services/api'; //apiとは、バックエンドのAPIを呼び出すためのライブラリです。
 import { Project, Task, User } from '../types'; //Projectとは、プロジェクトの情報を管理する型です。Taskとは、タスクの情報を管理する型です。Userとは、ユーザーの情報を管理する型です。
@@ -9,6 +9,7 @@ import DelayedTaskList from '../components/DelayedTaskList'; //DelayedTaskList�
 import UserProgressChart from '../components/UserProgressChart'; //UserProgressChartとは、ユーザーの進捗を表示するコンポーネントです。
 import GanttView from '../components/GanttView'; //GanttViewとは、ガントチャートを表示するコンポーネントです。
 import ErrorBoundary from '../components/ErrorBoundary'; //ErrorBoundaryとは、エラーを表示するコンポーネントです。
+import ResourceStackBar from '../components/ResourceStackBar';
 import { useLocation, useNavigate } from 'react-router-dom'; //useLocationとは、現在のURLを取得するための関数です。useNavigateとは、ページを遷移するための関数です。
 import { useMetricsPageState } from '../contexts/PageStateContext'; //PageStateContextとは、ページの状態を管理するコンテキストです。
 //コンポーネントとは、フロントエンドのUIを作成するための部品です。他のコードで作成した関数を呼び出して、UIを作成します。
@@ -228,7 +229,8 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
       else if (tabParam === 'delayed') setSelectedTab(2);
       else if (tabParam === 'member_progress') setSelectedTab(3);
       else if (tabParam === 'gantt') setSelectedTab(4);
-      else if (tabParam === 'labor') setSelectedTab(5);
+      else if (tabParam === 'weekly_assign') setSelectedTab(5);
+      else if (tabParam === 'labor') setSelectedTab(6);
     }
   }, [location.search, isInitialLoad]);
 
@@ -381,7 +383,8 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
     else if (newValue === 2) tabName = 'delayed';
     else if (newValue === 3) tabName = 'member_progress';
     else if (newValue === 4) tabName = 'gantt';
-    else if (newValue === 5) tabName = 'labor';
+    else if (newValue === 5) tabName = 'weekly_assign';
+    else if (newValue === 6) tabName = 'labor';
     navigate(`${location.pathname}?tab=${tabName}`);
   };
 
@@ -481,7 +484,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
     return count;
   };
 
-  // 工数タブを開いたときに今週の割り当てを自動取得
+  // 今週の割当タブを開いたときに今週の割り当てを自動取得
   useEffect(() => {
     if (selectedTab === 5) {
       fetchWeeklyAvailability();
@@ -759,7 +762,8 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
                <Tab label="遅延タスク" />
                <Tab label="メンバー進捗" />
                <Tab label="ガントチャート" />
-               <Tab label="工数レポート" />
+               <Tab label="今週の割当" />
+               <Tab label="工数集計" />
              </Tabs>
              <Box sx={{ flex: 1, minHeight: 0, overflow: selectedTab === 4 ? 'hidden' : 'auto', overflowX: selectedTab === 4 ? 'hidden' : 'auto' }}>
              {selectedTab === 0 && <ProjectProgressChart projects={filteredProjects} tasks={filteredTasks} />}
@@ -777,143 +781,111 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
                  <Box sx={{ p: 2, textAlign: 'center' }}><Typography>タスクデータが見つかりません。タスクを追加するか、フィルターを調整してください。</Typography></Box>
                )
              )}
+            {/* タブ5: 今週の割当 — 割り当てテーブルとタスク内訳のみ */}
             {selectedTab === 5 && (
               <Box sx={{ p: 2 }}>
-                 {/* 今週の割り当て */}
+                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                   <Typography variant="h6" sx={{ fontWeight: 600 }}>今週の割り当て</Typography>
+                   <Button variant="contained" size="medium" onClick={fetchWeeklyAvailability} disabled={weeklyAvailabilityLoading}>
+                     {weeklyAvailabilityLoading ? '更新中...' : '更新'}
+                   </Button>
+                 </Box>
+                 {weeklyAvailabilityLoading && !weeklyAvailability && (
+                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+                 )}
+                 {!weeklyAvailabilityLoading && !weeklyAvailability && (
+                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>「更新」をクリックして今週の工数データを取得してください。</Typography>
+                 )}
+
                  <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                     <Typography variant="h6" sx={{ fontWeight: 600 }}>今週の割り当て</Typography>
-                     <Button variant="contained" size="medium" onClick={fetchWeeklyAvailability} disabled={weeklyAvailabilityLoading}>
-                       {weeklyAvailabilityLoading ? '更新中...' : '更新'}
-                     </Button>
-                   </Box>
-                   {weeklyAvailabilityLoading && !weeklyAvailability && (
+                   <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>週内日別・割当時間</Typography>
+                   {weeklyAvailabilityLoading && (
                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
                    )}
-                   {!weeklyAvailabilityLoading && weeklyAvailability && (
-                     <>
-                      {weeklyAvailability.users.filter(u => (u.tasks ?? []).some(t => t.overlaps_week)).length === 0 ? (
-                         <Typography color="text.secondary" variant="body2">該当ユーザーはいません。</Typography>
-                       ) : (
-                         <TableContainer sx={{ overflowX: 'auto' }}>
-                           <Table size="small" stickyHeader>
-                             <TableHead>
-                               <TableRow>
-                                 <TableCell sx={{ fontWeight: 600, backgroundColor: 'background.paper' }}>ユーザー</TableCell>
-                                 <TableCell align="right" sx={{ fontWeight: 600, backgroundColor: 'background.paper' }}>今週のコスト割当</TableCell>
-                                 <TableCell sx={{ fontWeight: 600, backgroundColor: 'background.paper', minWidth: 300 }}>週内日別</TableCell>
-                               </TableRow>
-                             </TableHead>
-                             <TableBody>
-                              {weeklyAvailability.users.filter(u => (u.tasks ?? []).some(t => t.overlaps_week)).map((row) => {
-                                 const todayIso = new Date().toISOString().slice(0, 10);
-                                 return (
-                                  <TableRow key={row.user_id} hover sx={{ '& > td': { verticalAlign: 'middle' } }}>
-                                    <TableCell component="th" scope="row" sx={{ fontWeight: 500 }}>{row.user_name || `User ${row.user_id}`}</TableCell>
-                                    <TableCell align="right">{row.assigned_hours.toFixed(1)}</TableCell>
-                                      <TableCell sx={{ py: 0.75 }}>
-                                        {row.daily_breakdown && row.daily_breakdown.length > 0 ? (
-                                          <Box
-                                            sx={{
-                                              display: 'grid',
-                                              gridTemplateColumns: 'repeat(7, 68px)',
-                                              gap: 0.6,
-                                              alignItems: 'stretch',
-                                              justifyContent: 'start',
-                                            }}
-                                          >
-                                            {row.daily_breakdown.map((day) => {
-                                              const a = day.assigned_hours;
-                                              const f = day.free_hours;
-                                              const isToday = day.date === todayIso;
-                                              const d = new Date(day.date + 'T12:00:00');
-                                              const weekDayNames = ['日','月','火','水','木','金','土'];
-                                              const label = weekDayNames[d.getDay()];
-                                              const hoursPerDay = 8;
-                                              const busyRatio = Math.min(1, a / hoursPerDay);
-                                              const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                                              const bgColor = isWeekend
-                                                ? 'grey.100'
-                                                : busyRatio >= 0.9
-                                                ? 'error.light'
-                                                : busyRatio >= 0.5
-                                                ? 'warning.light'
-                                                : 'success.light';
-                                              const barHeight = `${Math.max(10, busyRatio * 100)}%`;
-                                              return (
-                                                <Box
-                                                  key={day.date}
-                                                  sx={{
-                                                    px: 0.4,
-                                                    py: 0.4,
-                                                    borderRadius: 1,
-                                                    minWidth: 68,
-                                                    textAlign: 'center',
-                                                    fontVariantNumeric: 'tabular-nums',
-                                                    bgcolor: 'background.paper',
-                                                    border: '1px solid',
-                                                    borderColor: isToday ? 'primary.main' : 'divider',
-                                                    boxShadow: isToday ? 1 : 0,
-                                                  }}
-                                                  title={`${day.date}（${label}）割当 ${a.toFixed(1)}h / 空き ${f.toFixed(1)}h`}
-                                                >
-                                                  <Typography
-                                                    variant="caption"
-                                                    sx={{
-                                                      fontSize: '0.7rem',
-                                                      fontWeight: isToday ? 700 : 500,
-                                                      color: isWeekend ? 'text.disabled' : 'text.secondary',
-                                                    }}
-                                                  >
-                                                    {label}
-                                                  </Typography>
-                                                  <Box
-                                                    sx={{
-                                                      mt: 0.3,
-                                                      mb: 0.3,
-                                                      height: 24,
-                                                      display: 'flex',
-                                                      alignItems: 'flex-end',
-                                                      justifyContent: 'center',
-                                                    }}
-                                                  >
-                                                    <Box
-                                                      sx={{
-                                                        width: '65%',
-                                                        borderRadius: 0.5,
-                                                        bgcolor: bgColor,
-                                                        height: barHeight,
-                                                        transition: 'height 0.2s ease',
-                                                      }}
-                                                    />
-                                                  </Box>
-                                                  <Typography
-                                                    variant="caption"
-                                                    sx={{
-                                                      display: 'block',
-                                                      fontSize: '0.7rem',
-                                                      color: 'text.secondary',
-                                                    }}
-                                                  >
-                                                    {a.toFixed(1)}h
-                                                  </Typography>
-                                                </Box>
-                                              );
-                                            })}
-                                          </Box>
-                                        ) : (
-                                          <Typography variant="caption" color="text.secondary">—</Typography>
-                                        )}
-                                      </TableCell>
-                                  </TableRow>
-                                 );
-                               })}
-                             </TableBody>
-                           </Table>
-                         </TableContainer>
-                       )}
-                     </>
-                   )}
+                   {!weeklyAvailabilityLoading && weeklyAvailability && (() => {
+                     const allMembers = users.filter(u => u.role !== 'admin');
+                     const byId = new Map(weeklyAvailability.users.map(u => [u.user_id, u]));
+                     const maxHoursPerWeek = 40;
+                     const hoursPerDay = 8;
+                     const rows = allMembers.map(m => {
+                       const w = byId.get(m.id);
+                       return w
+                         ? { user_id: w.user_id, user_name: w.user_name || `User ${w.user_id}`, assigned_hours: w.assigned_hours, free_hours: w.free_hours, daily_breakdown: w.daily_breakdown ?? [], labor_hours_passed: w.labor_hours_passed, weekdays_passed: w.weekdays_passed }
+                         : { user_id: m.id, user_name: m.full_name || m.username || `User ${m.id}`, assigned_hours: 0, free_hours: 40, daily_breakdown: [], labor_hours_passed: undefined, weekdays_passed: 0 };
+                     });
+                     if (rows.length === 0) {
+                       return <Typography color="text.secondary" variant="body2">該当ユーザーはいません。</Typography>;
+                     }
+                     return (
+                       <TableContainer sx={{ overflowX: 'auto' }}>
+                         <Table size="small" stickyHeader>
+                           <TableHead>
+                             <TableRow>
+                               <TableCell sx={{ fontWeight: 600, backgroundColor: 'background.paper' }}>ユーザー</TableCell>
+                               <TableCell align="right" sx={{ fontWeight: 600, backgroundColor: 'background.paper' }}>今週のコスト割当</TableCell>
+                               <TableCell sx={{ fontWeight: 600, backgroundColor: 'background.paper', minWidth: 300 }}>週内日別</TableCell>
+                               <TableCell align="right" sx={{ fontWeight: 600, backgroundColor: 'background.paper', whiteSpace: 'nowrap' }}>稼働率</TableCell>
+                               <TableCell align="right" sx={{ fontWeight: 600, backgroundColor: 'background.paper', whiteSpace: 'nowrap' }}>残キャパシティ</TableCell>
+                               <TableCell align="right" sx={{ fontWeight: 600, backgroundColor: 'background.paper', whiteSpace: 'nowrap' }}>消化効率</TableCell>
+                             </TableRow>
+                           </TableHead>
+                           <TableBody>
+                             {rows.map((row) => {
+                               const todayIso = new Date().toISOString().slice(0, 10);
+                               const utilization = maxHoursPerWeek > 0 ? (row.assigned_hours / maxHoursPerWeek) * 100 : 0;
+                               const expectedPassed = (row.weekdays_passed ?? 0) * hoursPerDay;
+                               const digestionRatio = expectedPassed > 0 && row.labor_hours_passed != null ? (row.labor_hours_passed / expectedPassed) * 100 : null;
+                               return (
+                                 <TableRow key={row.user_id} hover sx={{ '& > td': { verticalAlign: 'middle' } }}>
+                                   <TableCell component="th" scope="row" sx={{ fontWeight: 500 }}>{row.user_name}</TableCell>
+                                   <TableCell align="right">{row.assigned_hours.toFixed(1)}</TableCell>
+                                   <TableCell sx={{ py: 0.75 }}>
+                                     {row.daily_breakdown && row.daily_breakdown.length > 0 ? (
+                                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 68px)', gap: 0.6, alignItems: 'stretch', justifyContent: 'start' }}>
+                                         {row.daily_breakdown.map((day: { date: string; assigned_hours: number; free_hours: number }) => {
+                                           const a = day.assigned_hours;
+                                           const f = day.free_hours;
+                                           const isToday = day.date === todayIso;
+                                           const d = new Date(day.date + 'T12:00:00');
+                                           const weekDayNames = ['日','月','火','水','木','金','土'];
+                                           const label = weekDayNames[d.getDay()];
+                                           const busyRatio = Math.min(1, a / hoursPerDay);
+                                           const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                                           const bgColor = isWeekend ? 'grey.100' : busyRatio >= 0.9 ? 'error.light' : busyRatio >= 0.5 ? 'warning.light' : 'success.light';
+                                           const barHeight = `${Math.max(10, busyRatio * 100)}%`;
+                                           return (
+                                             <Box key={day.date} sx={{ px: 0.4, py: 0.4, borderRadius: 1, minWidth: 68, textAlign: 'center', fontVariantNumeric: 'tabular-nums', bgcolor: 'background.paper', border: '1px solid', borderColor: isToday ? 'primary.main' : 'divider', boxShadow: isToday ? 1 : 0 }} title={`${day.date}（${label}）割当 ${a.toFixed(1)}h / 空き ${f.toFixed(1)}h`}>
+                                               <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: isToday ? 700 : 500, color: isWeekend ? 'text.disabled' : 'text.secondary' }}>{label}</Typography>
+                                               <Box sx={{ mt: 0.3, mb: 0.3, height: 24, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                                 <Box sx={{ width: '65%', borderRadius: 0.5, bgcolor: bgColor, height: barHeight, transition: 'height 0.2s ease' }} />
+                                               </Box>
+                                               <Typography variant="caption" sx={{ display: 'block', fontSize: '0.7rem', color: 'text.secondary' }}>{a.toFixed(1)}h</Typography>
+                                             </Box>
+                                           );
+                                         })}
+                                       </Box>
+                                     ) : (
+                                       <Typography variant="caption" color="text.secondary">—</Typography>
+                                     )}
+                                   </TableCell>
+                                   <TableCell align="right">
+                                     <Typography variant="body2" sx={{ color: utilization >= 100 ? 'error.main' : utilization >= 80 ? 'warning.main' : 'text.primary' }}>{utilization.toFixed(1)}%</Typography>
+                                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>{row.assigned_hours.toFixed(1)}h / {maxHoursPerWeek}h</Typography>
+                                   </TableCell>
+                                   <TableCell align="right">
+                                     <Typography variant="body2" sx={{ color: row.free_hours > 0 ? 'success.main' : 'text.secondary' }}>{row.free_hours.toFixed(1)} h</Typography>
+                                   </TableCell>
+                                   <TableCell align="right">
+                                     {digestionRatio != null ? <Typography variant="body2">{digestionRatio.toFixed(1)}%</Typography> : <Typography variant="caption" color="text.secondary">—</Typography>}
+                                   </TableCell>
+                                 </TableRow>
+                               );
+                             })}
+                           </TableBody>
+                         </Table>
+                       </TableContainer>
+                     );
+                   })()}
                    {!weeklyAvailabilityLoading && !weeklyAvailability && (
                      <Typography variant="body2" color="text.secondary">データを取得できませんでした。「更新」を押して再試行してください。</Typography>
                    )}
@@ -1021,7 +993,28 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
                   )}
                 </Paper>
 
-                 <Divider sx={{ my: 2 }} />
+                {/* 今週の合計工数（リソース・スタックバー）— 全員を表示（0h の人も縦軸に含める） */}
+                {!weeklyAvailabilityLoading && weeklyAvailability && (() => {
+                  const allMembers = users.filter(u => u.role !== 'admin');
+                  const byId = new Map(weeklyAvailability.users.map(u => [u.user_id, u]));
+                  const reportUsers = allMembers.map(m => {
+                    const w = byId.get(m.id);
+                    return w
+                      ? { user_id: w.user_id, user_name: w.user_name, assigned_hours: w.assigned_hours, free_hours: w.free_hours }
+                      : { user_id: m.id, user_name: m.full_name || m.username || `User ${m.id}`, assigned_hours: 0, free_hours: 40 };
+                  });
+                  return (
+                    <Box sx={{ mt: 2 }}>
+                      <ResourceStackBar users={reportUsers} maxHoursPerWeek={40} />
+                    </Box>
+                  );
+                })()}
+              </Box>
+            )}
+
+            {/* タブ6: 工数集計 — 期間指定の集計レポート */}
+            {selectedTab === 6 && (
+              <Box sx={{ p: 2 }}>
                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                      <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1rem' }}>工数集計レポート</Typography>
@@ -1076,77 +1069,21 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
                        mb: 2,
                      }}
                    >
-                     <Paper
-                       variant="outlined"
-                       sx={{
-                         px: 1.5,
-                         py: 0.75,
-                         borderRadius: 1.5,
-                         display: 'flex',
-                         flexDirection: 'column',
-                         minWidth: 0,
-                       }}
-                     >
-                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                         総工数（時間）
-                       </Typography>
-                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                         {laborReportSummary.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })} h
-                       </Typography>
+                     <Paper variant="outlined" sx={{ px: 1.5, py: 0.75, borderRadius: 1.5, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>総工数（時間）</Typography>
+                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{laborReportSummary.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })} h</Typography>
                      </Paper>
-                     <Paper
-                       variant="outlined"
-                       sx={{
-                         px: 1.5,
-                         py: 0.75,
-                         borderRadius: 1.5,
-                         display: 'flex',
-                         flexDirection: 'column',
-                         minWidth: 0,
-                       }}
-                     >
-                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                         総工数（日換算）
-                       </Typography>
-                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                         {laborReportSummary.totalDays.toLocaleString(undefined, { maximumFractionDigits: 2 })} 日
-                       </Typography>
+                     <Paper variant="outlined" sx={{ px: 1.5, py: 0.75, borderRadius: 1.5, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>総工数（日換算）</Typography>
+                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{laborReportSummary.totalDays.toLocaleString(undefined, { maximumFractionDigits: 2 })} 日</Typography>
                      </Paper>
-                     <Paper
-                       variant="outlined"
-                       sx={{
-                         px: 1.5,
-                         py: 0.75,
-                         borderRadius: 1.5,
-                         display: 'flex',
-                         flexDirection: 'column',
-                         minWidth: 0,
-                       }}
-                     >
-                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                         対象{laborReportGroupBy === 'user' ? '担当者数' : 'プロジェクト数'}
-                       </Typography>
-                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                         {laborReportSummary.groupCount.toLocaleString()}
-                       </Typography>
+                     <Paper variant="outlined" sx={{ px: 1.5, py: 0.75, borderRadius: 1.5, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>対象{laborReportGroupBy === 'user' ? '担当者数' : 'プロジェクト数'}</Typography>
+                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{laborReportSummary.groupCount.toLocaleString()}</Typography>
                      </Paper>
-                     <Paper
-                       variant="outlined"
-                       sx={{
-                         px: 1.5,
-                         py: 0.75,
-                         borderRadius: 1.5,
-                         display: 'flex',
-                         flexDirection: 'column',
-                         minWidth: 0,
-                       }}
-                     >
-                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                         1{laborReportGroupBy === 'user' ? '人' : '件'}あたり平均工数
-                       </Typography>
-                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                         {laborReportSummary.avgHoursPerGroup.toLocaleString(undefined, { maximumFractionDigits: 1 })} h
-                       </Typography>
+                     <Paper variant="outlined" sx={{ px: 1.5, py: 0.75, borderRadius: 1.5, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                       <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>1{laborReportGroupBy === 'user' ? '人' : '件'}あたり平均工数</Typography>
+                       <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{laborReportSummary.avgHoursPerGroup.toLocaleString(undefined, { maximumFractionDigits: 1 })} h</Typography>
                      </Paper>
                    </Box>
                  )}
@@ -1186,15 +1123,9 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
                          {laborReportData.length > 0 && (
                            <TableRow sx={{ backgroundColor: 'action.hover', fontWeight: 'bold' }}>
                              <TableCell sx={{ fontWeight: 'bold' }}>合計</TableCell>
-                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                               {laborReportData.reduce((sum, row) => sum + row.total_cost, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                             </TableCell>
-                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                               {(laborReportData.reduce((sum, row) => sum + row.total_cost, 0) / 8).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                             </TableCell>
-                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>
-                               {laborReportData.reduce((sum, row) => sum + row.task_count, 0)}
-                             </TableCell>
+                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>{laborReportData.reduce((sum, row) => sum + row.total_cost, 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</TableCell>
+                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>{(laborReportData.reduce((sum, row) => sum + row.total_cost, 0) / 8).toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
+                             <TableCell align="right" sx={{ fontWeight: 'bold' }}>{laborReportData.reduce((sum, row) => sum + row.task_count, 0)}</TableCell>
                            </TableRow>
                          )}
                        </TableBody>

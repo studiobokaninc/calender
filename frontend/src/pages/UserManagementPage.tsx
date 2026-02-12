@@ -65,6 +65,7 @@ interface EditUserData {
   full_name: string;
   email: string;
   role: string;
+  base_load_hours_per_week?: number;
 }
 
 interface UserTaskInfo {
@@ -347,7 +348,8 @@ const UserManagementPage: React.FC = () => {
       username: user.username || '',
       full_name: user.full_name || '',
       email: user.email || '',
-      role: user.role || 'user'
+      role: user.role || 'user',
+      base_load_hours_per_week: user.base_load_hours_per_week || 0
     });
     setEditPassword('');
     setEditConfirmPassword('');
@@ -389,11 +391,12 @@ const UserManagementPage: React.FC = () => {
     }
 
     try {
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | number> = {
         username: currentEditUser.username,
         full_name: currentEditUser.full_name,
         email: currentEditUser.email,
-        role: currentEditUser.role
+        role: currentEditUser.role,
+        base_load_hours_per_week: currentEditUser.base_load_hours_per_week || 0
       };
       if (editPassword) {
         payload.password = editPassword;
@@ -697,7 +700,7 @@ const UserManagementPage: React.FC = () => {
                       const info = userTaskInfo[user.id];
                       const part = info ? partitionTasksByCategory(info.tasks) : { today: [], delayed: [], dueSoon: [], other: [] as Task[] };
                       return (
-                        <Card key={user.id} variant="outlined" sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : 'none', ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
+                        <Card key={user.id} variant="outlined" sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : 'none', ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                           <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -722,7 +725,7 @@ const UserManagementPage: React.FC = () => {
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.delayed.map((t) => (
                                       <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                        <Chip size="small" label={t.name} sx={{ bgcolor: '#FFEBEE', color: '#C62828', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                        <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE', color: isDarkMode ? '#EF9A9A' : '#C62828', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                       </Tooltip>
                                     ))}
                                   </Box>
@@ -736,7 +739,7 @@ const UserManagementPage: React.FC = () => {
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.today.map((t) => (
                                       <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                        <Chip size="small" label={t.name} sx={{ bgcolor: '#E3F2FD', color: '#1565C0', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                        <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD', color: isDarkMode ? '#90CAF9' : '#1565C0', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                       </Tooltip>
                                     ))}
                                   </Box>
@@ -750,7 +753,7 @@ const UserManagementPage: React.FC = () => {
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.dueSoon.map((t) => (
                                       <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                        <Chip size="small" label={t.name} sx={{ bgcolor: '#FFF3E0', color: '#E65100', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                        <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                       </Tooltip>
                                     ))}
                                   </Box>
@@ -781,9 +784,9 @@ const UserManagementPage: React.FC = () => {
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>ユーザー</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: '#FFEBEE', color: '#C62828' }}><WarningIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />遅れている</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: '#E3F2FD', color: '#1565C0' }}><TodayIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />今日中</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: '#FFF3E0', color: '#E65100' }}><ScheduleIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />期限が近い</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(198, 40, 40, 0.18)' : '#FFEBEE', color: isDarkMode ? '#EF9A9A' : '#C62828' }}><WarningIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />遅れている</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(21, 101, 192, 0.18)' : '#E3F2FD', color: isDarkMode ? '#90CAF9' : '#1565C0' }}><TodayIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />今日中</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.18)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100' }}><ScheduleIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />期限が近い</TableCell>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>余裕をもって進める</TableCell>
                         </TableRow>
                       </TableHead>
@@ -792,7 +795,7 @@ const UserManagementPage: React.FC = () => {
                           const info = userTaskInfo[user.id];
                           const part = info ? partitionTasksByCategory(info.tasks) : { today: [], delayed: [], dueSoon: [], other: [] as Task[] };
                           return (
-                            <TableRow key={user.id} hover sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : undefined, ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
+                            <TableRow key={user.id} hover sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : undefined, ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                               <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                   <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
@@ -807,29 +810,29 @@ const UserManagementPage: React.FC = () => {
                                   )}
                                 </Box>
                               </TableCell>
-                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(244, 67, 54, 0.04)' }}>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(244, 67, 54, 0.1)' : 'rgba(244, 67, 54, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {part.delayed.length === 0 ? '—' : part.delayed.map((t) => (
                                     <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                      <Chip size="small" label={t.name} sx={{ bgcolor: '#FFEBEE', color: '#C62828', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                      <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE', color: isDarkMode ? '#EF9A9A' : '#C62828', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                     </Tooltip>
                                   ))}
                                 </Box>
                               </TableCell>
-                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(33, 150, 243, 0.04)' }}>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(33, 150, 243, 0.1)' : 'rgba(33, 150, 243, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {part.today.length === 0 ? '—' : part.today.map((t) => (
                                     <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                      <Chip size="small" label={t.name} sx={{ bgcolor: '#E3F2FD', color: '#1565C0', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                      <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD', color: isDarkMode ? '#90CAF9' : '#1565C0', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                     </Tooltip>
                                   ))}
                                 </Box>
                               </TableCell>
-                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(255, 152, 0, 0.04)' }}>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(255, 152, 0, 0.1)' : 'rgba(255, 152, 0, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {part.dueSoon.length === 0 ? '—' : part.dueSoon.map((t) => (
                                     <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                      <Chip size="small" label={t.name} sx={{ bgcolor: '#FFF3E0', color: '#E65100', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
+                                      <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
                                     </Tooltip>
                                   ))}
                                 </Box>
@@ -870,7 +873,7 @@ const UserManagementPage: React.FC = () => {
                     {usersInGroupsList.map((user) => {
                       const userGroupsList = userGroupMap.get(user.id) || [];
                       return (
-                        <Card key={user.id} variant="outlined" sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
+                        <Card key={user.id} variant="outlined" sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                           <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -898,8 +901,8 @@ const UserManagementPage: React.FC = () => {
                                       label={group.name} 
                                       size="small" 
                                       sx={{ 
-                                        bgcolor: '#E1BEE7', 
-                                        color: '#7B1FA2', 
+                                        bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.28)' : '#E1BEE7', 
+                                        color: isDarkMode ? '#E1BEE7' : '#7B1FA2', 
                                         fontWeight: 600,
                                         maxWidth: 200,
                                       }} 
@@ -924,7 +927,7 @@ const UserManagementPage: React.FC = () => {
                       <TableHead>
                         <TableRow>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>ユーザー</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', minWidth: 300, bgcolor: '#F3E5F5', color: '#9C27B0' }}>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 300, bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.18)' : '#F3E5F5', color: isDarkMode ? '#E1BEE7' : '#9C27B0' }}>
                             <GroupIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />所属グループ
                           </TableCell>
                         </TableRow>
@@ -933,7 +936,7 @@ const UserManagementPage: React.FC = () => {
                         {usersInGroupsList.map((user) => {
                           const userGroupsList = userGroupMap.get(user.id) || [];
                           return (
-                            <TableRow key={user.id} hover sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: 'rgba(156, 39, 176, 0.07)' } : {}) }}>
+                            <TableRow key={user.id} hover sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                               <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                   <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
@@ -948,7 +951,7 @@ const UserManagementPage: React.FC = () => {
                                   )}
                                 </Box>
                               </TableCell>
-                              <TableCell sx={{ verticalAlign: 'top', bgcolor: 'rgba(156, 39, 176, 0.04)' }}>
+                              <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.1)' : 'rgba(156, 39, 176, 0.04)' }}>
                                 {userGroupsList.length > 0 ? (
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {userGroupsList.map((group) => (
@@ -957,8 +960,8 @@ const UserManagementPage: React.FC = () => {
                                         label={group.name} 
                                         size="small" 
                                         sx={{ 
-                                          bgcolor: '#E1BEE7', 
-                                          color: '#7B1FA2', 
+                                          bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.28)' : '#E1BEE7', 
+                                          color: isDarkMode ? '#E1BEE7' : '#7B1FA2', 
                                           fontWeight: 600,
                                           cursor: 'default',
                                         }} 
@@ -1110,6 +1113,16 @@ const UserManagementPage: React.FC = () => {
                 <MenuItem value="admin">管理者</MenuItem>
               </Select>
             </FormControl>
+            <TextField
+              label="定常業務時間（週あたり）"
+              name="base_load_hours_per_week"
+              type="number"
+              value={currentEditUser?.base_load_hours_per_week || 0}
+              onChange={handleEditChange}
+              fullWidth
+              inputProps={{ min: 0, max: 40, step: 0.5 }}
+              helperText="週あたりの定常業務（保守・運用・管理など）に充てる時間を設定します（0-40時間）"
+            />
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               パスワードを変更する場合のみ入力してください（空欄の場合は変更されません）
             </Typography>

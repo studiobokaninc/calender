@@ -1422,16 +1422,17 @@ const Dashboard: React.FC = () => {
               p: 1.5,
               height: 360,
               overflow: 'auto',
-              backgroundColor: 'grey.50',
+              backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50],
               display: 'flex',
               flexDirection: 'column',
               gap: 1.25,
             }}
           >
             {messages.map((m, i) => (
-              <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                 <Box sx={{
                   maxWidth: m.role === 'assistant' ? '95%' : '75%',
+                  minWidth: 0,
                   px: 2,
                   py: m.role === 'assistant' ? 1 : 1.5,
                   bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
@@ -1444,10 +1445,12 @@ const Dashboard: React.FC = () => {
                   boxShadow: m.role === 'user' ? 2 : 1,
                   border: m.role === 'assistant' ? '1px solid' : 'none',
                   borderColor: m.role === 'assistant' ? 'divider' : 'transparent',
+                  overflow: 'hidden',
                   '& .markdown-content': {
                     lineHeight: 1.35,
                     overflowX: 'auto',
                     maxWidth: '100%',
+                    minWidth: 0,
                     '& h1, & h2, & h3, & h4, & h5, & h6': {
                       margin: '6px 0 2px 0',
                       fontWeight: 600,
@@ -1478,7 +1481,8 @@ const Dashboard: React.FC = () => {
                     color: 'text.secondary',
                   },
                   '& .markdown-content code': {
-                    backgroundColor: 'grey.100',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
+                    color: 'text.primary',
                     padding: '2px 4px',
                     borderRadius: '4px',
                     fontSize: '0.875rem',
@@ -1502,11 +1506,13 @@ const Dashboard: React.FC = () => {
                     overflow: 'hidden',
                     boxShadow: 1,
                     width: 'max-content',
+                    maxWidth: '100%',
                   },
                   '& .markdown-content .table-scroll': {
-                    overflowX: 'scroll',
+                    overflowX: 'auto',
                     overflowY: 'hidden',
                     maxWidth: '100%',
+                    width: '100%',
                     // 常時スクロールバー表示（プラットフォーム依存）
                     scrollbarWidth: 'auto',
                   },
@@ -1517,13 +1523,17 @@ const Dashboard: React.FC = () => {
                     verticalAlign: 'top',
                     whiteSpace: 'nowrap',
                     boxSizing: 'border-box',
+                    color: 'text.primary',
                   },
                   '& .markdown-content th': {
-                    backgroundColor: 'grey.100',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
                     fontWeight: 600,
                   },
                   '& .markdown-content tbody tr:nth-of-type(odd) td': {
-                    backgroundColor: 'grey.50',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+                  },
+                  '& .markdown-content tbody tr:nth-of-type(even) td': {
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper,
                   },
                   '& .markdown-content tbody tr:hover td': {
                     backgroundColor: 'action.hover',
@@ -1533,7 +1543,7 @@ const Dashboard: React.FC = () => {
                   },
                   '& .markdown-content thead th': {
                     position: 'static',
-                    backgroundColor: 'grey.100',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
                   },
                   '& .markdown-content caption': {
                     captionSide: 'bottom',
@@ -1571,7 +1581,7 @@ const Dashboard: React.FC = () => {
                   {m.role === 'assistant' ? (
                     <div
                       className="message-content markdown-content"
-                      style={{ overflowX: 'auto' }}
+                      style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}
                       dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
                     />
                   ) : (

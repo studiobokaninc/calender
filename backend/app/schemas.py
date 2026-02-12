@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     name: Optional[str] = None # 旧フィールド（後方互換用）
     role: Optional[str] = 'user'
     iconUrl: Optional[str] = None
+    base_load_hours_per_week: Optional[float] = Field(default=0.0, ge=0.0, le=40.0, description="週あたりの定常業務時間（ベースロード）")
 
 class UserCreate(UserBase):
     email: EmailStr

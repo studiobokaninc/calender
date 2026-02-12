@@ -104,6 +104,7 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
         name=user.name,
         hashed_password=hashed_password,
         role=user.role,
+        base_load_hours_per_week=getattr(user, 'base_load_hours_per_week', None) or 0.0,
         created_at=now_jst_naive(),
         updated_at=now_jst_naive()
     )
@@ -126,6 +127,8 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
         db_user.email = update_data["email"]
     if "role" in update_data:
         db_user.role = update_data["role"]
+    if "base_load_hours_per_week" in update_data:
+        db_user.base_load_hours_per_week = update_data["base_load_hours_per_week"] or 0.0
     db_user.updated_at = now_jst_naive()
     
     db.commit()
@@ -775,9 +778,38 @@ def _is_task_unblocked_on_date(task, d: date, tasks_by_id: dict, to_date) -> boo
     return True
 
 
+def _convert_cost_to_hours(cost_value) -> float:
+    """
+    コスト値を時間（float）に変換する。
+    S/M/L形式の文字列の場合は標準時間に変換、数値の場合はそのまま返す。
+    S=2h, M=8h, L=24h
+    """
+    if cost_value is None:
+        return 0.0
+    if isinstance(cost_value, str):
+        cost_str = cost_value.strip().upper()
+        if cost_str == 'S':
+            return 2.0
+        elif cost_str == 'M':
+            return 8.0
+        elif cost_str == 'L':
+            return 24.0
+        else:
+            # 数値文字列の場合は変換を試みる
+            try:
+                return float(cost_value)
+            except (ValueError, TypeError):
+                return 0.0
+    try:
+        return float(cost_value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _task_calendar_range(task, to_date):
     """タスクのカレンダー上の開始日・終了日（date）とコスト（時間）を返す。(task_start, task_end, cost) または (None, None, 0)"""
-    cost = float(getattr(task, "cost", None) or 0)
+    cost_raw = getattr(task, "cost", None)
+    cost = _convert_cost_to_hours(cost_raw)
     if cost <= 0:
         return None, None, 0
     start_d = to_date(getattr(task, "start_date", None))
@@ -938,18 +970,31 @@ def get_weekly_workload(
     for uid in user_labor_passed:
         all_user_ids.add(uid)
     users_map = {}
+    user_base_loads = {}  # ユーザーID -> ベースロード（週あたり時間）
     for u in db.query(models.User).filter(models.User.id.in_(all_user_ids)).all():
         users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+        user_base_loads[u.id] = float(u.base_load_hours_per_week or 0.0)
 
     result = []
     for uid in sorted(all_user_ids):
-        assigned = round(user_hours.get(uid, 0), 2)
+        base_load = user_base_loads.get(uid, 0.0)
+        task_assigned = round(user_hours.get(uid, 0), 2)
+        # ベースロードを考慮した総割当工数
+        assigned = round(task_assigned + base_load, 2)
         free = max(0, MAX_HOURS_PER_WEEK - assigned)
         daily_breakdown = []
+        # ベースロードを平日に按分（週5日で割る）
+        base_load_per_day = base_load / 5.0 if base_load > 0 else 0.0
         d = week_start
         while d <= week_end:
-            day_assigned = round(user_daily_hours.get((uid, d), 0), 2)
-            day_free = round(max(0, HOURS_PER_DAY - day_assigned) if d.weekday() < 5 else 0, 2)
+            task_day_assigned = round(user_daily_hours.get((uid, d), 0), 2)
+            # 平日のみベースロードを追加
+            if d.weekday() < 5:
+                day_assigned = round(task_day_assigned + base_load_per_day, 2)
+                day_free = round(max(0, HOURS_PER_DAY - day_assigned), 2)
+            else:
+                day_assigned = task_day_assigned
+                day_free = 0
             daily_breakdown.append({
                 "date": d.isoformat(),
                 "assigned_hours": day_assigned,
@@ -964,6 +1009,8 @@ def get_weekly_workload(
             "total_cost_hours": total_cost_hours,
             "assigned_hours": assigned,
             "free_hours": round(free, 2),
+            "base_load_hours_per_week": round(base_load, 2),
+            "task_assigned_hours": round(task_assigned, 2),
             "labor_hours_passed": round(user_labor_passed.get(uid, 0), 2),
             "remaining_cost_hours": round(user_remaining_cost.get(uid, 0), 2),
             "weekdays_passed": user_weekdays_passed.get(uid, 0),
@@ -1066,18 +1113,34 @@ def get_daily_workload(
     for uid in user_labor_passed:
         all_user_ids.add(uid)
     users_map = {}
+    user_base_loads = {}  # ユーザーID -> ベースロード（週あたり時間）
     for u in db.query(models.User).filter(models.User.id.in_(all_user_ids)).all():
         users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+        user_base_loads[u.id] = float(u.base_load_hours_per_week or 0.0)
 
     result = []
     for uid in sorted(all_user_ids):
-        assigned = round(user_hours.get(uid, 0), 2)
-        free = max(0, HOURS_PER_DAY - assigned) if target_date.weekday() < 5 else 0
+        base_load = user_base_loads.get(uid, 0.0)
+        task_assigned = round(user_hours.get(uid, 0), 2)
+        # 平日のみベースロードを追加（週5日で按分）
+        if target_date.weekday() < 5:
+            base_load_per_day = base_load / 5.0
+            assigned = round(task_assigned + base_load_per_day, 2)
+            free = max(0, HOURS_PER_DAY - assigned)
+        else:
+            assigned = task_assigned
+            free = 0
+        base_load = user_base_loads.get(uid, 0.0)
+        base_load_per_day = base_load / 5.0 if target_date.weekday() < 5 else 0.0
+        task_assigned = round(user_hours.get(uid, 0), 2)
         result.append({
             "user_id": uid,
             "user_name": users_map.get(uid, ""),
             "assigned_hours": assigned,
             "free_hours": round(free, 2),
+            "base_load_hours_per_week": round(base_load, 2),
+            "base_load_hours_per_day": round(base_load_per_day, 2),
+            "task_assigned_hours": round(task_assigned, 2),
             "labor_hours_passed": round(user_labor_passed.get(uid, 0), 2),
             "remaining_cost_hours": round(user_remaining_cost.get(uid, 0), 2),
             "weekdays_passed": user_weekdays_passed.get(uid, 0),

@@ -2111,7 +2111,7 @@ const CalendarPage: React.FC = () => {
                         作成
                     </Button>
                     <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                        予定はドラッグ&ドロップで移動できます。タスクは期日が更新されます。
+                        予定はドラッグ&ドロップで移動できます。タスクは期日が更新されます。ダブルクリックで編集できます。
                     </Typography>
                 </Box>
             </Box>

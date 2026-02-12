@@ -409,7 +409,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     
     // コストが変更された場合、開始日を再計算
     if (name === 'taskCost' && formData.type === 'task' && formData.taskDueDate) {
-      const cost = value ? Number(value) : 0;
+      // S/M/L形式の場合は変換
+      let cost = 0;
+      if (value === 'S') cost = 2;
+      else if (value === 'M') cost = 8;
+      else if (value === 'L') cost = 24;
+      else if (value) cost = Number(value) || 0;
       const days = Math.ceil(cost / 8); // 1日8時間として計算
       const dueDate = parseDateString(formData.taskDueDate);
       if (dueDate) {
@@ -434,7 +439,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   const handleDateChange = (name: keyof EventFormData, newValue: Date | null) => {
     if (name === 'taskDueDate' && newValue && isDateValid(newValue) && formData.type === 'task') {
       const newDueDateStr = format(newValue, 'yyyy-MM-dd');
-      const cost = formData.taskCost ? Number(formData.taskCost) : 0;
+      // S/M/L形式の場合は変換
+      let cost = 0;
+      if (formData.taskCost === 'S') cost = 2;
+      else if (formData.taskCost === 'M') cost = 8;
+      else if (formData.taskCost === 'L') cost = 24;
+      else if (formData.taskCost) cost = Number(formData.taskCost) || 0;
       const days = Math.ceil(cost / 8);
       const startDate = addDays(newValue, -days);
 
@@ -601,7 +611,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       }
       if (!formData.taskDueDate) newErrors.taskDueDate = '期日を入力してください';
       // if (!formData.taskAssigneeId) newErrors.taskAssigneeId = '担当者を選択してください'; // 必須ではなくなった
-      if (formData.taskCost && isNaN(Number(formData.taskCost))) newErrors.taskCost = 'コストには数値を入力してください';
+      // S/M/L形式または数値を受け入れる
+      if (formData.taskCost && !['S', 'M', 'L'].includes(String(formData.taskCost))) {
+          if (isNaN(Number(formData.taskCost))) {
+              newErrors.taskCost = 'コストにはS/M/Lまたは数値を入力してください';
+          }
+      }
 
     } else if (formData.type === 'project' || formData.type === 'Project') {
       // プロジェクトタイプの検証
@@ -711,7 +726,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         if (!dataToSave.start_time && formData.taskDueDate) {
             const dueDateObj = parseDateString(formData.taskDueDate);
             if (dueDateObj && isDateValid(dueDateObj)) {
-                const cost = formData.taskCost ? Number(formData.taskCost) : 0;
+                // S/M/L形式の場合は変換
+                let cost = 0;
+                if (formData.taskCost === 'S') cost = 2;
+                else if (formData.taskCost === 'M') cost = 8;
+                else if (formData.taskCost === 'L') cost = 24;
+                else if (formData.taskCost) cost = Number(formData.taskCost) || 0;
                 const days = Math.ceil(cost / 8);
                 const startDateObjFallback = addDays(dueDateObj, -days);
                 dataToSave.start_time = format(startOfDay(startDateObjFallback), "yyyy-MM-dd'T'HH:mm:ssxxx");
@@ -744,7 +764,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             dataToSave.assigned_to = null;
             dataToSave.assignee_type = null;
         }
-        dataToSave.cost = formData.taskCost ? Number(formData.taskCost) : 0;
+        // S/M/L形式の場合はそのまま送信（バックエンドで変換）
+        dataToSave.cost = formData.taskCost ? (['S', 'M', 'L'].includes(String(formData.taskCost)) ? String(formData.taskCost) : Number(formData.taskCost)) : 0;
         dataToSave.status = formData.taskStatus || 'todo';
         dataToSave.priority = (formData.taskPriority ?? 'low').toLowerCase();
         dataToSave.taskType = (formData.taskType ?? '').toLowerCase() || undefined;
@@ -1085,18 +1106,47 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       </FormControl>
                   </Grid>
                    <Grid item xs={6}>
-                      <TextField
-                          label="コスト"
-                          name="taskCost"
-                          type="number"
-                          value={formData.taskCost}
-                          onChange={handleChange}
-                          fullWidth
-                          size="small"
-                          error={!!errors.taskCost}
-                          helperText={errors.taskCost}
-                          inputProps={{ step: "0.1" }} // Allow decimal for cost
-                      />
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                              <InputLabel id="cost-preset-label">クイック選択</InputLabel>
+                              <Select
+                                  labelId="cost-preset-label"
+                                  name="costPreset"
+                                  value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? formData.taskCost : ''}
+                                  label="クイック選択"
+                                  onChange={(e) => {
+                                      const value = e.target.value;
+                                      if (value) {
+                                          handleChange({ target: { name: 'taskCost', value } } as any);
+                                      } else {
+                                          // 「手入力」を選択した場合は数値入力フィールドをクリア
+                                          handleChange({ target: { name: 'taskCost', value: '' } } as any);
+                                      }
+                                  }}
+                              >
+                                  <MenuItem value="">手入力</MenuItem>
+                                  <MenuItem value="S">S（2時間）</MenuItem>
+                                  <MenuItem value="M">M（8時間）</MenuItem>
+                                  <MenuItem value="L">L（24時間）</MenuItem>
+                              </Select>
+                          </FormControl>
+                          <TextField
+                              label="コスト（時間）"
+                              name="taskCost"
+                              type="number"
+                              value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? '' : (formData.taskCost || '')}
+                              onChange={(e) => {
+                                  const value = e.target.value;
+                                  handleChange({ target: { name: 'taskCost', value } } as any);
+                              }}
+                              fullWidth
+                              size="small"
+                              error={!!errors.taskCost}
+                              helperText={errors.taskCost || 'S/M/Lを選択するか、数値で入力してください'}
+                              inputProps={{ step: "0.1", min: 0 }}
+                              disabled={['S', 'M', 'L'].includes(String(formData.taskCost || ''))}
+                          />
+                      </Box>
                   </Grid>
                   <Grid item xs={6}>
                       <FormControl fullWidth size="small">

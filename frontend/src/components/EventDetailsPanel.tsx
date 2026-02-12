@@ -1,6 +1,6 @@
 // src/components/EventDetailsPanel.tsx
 import React, { useMemo } from 'react';
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox } from '@mui/material';
+import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox, useTheme } from '@mui/material';
 import { CalendarEvent, Project, Task, User, Group, Participant } from '../types';
 import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay, addDays } from 'date-fns';
 import { ja } from 'date-fns/locale';
@@ -195,6 +195,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   onEventTypeFilterChange,
   projects,
 }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   console.log('EventDetailsPanel projects:', projects);
 
   console.log("Selected Event in Panel:", selectedEvent);
@@ -570,7 +572,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                 p: 2, 
                 borderLeft: 5, 
                 borderColor: getTitleBorderColor(selectedEvent),
-                backgroundColor: '#fafafa',
+                backgroundColor: 'background.paper',
+                color: 'text.primary',
                 transition: 'box-shadow 0.2s',
                 '&:hover': { boxShadow: 4 },
                 cursor: 'pointer',
@@ -679,7 +682,9 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     mt: 1, 
                     mb: 1.5, 
                     p: 1, 
-                    backgroundColor: selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) ? 'rgba(25, 118, 210, 0.08)' : 'rgba(0,0,0,0.04)', 
+                    backgroundColor: selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId))
+                      ? (isDark ? 'rgba(25, 118, 210, 0.2)' : 'rgba(25, 118, 210, 0.08)')
+                      : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'), 
                     borderRadius: 1,
                     display: 'flex',
                     alignItems: 'center'
@@ -886,7 +891,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                      {['meeting', 'workshop', 'generic', 'event'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && !selectedEvent.allDay && selectedEvent.start && (
                        <Box sx={{ 
                          p: 1.5, 
-                         backgroundColor: 'rgba(33, 150, 243, 0.08)', 
+                         backgroundColor: isDark ? 'rgba(33, 150, 243, 0.2)' : 'rgba(33, 150, 243, 0.08)', 
                          borderRadius: 1,
                          borderLeft: 3,
                          borderColor: 'primary.main'
@@ -981,7 +986,9 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                      <Box sx={{ 
                        mt: 0.5,
                        p: 1, 
-                       backgroundColor: selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId)) ? 'rgba(25, 118, 210, 0.08)' : 'rgba(0,0,0,0.04)', 
+                       backgroundColor: selectedEvent.extendedProps?.projectId && projectMap.has(String(selectedEvent.extendedProps.projectId))
+                         ? (isDark ? 'rgba(25, 118, 210, 0.2)' : 'rgba(25, 118, 210, 0.08)')
+                         : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'), 
                        borderRadius: 1,
                        display: 'flex',
                        alignItems: 'center'
@@ -1053,8 +1060,10 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     cursor: 'pointer',
                     borderLeft: 4,
                     borderColor: getCardColor(ev),
+                    backgroundColor: 'background.paper',
+                    color: 'text.primary',
                     transition: 'box-shadow 0.2s',
-                    '&:hover': { boxShadow: 6, background: '#f5faff' },
+                    '&:hover': { boxShadow: 6, backgroundColor: 'action.hover' },
                   }}
                   onClick={() => onEventSelect(ev)}
                   onDoubleClick={(e) => {

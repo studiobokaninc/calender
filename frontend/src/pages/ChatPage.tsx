@@ -721,16 +721,17 @@ const ChatPage: React.FC = () => {
               p: 1.5,
               height: 380,
               overflow: 'auto',
-              backgroundColor: 'grey.50',
+              backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50],
               display: 'flex',
               flexDirection: 'column',
               gap: 1.25,
             }}
           >
             {messages.map((m, i) => (
-              <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                 <Box sx={{
                   maxWidth: m.role === 'assistant' ? '95%' : '75%',
+                  minWidth: 0,
                   px: 2,
                   py: m.role === 'assistant' ? 1 : 1.5,
                   bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
@@ -743,10 +744,12 @@ const ChatPage: React.FC = () => {
                   boxShadow: m.role === 'user' ? 2 : 1,
                   border: m.role === 'assistant' ? '1px solid' : 'none',
                   borderColor: m.role === 'assistant' ? 'divider' : 'transparent',
+                  overflow: 'hidden',
                   '& .markdown-content': {
                     lineHeight: 1.35,
                     overflowX: 'auto',
                     maxWidth: '100%',
+                    minWidth: 0,
                     '& h1, & h2, & h3, & h4, & h5, & h6': {
                       margin: '6px 0 2px 0',
                       fontWeight: 600,
@@ -777,7 +780,8 @@ const ChatPage: React.FC = () => {
                     color: 'text.secondary',
                   },
                   '& .markdown-content code': {
-                    backgroundColor: 'grey.100',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
+                    color: 'text.primary',
                     padding: '2px 4px',
                     borderRadius: '4px',
                     fontSize: '0.875rem',
@@ -801,11 +805,13 @@ const ChatPage: React.FC = () => {
                     overflow: 'hidden',
                     boxShadow: 1,
                     width: 'max-content',
+                    maxWidth: '100%',
                   },
                   '& .markdown-content .table-scroll': {
-                    overflowX: 'scroll',
+                    overflowX: 'auto',
                     overflowY: 'hidden',
                     maxWidth: '100%',
+                    width: '100%',
                     scrollbarWidth: 'auto',
                   },
                   '& .markdown-content th, & .markdown-content td': {
@@ -815,13 +821,17 @@ const ChatPage: React.FC = () => {
                     verticalAlign: 'top',
                     whiteSpace: 'nowrap',
                     boxSizing: 'border-box',
+                    color: 'text.primary',
                   },
                   '& .markdown-content th': {
-                    backgroundColor: 'grey.100',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
                     fontWeight: 600,
                   },
                   '& .markdown-content tbody tr:nth-of-type(odd) td': {
-                    backgroundColor: 'grey.50',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
+                  },
+                  '& .markdown-content tbody tr:nth-of-type(even) td': {
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper,
                   },
                   '& .markdown-content tbody tr:hover td': {
                     backgroundColor: 'action.hover',
@@ -831,7 +841,7 @@ const ChatPage: React.FC = () => {
                   },
                   '& .markdown-content thead th': {
                     position: 'static',
-                    backgroundColor: 'grey.100',
+                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
                   },
                   '& .markdown-content caption': {
                     captionSide: 'bottom',
@@ -869,7 +879,7 @@ const ChatPage: React.FC = () => {
                   {m.role === 'assistant' ? (
                     <div
                       className="message-content markdown-content"
-                      style={{ overflowX: 'auto' }}
+                      style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}
                       dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
                     />
                   ) : (
@@ -941,7 +951,9 @@ const ChatPage: React.FC = () => {
                 py: 3,
                 px: 3,
                 textAlign: 'center',
-                background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                background: (theme) => theme.palette.mode === 'dark' 
+                  ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+                  : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
                 borderRadius: 2,
                 border: '2px dashed',
                 borderColor: 'primary.light',
@@ -1024,7 +1036,7 @@ const ChatPage: React.FC = () => {
             {tasksByCategory.delayed.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: '#C62828', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
+                  <Typography variant="body1" sx={{ color: 'error.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
                     <WarningIcon fontSize="medium" /> 遅れている
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
@@ -1037,8 +1049,8 @@ const ChatPage: React.FC = () => {
                             <Chip 
                               label={t.name} 
                               sx={{ 
-                                bgcolor: '#FFEBEE', 
-                                color: '#C62828', 
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : '#FFEBEE', 
+                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.light : '#C62828', 
                                 fontSize: '0.95rem',
                                 height: 36,
                                 padding: '0 12px',
@@ -1069,7 +1081,7 @@ const ChatPage: React.FC = () => {
             {tasksByCategory.today.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: '#1565C0', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
+                  <Typography variant="body1" sx={{ color: 'info.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
                     <TodayIcon fontSize="medium" /> 今日中
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
@@ -1082,8 +1094,8 @@ const ChatPage: React.FC = () => {
                             <Chip 
                               label={t.name} 
                               sx={{ 
-                                bgcolor: '#E3F2FD', 
-                                color: '#1565C0', 
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.dark : '#E3F2FD', 
+                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.light : '#1565C0', 
                                 fontSize: '0.95rem',
                                 height: 36,
                                 padding: '0 12px',
@@ -1114,7 +1126,7 @@ const ChatPage: React.FC = () => {
             {tasksByCategory.dueSoon.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: '#E65100', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
+                  <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
                     <ScheduleIcon fontSize="medium" /> 期限が近い
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
@@ -1127,8 +1139,8 @@ const ChatPage: React.FC = () => {
                             <Chip 
                               label={t.name} 
                               sx={{ 
-                                bgcolor: '#FFF3E0', 
-                                color: '#E65100', 
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.dark : '#FFF3E0', 
+                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.light : '#E65100', 
                                 fontSize: '0.95rem',
                                 height: 36,
                                 padding: '0 12px',

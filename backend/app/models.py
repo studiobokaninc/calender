@@ -76,6 +76,7 @@ class User(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column()
     username: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     full_name: Mapped[Optional[str]] = mapped_column(index=True)
+    base_load_hours_per_week: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
 
 class Project(Base):
     __tablename__ = "projects"

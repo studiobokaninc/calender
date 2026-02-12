@@ -137,6 +137,7 @@ export interface User {
   full_name?: string;
   name?: string;
   role?: string;
+  base_load_hours_per_week?: number; // 週あたりの定常業務時間（ベースロード）
   // --- User Profile Settings ---
   language?: string;
   iconUrl?: string; // URL to the user's profile picture

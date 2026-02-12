@@ -558,16 +558,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             }}
             selected={location.pathname.startsWith(item.path)}
             sx={{ 
-              px: isDrawerCollapsed ? 1 : 2,
-              minHeight: 48,
+              px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
+              minHeight: { xs: 56, sm: 48 },
+              py: { xs: 1.5, sm: 0 },
             }}
           >
             <Tooltip title={isDrawerCollapsed ? item.text : ""} placement="right">
-              <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : 40 }}>
+              <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : { xs: 48, sm: 40 } }}>
                 {item.icon}
               </ListItemIcon>
             </Tooltip>
-            {!isDrawerCollapsed && <ListItemText primary={item.text} />}
+            {!isDrawerCollapsed && <ListItemText primary={item.text} sx={{ '& .MuiTypography-root': { fontSize: { xs: '0.95rem', sm: '0.875rem' } } }} />}
           </ListItem>
         ))}
       </List>
@@ -587,16 +588,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 }}
                 selected={location.pathname.startsWith(item.path)}
                 sx={{ 
-                  px: isDrawerCollapsed ? 1 : 2,
-                  minHeight: 48,
+                  px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
+                  minHeight: { xs: 56, sm: 48 },
+                  py: { xs: 1.5, sm: 0 },
                 }}
               >
                 <Tooltip title={isDrawerCollapsed ? item.text : ""} placement="right">
-                  <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : 40 }}>
+                  <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : { xs: 48, sm: 40 } }}>
                     {item.icon}
                   </ListItemIcon>
                 </Tooltip>
-                {!isDrawerCollapsed && <ListItemText primary={item.text} />}
+                {!isDrawerCollapsed && <ListItemText primary={item.text} sx={{ '& .MuiTypography-root': { fontSize: { xs: '0.95rem', sm: '0.875rem' } } }} />}
               </ListItem>
             ))}
           </List>
@@ -608,16 +610,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           button 
           onClick={logout}
           sx={{ 
-            px: isDrawerCollapsed ? 1 : 2,
-            minHeight: 48,
+            px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
+            minHeight: { xs: 56, sm: 48 },
+            py: { xs: 1.5, sm: 0 },
           }}
         >
           <Tooltip title={isDrawerCollapsed ? "ログアウト" : ""} placement="right">
-            <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : 40 }}>
+            <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : { xs: 48, sm: 40 } }}>
               <LogoutIcon />
             </ListItemIcon>
           </Tooltip>
-          {!isDrawerCollapsed && <ListItemText primary="ログアウト" />}
+          {!isDrawerCollapsed && <ListItemText primary="ログアウト" sx={{ '& .MuiTypography-root': { fontSize: { xs: '0.95rem', sm: '0.875rem' } } }} />}
         </ListItem>
       </List>
     </div>
@@ -801,50 +804,53 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           }),
         }}
       >
-        <Toolbar sx={{ minHeight: '40px !important', display: 'flex', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Toolbar sx={{ minHeight: { xs: '56px !important', sm: '40px !important' }, display: 'flex', justifyContent: 'space-between', px: { xs: 1, sm: 2 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
             <>
               <IconButton
                 color="inherit"
                 aria-label="open drawer"
                 edge="start"
                 onClick={handleDrawerToggle}
-                sx={{ mr: 2, display: { sm: 'none' } }}
+                sx={{ mr: { xs: 1, sm: 2 }, display: { sm: 'none' }, minWidth: 48, minHeight: 48 }}
               >
                 <MenuIcon />
               </IconButton>
-              <Typography variant="h6" noWrap component="div">
+              <Typography variant="h6" noWrap component="div" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentTitle}
               </Typography>
             </>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
             <Tooltip title={mode === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え'}>
               <IconButton
                 color="inherit"
                 onClick={toggleMode}
-                size="small"
+                size={isMobile ? "medium" : "small"}
                 aria-label="toggle color mode"
+                sx={{ minWidth: { xs: 48, sm: 40 }, minHeight: { xs: 48, sm: 40 } }}
               >
-                {mode === 'light' ? <DarkModeIcon fontSize="small" /> : <LightModeIcon fontSize="small" />}
+                {mode === 'light' ? <DarkModeIcon fontSize={isMobile ? "medium" : "small"} /> : <LightModeIcon fontSize={isMobile ? "medium" : "small"} />}
               </IconButton>
             </Tooltip>
             {user?.role === 'admin' && (
               <Tooltip title="グローバル検索">
-                <IconButton color="inherit" onClick={() => setSearchOpen(true)} size="small" aria-label="検索">
-                  <SearchIcon />
+                <IconButton color="inherit" onClick={() => setSearchOpen(true)} size={isMobile ? "medium" : "small"} aria-label="検索" sx={{ minWidth: { xs: 48, sm: 40 }, minHeight: { xs: 48, sm: 40 } }}>
+                  <SearchIcon fontSize={isMobile ? "medium" : "small"} />
                 </IconButton>
               </Tooltip>
             )}
-            <PersonIcon sx={{ fontSize: 20, opacity: 0.9 }} />
-            <Typography variant="body2" component="span" sx={{ opacity: 0.95 }}>
-              ログイン中: {user?.email || user?.username || user?.full_name || ''}
-            </Typography>
-            {user?.role === 'admin' && (
-              <Typography component="span" variant="caption" sx={{ ml: 0.5, opacity: 0.85 }}>
-                (管理者)
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5 }}>
+              <PersonIcon sx={{ fontSize: 20, opacity: 0.9 }} />
+              <Typography variant="body2" component="span" sx={{ opacity: 0.95 }}>
+                ログイン中: {user?.email || user?.username || user?.full_name || ''}
               </Typography>
-            )}
+              {user?.role === 'admin' && (
+                <Typography component="span" variant="caption" sx={{ ml: 0.5, opacity: 0.85 }}>
+                  (管理者)
+                </Typography>
+              )}
+            </Box>
           </Box>
         </Toolbar>
       </AppBar>
@@ -905,10 +911,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           flexDirection: 'column',
           overflow: 'hidden',
           minHeight: 0,
-          padding: theme.spacing(1, 2, 2, 2),
+          padding: { xs: theme.spacing(1), sm: theme.spacing(1, 2, 2, 2) },
         }}
       >
-        <Toolbar sx={{ minHeight: '40px !important', flexShrink: 0 }} />
+        <Toolbar sx={{ minHeight: { xs: '48px !important', sm: '40px !important' }, flexShrink: 0 }} />
         <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
           {children}
         </Box>

@@ -1,6 +1,6 @@
 // src/components/EventDetailsPanel.tsx
 import React, { useMemo } from 'react';
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox, useTheme } from '@mui/material';
+import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox, useTheme, useMediaQuery } from '@mui/material';
 import { CalendarEvent, Project, Task, User, Group, Participant } from '../types';
 import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay, addDays } from 'date-fns';
 import { ja } from 'date-fns/locale';
@@ -197,6 +197,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   console.log('EventDetailsPanel projects:', projects);
 
   console.log("Selected Event in Panel:", selectedEvent);
@@ -461,19 +462,21 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   }, [dailyEvents]);
 
   return (
-    <Box sx={{ p: 1, pt: 4, overflowY: 'auto', flexGrow: 1, position: 'relative', height: '100%' }}>
-      <Tooltip title={isMinimized ? "詳細を開く" : "詳細を閉じる"}>
-        <IconButton
-          onClick={onToggleMinimize}
-          size="small"
-          sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
-        >
-          {isMinimized ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
-        </IconButton>
-      </Tooltip>
+    <Box sx={{ p: isMobile ? 0 : 1, pt: isMobile ? 0 : 4, overflowY: 'auto', flexGrow: 1, position: 'relative', height: '100%' }}>
+      {!isMobile && (
+        <Tooltip title={isMinimized ? "詳細を開く" : "詳細を閉じる"}>
+          <IconButton
+            onClick={onToggleMinimize}
+            size="small"
+            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
+          >
+            {isMinimized ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+      )}
 
-      {/* プルダウンを詳細欄の上部に表示（ミニマイズ時は非表示） */}
-      {!isMinimized && (
+      {/* プルダウンを詳細欄の上部に表示（ミニマイズ時は非表示、モバイルでは非表示） */}
+      {!isMinimized && !isMobile && (
         <Box sx={{ mb: 1 }}>
           {selectedDate && (
             <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: '1.15rem', color: 'primary.main', mb: 1 }}>
@@ -567,20 +570,27 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
         <>
           {selectedEvent && (
             <Paper 
-              elevation={2} 
+              elevation={isMobile ? 0 : 2} 
               sx={{ 
-                p: 2, 
-                borderLeft: 5, 
+                p: isMobile ? 1.5 : 2, 
+                borderLeft: isMobile ? 3 : 5, 
                 borderColor: getTitleBorderColor(selectedEvent),
                 backgroundColor: 'background.paper',
                 color: 'text.primary',
                 transition: 'box-shadow 0.2s',
-                '&:hover': { boxShadow: 4 },
+                '&:hover': { boxShadow: isMobile ? 0 : 4 },
                 cursor: 'pointer',
+                mb: isMobile ? 2 : 0,
+              }}
+              onClick={() => {
+                // モバイルではタップで編集を開かない（編集ボタンから開く）
+                // PCでもシングルクリックでは何もしない（ダブルクリックで編集）
               }}
               onDoubleClick={(e) => {
-                e.stopPropagation();
-                handleEdit();
+                if (!isMobile) {
+                  e.stopPropagation();
+                  handleEdit();
+                }
               }}
             >
               {/* 1. タイトル（アイコン付き・青・ボールド・左詰め） */}
@@ -623,7 +633,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     color: 'text.primary',
-                    fontSize: '1.15rem',
+                    fontSize: isMobile ? '1rem' : '1.15rem',
                     mb: 0.8,
                     pl: 0,
                   }}
@@ -1008,31 +1018,57 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               )}
               {/* 4. 編集・削除ボタン（右端） */}
               <Divider sx={{ my: 1.5 }} />
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                <Tooltip title="編集">
-                  <IconButton 
-                    size="small" 
-                    onClick={handleEdit} 
-                    sx={{ 
-                      backgroundColor: 'action.hover',
-                      '&:hover': { backgroundColor: 'primary.light', color: 'primary.main' }
-                    }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="削除">
-                  <IconButton 
-                    size="small" 
-                    onClick={handleDelete}
-                    sx={{ 
-                      backgroundColor: 'action.hover',
-                      '&:hover': { backgroundColor: 'error.light', color: 'error.main' }
-                    }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
+              <Box sx={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end', gap: isMobile ? 1 : 0.5 }}>
+                {isMobile ? (
+                  <>
+                    <Button
+                      variant="outlined"
+                      startIcon={<EditIcon />}
+                      onClick={handleEdit}
+                      fullWidth
+                      sx={{ textTransform: 'none' }}
+                    >
+                      編集
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      onClick={handleDelete}
+                      fullWidth
+                      sx={{ textTransform: 'none' }}
+                    >
+                      削除
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Tooltip title="編集">
+                      <IconButton 
+                        size="small" 
+                        onClick={handleEdit} 
+                        sx={{ 
+                          backgroundColor: 'action.hover',
+                          '&:hover': { backgroundColor: 'primary.light', color: 'primary.main' }
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="削除">
+                      <IconButton 
+                        size="small" 
+                        onClick={handleDelete}
+                        sx={{ 
+                          backgroundColor: 'action.hover',
+                          '&:hover': { backgroundColor: 'error.light', color: 'error.main' }
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
               </Box>
             </Paper>
           )}
@@ -1065,10 +1101,16 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     transition: 'box-shadow 0.2s',
                     '&:hover': { boxShadow: 6, backgroundColor: 'action.hover' },
                   }}
-                  onClick={() => onEventSelect(ev)}
+                  onClick={() => {
+                    // モバイルでは詳細表示のみ（編集は開かない）
+                    onEventSelect(ev);
+                  }}
                   onDoubleClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(ev);
+                    // PCではダブルクリックで編集
+                    if (!isMobile) {
+                      e.stopPropagation();
+                      onEdit(ev);
+                    }
                   }}
                 >
                   {/* タイプ表示Chip */}

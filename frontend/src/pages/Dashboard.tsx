@@ -1078,14 +1078,15 @@ const Dashboard: React.FC = () => {
   return (
     <Box
       sx={{
-        p: { xs: 1.5, sm: 2 },
+        p: { xs: 1, sm: 1.5, md: 2 },
         maxWidth: 1600,
         mx: 'auto',
+        width: '100%',
       }}
     >
       <Typography
         variant="h5"
-        sx={{ fontWeight: 600, color: 'text.primary', mb: 3 }}
+        sx={{ fontWeight: 600, color: 'text.primary', mb: { xs: 2, sm: 3 }, fontSize: { xs: '1.1rem', sm: '1.5rem' } }}
       >
         ダッシュボード
       </Typography>
@@ -1098,8 +1099,8 @@ const Dashboard: React.FC = () => {
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-          gap: 2,
-          mb: 3,
+          gap: { xs: 1.5, sm: 2 },
+          mb: { xs: 2, sm: 3 },
         }}
       >
         {statCards.map((card, index) => {
@@ -1110,17 +1111,18 @@ const Dashboard: React.FC = () => {
               elevation={2}
               onClick={() => canNavigate && navigate(card.path)}
               sx={{
-                p: 2,
-                borderRadius: 2,
+                p: { xs: 1.5, sm: 2 },
+                borderRadius: { xs: 1.5, sm: 2 },
                 position: 'relative',
                 overflow: 'hidden',
-                minHeight: 140,
+                minHeight: { xs: 120, sm: 140 },
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
                 transition: 'all 0.2s ease',
                 cursor: canNavigate ? 'pointer' : 'default',
                 opacity: canNavigate ? 1 : 0.7,
+                '&:active': canNavigate ? { transform: 'scale(0.98)' } : {},
                 '&:hover': canNavigate ? { boxShadow: 4 } : {},
               }}
             >
@@ -1138,16 +1140,16 @@ const Dashboard: React.FC = () => {
                 }}
               />
               <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <Box sx={{ display: 'inline-flex', p: 1.25, borderRadius: 1.5, background: card.bgGradient, mb: 1, boxShadow: 1 }}>
-                  <Box sx={{ color: 'white' }}>{card.icon}</Box>
+                <Box sx={{ display: 'inline-flex', p: { xs: 0.875, sm: 1.25 }, borderRadius: { xs: 1.25, sm: 1.5 }, background: card.bgGradient, mb: { xs: 0.75, sm: 1 }, boxShadow: 1 }}>
+                  <Box sx={{ color: 'white', '& svg': { fontSize: { xs: 28, sm: 40 } } }}>{card.icon}</Box>
                 </Box>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5, fontWeight: 500 }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: { xs: 0.25, sm: 0.5 }, fontWeight: 500, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   {card.title}
                 </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2, fontSize: { xs: '1.35rem', sm: '2rem' } }}>
                   {typeof card.value === 'number' && card.value < 0 ? '-' : (card.value ?? 0).toLocaleString()}
                 </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
                   {card.subValue}
                 </Typography>
               </Box>
@@ -1164,8 +1166,8 @@ const Dashboard: React.FC = () => {
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-          gap: 2,
-          mb: 3,
+          gap: { xs: 1.5, sm: 2 },
+          mb: { xs: 2, sm: 3 },
         }}
       >
         {/* 今日の予定 */}
@@ -1173,15 +1175,16 @@ const Dashboard: React.FC = () => {
           elevation={2}
           onClick={() => navigate('/calendar')}
           sx={{
-            p: 2,
-            borderRadius: 2,
+            p: { xs: 1.5, sm: 2 },
+            borderRadius: { xs: 1.5, sm: 2 },
             position: 'relative',
             overflow: 'hidden',
-            minHeight: 260,
+            minHeight: { xs: 240, sm: 260 },
             display: 'flex',
             flexDirection: 'column',
             transition: 'all 0.2s ease',
             cursor: 'pointer',
+            '&:active': { transform: 'scale(0.98)' },
             '&:hover': { boxShadow: 4 },
           }}
         >
@@ -1231,15 +1234,16 @@ const Dashboard: React.FC = () => {
           elevation={2}
           onClick={() => navigate('/tasks')}
           sx={{
-            p: 2,
-            borderRadius: 2,
+            p: { xs: 1.5, sm: 2 },
+            borderRadius: { xs: 1.5, sm: 2 },
             position: 'relative',
             overflow: 'hidden',
-            minHeight: 260,
+            minHeight: { xs: 240, sm: 260 },
             display: 'flex',
             flexDirection: 'column',
             transition: 'all 0.2s ease',
             cursor: 'pointer',
+            '&:active': { transform: 'scale(0.98)' },
             '&:hover': { boxShadow: 4 },
           }}
         >
@@ -1317,15 +1321,16 @@ const Dashboard: React.FC = () => {
           elevation={2}
           onClick={() => navigate('/tasks')}
           sx={{
-            p: 2,
-            borderRadius: 2,
+            p: { xs: 1.5, sm: 2 },
+            borderRadius: { xs: 1.5, sm: 2 },
             position: 'relative',
             overflow: 'hidden',
-            minHeight: 260,
+            minHeight: { xs: 240, sm: 260 },
             display: 'flex',
             flexDirection: 'column',
             transition: 'all 0.2s ease',
             cursor: 'pointer',
+            '&:active': { transform: 'scale(0.98)' },
             '&:hover': { boxShadow: 4 },
           }}
         >
@@ -1400,41 +1405,41 @@ const Dashboard: React.FC = () => {
       </Box>
 
       {/* チャット */}
-      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: { xs: 1, sm: 1.5 }, fontSize: { xs: '0.85rem', sm: '0.9rem' } }}>
         チャット（管理者用）
       </Typography>
-      <Paper sx={{ p: 2, borderRadius: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+      <Paper sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 1.5 }, flexWrap: 'wrap', gap: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
             会話
           </Typography>
-          <Button size="small" variant="outlined" onClick={handleNewConversation}>
+          <Button size="medium" variant="outlined" onClick={handleNewConversation} sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, minHeight: { xs: 40, sm: 36 } }}>
             新しい会話
           </Button>
         </Box>
-        <Box sx={{ position: 'relative', height: 420 }}>
+        <Box sx={{ position: 'relative', height: { xs: 350, sm: 420 } }}>
           {/* メッセージ一覧 */}
           <Box
             sx={{
               border: '1px solid',
               borderColor: 'divider',
               borderRadius: 1.5,
-              p: 1.5,
-              height: 360,
+              p: { xs: 1, sm: 1.5 },
+              height: { xs: 290, sm: 360 },
               overflow: 'auto',
               backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50],
               display: 'flex',
               flexDirection: 'column',
-              gap: 1.25,
+              gap: { xs: 1, sm: 1.25 },
             }}
           >
             {messages.map((m, i) => (
               <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                 <Box sx={{
-                  maxWidth: m.role === 'assistant' ? '95%' : '75%',
+                  maxWidth: m.role === 'assistant' ? { xs: '98%', sm: '95%' } : { xs: '85%', sm: '75%' },
                   minWidth: 0,
-                  px: 2,
-                  py: m.role === 'assistant' ? 1 : 1.5,
+                  px: { xs: 1.5, sm: 2 },
+                  py: m.role === 'assistant' ? { xs: 0.75, sm: 1 } : { xs: 1, sm: 1.5 },
                   bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
                   color: m.role === 'user' ? 'primary.contrastText' : 'text.primary',
                   borderRadius: 2,
@@ -1456,13 +1461,14 @@ const Dashboard: React.FC = () => {
                       fontWeight: 600,
                       color: 'text.primary',
                     },
-                    '& h1': { fontSize: '1.25rem' },
-                    '& h2': { fontSize: '1.125rem' },
-                    '& h3': { fontSize: '1rem' },
+                    '& h1': { fontSize: { xs: '1.1rem', sm: '1.25rem' } },
+                    '& h2': { fontSize: { xs: '1rem', sm: '1.125rem' } },
+                    '& h3': { fontSize: { xs: '0.9rem', sm: '1rem' } },
                   },
                   '& .markdown-content p': {
                     margin: '2px 0',
                     color: 'text.primary',
+                    fontSize: { xs: '0.85rem', sm: '0.875rem' },
                   },
                   '& .markdown-content ul, & .markdown-content ol': {
                     margin: '4px 0 4px 1.25rem',
@@ -1471,6 +1477,7 @@ const Dashboard: React.FC = () => {
                   '& .markdown-content li': {
                     margin: '1px 0',
                     color: 'text.primary',
+                    fontSize: { xs: '0.85rem', sm: '0.875rem' },
                   },
                   '& .markdown-content strong, & .markdown-content b': {
                     fontWeight: 600,
@@ -1485,7 +1492,7 @@ const Dashboard: React.FC = () => {
                     color: 'text.primary',
                     padding: '2px 4px',
                     borderRadius: '4px',
-                    fontSize: '0.875rem',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
                     fontFamily: 'monospace',
                   },
                   '& .markdown-content blockquote': {
@@ -1501,7 +1508,7 @@ const Dashboard: React.FC = () => {
                     borderSpacing: 0,
                     display: 'table',
                     tableLayout: 'auto',
-                    fontSize: '0.95rem',
+                    fontSize: { xs: '0.8rem', sm: '0.95rem' },
                     borderRadius: 8,
                     overflow: 'hidden',
                     boxShadow: 1,
@@ -1519,11 +1526,12 @@ const Dashboard: React.FC = () => {
                   '& .markdown-content th, & .markdown-content td': {
                     border: '1px solid',
                     borderColor: 'divider',
-                    padding: '4px 8px',
+                    padding: { xs: '3px 6px', sm: '4px 8px' },
                     verticalAlign: 'top',
                     whiteSpace: 'nowrap',
                     boxSizing: 'border-box',
                     color: 'text.primary',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
                   },
                   '& .markdown-content th': {
                     backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
@@ -1556,7 +1564,7 @@ const Dashboard: React.FC = () => {
                     display: 'inline-block',
                     padding: '0px 6px',
                     borderRadius: 999,
-                    fontSize: '0.75rem',
+                    fontSize: { xs: '0.65rem', sm: '0.75rem' },
                     lineHeight: 1.8,
                     marginLeft: '4px',
                     border: '1px solid',
@@ -1608,7 +1616,7 @@ const Dashboard: React.FC = () => {
           >
             <TextField
               fullWidth
-              size="small"
+              size="medium"
               placeholder="メッセージを入力..."
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
@@ -1619,12 +1627,28 @@ const Dashboard: React.FC = () => {
                 }
               }}
               disabled={sending}
+              sx={{
+                '& .MuiInputBase-root': {
+                  minHeight: { xs: 48, sm: 40 },
+                },
+                '& .MuiInputBase-input': {
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  py: { xs: 1.25, sm: 1 },
+                }
+              }}
             />
             <Button
               variant="contained"
               onClick={isGenerating ? handleStopGeneration : handleSend}
               disabled={!canSend && !isGenerating}
               color={isGenerating ? 'error' : 'primary'}
+              size="medium"
+              sx={{
+                fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                px: { xs: 1.5, sm: 2 },
+                minWidth: { xs: 70, sm: 80 },
+                minHeight: { xs: 48, sm: 40 },
+              }}
             >
               {isGenerating ? '停止' : sending ? '送信中...' : '送信'}
             </Button>

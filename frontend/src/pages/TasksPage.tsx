@@ -1112,7 +1112,7 @@ const TasksPage: React.FC = () => {
                 height: '100%',
                 minHeight: 0,
                 overflow: 'hidden',
-                p: { xs: 1.5, sm: 2 },
+                p: { xs: 1, sm: 1.5, md: 2 },
                 maxWidth: 1600,
                 mx: 'auto',
                 width: '100%',
@@ -1122,9 +1122,9 @@ const TasksPage: React.FC = () => {
                 elevation={0}
                 sx={{
                     flexShrink: 0,
-                    mb: 1.5,
-                    p: 2,
-                    borderRadius: 2,
+                    mb: { xs: 1, sm: 1.5 },
+                    p: { xs: 1.5, sm: 2 },
+                    borderRadius: { xs: 1.5, sm: 2 },
                     border: '1px solid',
                     borderColor: 'divider',
                 }}

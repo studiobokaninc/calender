@@ -14,8 +14,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCalendarPageState, usePageState } from '../contexts/PageStateContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
-import { Box, CircularProgress, Typography, useMediaQuery, useTheme, Theme, SelectChangeEvent, Button, Snackbar, Alert } from '@mui/material';
+import { ja } from 'date-fns/locale';
+import { Box, CircularProgress, Typography, useMediaQuery, useTheme, Theme, SelectChangeEvent, Button, Snackbar, Alert, Fab, Drawer, IconButton, Chip, FormControl, InputLabel, Select, MenuItem, Checkbox, FormControlLabel, FormGroup } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import CloseIcon from '@mui/icons-material/Close';
 import { debounce } from 'lodash';
 
 
@@ -180,6 +183,9 @@ const CalendarPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'));
+    const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'));
+    const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+    const [mobileEventDetailsOpen, setMobileEventDetailsOpen] = useState(false);
     const [isPanelMinimized, setIsPanelMinimized] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     /** モーダルで編集するイベント。null のときは新規作成。作成ボタンでは常に null にする */
@@ -1224,8 +1230,19 @@ const CalendarPage: React.FC = () => {
             .reduce((sum, event) => sum + (event.extendedProps.taskCost || 0), 0);
     }, []);
 
-    // ★★★ handleDateClick をダブルクリック対応に修正 ★★★
+    // ★★★ handleDateClick をダブルクリック対応に修正（モバイルではシングルタップで日付選択） ★★★
     const handleDateClick = (arg: DateClickArg) => {
+        // モバイルではシングルタップで日付を選択してイベント詳細ボトムシートを開く
+        if (isMobile) {
+            console.log("[CalendarPage] Mobile: Single tap on date to show events:", arg.date);
+            const newSelectedDate = arg.date;
+            setSelectedDate(newSelectedDate);
+            setSelectedEventDetails({ event: null });
+            setMobileEventDetailsOpen(true);
+            return;
+        }
+
+        // PCではダブルクリックで作成
         const now = new Date().getTime();
         const clickTime = now;
 
@@ -1243,16 +1260,36 @@ const CalendarPage: React.FC = () => {
     };
 
     const handleEventClick = (clickInfo: EventClickArg) => {
-        const now = Date.now();
-        const isDoubleClick = (now - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) && lastClickedEventIdRef.current === clickInfo.event.id;
-        lastClickTimeRef.current = now;
-        lastClickedEventIdRef.current = clickInfo.event.id;
-
         const clickedEvent = rawEvents.find(event => event.id === clickInfo.event.id);
         if (!clickedEvent) {
             setSelectedEventDetails({ event: null });
             return;
         }
+
+        // モバイルではシングルタップでイベント詳細ボトムシートを開く
+        if (isMobile) {
+            console.log("[CalendarPage] Mobile: Single tap on event to show details:", clickedEvent);
+            let totalCost: number | undefined = undefined;
+            if (clickedEvent.extendedProps.type === 'Task') {
+                totalCost = clickedEvent.extendedProps.taskCost ?? 0;
+            } else if (clickedEvent.start) {
+                const dayEvents = rawEvents.filter(event => event.start && isSameDay(parseISO(event.start as string), parseISO(clickedEvent.start as string)));
+                totalCost = calculateTotalCost(dayEvents);
+            }
+            if (clickedEvent.start) {
+                setSelectedDate(clickedEvent.start instanceof Date ? clickedEvent.start : parseISO(clickedEvent.start as string));
+            }
+            setSelectedEventDetails({ event: clickedEvent, totalCost });
+            setMobileEventDetailsOpen(true);
+            return;
+        }
+
+        // PCではダブルクリックで編集、シングルクリックで詳細パネル表示
+        const now = Date.now();
+        const isDoubleClick = (now - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) && lastClickedEventIdRef.current === clickInfo.event.id;
+        lastClickTimeRef.current = now;
+        lastClickedEventIdRef.current = clickInfo.event.id;
+
         // ダブルクリックと判定した場合は編集モーダルを開く
         if (isDoubleClick) {
             handleOpenEditModal(clickedEvent);
@@ -2083,38 +2120,97 @@ const CalendarPage: React.FC = () => {
                     : 'grey.50',
             })}
         >
-            {/* Google風トップバー: 作成ボタン */}
-            <Box
-                sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    minHeight: 48,
-                    px: { xs: 1, sm: 2 },
-                    mb: 1,
-                    flexShrink: 0,
-                }}
-            >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* Google風トップバー: 作成ボタン（PCのみ） */}
+            {!isMobile && (
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        minHeight: 48,
+                        px: { xs: 1, sm: 2 },
+                        mb: 1,
+                        flexShrink: 0,
+                        flexWrap: 'wrap',
+                        gap: 1,
+                    }}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={() => handleOpenAddModal()}
+                            size={isSmallScreen ? "small" : "medium"}
+                            sx={{
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                borderRadius: 2,
+                                boxShadow: 0,
+                                fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                                '&:hover': { boxShadow: 1 },
+                            }}
+                        >
+                            作成
+                        </Button>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, display: { xs: 'none', md: 'block' } }}>
+                            予定はドラッグ&ドロップで移動できます。タスクは期日が更新されます。ダブルクリックで編集できます。
+                        </Typography>
+                    </Box>
+                </Box>
+            )}
+
+            {/* モバイル用: フィルターボタンと作成ボタン */}
+            {isMobile && (
+                <Box
+                    sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 1, sm: 1 },
+                        mb: { xs: 1, sm: 1 },
+                        gap: 1,
+                        flexWrap: 'wrap',
+                    }}
+                >
+                    <IconButton
+                        onClick={() => setMobileFilterOpen(true)}
+                        sx={{ 
+                            color: 'text.primary',
+                            minWidth: 48,
+                            minHeight: 48,
+                        }}
+                    >
+                        <FilterListIcon />
+                    </IconButton>
                     <Button
                         variant="contained"
                         startIcon={<AddIcon />}
                         onClick={() => handleOpenAddModal()}
+                        size="medium"
                         sx={{
                             textTransform: 'none',
                             fontWeight: 600,
                             borderRadius: 2,
-                            boxShadow: 0,
-                            '&:hover': { boxShadow: 1 },
+                            fontSize: '0.875rem',
+                            minHeight: 48,
+                            px: 2,
                         }}
                     >
                         作成
                     </Button>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
-                        予定はドラッグ&ドロップで移動できます。タスクは期日が更新されます。ダブルクリックで編集できます。
-                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end', minWidth: 0 }}>
+                        {Object.entries(eventTypeFilter).filter(([_, enabled]) => enabled).map(([type, _]) => (
+                            <Chip
+                                key={type}
+                                label={type === 'task' ? 'タスク' : type === 'meeting' ? '会議' : type === 'deadline' ? '締切' : type === 'milestone' ? 'マイルストーン' : type === 'workshop' ? 'ワークショップ' : type === 'generic' ? '通常' : type}
+                                size="small"
+                                sx={{ fontSize: '0.7rem', height: 28, minHeight: 28 }}
+                            />
+                        ))}
+                    </Box>
                 </Box>
-            </Box>
+            )}
 
             {/* メイン: カレンダー + 右パネル */}
             <Box
@@ -2138,14 +2234,20 @@ const CalendarPage: React.FC = () => {
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
-                        p: { xs: 1, sm: 2 },
+                        p: { xs: 0.5, sm: 1, md: 2 },
                         position: 'relative',
                     }}
                 >
             <style>{`
                 /* Google風: ツールバーをフラットに */
+                .fc .fc-header-toolbar,
+                .fc .fc-toolbar {
+                    background-color: ${isDark ? '#202124' : '#ffffff'} !important;
+                    border-bottom: 1px solid ${isDark ? '#3c4043' : '#e8eaed'} !important;
+                    padding: ${isMobile ? '8px 4px' : '12px 8px'} !important;
+                }
                 .fc .fc-toolbar-chunk { display: flex; align-items: center; gap: 4px; }
-                .fc .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 500 !important; color: ${isDark ? '#e8eaed' : '#202124'}; }
+                .fc .fc-toolbar-title { font-size: ${isMobile ? '1rem' : '1.25rem'} !important; font-weight: 500 !important; color: ${isDark ? '#e8eaed' : '#202124'} !important; }
                 .fc .fc-button-primary {
                     background: transparent !important;
                     color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
@@ -2212,36 +2314,149 @@ const CalendarPage: React.FC = () => {
                 .fc .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number {
                     color: ${isDark ? '#f28b82' : '#d93025'} !important;
                 }
-                .fc .fc-list-event-dot {
+                .fc                 .fc-list-event-dot {
                     border-color: var(--fc-event-border-color, #3788d8);
                     background-color: var(--fc-event-bg-color, #3788d8);
                 }
+                /* リストビュー全体のスタイル（ダークモード対応） */
+                .fc-list-view {
+                    background-color: ${isDark ? '#121212' : '#ffffff'} !important;
+                }
+                .fc-list-table {
+                    background-color: ${isDark ? '#121212' : '#ffffff'} !important;
+                }
+                .fc-list-table td {
+                    background-color: ${isDark ? '#121212' : '#ffffff'} !important;
+                    border-color: ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'} !important;
+                }
+                .fc-list-day {
+                    background-color: ${isDark ? '#1e1e1e' : '#fafafa'} !important;
+                }
+                .fc-list-day-cushion {
+                    background-color: ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'} !important;
+                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                    border-bottom: 1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'} !important;
+                }
+                .fc-list-day-cushion a {
+                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                }
+                .fc-list-event {
+                    background-color: ${isDark ? '#1e1e1e' : '#ffffff'} !important;
+                    color: ${isDark ? '#e8eaed' : '#202124'} !important;
+                }
+                .fc-list-event-title {
+                    color: ${isDark ? '#e8eaed' : '#202124'} !important;
+                }
+                .fc-list-event-time {
+                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                }
+                /* モバイル用: リストビューのスタイル改善 */
+                ${isMobile ? `
+                    .fc-list-event {
+                        padding: ${isMobile ? '12px 8px' : '16px'} !important;
+                        margin-bottom: 8px !important;
+                        border-radius: 8px !important;
+                        cursor: pointer !important;
+                        transition: background-color 0.2s ease !important;
+                        overflow: hidden !important;
+                    }
+                    .fc-list-event:hover {
+                        background-color: ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'} !important;
+                    }
+                    .fc-list-event-title {
+                        font-size: 0.9rem !important;
+                        font-weight: 500 !important;
+                        margin-bottom: 4px !important;
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                        white-space: nowrap !important;
+                        max-width: 100% !important;
+                        display: block !important;
+                    }
+                    .fc-list-event-title-wrapper {
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                        white-space: nowrap !important;
+                        max-width: 100% !important;
+                        min-width: 0 !important;
+                    }
+                    .fc-list-event-time {
+                        font-size: 0.8rem !important;
+                        color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                        margin-bottom: 4px !important;
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                        white-space: nowrap !important;
+                    }
+                    .fc-list-event-dot {
+                        width: 12px !important;
+                        height: 12px !important;
+                        margin-right: 12px !important;
+                        margin-top: 4px !important;
+                        flex-shrink: 0 !important;
+                    }
+                    .fc-list-day-cushion {
+                        padding: 12px 8px !important;
+                        font-weight: 600 !important;
+                        font-size: 0.85rem !important;
+                        background-color: ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'} !important;
+                        color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                        border-bottom: 1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'} !important;
+                        margin-bottom: 4px !important;
+                    }
+                    .fc-list-day-cushion a {
+                        color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                    }
+                    .fc-list-table {
+                        width: 100% !important;
+                        table-layout: fixed !important;
+                    }
+                    .fc-list-table td {
+                        overflow: hidden !important;
+                        text-overflow: ellipsis !important;
+                        white-space: nowrap !important;
+                    }
+                    .fc-list-event-frame {
+                        display: flex !important;
+                        align-items: center !important;
+                        min-width: 0 !important;
+                        overflow: hidden !important;
+                    }
+                    .fc-list-event-graphic {
+                        flex-shrink: 0 !important;
+                    }
+                    .fc-list-event-content {
+                        flex: 1 !important;
+                        min-width: 0 !important;
+                        overflow: hidden !important;
+                    }
+                ` : ''}
                 .fc-daygrid-event:not(.fc-event-bg) {
                     cursor: pointer;
                 }
                 .fc {
-                    font-size: 0.8rem;
+                    font-size: ${isSmallScreen ? '0.7rem' : '0.8rem'};
                 }
                 /* 日付セル（日付コマ）の高さを全ての週で統一 */
                 .fc-daygrid-day-frame {
-                    min-height: 120px !important;
-                    height: 120px !important;
+                    min-height: ${isSmallScreen ? '80px' : '120px'} !important;
+                    height: ${isSmallScreen ? '80px' : '120px'} !important;
                 }
                 /* 週の行の高さも統一 */
                 .fc-daygrid-body tr {
-                    height: 120px !important;
+                    height: ${isSmallScreen ? '80px' : '120px'} !important;
                 }
                 /* イベントエリアの高さも統一（重要） */
                 .fc-daygrid-day-events {
-                    height: 120px !important;
-                    min-height: 120px !important;
-                    max-height: 120px !important;
+                    height: ${isSmallScreen ? '80px' : '120px'} !important;
+                    min-height: ${isSmallScreen ? '80px' : '120px'} !important;
+                    max-height: ${isSmallScreen ? '80px' : '120px'} !important;
                 }
                 /* 日付セルのトップ部分（日付番号）の高さを固定 */
                 .fc-daygrid-day-top {
-                    height: 20px !important;
-                    min-height: 20px !important;
-                    max-height: 20px !important;
+                    height: ${isSmallScreen ? '16px' : '20px'} !important;
+                    min-height: ${isSmallScreen ? '16px' : '20px'} !important;
+                    max-height: ${isSmallScreen ? '16px' : '20px'} !important;
                 }
                 /* 時間セルの高さを最低20pxに強制 */
                 .fc-timegrid-slot-lane {
@@ -2464,9 +2679,9 @@ const CalendarPage: React.FC = () => {
                 }
                 .calendar-event-type-badge {
                     flex-shrink: 0;
-                    font-size: 0.65rem;
+                    font-size: ${isSmallScreen ? '0.55rem' : '0.65rem'};
                     font-weight: 700;
-                    padding: 1px 4px;
+                    padding: ${isSmallScreen ? '0.5px 3px' : '1px 4px'};
                     border-radius: 3px;
                     line-height: 1.2;
                 }
@@ -2537,8 +2752,12 @@ const CalendarPage: React.FC = () => {
                     <FullCalendar
                         ref={calendarRef}
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-                        initialView="dayGridMonth"
-                        headerToolbar={{
+                        initialView={isMobile ? "listWeek" : "dayGridMonth"}
+                        headerToolbar={isMobile ? {
+                            left: 'prev,next',
+                            center: 'title',
+                            right: 'listWeek'
+                        } : {
                             left: 'prev,next today',
                             center: 'title',
                             right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
@@ -2735,6 +2954,167 @@ const CalendarPage: React.FC = () => {
             </Box>
 
             {renderEventModal()}
+
+            {/* モバイル用: フィルターダロワー */}
+            {isMobile && (
+                <Drawer
+                    anchor="bottom"
+                    open={mobileFilterOpen}
+                    onClose={() => setMobileFilterOpen(false)}
+                    PaperProps={{
+                        sx: {
+                            borderTopLeftRadius: 16,
+                            borderTopRightRadius: 16,
+                            maxHeight: '80vh',
+                        }
+                    }}
+                >
+                    <Box sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                                フィルター
+                            </Typography>
+                            <IconButton onClick={() => setMobileFilterOpen(false)}>
+                                <CloseIcon />
+                            </IconButton>
+                        </Box>
+                        
+                        {/* プロジェクトフィルター */}
+                        <FormControl fullWidth sx={{ mb: 2 }}>
+                            <InputLabel>プロジェクト</InputLabel>
+                            <Select
+                                value={eventStatusFilter}
+                                label="プロジェクト"
+                                onChange={handleEventStatusFilterChange}
+                            >
+                                <MenuItem value="all">すべて</MenuItem>
+                                {projects.map((p) => (
+                                    <MenuItem key={p.id} value={String(p.id)}>
+                                        {p.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        {/* イベントタイプフィルター */}
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                            イベントタイプ
+                        </Typography>
+                        <FormGroup>
+                            {Object.entries(eventTypeFilter).map(([type, enabled]) => (
+                                <FormControlLabel
+                                    key={type}
+                                    control={
+                                        <Checkbox
+                                            checked={enabled}
+                                            onChange={(e) => handleEventTypeFilterChange(type, e.target.checked)}
+                                            size="small"
+                                        />
+                                    }
+                                    label={
+                                        type === 'task' ? 'タスク' :
+                                        type === 'meeting' ? '会議' :
+                                        type === 'deadline' ? '締切' :
+                                        type === 'milestone' ? 'マイルストーン' :
+                                        type === 'workshop' ? 'ワークショップ' :
+                                        type === 'generic' ? '通常イベント' :
+                                        type === 'project' ? 'プロジェクト' :
+                                        type === 'group' ? 'グループ' :
+                                        type
+                                    }
+                                    sx={{ fontSize: '0.875rem' }}
+                                />
+                            ))}
+                        </FormGroup>
+                    </Box>
+                </Drawer>
+            )}
+
+            {/* モバイル用: イベント詳細ボトムシート */}
+            {isMobile && (
+                <Drawer
+                    anchor="bottom"
+                    open={mobileEventDetailsOpen}
+                    onClose={() => setMobileEventDetailsOpen(false)}
+                    PaperProps={{
+                        sx: {
+                            borderTopLeftRadius: 16,
+                            borderTopRightRadius: 16,
+                            maxHeight: '85vh',
+                            display: 'flex',
+                            flexDirection: 'column',
+                        }
+                    }}
+                >
+                    <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between', 
+                        p: 2,
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        flexShrink: 0,
+                    }}>
+                        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                            {selectedEventDetails.event ? 'イベント詳細' : selectedDate ? formatDateFnsOriginal(selectedDate, 'yyyy年M月d日', { locale: ja }) : 'イベント'}
+                        </Typography>
+                        <IconButton onClick={() => setMobileEventDetailsOpen(false)}>
+                            <CloseIcon />
+                        </IconButton>
+                    </Box>
+                    <Box sx={{ 
+                        flex: 1, 
+                        overflowY: 'auto',
+                        p: 2,
+                    }}>
+                        <EventDetailsPanel
+                            selectedDate={selectedDate}
+                            selectedEvent={selectedEventDetails.event}
+                            totalCost={selectedEventDetails.totalCost}
+                            events={filteredEvents}
+                            onEventSelect={(event) => {
+                                setSelectedEventDetails({ event, totalCost: event.extendedProps.taskCost ?? undefined });
+                                setMobileEventDetailsOpen(true);
+                            }}
+                            isMinimized={false}
+                            onToggleMinimize={() => {}}
+                            onOpenAddModal={() => {
+                                setMobileEventDetailsOpen(false);
+                                handleOpenAddModal();
+                            }}
+                            users={users}
+                            groups={groups}
+                            onEdit={(event) => {
+                                setMobileEventDetailsOpen(false);
+                                handleOpenEditModal(event);
+                            }}
+                            onDelete={handleDeleteEvent as (event: import('../types').CalendarEvent) => void}
+                            eventStatusFilter={eventStatusFilter}
+                            onEventStatusFilterChange={handleEventStatusFilterChange}
+                            eventTypeFilter={eventTypeFilter}
+                            onEventTypeFilterChange={handleEventTypeFilterChange}
+                            projects={projects}
+                        />
+                    </Box>
+                </Drawer>
+            )}
+
+            {/* モバイル用: フローティングアクションボタン */}
+            {isMobile && (
+                <Fab
+                    color="primary"
+                    aria-label="add"
+                    onClick={() => handleOpenAddModal()}
+                    sx={{
+                        position: 'fixed',
+                        bottom: 24,
+                        right: 24,
+                        zIndex: 1000,
+                    }}
+                >
+                    <AddIcon />
+                </Fab>
+            )}
 
             <Snackbar
                 open={googleSnackbar.open}

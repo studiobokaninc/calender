@@ -13,13 +13,13 @@ import './index.css'
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemeModeProvider>
-        <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ja}>
-          <AuthProvider>
+      <AuthProvider>
+        <ThemeModeProvider>
+          <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ja}>
             <App />
-          </AuthProvider>
-        </LocalizationProvider>
-      </ThemeModeProvider>
+          </LocalizationProvider>
+        </ThemeModeProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

@@ -23,7 +23,7 @@ import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid, format } f
 /** タスクの表示カテゴリ（今日 / 遅延 / 期限間近 / その他）。1タスク1カテゴリで重複表示しない */
 export type TaskDisplayCategory = 'today' | 'delayed' | 'dueSoon' | 'other';
 
-const DUE_SOON_DAYS = 3; // 期限「間近」の日数
+const DUE_SOON_DAYS = 7; // 期限「間近」の日数（1週間）
 
 /** タスクリストのツールチップを大きく表示するための slotProps */
 const taskTooltipSlotProps = {
@@ -65,7 +65,6 @@ interface EditUserData {
   full_name: string;
   email: string;
   role: string;
-  base_load_hours_per_week?: number;
 }
 
 interface UserTaskInfo {
@@ -348,8 +347,7 @@ const UserManagementPage: React.FC = () => {
       username: user.username || '',
       full_name: user.full_name || '',
       email: user.email || '',
-      role: user.role || 'user',
-      base_load_hours_per_week: user.base_load_hours_per_week || 0
+      role: user.role || 'user'
     });
     setEditPassword('');
     setEditConfirmPassword('');
@@ -391,12 +389,11 @@ const UserManagementPage: React.FC = () => {
     }
 
     try {
-      const payload: Record<string, string | number> = {
+      const payload: Record<string, string> = {
         username: currentEditUser.username,
         full_name: currentEditUser.full_name,
         email: currentEditUser.email,
-        role: currentEditUser.role,
-        base_load_hours_per_week: currentEditUser.base_load_hours_per_week || 0
+        role: currentEditUser.role
       };
       if (editPassword) {
         payload.password = editPassword;
@@ -651,19 +648,21 @@ const UserManagementPage: React.FC = () => {
   const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
+        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
           ユーザー
         </Typography>
         {isAdmin && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddUserClick}
+              size={isNarrow ? "small" : "medium"}
+              sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, flex: { xs: '1 1 auto', sm: 'none' } }}
             >
-              ユーザー追加
+              {isNarrow ? '追加' : 'ユーザー追加'}
             </Button>
             <Button
               variant="outlined"
@@ -671,8 +670,10 @@ const UserManagementPage: React.FC = () => {
               startIcon={<DeleteIcon />}
               onClick={handleOpenDeleteDialog}
               disabled={users.length === 0}
+              size={isNarrow ? "small" : "medium"}
+              sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, flex: { xs: '1 1 auto', sm: 'none' } }}
             >
-              ユーザー削除
+              {isNarrow ? '削除' : 'ユーザー削除'}
             </Button>
           </Box>
         )}
@@ -686,11 +687,11 @@ const UserManagementPage: React.FC = () => {
           {/* ユーザー別タスクリスト */}
           {usersWithTasks.length > 0 && (
             <Grid item xs={12}>
-              <Paper sx={{ p: 2, mb: 2, overflow: 'auto' }}>
+              <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2, overflow: 'auto' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <AssignmentIcon sx={{ mr: 1, color: 'primary.main' }} />
-                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                    ユーザー別タスクリスト（{usersWithTasks.length}名）
+                  <AssignmentIcon sx={{ mr: 1, color: 'primary.main', fontSize: { xs: 20, sm: 24 } }} />
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                    {isNarrow ? `タスクリスト（${usersWithTasks.length}名）` : `ユーザー別タスクリスト（${usersWithTasks.length}名）`}
                   </Typography>
                 </Box>
                 {isNarrow ? (
@@ -860,11 +861,11 @@ const UserManagementPage: React.FC = () => {
           {/* グループ所属ユーザーリスト */}
           {usersInGroupsList.length > 0 && (
             <Grid item xs={12}>
-              <Paper sx={{ p: 2, mb: 2, overflow: 'auto' }}>
+              <Paper sx={{ p: { xs: 1.5, sm: 2 }, mb: 2, overflow: 'auto' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <GroupIcon sx={{ mr: 1, color: 'secondary.main' }} />
-                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                    グループ所属ユーザー（{usersInGroupsList.length}名）
+                  <GroupIcon sx={{ mr: 1, color: 'secondary.main', fontSize: { xs: 20, sm: 24 } }} />
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                    {isNarrow ? `グループ（${usersInGroupsList.length}名）` : `グループ所属ユーザー（${usersInGroupsList.length}名）`}
                   </Typography>
                 </Box>
                 {isNarrow ? (
@@ -990,14 +991,14 @@ const UserManagementPage: React.FC = () => {
             <Grid item xs={12}>
               <Paper
                 sx={{
-                  p: 2,
+                  p: { xs: 1.5, sm: 2 },
                   bgcolor: isDarkMode ? 'background.default' : 'grey.50',
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <PersonIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                    タスク未担当 ({usersWithoutTasks.length}名)
+                  <PersonIcon sx={{ mr: 1, color: 'text.secondary', fontSize: { xs: 20, sm: 24 } }} />
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.secondary', fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                    {isNarrow ? `未担当 (${usersWithoutTasks.length}名)` : `タスク未担当 (${usersWithoutTasks.length}名)`}
                   </Typography>
                 </Box>
                 <Grid container spacing={2}>
@@ -1113,16 +1114,6 @@ const UserManagementPage: React.FC = () => {
                 <MenuItem value="admin">管理者</MenuItem>
               </Select>
             </FormControl>
-            <TextField
-              label="定常業務時間（週あたり）"
-              name="base_load_hours_per_week"
-              type="number"
-              value={currentEditUser?.base_load_hours_per_week || 0}
-              onChange={handleEditChange}
-              fullWidth
-              inputProps={{ min: 0, max: 40, step: 0.5 }}
-              helperText="週あたりの定常業務（保守・運用・管理など）に充てる時間を設定します（0-40時間）"
-            />
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
               パスワードを変更する場合のみ入力してください（空欄の場合は変更されません）
             </Typography>

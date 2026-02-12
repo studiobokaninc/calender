@@ -8,6 +8,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { CssBaseline, ThemeProvider, createTheme } from '@mui/material';
+import { useAuth } from './AuthContext';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -18,12 +19,16 @@ interface ThemeModeContextType {
 
 const ThemeModeContext = createContext<ThemeModeContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'calendar_theme_mode';
+const STORAGE_KEY_PREFIX = 'calendar_theme_mode_';
 
-const getInitialMode = (): ThemeMode => {
+const getStorageKey = (userId: string | number | null): string => {
+  return userId != null ? `${STORAGE_KEY_PREFIX}${userId}` : `${STORAGE_KEY_PREFIX}guest`;
+};
+
+const readModeFromStorage = (storageKey: string): ThemeMode => {
   if (typeof window === 'undefined') return 'light';
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
+    const saved = window.localStorage.getItem(storageKey);
     if (saved === 'light' || saved === 'dark') {
       return saved;
     }
@@ -41,11 +46,20 @@ interface ThemeModeProviderProps {
 }
 
 export const ThemeModeProvider: React.FC<ThemeModeProviderProps> = ({ children }) => {
-  const [mode, setMode] = useState<ThemeMode>(getInitialMode);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const storageKey = getStorageKey(userId);
+
+  const [mode, setMode] = useState<ThemeMode>(() => readModeFromStorage(storageKey));
+
+  // ユーザー切り替え時（ログイン/ログアウト）に、そのユーザーの保存済みテーマを読み込む
+  useEffect(() => {
+    setMode(readModeFromStorage(storageKey));
+  }, [storageKey]);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(STORAGE_KEY, mode);
+      window.localStorage.setItem(storageKey, mode);
     } catch {
       // localStorage が使えない場合は何もしない
     }
@@ -56,7 +70,7 @@ export const ThemeModeProvider: React.FC<ThemeModeProviderProps> = ({ children }
     } catch {
       // サーバーサイドや古いブラウザ環境では無視
     }
-  }, [mode]);
+  }, [mode, storageKey]);
 
   const toggleMode = useCallback(() => {
     setMode(prev => (prev === 'light' ? 'dark' : 'light'));

@@ -19,6 +19,8 @@ import {
   Tooltip,
   Grid,
   Checkbox,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import {
   Assignment as AssignmentIcon,
@@ -37,7 +39,7 @@ import type { Task, Project } from '../types'
 /** タスクの表示カテゴリ（今日 / 遅延 / 期限間近 / その他）。1タスク1カテゴリで重複表示しない */
 type TaskDisplayCategory = 'today' | 'delayed' | 'dueSoon' | 'other'
 
-const DUE_SOON_DAYS = 3 // 期限「間近」の日数
+const DUE_SOON_DAYS = 7 // 期限「間近」の日数（1週間）
 
 /** タスクがどのカテゴリに属するか（優先度: 今日 > 遅延 > 期限間近 > その他） */
 function getTaskCategory(task: Task): TaskDisplayCategory {
@@ -83,6 +85,8 @@ interface PendingAction {
 const ChatPage: React.FC = () => {
   const { user, token: authToken } = useAuth()
   const { refreshGlobalData, globalData } = usePageState()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([CHAT_WELCOME_MESSAGE])
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [chatInput, setChatInput] = useState('')
@@ -664,12 +668,12 @@ const ChatPage: React.FC = () => {
   return (
     <Box sx={{ width: '100%', maxWidth: 1200, mx: 'auto', p: { xs: 1.5, sm: 2 } }}>
       {/* 会話エリア */}
-      <Paper sx={{ p: 2, borderRadius: 2, mb: 3 }}>
+      <Paper sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
             会話
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
             {/* Google カレンダー連携 */}
             {googleStatus.configured && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -680,18 +684,18 @@ const ChatPage: React.FC = () => {
                       variant="contained"
                       color="primary"
                       onClick={handleGoogleConnect}
-                      sx={{ textTransform: 'none', fontWeight: 600 }}
+                      sx={{ textTransform: 'none', fontWeight: 600, fontSize: { xs: '0.7rem', sm: '0.875rem' }, px: { xs: 1, sm: 1.5 } }}
                     >
-                      Google カレンダーと連携
+                      {isMobile ? 'Google連携' : 'Google カレンダーと連携'}
                     </Button>
                   </Tooltip>
                 ) : (
                   <Tooltip title="下の「あなたのタスク」で各タスクのチェックボックスから、Googleカレンダーに表示できます">
                     <Chip
                       size="small"
-                      label="Google 連携済み"
+                      label={isMobile ? '連携済み' : 'Google 連携済み'}
                       color="success"
-                      sx={{ fontWeight: 600, cursor: 'default' }}
+                      sx={{ fontWeight: 600, cursor: 'default', fontSize: { xs: '0.7rem', sm: '0.75rem' } }}
                     />
                   </Tooltip>
                 )}
@@ -701,39 +705,39 @@ const ChatPage: React.FC = () => {
               <Tooltip title="Google連携はバックエンドで設定されていません（GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET が必要です）">
                 <Chip
                   size="small"
-                  label="Google連携未設定"
+                  label={isMobile ? '未設定' : 'Google連携未設定'}
                   variant="outlined"
-                  sx={{ color: 'text.secondary', cursor: 'default' }}
+                  sx={{ color: 'text.secondary', cursor: 'default', fontSize: { xs: '0.7rem', sm: '0.75rem' } }}
                 />
               </Tooltip>
             )}
-            <Button size="small" variant="outlined" onClick={handleNewConversation}>
-              新しい会話
+            <Button size="small" variant="outlined" onClick={handleNewConversation} sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' } }}>
+              {isMobile ? '新規' : '新しい会話'}
             </Button>
           </Box>
         </Box>
-        <Box sx={{ position: 'relative', height: 440 }}>
+        <Box sx={{ position: 'relative', height: { xs: 350, sm: 440 } }}>
           <Box
             sx={{
               border: '1px solid',
               borderColor: 'divider',
               borderRadius: 1.5,
-              p: 1.5,
-              height: 380,
+              p: { xs: 1, sm: 1.5 },
+              height: { xs: 290, sm: 380 },
               overflow: 'auto',
               backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50],
               display: 'flex',
               flexDirection: 'column',
-              gap: 1.25,
+              gap: { xs: 1, sm: 1.25 },
             }}
           >
             {messages.map((m, i) => (
               <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                 <Box sx={{
-                  maxWidth: m.role === 'assistant' ? '95%' : '75%',
+                  maxWidth: m.role === 'assistant' ? { xs: '98%', sm: '95%' } : { xs: '85%', sm: '75%' },
                   minWidth: 0,
-                  px: 2,
-                  py: m.role === 'assistant' ? 1 : 1.5,
+                  px: { xs: 1.5, sm: 2 },
+                  py: m.role === 'assistant' ? { xs: 0.75, sm: 1 } : { xs: 1, sm: 1.5 },
                   bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
                   color: m.role === 'user' ? 'primary.contrastText' : 'text.primary',
                   borderRadius: 2,
@@ -755,13 +759,14 @@ const ChatPage: React.FC = () => {
                       fontWeight: 600,
                       color: 'text.primary',
                     },
-                    '& h1': { fontSize: '1.25rem' },
-                    '& h2': { fontSize: '1.125rem' },
-                    '& h3': { fontSize: '1rem' },
+                    '& h1': { fontSize: { xs: '1.1rem', sm: '1.25rem' } },
+                    '& h2': { fontSize: { xs: '1rem', sm: '1.125rem' } },
+                    '& h3': { fontSize: { xs: '0.9rem', sm: '1rem' } },
                   },
                   '& .markdown-content p': {
                     margin: '2px 0',
                     color: 'text.primary',
+                    fontSize: { xs: '0.85rem', sm: '0.875rem' },
                   },
                   '& .markdown-content ul, & .markdown-content ol': {
                     margin: '4px 0 4px 1.25rem',
@@ -770,6 +775,7 @@ const ChatPage: React.FC = () => {
                   '& .markdown-content li': {
                     margin: '1px 0',
                     color: 'text.primary',
+                    fontSize: { xs: '0.85rem', sm: '0.875rem' },
                   },
                   '& .markdown-content strong, & .markdown-content b': {
                     fontWeight: 600,
@@ -784,7 +790,7 @@ const ChatPage: React.FC = () => {
                     color: 'text.primary',
                     padding: '2px 4px',
                     borderRadius: '4px',
-                    fontSize: '0.875rem',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
                     fontFamily: 'monospace',
                   },
                   '& .markdown-content blockquote': {
@@ -800,7 +806,7 @@ const ChatPage: React.FC = () => {
                     borderSpacing: 0,
                     display: 'table',
                     tableLayout: 'auto',
-                    fontSize: '0.95rem',
+                    fontSize: { xs: '0.8rem', sm: '0.95rem' },
                     borderRadius: 8,
                     overflow: 'hidden',
                     boxShadow: 1,
@@ -817,11 +823,12 @@ const ChatPage: React.FC = () => {
                   '& .markdown-content th, & .markdown-content td': {
                     border: '1px solid',
                     borderColor: 'divider',
-                    padding: '4px 8px',
+                    padding: { xs: '3px 6px', sm: '4px 8px' },
                     verticalAlign: 'top',
                     whiteSpace: 'nowrap',
                     boxSizing: 'border-box',
                     color: 'text.primary',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
                   },
                   '& .markdown-content th': {
                     backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
@@ -854,7 +861,7 @@ const ChatPage: React.FC = () => {
                     display: 'inline-block',
                     padding: '0px 6px',
                     borderRadius: 999,
-                    fontSize: '0.75rem',
+                    fontSize: { xs: '0.65rem', sm: '0.75rem' },
                     lineHeight: 1.8,
                     marginLeft: '4px',
                     border: '1px solid',
@@ -915,12 +922,22 @@ const ChatPage: React.FC = () => {
                 }
               }}
               disabled={sending}
+              sx={{
+                '& .MuiInputBase-input': {
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                }
+              }}
             />
             <Button
               variant="contained"
               onClick={isGenerating ? handleStopGeneration : handleSend}
               disabled={!canSend && !isGenerating}
               color={isGenerating ? 'error' : 'primary'}
+              sx={{
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                px: { xs: 1.5, sm: 2 },
+                minWidth: { xs: 60, sm: 80 }
+              }}
             >
               {isGenerating ? '停止' : sending ? '送信中...' : '送信'}
             </Button>
@@ -1021,23 +1038,23 @@ const ChatPage: React.FC = () => {
             ) : (
             <>
               <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                <AssignmentIcon sx={{ color: 'primary.main', fontSize: 22 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                <AssignmentIcon sx={{ color: 'primary.main', fontSize: { xs: 20, sm: 22 } }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
                   {currentUserTasks.length}件のタスク
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  {tasksByCategory.delayed.length > 0 && <Chip size="small" label={`遅延 ${tasksByCategory.delayed.length}`} sx={{ height: 22, bgcolor: 'error.light', color: 'error.dark' }} />}
-                  {tasksByCategory.today.length > 0 && <Chip size="small" label={`今日 ${tasksByCategory.today.length}`} sx={{ height: 22, bgcolor: 'info.light', color: 'info.dark' }} />}
-                  {tasksByCategory.dueSoon.length > 0 && <Chip size="small" label={`期限間近 ${tasksByCategory.dueSoon.length}`} sx={{ height: 22, bgcolor: 'warning.light', color: 'warning.dark' }} />}
-                  {tasksByCategory.other.length > 0 && <Chip size="small" label={`その他 ${tasksByCategory.other.length}`} variant="outlined" sx={{ height: 22 }} />}
+                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                  {tasksByCategory.delayed.length > 0 && <Chip size="small" label={`遅延 ${tasksByCategory.delayed.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'error.light', color: 'error.dark' }} />}
+                  {tasksByCategory.today.length > 0 && <Chip size="small" label={`今日 ${tasksByCategory.today.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'info.light', color: 'info.dark' }} />}
+                  {tasksByCategory.dueSoon.length > 0 && <Chip size="small" label={`期限間近 ${tasksByCategory.dueSoon.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'warning.light', color: 'warning.dark' }} />}
+                  {tasksByCategory.other.length > 0 && <Chip size="small" label={`その他 ${tasksByCategory.other.length}`} variant="outlined" sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />}
                 </Typography>
               </Box>
-              <Grid container spacing={3}>
+              <Grid container spacing={{ xs: 2, sm: 3 }}>
             {tasksByCategory.delayed.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: 'error.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
-                    <WarningIcon fontSize="medium" /> 遅れている
+                  <Typography variant="body1" sx={{ color: 'error.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                    <WarningIcon fontSize={isMobile ? "small" : "medium"} /> 遅れている
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
                     {tasksByCategory.delayed.map((t) => {
@@ -1051,11 +1068,11 @@ const ChatPage: React.FC = () => {
                               sx={{ 
                                 bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : '#FFEBEE', 
                                 color: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.light : '#C62828', 
-                                fontSize: '0.95rem',
-                                height: 36,
-                                padding: '0 12px',
+                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                height: { xs: 32, sm: 36 },
+                                padding: { xs: '0 8px', sm: '0 12px' },
                                 '& .MuiChip-label': {
-                                  padding: '0 8px',
+                                  padding: { xs: '0 6px', sm: '0 8px' },
                                 }
                               }} 
                             />
@@ -1081,8 +1098,8 @@ const ChatPage: React.FC = () => {
             {tasksByCategory.today.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: 'info.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
-                    <TodayIcon fontSize="medium" /> 今日中
+                  <Typography variant="body1" sx={{ color: 'info.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                    <TodayIcon fontSize={isMobile ? "small" : "medium"} /> 今日中
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
                     {tasksByCategory.today.map((t) => {
@@ -1096,11 +1113,11 @@ const ChatPage: React.FC = () => {
                               sx={{ 
                                 bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.dark : '#E3F2FD', 
                                 color: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.light : '#1565C0', 
-                                fontSize: '0.95rem',
-                                height: 36,
-                                padding: '0 12px',
+                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                height: { xs: 32, sm: 36 },
+                                padding: { xs: '0 8px', sm: '0 12px' },
                                 '& .MuiChip-label': {
-                                  padding: '0 8px',
+                                  padding: { xs: '0 6px', sm: '0 8px' },
                                 }
                               }} 
                             />
@@ -1126,8 +1143,8 @@ const ChatPage: React.FC = () => {
             {tasksByCategory.dueSoon.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: '1.1rem' }}>
-                    <ScheduleIcon fontSize="medium" /> 期限が近い
+                  <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                    <ScheduleIcon fontSize={isMobile ? "small" : "medium"} /> 期限が近い
                   </Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
                     {tasksByCategory.dueSoon.map((t) => {
@@ -1141,11 +1158,11 @@ const ChatPage: React.FC = () => {
                               sx={{ 
                                 bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.dark : '#FFF3E0', 
                                 color: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.light : '#E65100', 
-                                fontSize: '0.95rem',
-                                height: 36,
-                                padding: '0 12px',
+                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                height: { xs: 32, sm: 36 },
+                                padding: { xs: '0 8px', sm: '0 12px' },
                                 '& .MuiChip-label': {
-                                  padding: '0 8px',
+                                  padding: { xs: '0 6px', sm: '0 8px' },
                                 }
                               }} 
                             />
@@ -1171,7 +1188,7 @@ const ChatPage: React.FC = () => {
             {tasksByCategory.other.length > 0 && (
               <Grid item xs={12} sm={6} md={3}>
                 <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 'bold', mb: 1.5, display: 'block', fontSize: '1.1rem' }}>余裕をもって進める</Typography>
+                  <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 'bold', mb: 1.5, display: 'block', fontSize: { xs: '1rem', sm: '1.1rem' } }}>余裕をもって進める</Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
                     {tasksByCategory.other.map((t) => {
                       const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
@@ -1183,11 +1200,11 @@ const ChatPage: React.FC = () => {
                               label={t.name} 
                               variant="outlined" 
                               sx={{ 
-                                fontSize: '0.95rem',
-                                height: 36,
-                                padding: '0 12px',
+                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                height: { xs: 32, sm: 36 },
+                                padding: { xs: '0 8px', sm: '0 12px' },
                                 '& .MuiChip-label': {
-                                  padding: '0 8px',
+                                  padding: { xs: '0 6px', sm: '0 8px' },
                                 }
                               }} 
                             />

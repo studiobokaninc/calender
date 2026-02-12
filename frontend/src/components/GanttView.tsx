@@ -1005,6 +1005,16 @@ const GanttWrapper = styled.div`
   -ms-overflow-style: none;
   scrollbar-width: none;
 
+  /* タスク一覧エリアの縦スクロールバーを非表示（スクロールは可能） */
+  .gantt-container {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .gantt-container::-webkit-scrollbar {
+    width: 0;
+    display: none;
+  }
+
   /* ★★★ タスクリスト: 選択時・ホバー時をはっきり表示 ★★★ */
   .widget-task-list-item {
     transition: background-color 0.15s ease, box-shadow 0.15s ease;
@@ -1018,6 +1028,17 @@ const GanttWrapper = styled.div`
   }
   .widget-task-list-item.selected:hover {
     background-color: rgba(33, 150, 243, 0.2) !important;
+  }
+  /* ダークモード: タスク一覧のホバー・選択を明るい色で表示 */
+  &.theme-dark .widget-task-list-item:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+  }
+  &.theme-dark .widget-task-list-item.selected {
+    background-color: rgba(255, 255, 255, 0.16) !important;
+    box-shadow: inset 3px 0 0 #90caf9;
+  }
+  &.theme-dark .widget-task-list-item.selected:hover {
+    background-color: rgba(255, 255, 255, 0.22) !important;
   }
 
   /* ガントバー選択時をはっきり表示（ライブラリのバー用） */
@@ -2737,6 +2758,7 @@ const GanttView: React.FC<GanttViewProps> = memo(
           {error && <Alert severity="warning" sx={{ mb: 1 }}>{error}</Alert>} {/* ★★★ 保存エラー表示を追加 ★★★ */}
 
           <GanttWrapper
+            className={isDarkMode ? 'theme-dark' : ''}
             style={{
               flexGrow: 1,
               minHeight: 0,

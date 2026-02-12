@@ -3,7 +3,7 @@ import {
     Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox
+    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon } from '@mui/icons-material';
 import { IconButton } from '@mui/material';
@@ -92,6 +92,8 @@ interface StatusHistory {
 
 
 const TasksPage: React.FC = () => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [tasks, setTasks] = useState<Task[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [users, setUsers] = useState<User[]>([]);
@@ -1108,7 +1110,6 @@ const TasksPage: React.FC = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                maxHeight: 'calc(100vh - 120px)',
                 minHeight: 0,
                 overflow: 'hidden',
                 p: { xs: 1.5, sm: 2 },
@@ -1348,7 +1349,7 @@ const TasksPage: React.FC = () => {
                         sx={{
                             height: '100%',
                             '& .MuiDataGrid-columnHeaders': {
-                                background: '#f5f5f5',
+                                background: isDark ? theme.palette.action.hover : '#f5f5f5',
                                 fontSize: '0.8rem'
                             },
                             '& .MuiDataGrid-cell': {
@@ -1357,17 +1358,21 @@ const TasksPage: React.FC = () => {
                                 cursor: 'pointer'
                             },
                             '& .MuiDataGrid-row:hover': {
-                                backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
                             },
                             '& .MuiDataGrid-footerContainer': {
                                 fontSize: '0.8rem'
                             },
                             '& .MuiDataGrid-virtualScroller': {
-                                overflowX: 'auto !important'
+                                overflowX: 'auto !important',
+                                overflowY: 'auto',
+                                scrollbarWidth: 'none',
+                                msOverflowStyle: 'none',
+                                '&::-webkit-scrollbar': { width: 0, display: 'none' }
                             },
                             '& .MuiDataGrid-pinnedColumns': {
                                 backgroundColor: 'background.paper',
-                                boxShadow: '-2px 0 4px rgba(0,0,0,0.1)'
+                                boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
                             }
                         }}
                     />

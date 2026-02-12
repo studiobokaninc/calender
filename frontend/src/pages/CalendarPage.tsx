@@ -14,7 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCalendarPageState, usePageState } from '../contexts/PageStateContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
-import { Box, CircularProgress, Typography, useMediaQuery, Theme, SelectChangeEvent, Button, Snackbar, Alert } from '@mui/material';
+import { Box, CircularProgress, Typography, useMediaQuery, useTheme, Theme, SelectChangeEvent, Button, Snackbar, Alert } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import { debounce } from 'lodash';
 
@@ -172,6 +172,8 @@ const sortEventsForDisplay = (eventsToSort: CalendarEvent[]): CalendarEvent[] =>
 };
 
 const CalendarPage: React.FC = () => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [rawEvents, setRawEvents] = useState<CalendarEvent[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -2143,37 +2145,37 @@ const CalendarPage: React.FC = () => {
             <style>{`
                 /* Google風: ツールバーをフラットに */
                 .fc .fc-toolbar-chunk { display: flex; align-items: center; gap: 4px; }
-                .fc .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 500 !important; color: #202124; }
+                .fc .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 500 !important; color: ${isDark ? '#e8eaed' : '#202124'}; }
                 .fc .fc-button-primary {
                     background: transparent !important;
-                    color: #5f6368 !important;
+                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
                     border: none !important;
                     box-shadow: none !important;
                     text-transform: none;
                     font-weight: 500;
                 }
                 .fc .fc-button-primary:hover {
-                    background: rgba(0,0,0,0.04) !important;
-                    color: #202124 !important;
+                    background: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'} !important;
+                    color: ${isDark ? '#e8eaed' : '#202124'} !important;
                 }
                 .fc .fc-button-primary:not(:disabled).fc-button-active,
                 .fc .fc-button-primary:not(:disabled):active {
-                    background: rgba(0,0,0,0.08) !important;
-                    color: #202124 !important;
+                    background: ${isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'} !important;
+                    color: ${isDark ? '#e8eaed' : '#202124'} !important;
                 }
-                .fc .fc-scrollgrid { border-color: #e8eaed !important; }
-                .fc .fc-col-header-cell-cushion { color: #5f6368; font-weight: 500; font-size: 0.7rem; padding: 8px; }
-                .fc .fc-daygrid-day-number { color: #5f6368; font-size: 0.75rem; padding: 4px; }
+                .fc .fc-scrollgrid { border-color: ${isDark ? '#3c4043' : '#e8eaed'} !important; }
+                .fc .fc-col-header-cell-cushion { color: ${isDark ? '#9aa0a6' : '#5f6368'}; font-weight: 500; font-size: 0.7rem; padding: 8px; }
+                .fc .fc-daygrid-day-number { color: ${isDark ? '#9aa0a6' : '#5f6368'}; font-size: 0.75rem; padding: 4px; }
                 .fc .fc-daygrid-day.fc-day-today {
-                    background-color: #e8f0fe;
+                    background-color: ${isDark ? '#1a73e8' : '#e8f0fe'};
                 }
                 .fc .fc-daygrid-day.fc-day-selected {
-                    background-color: #90caf9 !important; /* 選択中: 濃い青 */
+                    background-color: ${isDark ? '#174ea6' : '#90caf9'} !important;
                 }
                 .fc .fc-daygrid-day[data-weekend="true"] {
-                    background-color: #fafafa;
+                    background-color: ${isDark ? '#292a2d' : '#fafafa'};
                 }
-                /* 月曜日から金曜日の文字色 */
+                /* 月曜日から金曜日の文字色（ダークモードでは明るい色に） */
                 .fc .fc-col-header-cell.fc-day-mon,
                 .fc .fc-col-header-cell.fc-day-mon a,
                 .fc .fc-col-header-cell.fc-day-mon .fc-scrollgrid-sync-inner,
@@ -2194,21 +2196,21 @@ const CalendarPage: React.FC = () => {
                 .fc .fc-col-header-cell.fc-day-fri a,
                 .fc .fc-col-header-cell.fc-day-fri .fc-scrollgrid-sync-inner,
                 .fc .fc-daygrid-day.fc-day-fri .fc-daygrid-day-number {
-                    color: #000000 !important;
+                    color: ${isDark ? '#e8eaed' : '#000000'} !important;
                 }
-                /* 土曜日: 青系 */
+                /* 土曜日: 青系（ダークモードではやや明るめの青） */
                 .fc .fc-col-header-cell.fc-day-sat,
                 .fc .fc-col-header-cell.fc-day-sat a,
                 .fc .fc-col-header-cell.fc-day-sat .fc-scrollgrid-sync-inner,
                 .fc .fc-daygrid-day.fc-day-sat .fc-daygrid-day-number {
-                    color: #1a73e8 !important;
+                    color: ${isDark ? '#8ab4f8' : '#1a73e8'} !important;
                 }
-                /* 日曜日: 赤系 */
+                /* 日曜日: 赤系（ダークモードではやや明るめの赤） */
                 .fc .fc-col-header-cell.fc-day-sun,
                 .fc .fc-col-header-cell.fc-day-sun a,
                 .fc .fc-col-header-cell.fc-day-sun .fc-scrollgrid-sync-inner,
                 .fc .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number {
-                    color: #d93025 !important;
+                    color: ${isDark ? '#f28b82' : '#d93025'} !important;
                 }
                 .fc .fc-list-event-dot {
                     border-color: var(--fc-event-border-color, #3788d8);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Paper, TableContainer, Table, TableHead, TableBody, TableRow, TableCell, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, Link, SelectChangeEvent, Tooltip } from '@mui/material';
+import { Box, Typography, CircularProgress, Paper, TableContainer, Table, TableHead, TableBody, TableRow, TableCell, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, Link, SelectChangeEvent, Tooltip, useTheme } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import api from '../services/api';
@@ -66,6 +66,8 @@ const displayStatusOptions = [
 ];
 
 const ProjectsPage: React.FC = () => {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [projects, setProjects] = useState<ProjectWithProgress[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
@@ -635,7 +637,7 @@ const ProjectsPage: React.FC = () => {
                         sx={{
                             height: '100%',
                             '& .MuiDataGrid-columnHeaders': {
-                                background: '#f5f5f5',
+                                background: isDark ? theme.palette.action.hover : '#f5f5f5',
                                 fontSize: '0.8rem'
                             },
                             '& .MuiDataGrid-cell': {
@@ -644,11 +646,11 @@ const ProjectsPage: React.FC = () => {
                                 cursor: 'pointer'
                             },
                             '& .MuiDataGrid-row:hover': {
-                                backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
                             },
                             '& .MuiDataGrid-pinnedColumns': {
                                 backgroundColor: 'background.paper',
-                                boxShadow: '-2px 0 4px rgba(0,0,0,0.1)'
+                                boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
                             }
                         }}
                     />

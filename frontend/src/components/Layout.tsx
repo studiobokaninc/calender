@@ -903,13 +903,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'auto',
+          overflow: 'hidden',
           minHeight: 0,
           padding: theme.spacing(1, 2, 2, 2),
         }}
       >
-        <Toolbar sx={{ minHeight: '40px !important'}} />
-        {children}
+        <Toolbar sx={{ minHeight: '40px !important', flexShrink: 0 }} />
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {children}
+        </Box>
       </Box>
     </Box>
   )

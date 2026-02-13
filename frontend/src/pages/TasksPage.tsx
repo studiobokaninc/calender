@@ -13,6 +13,7 @@ import { format, parseISO, isValid } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { DataGrid, GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
 import { useTasksPageState, usePageState } from '../contexts/PageStateContext';
+import { TaskEditDialog } from '../components/SearchEditDialogs';
 
 
 
@@ -152,7 +153,7 @@ const TasksPage: React.FC = () => {
     const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
-    const [isEditMode, setIsEditMode] = useState(false);
+    const [editTaskId, setEditTaskId] = useState<number | null>(null);
     const [currentTask, setCurrentTask] = useState<TaskFormData>({
         id: null,
         name: '',
@@ -566,43 +567,7 @@ const TasksPage: React.FC = () => {
 
 
     const handleEditTask = (task: Task) => {
-        setIsEditMode(true);
-        const safeParseDate = (dateStr: string | null | undefined): Date | null => {
-            if (!dateStr) return null;
-            try {
-                const parsed = parseISO(dateStr);
-                return isValid(parsed) ? parsed : null;
-            } catch {
-                return null;
-            }
-        };
-
-
-
-
-        const startDateParsed = safeParseDate(task.start_date);
-        const dueDateParsed = safeParseDate(task.due_date);
-
-
-
-
-        setCurrentTask({
-            id: task.id,
-            name: task.name,
-            description: task.description || '',
-            status: task.status || 'todo',
-            priority: task.extendedProps?.priority?.toLowerCase() || 'low',  // extendedPropsから取得
-            assigned_to: task.assigned_to || null,
-            project_id: task.project_id || null,
-            start_date: startDateParsed ? format(startDateParsed, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-            due_date: dueDateParsed ? format(dueDateParsed, 'yyyy-MM-dd') : format(new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-            cost: task.cost || 0,
-            type: (task as any)?.type ?? task.extendedProps?.type?.toLowerCase() ?? '',
-            seqID: (task as any)?.seqID ?? task.extendedProps?.seqID ?? '',
-            shotID: (task as any)?.shotID ?? task.extendedProps?.shotID ?? '',
-            dependsOn: task.dependsOn || []
-        });
-        setOpenDialog(true);
+        setEditTaskId(task.id);
     };
 
     const handleDeleteTask = async (taskId: number) => {
@@ -717,21 +682,12 @@ const TasksPage: React.FC = () => {
 
 
 
-            if (isEditMode && currentTask.id !== null) {
-                await api.put(`/tasks/${currentTask.id}`, taskData);
-                setSnackbar({
-                    open: true,
-                    message: 'タスクが更新されました',
-                    severity: 'success'
-                });
-            } else {
-                await api.post('/tasks', taskData);
-                setSnackbar({
-                    open: true,
-                    message: 'タスクが作成されました',
-                    severity: 'success'
-                });
-            }
+            await api.post('/tasks', taskData);
+            setSnackbar({
+                open: true,
+                message: 'タスクが作成されました',
+                severity: 'success'
+            });
 
             setOpenDialog(false);
 
@@ -1537,7 +1493,7 @@ const TasksPage: React.FC = () => {
             </Dialog>
 
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ fontSize: '1rem' }}>{isEditMode ? 'タスク編集' : '新規タスク'}</DialogTitle>
+                <DialogTitle sx={{ fontSize: '1rem' }}>新規タスク</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 2 }}>
                         <TextField
@@ -1756,13 +1712,22 @@ const TasksPage: React.FC = () => {
                 <DialogActions>
                     <Button onClick={handleCloseDialog} size="small">キャンセル</Button>
                     <Button onClick={handleSubmit} variant="contained" color="primary" size="small">
-                        {isEditMode ? '更新' : '作成'}
+                        作成
                     </Button>
                 </DialogActions>
             </Dialog>
 
-
-
+            {/* 共通タスク編集ダイアログ（編集・ダブルクリックで表示） */}
+            <TaskEditDialog
+                open={editTaskId != null}
+                taskId={editTaskId}
+                onClose={() => setEditTaskId(null)}
+                onSaved={() => {
+                    setEditTaskId(null);
+                    if (refreshGlobalData) refreshGlobalData();
+                    setSnackbar({ open: true, message: 'タスクが更新されました', severity: 'success' });
+                }}
+            />
 
             <Snackbar
                 open={snackbar.open}

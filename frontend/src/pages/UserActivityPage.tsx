@@ -48,6 +48,15 @@ interface UserActivityWithUser extends UserActivity {
   user?: User;
 }
 
+// 今日の周期日（5:00〜翌4:59の「日」）を YYYY-MM-DD で返す
+function getTodayCycleDateString(): string {
+  const today = new Date();
+  const cycleDate = today.getHours() < 5
+    ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+    : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return format(cycleDate, 'yyyy-MM-dd');
+}
+
 const UserActivityPage: React.FC = () => {
   const [activities, setActivities] = useState<UserActivityWithUser[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -55,6 +64,9 @@ const UserActivityPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
   const [selectedCycleDate, setSelectedCycleDate] = useState<string>('');
+
+  // 表示対象の周期日（未選択時は今日の周期）。取得・表示は常に「その日」単位
+  const effectiveCycleDate = selectedCycleDate || getTodayCycleDateString();
 
   useEffect(() => {
     fetchUsers();
@@ -95,10 +107,9 @@ const UserActivityPage: React.FC = () => {
       if (selectedUserId) {
         params.user_id = selectedUserId;
       }
-      if (selectedCycleDate) {
-        params.cycle_date = selectedCycleDate;
-      }
-      
+      // 常に周期日で取得（日ごとのログイン回数表示のため。未選択時は今日の周期）
+      params.cycle_date = effectiveCycleDate;
+
       const response = await api.get<UserActivity[]>('/api/user-activities', { params });
       const activitiesData = response.data;
       
@@ -158,20 +169,18 @@ const UserActivityPage: React.FC = () => {
     };
   }, [currentTime]);
 
-  // 今日の周期日を計算（フィルターで今日を表示しているか判定用）
+  // 表示中の周期日が「今日の周期」かどうか（現在時刻ライン表示用）
   const isShowingToday = useMemo(() => {
-    if (selectedCycleDate) {
-      const selected = parseISO(selectedCycleDate);
-      const today = new Date();
-      const todayCycleDate = today.getHours() < 5 
-        ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
-        : new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      return selected.toDateString() === todayCycleDate.toDateString();
-    }
-    return true; // フィルターなしの場合は今日を表示
-  }, [selectedCycleDate]);
+    return effectiveCycleDate === getTodayCycleDateString();
+  }, [effectiveCycleDate]);
 
   // 時間帯別アクティビティ状態（ユーザー別）- オンオフ表示用（10分刻み）
+  // 表示対象の周期日（effectiveCycleDate）の基準日
+  const chartCycleBase = useMemo(() => {
+    const d = parseISO(effectiveCycleDate);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }, [effectiveCycleDate]);
+
   const hourlyDataByUser = useMemo(() => {
     // ユーザーごとのアクティビティ時刻を記録（時系列でソート）
     const userActivitiesMap = new Map<number, Array<Date>>();
@@ -189,13 +198,13 @@ const UserActivityPage: React.FC = () => {
       dates.sort((a, b) => a.getTime() - b.getTime());
     });
 
-    // アクティビティの記録間隔が10分以内なら連続してアクティブとみなす
+    // 各10分スロットは「その時間帯に記録が1件以上あるとき」のみオン。現在周期では最後の記録から10分経過後はオフ表示
     const ACTIVE_THRESHOLD_MINUTES = 10;
     const now = currentTime;
 
     const result: Array<{ time: string; timeLabel: string; [key: string]: string | number }> = [];
     
-    // 5:00から28:59まで10分刻みで生成（5:00, 5:10, 5:20, ..., 4:50）
+    // 5:00から28:59まで10分刻みで生成（5:00, 5:10, 5:20, ..., 28:50＝翌4:50。28:50〜29:00で4:50〜4:59をカバー）
     for (let h = 5; h < 29; h++) {
       for (let m = 0; m < 60; m += 10) {
         const cycleMinutes = h * 60 + m; // 周期内の分数（5:00 = 300分, 28:50 = 1730分）
@@ -203,12 +212,8 @@ const UserActivityPage: React.FC = () => {
         const timeLabel = `${displayHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         const dayLabel = h >= 24 ? '翌日' : '当日';
         
-        // 時間帯の開始時刻を計算（今日の周期日を基準に）
-        const today = new Date();
-        const cycleDate = today.getHours() < 5 
-          ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
-          : new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        
+        // 時間帯の開始時刻を計算（表示対象の周期日を基準に：選択日 or 今日の周期）
+        const cycleDate = new Date(chartCycleBase.getTime());
         const timeSlotStart = new Date(cycleDate);
         timeSlotStart.setHours(h >= 24 ? h - 24 : h, m, 0, 0);
         if (h >= 24) {
@@ -223,20 +228,25 @@ const UserActivityPage: React.FC = () => {
           timeLabel: `${dayLabel} ${timeLabel}`
         };
         
+        // 表示しているのが「現在の周期」かどうか（未来スロットを0にするかどうか）
+        const todayCycleDay = now.getHours() < 5 ? now.getDate() - 1 : now.getDate();
+        const isCurrentCycle =
+          chartCycleBase.getFullYear() === now.getFullYear() &&
+          chartCycleBase.getMonth() === now.getMonth() &&
+          chartCycleBase.getDate() === todayCycleDay;
+        
         userActivitiesMap.forEach((activityDates, userId) => {
           const user = users.find(u => u.id === userId);
           const userName = user?.name || user?.username || `ユーザー${userId}`;
           
-          // その時間帯が現在時刻より後なら非アクティブ
-          if (timeSlotStart > now) {
+          // 現在周期を表示しているときのみ：その時間帯が現在時刻より後なら非アクティブ
+          if (isCurrentCycle && timeSlotStart > now) {
             dataPoint[userName] = 0;
             return;
           }
           
-          // その10分間（h:m から h:m+10 まで）にアクティビティがあるかチェック
+          // その10分間（h:m ～ h:m+10）にアクティビティが1件以上あるときだけオンとする（1ログイン＝最大10分表示）
           let isActive = false;
-          
-          // 時間帯内にアクティビティがあるかチェック
           for (const activityDate of activityDates) {
             const activityTime = new Date(activityDate);
             if (activityTime >= timeSlotStart && activityTime < timeSlotEnd) {
@@ -244,40 +254,15 @@ const UserActivityPage: React.FC = () => {
               break;
             }
           }
-          
-          // 時間帯内にアクティビティがない場合、直前のアクティビティから10分以内かチェック
-          if (!isActive) {
-            // 時間帯の開始時刻より前の最後のアクティビティを探す
-            let lastActivityBeforeSlot: Date | null = null;
-            for (const activityDate of activityDates) {
-              const activityTime = new Date(activityDate);
-              if (activityTime < timeSlotStart) {
-                lastActivityBeforeSlot = activityTime;
-              } else {
-                break;
-              }
-            }
-            
-            if (lastActivityBeforeSlot) {
-              const minutesDiff = (timeSlotStart.getTime() - lastActivityBeforeSlot.getTime()) / (1000 * 60);
-              // 直前のアクティビティから10分以内で、かつ時間帯の終了時刻より前ならアクティブ
-              if (minutesDiff <= ACTIVE_THRESHOLD_MINUTES && lastActivityBeforeSlot < timeSlotEnd) {
-                // ただし、最後のアクティビティから10分以上経過している場合は非アクティブ
-                const minutesSinceLastActivity = (now.getTime() - lastActivityBeforeSlot.getTime()) / (1000 * 60);
-                if (minutesSinceLastActivity <= ACTIVE_THRESHOLD_MINUTES) {
-                  isActive = true;
-                }
-              }
-            }
-          } else {
-            // 時間帯内にアクティビティがある場合でも、最後のアクティビティから10分以上経過していれば非アクティブ
+          // 現在周期のみ：この時間帯に記録はあるが、最後のアクティビティから10分以上経過していれば非アクティブ表示
+          if (isActive && isCurrentCycle) {
             const lastActivity = activityDates[activityDates.length - 1];
-            const minutesSinceLastActivity = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
-            if (minutesSinceLastActivity > ACTIVE_THRESHOLD_MINUTES && timeSlotStart > lastActivity) {
+            const lastActivityTime = new Date(lastActivity);
+            const minutesSinceLastActivity = (now.getTime() - lastActivityTime.getTime()) / (1000 * 60);
+            if (minutesSinceLastActivity > ACTIVE_THRESHOLD_MINUTES && timeSlotStart > lastActivityTime) {
               isActive = false;
             }
           }
-          
           dataPoint[userName] = isActive ? 1 : 0;
         });
         
@@ -286,7 +271,7 @@ const UserActivityPage: React.FC = () => {
     }
     
     return result;
-  }, [activities, users, currentTime]);
+  }, [activities, users, currentTime, chartCycleBase, selectedCycleDate]);
 
   // ユーザー別のセッション数とアクティブ時間（ログイン回数とセッション時間）
   const userStats = useMemo(() => {
@@ -431,9 +416,7 @@ const UserActivityPage: React.FC = () => {
               onChange={(e) => setSelectedUserId(e.target.value as number | '')}
             >
               <MenuItem value="">すべて</MenuItem>
-              {users
-                .filter(user => user.role === 'user') // 一般ユーザーのみ
-                .map(user => (
+              {users.map(user => (
                   <MenuItem key={user.id} value={user.id}>
                     {user.name || user.username || user.email}
                   </MenuItem>
@@ -492,11 +475,14 @@ const UserActivityPage: React.FC = () => {
                     />
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    各時間帯におけるユーザーのアクティブ状態を表示しています。グラフが1（オン）の時間帯はアクティブ、0（オフ）の時間帯は非アクティブです。アクティブが続くと横に直線が続きます。
+                    各時間帯におけるユーザーのアクティブ状態を表示しています。その10分間にアクティビティが1件以上記録された時間帯のみオン（1）になります。1回のログインは最大10分として表示されます。
                   </Typography>
                   
-                  {/* ユーザー統計情報 */}
-                  <Paper sx={{ p: 1.5, mb: 1.5, bgcolor: 'grey.50' }}>
+                  {/* ユーザー統計情報（表示中の周期日＝その日のログイン回数・アクティブ時間） */}
+                  <Paper sx={{ p: 1.5, mb: 1.5 }} elevation={0}>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                      {format(parseISO(effectiveCycleDate), 'M/d', { locale: ja })}（5:00〜翌4:59）のログイン回数・アクティブ時間
+                    </Typography>
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                       {userStats.slice(0, 8).map(stat => {
                         const color = userColors.colorMap.get(stat.userId) || '#1976d2';

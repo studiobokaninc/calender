@@ -201,11 +201,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [errorMessage])
 
-  // 5:00になったら自動ログアウト（一般ユーザーのみ）
+  // 5:00になったら自動ログアウト（一般ユーザーのみ。管理者は対象外）
   useEffect(() => {
-    if (!user || user.role !== 'user') {
-      return
-    }
+    if (!user || user.role === 'admin') return
 
     let checkTimeId: NodeJS.Timeout | null = null
 
@@ -234,12 +232,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [user, logout])
 
-  // ユーザーアクティビティ記録（一般ユーザーのみ）
+  // ユーザーアクティビティ記録（ログイン中は全ユーザー＝一般・管理者とも記録）
   useEffect(() => {
-    // 管理者は記録しない
-    if (!user || user.role !== 'user') {
-      return
-    }
+    if (!user) return
 
     // 既に実行中の場合はスキップ（重複防止）
     const effectKey = `activity_recording_${user.id}`
@@ -252,7 +247,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     let intervalId: NodeJS.Timeout | null = null
     let checkCycleId: NodeJS.Timeout | null = null
     let lastCycleDate: string | null = null
-    let lastRecordTime: number = 0 // 最後に記録した時刻（ミリ秒）
+    let lastRecordTime: number = 0 // 0＝未記録なので初回は必ず記録する
     const MIN_RECORD_INTERVAL = 4 * 60 * 1000 // 4分以内の重複記録を防ぐ
 
     // 周期日を計算する関数（5:00~28:59の周期）
@@ -270,19 +265,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // アクティビティを記録する関数（重複防止付き）
     const recordActivity = async () => {
       const now = Date.now()
-      // 最後の記録から4分以内の場合は記録しない（重複防止）
-      if (now - lastRecordTime < MIN_RECORD_INTERVAL) {
+      // 最後の記録から4分以内の場合は記録しない（重複防止）。lastRecordTime=0 のときは初回なので必ず記録
+      if (lastRecordTime > 0 && now - lastRecordTime < MIN_RECORD_INTERVAL) {
         console.log('[UserActivity] Skipping duplicate record (too soon)')
         return
       }
-      
+
       try {
         await userActivityApi.recordActivity()
         lastRecordTime = now
         console.log('[UserActivity] Activity recorded')
       } catch (error: any) {
-        // エラーは無視（サーバーが起動していない場合など）
-        console.warn('[UserActivity] Failed to record activity:', error.message)
+        console.warn('[UserActivity] Failed to record activity:', error?.response?.data?.detail || error.message)
       }
     }
 
@@ -300,10 +294,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       lastCycleDate = currentCycleDate
     }
 
-    // 初回記録（即座に実行）
-    lastRecordTime = Date.now()
-    recordActivity()
+    // 初回記録（ログイン直後はトークン確立のため少し遅延してから実行）
     lastCycleDate = getCycleDate(new Date())
+    const initialDelay = 1500
+    const initialTimer = setTimeout(() => {
+      recordActivity()
+    }, initialDelay)
 
     // 5分ごとにアクティビティを記録
     intervalId = setInterval(() => {
@@ -316,13 +312,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }, 60 * 1000) // 1分 = 60 * 1000ミリ秒
 
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId)
-      }
-      if (checkCycleId) {
-        clearInterval(checkCycleId)
-      }
-      // クリーンアップ時にフラグをリセット
+      clearTimeout(initialTimer)
+      if (intervalId) clearInterval(intervalId)
+      if (checkCycleId) clearInterval(checkCycleId)
       delete (window as any)[effectKey]
     }
   }, [user?.id, user?.role])

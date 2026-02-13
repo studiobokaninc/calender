@@ -2557,13 +2557,7 @@ async def create_user_activity(
             detail="ユーザーが見つかりません"
         )
     
-    # 一般ユーザーのみ記録（管理者は記録しない）
-    if db_user.role != 'user':
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="一般ユーザーのみアクティビティを記録できます"
-        )
-    
+    # 一般・管理者を問わずアクティビティを記録する
     return crud.create_user_activity(db=db, user_id=user_id)
 
 @app.get("/api/user-activities", response_model=List[schemas.UserActivityResponse], tags=["UserActivities"])

@@ -3,7 +3,7 @@ import {
   Box, Typography, Button, CircularProgress, Paper, 
   IconButton, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, 
   TextField, FormControl, InputLabel, Select, MenuItem, Snackbar, Alert, Card, 
-  CardContent, Chip, Grid, Tooltip, Stack,
+  CardContent, Chip, Grid, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme
 } from '@mui/material';
 import { User, Task, Project, UserGroup, Group } from '../types';
@@ -16,9 +16,10 @@ import {
   Group as GroupIcon
 } from '@mui/icons-material';
 import UserAddModal, { NewUserData } from '../components/UserAddModal';
+import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { SelectChangeEvent } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid, format } from 'date-fns';
+import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid } from 'date-fns';
 
 /** タスクの表示カテゴリ（今日 / 遅延 / 期限間近 / その他）。1タスク1カテゴリで重複表示しない */
 export type TaskDisplayCategory = 'today' | 'delayed' | 'dueSoon' | 'other';
@@ -76,24 +77,6 @@ interface UserTaskInfo {
   totalCost: number; // コスト合計（所要時間の目安）
 }
 
-/** タスク編集ダイアログ用フォームデータ */
-interface TaskFormData {
-  id: number | null;
-  name: string;
-  description: string;
-  status: string;
-  priority: string;
-  assigned_to: number | null;
-  project_id: number | null;
-  start_date: string;
-  due_date: string;
-  cost: number;
-  type: string;
-  seqID: string;
-  shotID: string;
-  dependsOn: string[];
-}
-
 const UserManagementPage: React.FC = () => {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
@@ -119,23 +102,7 @@ const UserManagementPage: React.FC = () => {
     message: '',
     severity: 'success'
   });
-  const [taskEditDialogOpen, setTaskEditDialogOpen] = useState(false);
-  const [currentEditTask, setCurrentEditTask] = useState<TaskFormData>({
-    id: null,
-    name: '',
-    description: '',
-    status: 'todo',
-    priority: 'low',
-    assigned_to: null,
-    project_id: null,
-    start_date: format(new Date(), 'yyyy-MM-dd'),
-    due_date: format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-    cost: 0,
-    type: '',
-    seqID: '',
-    shotID: '',
-    dependsOn: []
-  });
+  const [taskEditId, setTaskEditId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchAllData();
@@ -471,107 +438,8 @@ const UserManagementPage: React.FC = () => {
     setSelectedDeleteUserId('');
   };
 
-  const safeParseDate = (dateStr: string | null | undefined): Date | null => {
-    if (!dateStr) return null;
-    try {
-      const parsed = parseISO(dateStr);
-      return isValid(parsed) ? parsed : null;
-    } catch {
-      return null;
-    }
-  };
-
   const handleTaskDoubleClick = (task: Task) => {
-    const startDateParsed = safeParseDate(task.start_date);
-    const dueDateParsed = safeParseDate(task.due_date);
-    setCurrentEditTask({
-      id: task.id,
-      name: task.name,
-      description: task.description || '',
-      status: task.status || 'todo',
-      priority: (task.extendedProps as any)?.priority?.toLowerCase() || 'low',
-      assigned_to: task.assigned_to || null,
-      project_id: task.project_id || null,
-      start_date: startDateParsed ? format(startDateParsed, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-      due_date: dueDateParsed ? format(dueDateParsed, 'yyyy-MM-dd') : format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-      cost: task.cost || 0,
-      type: (task as any)?.type ?? (task.extendedProps as any)?.type?.toLowerCase() ?? '',
-      seqID: (task as any)?.seqID ?? (task.extendedProps as any)?.seqID ?? '',
-      shotID: (task as any)?.shotID ?? (task.extendedProps as any)?.shotID ?? '',
-      dependsOn: task.dependsOn || []
-    });
-    setTaskEditDialogOpen(true);
-  };
-
-  const handleCloseTaskEditDialog = () => {
-    setTaskEditDialogOpen(false);
-  };
-
-  const handleTaskEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    if (name) {
-      setCurrentEditTask(prev => ({
-        ...prev,
-        [name]: name === 'cost' ? (value === '' ? 0 : Number(value)) : value
-      }));
-    }
-  };
-
-  const handleTaskEditSelectChange = (e: SelectChangeEvent<string | number>) => {
-    const { name, value } = e.target;
-    if (!name) return;
-    const isIdField = name === 'project_id' || name === 'assigned_to';
-    const normalized = (value === '' || value == null)
-      ? null
-      : (isIdField && typeof value === 'string' && /^\d+$/.test(value) ? parseInt(value, 10) : value);
-    setCurrentEditTask(prev => ({
-      ...prev,
-      [name]: isIdField ? normalized : value
-    } as TaskFormData));
-  };
-
-  const handleTaskEditSubmit = async () => {
-    if (!currentEditTask.name?.trim()) {
-      setSnackbar({ open: true, message: 'タスク名を入力してください', severity: 'error' });
-      return;
-    }
-    if (!currentEditTask.project_id) {
-      setSnackbar({ open: true, message: 'プロジェクトを選択してください', severity: 'error' });
-      return;
-    }
-    if (!currentEditTask.due_date) {
-      setSnackbar({ open: true, message: '期日を入力してください', severity: 'error' });
-      return;
-    }
-    if (currentEditTask.id == null) return;
-    try {
-      await api.put(`/tasks/${currentEditTask.id}`, {
-        name: currentEditTask.name,
-        description: currentEditTask.description || '',
-        status: currentEditTask.status,
-        priority: (currentEditTask.priority || 'low').toUpperCase(),
-        assigned_to: currentEditTask.assigned_to || null,
-        project_id: currentEditTask.project_id || null,
-        start_date: currentEditTask.start_date,
-        due_date: currentEditTask.due_date,
-        cost: currentEditTask.cost || 0,
-        type: (currentEditTask.type || '').toLowerCase(),
-        seqID: currentEditTask.seqID || '',
-        shotID: currentEditTask.shotID || '',
-        dependsOn: currentEditTask.dependsOn || [],
-        display_status: 'online'
-      });
-      setSnackbar({ open: true, message: 'タスクを更新しました', severity: 'success' });
-      setTaskEditDialogOpen(false);
-      await fetchAllData();
-    } catch (err: any) {
-      const msg = err.response?.data?.detail
-        ? (Array.isArray(err.response.data.detail)
-          ? err.response.data.detail.map((e: any) => `${e.loc?.join?.('.')}: ${e.msg}`).join('\n')
-          : err.response.data.detail)
-        : 'タスクの更新に失敗しました';
-      setSnackbar({ open: true, message: msg, severity: 'error' });
-    }
+    setTaskEditId(task.id);
   };
 
   const usersWithTasks = users.filter(user => {
@@ -1148,126 +1016,17 @@ const UserManagementPage: React.FC = () => {
       </Dialog>
       )}
 
-      {/* タスク編集ダイアログ（タスク部分ダブルクリックで表示） */}
-      <Dialog open={taskEditDialogOpen} onClose={handleCloseTaskEditDialog} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontSize: '1rem' }}>タスク編集</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            <TextField
-              name="name"
-              label="タスク名"
-              value={currentEditTask.name}
-              onChange={handleTaskEditInputChange}
-              fullWidth
-              required
-              size="small"
-            />
-            <TextField
-              name="description"
-              label="説明"
-              value={currentEditTask.description}
-              onChange={handleTaskEditInputChange}
-              fullWidth
-              multiline
-              rows={3}
-              size="small"
-            />
-            <FormControl fullWidth size="small" required>
-              <InputLabel>プロジェクト</InputLabel>
-              <Select
-                name="project_id"
-                value={currentEditTask.project_id ?? ''}
-                label="プロジェクト"
-                onChange={handleTaskEditSelectChange}
-              >
-                <MenuItem value="">選択してください</MenuItem>
-                {projects.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              name="due_date"
-              label="期日"
-              type="date"
-              value={currentEditTask.due_date}
-              onChange={handleTaskEditInputChange}
-              fullWidth
-              required
-              InputLabelProps={{ shrink: true }}
-              size="small"
-            />
-            <TextField
-              name="start_date"
-              label="開始日"
-              type="date"
-              value={currentEditTask.start_date}
-              onChange={handleTaskEditInputChange}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              size="small"
-            />
-            <FormControl fullWidth size="small">
-              <InputLabel>担当者</InputLabel>
-              <Select
-                name="assigned_to"
-                value={currentEditTask.assigned_to || ''}
-                label="担当者"
-                onChange={handleTaskEditSelectChange}
-              >
-                <MenuItem value="">未割り当て</MenuItem>
-                {users.map((u) => (
-                  <MenuItem key={u.id} value={u.id}>{u.username || u.name || u.email}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth size="small">
-              <InputLabel>ステータス</InputLabel>
-              <Select
-                name="status"
-                value={currentEditTask.status}
-                label="ステータス"
-                onChange={handleTaskEditSelectChange}
-              >
-                <MenuItem value="todo">未着手</MenuItem>
-                <MenuItem value="in-progress">進行中</MenuItem>
-                <MenuItem value="review">レビュー中</MenuItem>
-                <MenuItem value="completed">完了</MenuItem>
-                <MenuItem value="delayed">遅延</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl fullWidth size="small">
-              <InputLabel>優先度</InputLabel>
-              <Select
-                name="priority"
-                value={currentEditTask.priority}
-                label="優先度"
-                onChange={handleTaskEditSelectChange}
-              >
-                <MenuItem value="high">高</MenuItem>
-                <MenuItem value="medium">中</MenuItem>
-                <MenuItem value="low">低</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              name="cost"
-              label="コスト"
-              type="number"
-              value={currentEditTask.cost}
-              onChange={handleTaskEditInputChange}
-              fullWidth
-              size="small"
-              inputProps={{ step: '0.1' }}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseTaskEditDialog}>キャンセル</Button>
-          <Button onClick={handleTaskEditSubmit} variant="contained" color="primary">
-            保存
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* タスク編集ダイアログ（タスク部分ダブルクリックで表示・共通コンポーネント） */}
+      <TaskEditDialog
+        open={taskEditId != null}
+        taskId={taskEditId}
+        onClose={() => setTaskEditId(null)}
+        onSaved={() => {
+          setTaskEditId(null);
+          setSnackbar({ open: true, message: 'タスクを更新しました', severity: 'success' });
+          fetchAllData();
+        }}
+      />
 
       {/* ユーザー削除ダイアログ（管理者のみ） */}
       {isAdmin && (

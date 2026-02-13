@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel,
-  Stack, CircularProgress, Alert, SelectChangeEvent, Box,
+  Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider,
 } from '@mui/material';
 import { format, parseISO, isValid } from 'date-fns';
 import api from '../services/api';
@@ -130,7 +130,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
   );
 };
 
-// --- TaskEditDialog ---
+// --- TaskEditDialog（共通タスク編集ダイアログ）---
 interface TaskEditDialogProps {
   open: boolean;
   taskId: number | null;
@@ -138,12 +138,19 @@ interface TaskEditDialogProps {
   onSaved: () => void;
 }
 
+const TASK_TYPE_OPTIONS = [
+  'development', 'design', 'documentation', 'testing', 'maintenance',
+  'fx', 'asset', 'animation', 'lighting', 'comp',
+];
+
 export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, onClose, onSaved }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -154,6 +161,10 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     start_date: '',
     priority: 'medium',
     cost: 0,
+    type: '',
+    seqID: '',
+    shotID: '',
+    dependsOn: [] as string[],
   });
 
   useEffect(() => {
@@ -164,11 +175,13 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
       api.get<Task>(`/tasks/${taskId}`),
       api.get<Project[]>('/projects'),
       api.get<User[]>('/api/users'),
+      api.get<Task[]>('/tasks'),
     ])
-      .then(([taskRes, projRes, userRes]) => {
+      .then(([taskRes, projRes, userRes, taskListRes]) => {
         const t = taskRes.data;
         setProjects(projRes.data);
         setUsers(userRes.data);
+        setTasks(taskListRes.data);
         const dueStr = t.due_date ? (typeof t.due_date === 'string' ? t.due_date.slice(0, 10) : (t.due_date as Date).toISOString?.()?.slice(0, 10)) : '';
         const startStr = t.start_date ? (typeof t.start_date === 'string' ? t.start_date.slice(0, 10) : (t.start_date as Date).toISOString?.()?.slice(0, 10)) : '';
         setForm({
@@ -181,6 +194,10 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
           start_date: startStr,
           priority: (t.priority as string)?.toLowerCase() ?? 'medium',
           cost: t.cost ?? 0,
+          type: (t as any).type?.toLowerCase() ?? (t as any).extendedProps?.type?.toLowerCase() ?? '',
+          seqID: (t as any).seqID ?? (t as any).extendedProps?.seqID ?? '',
+          shotID: (t as any).shotID ?? (t as any).extendedProps?.shotID ?? '',
+          dependsOn: t.dependsOn ?? [],
         });
       })
       .catch(() => setError('タスクの取得に失敗しました'))
@@ -191,7 +208,11 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     const name = e.target.name;
     const value = e.target.value;
     if (name === 'project_id' || name === 'assigned_to') {
-      setForm((prev) => ({ ...prev, [name]: value === '' ? null : Number(value) }));
+      setForm((prev) => {
+        const next = { ...prev, [name]: value === '' ? null : Number(value) };
+        if (name === 'project_id' && prev.project_id !== next.project_id) next.dependsOn = [];
+        return next;
+      });
     } else if (name === 'cost') {
       setForm((prev) => ({ ...prev, [name]: Number(value) || 0 }));
     } else if (name) {
@@ -199,8 +220,27 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     }
   };
 
+  const handleMultiSelectChange = (e: SelectChangeEvent<string[]>) => {
+    const { name, value } = e.target;
+    if (name === 'dependsOn') {
+      setForm((prev) => ({ ...prev, dependsOn: typeof value === 'string' ? value.split(',') : value }));
+    }
+  };
+
   const handleSubmit = async () => {
     if (taskId == null) return;
+    if (!form.name?.trim()) {
+      setError('タスク名を入力してください');
+      return;
+    }
+    if (!form.project_id) {
+      setError('プロジェクトを選択してください');
+      return;
+    }
+    if (!form.due_date) {
+      setError('期日を入力してください');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -212,38 +252,53 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
         assigned_to: form.assigned_to,
         due_date: form.due_date ? form.due_date + 'T00:00:00' : null,
         start_date: form.start_date ? form.start_date + 'T00:00:00' : null,
-        priority: form.priority,
+        priority: (form.priority || 'low').toUpperCase(),
         cost: form.cost,
+        type: (form.type || '').toLowerCase(),
+        seqID: form.seqID || '',
+        shotID: form.shotID || '',
+        dependsOn: form.dependsOn || [],
+        display_status: 'online',
       });
       onSaved();
       onClose();
-    } catch {
-      setError('保存に失敗しました');
+    } catch (err: any) {
+      const msg = err.response?.data?.detail
+        ? (Array.isArray(err.response.data.detail)
+          ? err.response.data.detail.map((e: any) => `${e.loc?.join?.('.')}: ${e.msg}`).join('\n')
+          : err.response.data.detail)
+        : '保存に失敗しました';
+      setError(msg);
     } finally {
       setSaving(false);
     }
   };
 
+  const taskMap = React.useMemo(() => new Map(tasks.map((t) => [t.id, t.name ?? ''])), [tasks]);
+  const dependOptions = tasks.filter((t) => t.id !== taskId && t.project_id === form.project_id);
+
   if (!open) return null;
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>タスクを編集</DialogTitle>
+      <DialogTitle sx={{ fontSize: '1rem' }}>タスクを編集</DialogTitle>
       <DialogContent>
         {loading && <Box sx={{ py: 2, textAlign: 'center' }}><CircularProgress size={24} /></Box>}
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {!loading && (
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField name="name" label="タスク名" value={form.name} onChange={handleChange} fullWidth size="small" required />
-            <TextField name="description" label="説明" value={form.description} onChange={handleChange} fullWidth multiline rows={2} size="small" />
-            <FormControl fullWidth size="small">
+            <TextField name="description" label="説明" value={form.description} onChange={handleChange} fullWidth multiline rows={3} size="small" />
+            <FormControl fullWidth size="small" required>
               <InputLabel>プロジェクト</InputLabel>
               <Select name="project_id" value={form.project_id ?? ''} label="プロジェクト" onChange={handleChange}>
-                <MenuItem value="">未設定</MenuItem>
+                <MenuItem value="">選択してください</MenuItem>
                 {projects.map((p) => (
                   <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
                 ))}
               </Select>
             </FormControl>
+            <TextField name="due_date" label="期日" type="date" value={form.due_date} onChange={handleChange} fullWidth size="small" InputLabelProps={{ shrink: true }} required />
+            <TextField name="start_date" label="開始日" type="date" value={form.start_date} onChange={handleChange} fullWidth size="small" InputLabelProps={{ shrink: true }} />
             <FormControl fullWidth size="small">
               <InputLabel>担当者</InputLabel>
               <Select name="assigned_to" value={form.assigned_to ?? ''} label="担当者" onChange={handleChange}>
@@ -253,8 +308,6 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
                 ))}
               </Select>
             </FormControl>
-            <TextField name="start_date" label="開始日" type="date" value={form.start_date} onChange={handleChange} fullWidth size="small" InputLabelProps={{ shrink: true }} />
-            <TextField name="due_date" label="期日" type="date" value={form.due_date} onChange={handleChange} fullWidth size="small" InputLabelProps={{ shrink: true }} />
             <FormControl fullWidth size="small">
               <InputLabel>ステータス</InputLabel>
               <Select name="status" value={form.status} label="ステータス" onChange={handleChange}>
@@ -274,6 +327,49 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
               </Select>
             </FormControl>
             <TextField name="cost" label="コスト" type="number" value={form.cost} onChange={handleChange} fullWidth size="small" inputProps={{ min: 0, step: 0.1 }} />
+            <TextField name="seqID" label="シーケンスID" value={form.seqID} onChange={handleChange} fullWidth size="small" />
+            <TextField name="shotID" label="ショットID" value={form.shotID} onChange={handleChange} fullWidth size="small" />
+            <FormControl fullWidth size="small">
+              <InputLabel>Type</InputLabel>
+              <Select name="type" value={form.type} label="Type" onChange={handleChange}>
+                <MenuItem value="">未設定</MenuItem>
+                {TASK_TYPE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small" disabled={!form.project_id}>
+              <InputLabel>依存元タスク</InputLabel>
+              <Select
+                multiple
+                name="dependsOn"
+                value={form.dependsOn || []}
+                label="依存元タスク"
+                open={dependencySelectOpen}
+                onOpen={() => setDependencySelectOpen(true)}
+                onClose={() => setDependencySelectOpen(false)}
+                onChange={handleMultiSelectChange}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const id = parseInt(String(value).replace('task-', ''), 10);
+                      const name = taskMap.get(id);
+                      return <Chip key={value} label={name || value} size="small" />;
+                    })}
+                  </Box>
+                )}
+              >
+                {dependOptions.map((task) => (
+                  <MenuItem key={task.id} value={`task-${task.id}`}>
+                    {task.name}
+                  </MenuItem>
+                ))}
+                <Divider />
+                <Box sx={{ position: 'sticky', bottom: 0, bgcolor: 'background.paper', zIndex: 1, width: '100%', display: 'flex', justifyContent: 'flex-end', py: 1, px: 1 }} onClick={(e) => e.stopPropagation()}>
+                  <Button onClick={() => setDependencySelectOpen(false)} size="small" variant="contained">完了</Button>
+                </Box>
+              </Select>
+            </FormControl>
           </Stack>
         )}
       </DialogContent>

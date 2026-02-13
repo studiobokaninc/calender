@@ -2112,8 +2112,8 @@ const CalendarPage: React.FC = () => {
             sx={(theme) => ({
                 display: 'flex',
                 flexDirection: 'column',
-                height: 'calc(100vh - 64px)',
-                overflow: 'hidden',
+                height: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
+                overflow: { xs: 'auto', sm: 'hidden' },
                 p: { xs: 1, sm: 2 },
                 bgcolor: theme.palette.mode === 'dark'
                     ? theme.palette.background.default
@@ -2216,15 +2216,16 @@ const CalendarPage: React.FC = () => {
             <Box
                 sx={{
                     display: 'flex',
-                    flex: 1,
-                    minHeight: 0,
+                    flex: { xs: '0 1 auto', sm: 1 },
+                    minHeight: { xs: 'auto', sm: 0 },
                     gap: 0,
                     borderRadius: 2,
-                    overflow: 'hidden',
+                    overflow: { xs: 'visible', sm: 'hidden' },
                     bgcolor: 'background.paper',
                     boxShadow: 0,
                     border: '1px solid',
                     borderColor: 'divider',
+                    mb: { xs: 2, sm: 0 },
                 }}
             >
                 <Box
@@ -2233,9 +2234,11 @@ const CalendarPage: React.FC = () => {
                         minWidth: 0,
                         display: 'flex',
                         flexDirection: 'column',
-                        overflow: 'hidden',
+                        overflow: { xs: 'visible', sm: 'hidden' },
                         p: { xs: 0.5, sm: 1, md: 2 },
                         position: 'relative',
+                        minHeight: { xs: 'auto', sm: 'auto' },
+                        width: '100%',
                     }}
                 >
             <style>{`
@@ -2321,6 +2324,13 @@ const CalendarPage: React.FC = () => {
                 /* リストビュー全体のスタイル（ダークモード対応） */
                 .fc-list-view {
                     background-color: ${isDark ? '#121212' : '#ffffff'} !important;
+                    ${isMobile ? 'overflow-y: auto !important; max-height: none !important;' : ''}
+                }
+                .fc-scroller {
+                    ${isMobile ? 'overflow-y: auto !important; overflow-x: hidden !important; height: auto !important;' : ''}
+                }
+                .fc-scroller-liquid-absolute {
+                    ${isMobile ? 'position: relative !important;' : ''}
                 }
                 .fc-list-table {
                     background-color: ${isDark ? '#121212' : '#ffffff'} !important;
@@ -2772,8 +2782,8 @@ const CalendarPage: React.FC = () => {
                             minute: '2-digit',
                             hour12: false
                         }}
-                        height="100%"
-                        contentHeight="auto"
+                        height={isMobile ? "auto" : "100%"}
+                        contentHeight={isMobile ? "auto" : "auto"}
                         fixedWeekCount={true}
                         showNonCurrentDates={true}
                         dateClick={handleDateClick}

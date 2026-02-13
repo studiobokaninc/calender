@@ -102,7 +102,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // グローバル検索
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<{ projects: Array<{ id: number; name: string }>; tasks: Array<{ id: number; name: string; project_id: number | null }>; events: Array<{ id: number; title: string; start_time: string | null }> }>({ projects: [], tasks: [], events: [] })
+  const [searchResults, setSearchResults] = useState<{ projects: Array<{ id: number; name: string }>; tasks: Array<{ id: number; name: string; project_id: number | null; project_name?: string | null }>; events: Array<{ id: number; title: string; start_time: string | null }> }>({ projects: [], tasks: [], events: [] })
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchEditTarget, setSearchEditTarget] = useState<{ type: 'project' | 'task' | 'event'; id: number } | null>(null)
   const fetchSearch = useCallback(
@@ -113,7 +113,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
       setSearchLoading(true)
       try {
-        const res = await api.get<{ projects?: Array<{ id: number; name: string; description?: string }>; tasks?: Array<{ id: number; name: string; project_id: number | null }>; events?: Array<{ id: number; title: string; start_time: string | null }> }>('/search', { params: { q: q.trim(), limit: 8 } })
+        const res = await api.get<{ projects?: Array<{ id: number; name: string; description?: string }>; tasks?: Array<{ id: number; name: string; project_id: number | null; project_name?: string | null }>; events?: Array<{ id: number; title: string; start_time: string | null }> }>('/search', { params: { q: q.trim(), limit: 10000 } })
         const data = res?.data
         setSearchResults({
           projects: Array.isArray(data?.projects) ? data.projects : [],
@@ -741,7 +741,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       <ListItem key={`t-${t.id}`} disablePadding>
                         <ListItemButton onClick={() => handleSearchResultClick('task', t.id)}>
                           <ListItemIcon sx={{ minWidth: 36 }}><TaskIcon fontSize="small" /></ListItemIcon>
-                          <ListItemText primary={t?.name ?? ''} secondary={t?.project_id != null ? `プロジェクト ID: ${t.project_id}` : undefined} />
+                          <ListItemText primary={t?.name ?? ''} secondary={t?.project_name ?? (t?.project_id != null ? searchResults.projects.find(p => p.id === t.project_id)?.name ?? `プロジェクト ID: ${t.project_id}` : undefined)} />
                         </ListItemButton>
                       </ListItem>
                     ))}

@@ -3,9 +3,9 @@ import {
     Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme
+    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme, Drawer, useMediaQuery
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon, FilterList as FilterListIcon, Close as CloseIcon } from '@mui/icons-material';
 import { IconButton } from '@mui/material';
 import api from '../services/api';
 import { Task, Project, User } from '../types'; // Import User type as well
@@ -94,11 +94,13 @@ interface StatusHistory {
 const TasksPage: React.FC = () => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [tasks, setTasks] = useState<Task[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
     // ページ状態管理の使用
     const { tasksState, updateTasksState, isInitialLoad, globalData, updateGlobalData } = useTasksPageState();
@@ -1129,8 +1131,24 @@ const TasksPage: React.FC = () => {
                     borderColor: 'divider',
                 }}
             >
-                <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} sm={4}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 0 }, flexDirection: { xs: 'row', sm: 'row' } }}>
+                    <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, fontWeight: 600, display: { xs: 'block', sm: 'none' } }}>
+                        タスク
+                    </Typography>
+                    {isMobile && (
+                        <IconButton
+                            onClick={() => setMobileFilterOpen(true)}
+                            sx={{ minWidth: 48, minHeight: 48 }}
+                            color="primary"
+                        >
+                            <FilterListIcon />
+                        </IconButton>
+                    )}
+                </Box>
+                {/* PC用フィルター */}
+                {!isMobile && (
+                    <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} sm={4}>
                         <FormControl fullWidth variant="outlined" size="small">
                             <InputLabel id="status-filter-label" shrink>ステータス</InputLabel>
                             <Select
@@ -1243,7 +1261,8 @@ const TasksPage: React.FC = () => {
                             </Select>
                         </FormControl>
                     </Grid>
-                </Grid>
+                    </Grid>
+                )}
             </Paper>
 
             <Paper
@@ -1796,12 +1815,126 @@ const TasksPage: React.FC = () => {
                     <Button onClick={handleCloseHistoryDialog}>閉じる</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* モバイル用フィルタードロワー */}
+            <Drawer
+                anchor="bottom"
+                open={mobileFilterOpen}
+                onClose={() => setMobileFilterOpen(false)}
+            PaperProps={{
+                sx: {
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                    maxHeight: '80vh',
+                    p: 2,
+                }
+            }}
+        >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                    フィルター
+                </Typography>
+                <IconButton onClick={() => setMobileFilterOpen(false)} sx={{ minWidth: 48, minHeight: 48 }}>
+                    <CloseIcon />
+                </IconButton>
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <FormControl size="medium" fullWidth>
+                    <InputLabel id="mobile-status-filter-label" shrink>ステータス</InputLabel>
+                    <Select
+                        labelId="mobile-status-filter-label"
+                        label="ステータス"
+                        displayEmpty
+                        value={statusFilter || 'all'}
+                        onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                        renderValue={(selected) => {
+                            if (!selected || selected === 'all' || selected === '') {
+                                return '全て';
+                            }
+                            return selected;
+                        }}
+                    >
+                        <MenuItem value="all">全て</MenuItem>
+                        {statusOptions.map(status => (
+                            <MenuItem key={status} value={status}>{status}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                <FormControl size="medium" fullWidth>
+                    <InputLabel id="mobile-project-filter-label" shrink>プロジェクト</InputLabel>
+                    <Select
+                        labelId="mobile-project-filter-label"
+                        label="プロジェクト"
+                        displayEmpty
+                        value={projectFilter === '' ? 'all' : projectFilter}
+                        onChange={(e) => {
+                            const v = e.target.value as string;
+                            setProjectFilter(v === 'all' ? '' : v);
+                        }}
+                        renderValue={(selected) => {
+                            if (!selected || selected === 'all' || selected === '') {
+                                return '全て';
+                            }
+                            if (selected === 'no-project') {
+                                return 'プロジェクト未設定';
+                            }
+                            const project = projects.find(p => String(p.id) === selected);
+                            if (!project) return selected;
+                            return project.name;
+                        }}
+                    >
+                        <MenuItem value="all">全て</MenuItem>
+                        <MenuItem value="no-project">プロジェクト未設定</MenuItem>
+                        {onlineProjects.map(project => (
+                            <MenuItem key={project.id} value={String(project.id)}>
+                                {project.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                <FormControl size="medium" fullWidth>
+                    <InputLabel id="mobile-assignee-filter-label" shrink>担当者</InputLabel>
+                    <Select
+                        labelId="mobile-assignee-filter-label"
+                        label="担当者"
+                        displayEmpty
+                        value={assigneeFilter || 'all'}
+                        onChange={(e) => setAssigneeFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                        renderValue={(selected) => {
+                            if (!selected || selected === 'all' || selected === '') {
+                                return '全て';
+                            }
+                            if (selected === 'unassigned') {
+                                return '未割当';
+                            }
+                            const user = users.find(u => String(u.id) === selected);
+                            return user ? (user.username || user.email) : selected;
+                        }}
+                    >
+                        <MenuItem value="all">全て</MenuItem>
+                        <MenuItem value="unassigned">未割当</MenuItem>
+                        {users.map(user => (
+                            <MenuItem key={user.id} value={String(user.id)}>{user.username || user.email}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                <Button
+                    variant="contained"
+                    onClick={() => {
+                        setStatusFilter('');
+                        setProjectFilter('');
+                        setAssigneeFilter('');
+                        setMobileFilterOpen(false);
+                    }}
+                    sx={{ mt: 1, minHeight: 48 }}
+                >
+                    フィルターをクリア
+                </Button>
+            </Box>
+            </Drawer>
         </Box>
     );
 };
-
-
-
 
 export default TasksPage;
 

@@ -17,6 +17,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
+  InputAdornment,
+  Tooltip,
 } from '@mui/material'
 import {
   People as PeopleIcon,
@@ -24,6 +27,8 @@ import {
   Folder as ProjectIcon,
   CalendarToday as CalendarTodayIcon,
   Event as EventIcon,
+  Mic as MicIcon,
+  Stop as StopIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -74,6 +79,11 @@ const Dashboard: React.FC = () => {
   const eventSourceRef = useRef<EventSource | null>(null)
   const hasReceivedTaskActionRef = useRef<boolean>(false)
 
+  // 音声認識（Web Speech API）
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const [speechSupport, setSpeechSupport] = useState<boolean | null>(null)
+
   // ページ状態が復元されたらローカル状態を更新
   useEffect(() => {
     if (!isInitialLoad && dashboardState.messages.length > 0) {
@@ -117,6 +127,68 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     refreshGlobalData?.()
   }, [refreshGlobalData])
+
+  // 音声認識の初期化（Web Speech API）
+  useEffect(() => {
+    const win = typeof window !== 'undefined' ? window : null
+    const SR = win && ((win as any).SpeechRecognition || (win as any).webkitSpeechRecognition)
+    if (!SR) {
+      setSpeechSupport(false)
+      return
+    }
+    const recognition = new SR()
+    recognition.lang = 'ja-JP'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.onresult = (event: any) => {
+      let finalTranscript = ''
+      let interimTranscript = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        const transcript = result[0]?.transcript ?? ''
+        if (result.isFinal) {
+          finalTranscript += transcript
+        } else {
+          interimTranscript += transcript
+        }
+      }
+      const toAppend = finalTranscript || interimTranscript
+      if (toAppend) {
+        setChatInput(prev => (prev ? prev + ' ' + toAppend : toAppend))
+      }
+    }
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+    recognitionRef.current = recognition
+    setSpeechSupport(true)
+    return () => {
+      try { 
+        if (recognitionRef.current) {
+          recognitionRef.current.abort?.()
+          recognitionRef.current.stop?.()
+        }
+      } catch { /* noop */ }
+      recognitionRef.current = null
+    }
+  }, [])
+
+  const toggleVoiceInput = React.useCallback(() => {
+    if (!recognitionRef.current) {
+      if (speechSupport === false) alert('お使いのブラウザは音声認識に対応していません。Chrome や Edge をご利用ください。')
+      return
+    }
+    if (isListening) {
+      recognitionRef.current.stop()
+      return
+    }
+    try {
+      recognitionRef.current.start()
+      setIsListening(true)
+    } catch (e) {
+      console.warn('Speech recognition start error:', e)
+      setIsListening(false)
+    }
+  }, [isListening, speechSupport])
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -1617,7 +1689,7 @@ const Dashboard: React.FC = () => {
             <TextField
               fullWidth
               size="medium"
-              placeholder="メッセージを入力..."
+              placeholder="メッセージを入力...（マイクで音声入力も可能）"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
@@ -1627,6 +1699,23 @@ const Dashboard: React.FC = () => {
                 }
               }}
               disabled={sending}
+              InputProps={{
+                endAdornment: speechSupport !== false && (
+                  <InputAdornment position="end">
+                    <Tooltip title={isListening ? '音声入力を停止' : '音声で入力'}>
+                      <IconButton
+                        size="small"
+                        color={isListening ? 'error' : 'default'}
+                        onClick={toggleVoiceInput}
+                        disabled={sending || isGenerating}
+                        aria-label={isListening ? '音声入力を停止' : '音声で入力'}
+                      >
+                        {isListening ? <StopIcon /> : <MicIcon />}
+                      </IconButton>
+                    </Tooltip>
+                  </InputAdornment>
+                ),
+              }}
               sx={{
                 '& .MuiInputBase-root': {
                   minHeight: { xs: 48, sm: 40 },

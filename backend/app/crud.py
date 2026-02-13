@@ -861,9 +861,14 @@ def get_weekly_workload(
                 return None
         return None
 
-    # 未完了タスクのみ対象（担当者あり）。プロジェクト未設定のタスクも含める。
+    # タスクを取得（担当者あり）。プロジェクト未設定のタスクも含める。
     query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None))
-    query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    # include_completedがFalseの場合のみ、完了タスクを除外
+    if not include_completed:
+        query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    # 完了タスクの完了日時を取得するために status_history を読み込む
+    if include_completed:
+        query = query.options(selectinload(models.Task.status_history))
     if not include_offline:
         offline_project_ids = [
             p.id for p in db.query(models.Project).filter(models.Project.display_status == "offline").all()
@@ -901,23 +906,61 @@ def get_weekly_workload(
         total_weekdays = _count_weekdays(task_start, task_end)
         if total_weekdays <= 0:
             total_weekdays = 1
-        # 基準日までに経過した平日・経過労働時間・残りコスト（タスクごと）
-        # 経過労働 = 経過平日×8（1日8時間）。コストを超えないよう min(cost, 経過平日×8)
-        if reference_date < task_start:
-            weekdays_passed = 0
-            labor_passed = 0
-            remaining = cost
-        elif reference_date > task_end:
-            weekdays_passed = total_weekdays
-            labor_passed = cost
-            remaining = 0
+        
+        # 完了タスクの場合の処理
+        is_completed = t.status == models.TaskStatus.COMPLETED
+        if is_completed:
+            # 完了タスクの場合、完了日時（または期日）を基準日として使用
+            # 完了日時は status_history から取得、なければ updated_at、それもなければ期日
+            completed_date = None
+            if hasattr(t, 'status_history') and t.status_history:
+                # 完了になった最新の履歴を取得
+                completed_history = [h for h in t.status_history if h.status == models.TaskStatus.COMPLETED]
+                if completed_history:
+                    latest_completed = max(completed_history, key=lambda h: h.changed_at)
+                    completed_date = to_date(latest_completed.changed_at)
+            if completed_date is None and hasattr(t, 'updated_at') and t.updated_at:
+                completed_date = to_date(t.updated_at)
+            if completed_date is None:
+                completed_date = task_end
+            
+            # 完了タスクの場合、完了日時を基準日として使用
+            effective_reference_date = completed_date if completed_date else reference_date
+            # 完了タスクの場合、残りコストは0
+            if effective_reference_date < task_start:
+                weekdays_passed = 0
+                labor_passed = 0
+                remaining = 0
+            elif effective_reference_date > task_end:
+                weekdays_passed = total_weekdays
+                labor_passed = cost
+                remaining = 0
+            else:
+                end_for_passed = min(effective_reference_date, task_end)
+                weekdays_passed = _count_weekdays(task_start, end_for_passed)
+                weekdays_passed = min(weekdays_passed, total_weekdays)
+                labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
+                labor_passed = round(labor_passed, 2)
+                remaining = 0  # 完了タスクは残りコスト0
         else:
-            end_for_passed = min(reference_date, task_end)
-            weekdays_passed = _count_weekdays(task_start, end_for_passed)
-            weekdays_passed = min(weekdays_passed, total_weekdays)
-            labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
-            labor_passed = round(labor_passed, 2)
-            remaining = max(0, round(cost - labor_passed, 2))
+            # 未完了タスクの場合の処理（従来通り）
+            # 基準日までに経過した平日・経過労働時間・残りコスト（タスクごと）
+            # 経過労働 = 経過平日×8（1日8時間）。コストを超えないよう min(cost, 経過平日×8)
+            if reference_date < task_start:
+                weekdays_passed = 0
+                labor_passed = 0
+                remaining = cost
+            elif reference_date > task_end:
+                weekdays_passed = total_weekdays
+                labor_passed = cost
+                remaining = 0
+            else:
+                end_for_passed = min(reference_date, task_end)
+                weekdays_passed = _count_weekdays(task_start, end_for_passed)
+                weekdays_passed = min(weekdays_passed, total_weekdays)
+                labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
+                labor_passed = round(labor_passed, 2)
+                remaining = max(0, round(cost - labor_passed, 2))
         # 開始日〜期日までの平日数でコストを按分した「1日あたりの時間」
         hours_per_weekday = round(cost / total_weekdays, 2) if total_weekdays else 0
         # 今週に「期間がかかっている」タスクか（今週内に1日でも平日が重なる）

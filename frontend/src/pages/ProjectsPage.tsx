@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Paper, TableContainer, Table, TableHead, TableBody, TableRow, TableCell, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, Link, SelectChangeEvent, Tooltip, useTheme } from '@mui/material';
+import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import { Link as RouterLink } from 'react-router-dom';
 import api from '../services/api';
 import { Project, Task } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
-import { DataGrid, GridColDef, GridRenderCellParams, GridRowParams } from '@mui/x-data-grid';
+import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import ProjectDeleteDialog from '../components/ProjectDeleteDialog';
 import CsvParser from '../components/CsvParser';
 
@@ -69,10 +68,9 @@ const ProjectsPage: React.FC = () => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const [projects, setProjects] = useState<ProjectWithProgress[]>([]);
-    const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [projectStatusFilter, setProjectStatusFilter] = useState<string>('');
+    const [projectStatusFilter] = useState<string>('');
     const [openDialog, setOpenDialog] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [currentProject, setCurrentProject] = useState<ProjectFormData>({
@@ -112,7 +110,6 @@ const ProjectsPage: React.FC = () => {
 
             const projectsData = projectsResponse.data;
             const tasksData = tasksResponse.data;
-            setTasks(tasksData);
 
             const tasksByProjectId = tasksData.reduce((acc, task) => {
                 const projId = task.project_id;
@@ -164,9 +161,6 @@ const ProjectsPage: React.FC = () => {
         }
     };
 
-    const uniqueProjectStatuses = useMemo(() =>
-        [...new Set(projects.map(p => p.status).filter(Boolean))] as string[]
-        , [projects]);
 
     const filteredProjects: ProjectWithProgress[] = useMemo(() => {
         const filtered = projects.filter(project => {
@@ -227,7 +221,7 @@ const ProjectsPage: React.FC = () => {
         setOpenDialog(true);
     };
 
-    const handleDeleteProject = async (projectId: string | number, projectName: string) => {
+    const handleDeleteProject = async (projectId: string | number) => {
         try {
             await api.delete(`/projects/${projectId}`);
             setSnackbar({
@@ -345,7 +339,7 @@ const ProjectsPage: React.FC = () => {
 
     const handleDeleteConfirm = async () => {
         if (selectedProject) {
-            await handleDeleteProject(selectedProject.id, selectedProject.name);
+            await handleDeleteProject(selectedProject.id);
             setDeleteDialogOpen(false);
             setSelectedProject(null);
         }
@@ -511,9 +505,8 @@ const ProjectsPage: React.FC = () => {
             width: 120,
             sortable: false,
             filterable: false,
-            pinned: 'right' as const,
-            headerAlign: 'center',
-            align: 'center',
+            headerAlign: 'center' as const,
+            align: 'center' as const,
             hideable: false,
             renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
                 const row = params.row;
@@ -552,7 +545,7 @@ const ProjectsPage: React.FC = () => {
                     </Box>
                 );
             },
-        }] : []),
+        } as GridColDef] : []),
     ];
 
     if (loading && projects.length === 0) {

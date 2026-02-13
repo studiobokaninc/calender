@@ -304,14 +304,14 @@ async def get_weekly_availability_endpoint(
     else:
         today = date.today()
         week_start_date = today - timedelta(days=today.weekday())  # 月曜
-    # 今日を基準に経過・残りを計算。計算対象は未完了タスクのみ（include_completed は使わない）
+    # 今日を基準に経過・残りを計算。完了タスクも含める（その週の期間内に作業していた分を計上）
     reference_date = date.today()
     items = crud.get_weekly_workload(
         db=db,
         week_start=week_start_date,
         reference_date=reference_date,
         include_offline=include_offline,
-        include_completed=False,
+        include_completed=include_completed,
         consider_dependencies=consider_dependencies,
     )
     if only_free:
@@ -1758,7 +1758,7 @@ async def import_csv_data(
             row = next(csv_reader, None)
             if row is None:
                 break
-            if row[0].strip() == "タスク情報":
+            if len(row) > 0 and row[0].strip() == "タスク情報":
                 break
 
         # ヘッダー行をスキップ
@@ -1873,9 +1873,14 @@ async def import_csv_data(
 
         return import_results
 
-    except Exception:
-        logger.exception("CSVインポートに失敗しました")
-        raise HTTPException(status_code=500, detail="CSVインポートに失敗しました。")
+    except HTTPException:
+        # HTTPExceptionはそのまま再スロー
+        raise
+    except Exception as e:
+        error_detail = str(e)
+        logger.exception(f"CSVインポートに失敗しました: {error_detail}")
+        # エラーの詳細を返す（セキュリティ上問題ない範囲で）
+        raise HTTPException(status_code=500, detail=f"CSVインポートに失敗しました: {error_detail}")
 
 @app.delete("/api/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Groups"])
 async def delete_group_endpoint(

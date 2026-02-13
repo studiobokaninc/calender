@@ -165,7 +165,11 @@ export const mockDataApi = {
         },
       });
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // エラーレスポンスから詳細なメッセージを取得
+      if (error.response?.data?.detail) {
+        throw new Error(error.response.data.detail);
+      }
       throw error;
     }
   },

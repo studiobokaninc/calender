@@ -21,6 +21,8 @@ import {
   Checkbox,
   useMediaQuery,
   useTheme,
+  IconButton,
+  InputAdornment,
 } from '@mui/material'
 import {
   Assignment as AssignmentIcon,
@@ -29,6 +31,8 @@ import {
   Schedule as ScheduleIcon,
   CheckCircle as CheckCircleIcon,
   EmojiEvents as EmojiEventsIcon,
+  Mic as MicIcon,
+  Stop as StopIcon,
 } from '@mui/icons-material'
 import api from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -101,7 +105,7 @@ const ChatPage: React.FC = () => {
   const eventSourceRef = useRef<EventSource | null>(null)
   const hasReceivedTaskActionRef = useRef<boolean>(false)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   // Google カレンダー連携（ユーザー個人のカレンダーにタスクを1件ずつ表示ON/OFF）
   const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>({
     configured: false,
@@ -109,6 +113,11 @@ const ChatPage: React.FC = () => {
     synced_task_ids: [],
   })
   const [googleSyncingTaskId, setGoogleSyncingTaskId] = useState<number | null>(null)
+
+  // 音声認識（Web Speech API）
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  const [speechSupport, setSpeechSupport] = useState<boolean | null>(null)
 
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
 
@@ -131,10 +140,72 @@ const ChatPage: React.FC = () => {
       setGoogleStatus({ configured: false, connected: false, synced_task_ids: [] })
     }
   }, [])
-  
+
   useEffect(() => {
     fetchGoogleStatus()
   }, [fetchGoogleStatus])
+
+  // 音声認識の初期化（Web Speech API）
+  useEffect(() => {
+    const win = typeof window !== 'undefined' ? window : null
+    const SR = win && ((win as any).SpeechRecognition || (win as any).webkitSpeechRecognition)
+    if (!SR) {
+      setSpeechSupport(false)
+      return
+    }
+    const recognition = new SR()
+    recognition.lang = 'ja-JP'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.onresult = (event: any) => {
+      let finalTranscript = ''
+      let interimTranscript = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        const transcript = result[0]?.transcript ?? ''
+        if (result.isFinal) {
+          finalTranscript += transcript
+        } else {
+          interimTranscript += transcript
+        }
+      }
+      const toAppend = finalTranscript || interimTranscript
+      if (toAppend) {
+        setChatInput(prev => (prev ? prev + ' ' + toAppend : toAppend))
+      }
+    }
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+    recognitionRef.current = recognition
+    setSpeechSupport(true)
+    return () => {
+      try { 
+        if (recognitionRef.current) {
+          recognitionRef.current.abort?.()
+          recognitionRef.current.stop?.()
+        }
+      } catch { /* noop */ }
+      recognitionRef.current = null
+    }
+  }, [])
+
+  const toggleVoiceInput = React.useCallback(() => {
+    if (!recognitionRef.current) {
+      if (speechSupport === false) alert('お使いのブラウザは音声認識に対応していません。Chrome や Edge をご利用ください。')
+      return
+    }
+    if (isListening) {
+      recognitionRef.current.stop()
+      return
+    }
+    try {
+      recognitionRef.current.start()
+      setIsListening(true)
+    } catch (e) {
+      console.warn('Speech recognition start error:', e)
+      setIsListening(false)
+    }
+  }, [isListening, speechSupport])
 
   const handleGoogleConnect = React.useCallback(async () => {
     try {
@@ -180,7 +251,7 @@ const ChatPage: React.FC = () => {
           if (e.ctrlKey) return
           if (el.scrollWidth <= el.clientWidth) return
           if (e.deltaY !== 0) {
-            try { e.preventDefault() } catch (_) {}
+            try { e.preventDefault() } catch (_) { }
             el.scrollLeft += e.deltaY
           }
         }
@@ -189,7 +260,7 @@ const ChatPage: React.FC = () => {
         } catch (_) {
           el.addEventListener('wheel', onWheel as any)
         }
-        ;(el as any)._wheelHandler = onWheel
+        ; (el as any)._wheelHandler = onWheel
       })
     }
     const initialTimeoutId = setTimeout(setupWheelHandlers, 100)
@@ -370,7 +441,7 @@ const ChatPage: React.FC = () => {
         const parsed = JSON.parse(block)
         if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isValid)) return parsed
         if (isValid(parsed)) return [parsed]
-      } catch (_) {}
+      } catch (_) { }
       return []
     }
     const searchContent = content.includes('---') ? content.split('---').slice(1).join('---').trim() : content
@@ -385,7 +456,7 @@ const ChatPage: React.FC = () => {
       try {
         const action = JSON.parse(singleMatch[0])
         if (isValid(action)) return action
-      } catch (_) {}
+      } catch (_) { }
     }
     return null
   }
@@ -438,7 +509,7 @@ const ChatPage: React.FC = () => {
           setMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${data.detail || '不明'}` }])
           eventSource.close()
         }
-      } catch (_) {}
+      } catch (_) { }
     })
 
     eventSource.addEventListener('task_action', (event) => {
@@ -456,7 +527,7 @@ const ChatPage: React.FC = () => {
           }))
         )
         hasReceivedTaskActionRef.current = true
-      } catch (_) {}
+      } catch (_) { }
     })
 
     eventSource.addEventListener('message_end', () => {
@@ -539,7 +610,7 @@ const ChatPage: React.FC = () => {
     if (currentTaskId) {
       try {
         await api.post(`/chat/user/stop/${currentTaskId}`, { user: 'default_user' })
-      } catch (_) {}
+      } catch (_) { }
     }
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -552,7 +623,7 @@ const ChatPage: React.FC = () => {
 
   const handleNewConversation = () => {
     if (eventSourceRef.current) {
-      try { eventSourceRef.current.close() } catch (_) {}
+      try { eventSourceRef.current.close() } catch (_) { }
       eventSourceRef.current = null
     }
     setConversationId(null)
@@ -568,7 +639,7 @@ const ChatPage: React.FC = () => {
       .then((res: any) => {
         if (Array.isArray(res.data)) setProjectsForAction(res.data.map((p: any) => ({ id: p.id, name: p.name })))
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [hasCreateTaskAction])
 
   const executeAction = async () => {
@@ -620,7 +691,7 @@ const ChatPage: React.FC = () => {
       console.log('[ChatPage] No tasks - user:', user?.id, 'tasks:', globalData?.tasks?.length, 'projects:', globalData?.projects?.length)
       return []
     }
-    
+
     const projectMap = new Map<number, string>()
     const completedProjectIds = new Set<number>()
     globalData.projects.forEach((project: Project) => {
@@ -646,7 +717,7 @@ const ChatPage: React.FC = () => {
       if (projectId !== 0 && completedProjectIds.has(projectId)) return false
       return true
     })
-    
+
     console.log('[ChatPage] Filtered tasks for user', userId, ':', filteredTasks.length, 'tasks')
     return filteredTasks
   }, [user?.id, globalData?.tasks, globalData?.projects])
@@ -912,7 +983,7 @@ const ChatPage: React.FC = () => {
             <TextField
               fullWidth
               size="small"
-              placeholder="メッセージを入力..."
+              placeholder="メッセージを入力...（マイクで音声入力も可能）"
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => {
@@ -922,6 +993,23 @@ const ChatPage: React.FC = () => {
                 }
               }}
               disabled={sending}
+              InputProps={{
+                endAdornment: speechSupport !== false && (
+                  <InputAdornment position="end">
+                    <Tooltip title={isListening ? '音声入力を停止' : '音声で入力'}>
+                      <IconButton
+                        size="small"
+                        color={isListening ? 'error' : 'default'}
+                        onClick={toggleVoiceInput}
+                        disabled={sending || isGenerating}
+                        aria-label={isListening ? '音声入力を停止' : '音声で入力'}
+                      >
+                        {isListening ? <StopIcon /> : <MicIcon />}
+                      </IconButton>
+                    </Tooltip>
+                  </InputAdornment>
+                ),
+              }}
               sx={{
                 '& .MuiInputBase-input': {
                   fontSize: { xs: '0.875rem', sm: '1rem' },
@@ -959,278 +1047,278 @@ const ChatPage: React.FC = () => {
                 </Typography>
               </Box>
             ) : currentUserTasks.length === 0 ? (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                py: 3,
-                px: 3,
-                textAlign: 'center',
-                background: (theme) => theme.palette.mode === 'dark' 
-                  ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
-                  : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-                borderRadius: 2,
-                border: '2px dashed',
-                borderColor: 'primary.light',
-              }}
-            >
               <Box
                 sx={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: '50%',
-                  bgcolor: 'success.light',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  mb: 1.5,
-                  boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
+                  py: 3,
+                  px: 3,
+                  textAlign: 'center',
+                  background: (theme) => theme.palette.mode === 'dark'
+                    ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+                    : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                  borderRadius: 2,
+                  border: '2px dashed',
+                  borderColor: 'primary.light',
                 }}
               >
-                <CheckCircleIcon
+                <Box
                   sx={{
-                    fontSize: 40,
-                    color: 'success.main',
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    bgcolor: 'success.light',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mb: 1.5,
+                    boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
                   }}
-                />
-              </Box>
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 'bold',
-                  color: 'text.primary',
-                  mb: 0.5,
-                  background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                すべてのタスクが完了しています！
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'text.secondary',
-                  mb: 1,
-                  maxWidth: 400,
-                }}
-              >
-                素晴らしい仕事ぶりですね。新しいタスクが割り当てられたら、ここに表示されます。
-              </Typography>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  color: 'success.main',
-                  fontWeight: 'medium',
-                }}
-              >
-                <EmojiEventsIcon sx={{ fontSize: 20 }} />
-                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                  完璧な状態です
+                >
+                  <CheckCircleIcon
+                    sx={{
+                      fontSize: 40,
+                      color: 'success.main',
+                    }}
+                  />
+                </Box>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 'bold',
+                    color: 'text.primary',
+                    mb: 0.5,
+                    background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  すべてのタスクが完了しています！
                 </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: 'text.secondary',
+                    mb: 1,
+                    maxWidth: 400,
+                  }}
+                >
+                  素晴らしい仕事ぶりですね。新しいタスクが割り当てられたら、ここに表示されます。
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    color: 'success.main',
+                    fontWeight: 'medium',
+                  }}
+                >
+                  <EmojiEventsIcon sx={{ fontSize: 20 }} />
+                  <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                    完璧な状態です
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
             ) : (
-            <>
-              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                <AssignmentIcon sx={{ color: 'primary.main', fontSize: { xs: 20, sm: 22 } }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-                  {currentUserTasks.length}件のタスク
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                  {tasksByCategory.delayed.length > 0 && <Chip size="small" label={`遅延 ${tasksByCategory.delayed.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'error.light', color: 'error.dark' }} />}
-                  {tasksByCategory.today.length > 0 && <Chip size="small" label={`今日 ${tasksByCategory.today.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'info.light', color: 'info.dark' }} />}
-                  {tasksByCategory.dueSoon.length > 0 && <Chip size="small" label={`期限間近 ${tasksByCategory.dueSoon.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'warning.light', color: 'warning.dark' }} />}
-                  {tasksByCategory.other.length > 0 && <Chip size="small" label={`その他 ${tasksByCategory.other.length}`} variant="outlined" sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />}
-                </Typography>
-              </Box>
-              <Grid container spacing={{ xs: 2, sm: 3 }}>
-            {tasksByCategory.delayed.length > 0 && (
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: 'error.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
-                    <WarningIcon fontSize={isMobile ? "small" : "medium"} /> 遅れている
+              <>
+                <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                  <AssignmentIcon sx={{ color: 'primary.main', fontSize: { xs: 20, sm: 22 } }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+                    {currentUserTasks.length}件のタスク
                   </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.delayed.map((t) => {
-                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
-                      const loading = googleSyncingTaskId === t.id
-                      return (
-                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
-                            <Chip 
-                              label={t.name} 
-                              sx={{ 
-                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : '#FFEBEE', 
-                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.light : '#C62828', 
-                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                                height: { xs: 32, sm: 36 },
-                                padding: { xs: '0 8px', sm: '0 12px' },
-                                '& .MuiChip-label': {
-                                  padding: { xs: '0 6px', sm: '0 8px' },
-                                }
-                              }} 
-                            />
-                          </Tooltip>
-                          {googleStatus.connected && (
-                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
-                              <Checkbox
-                                size="small"
-                                checked={synced}
-                                disabled={loading}
-                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
-                                sx={{ p: 0.5 }}
-                              />
-                            </Tooltip>
-                          )}
-                        </Box>
-                      )
-                    })}
-                  </Box>
-                </Box>
-              </Grid>
-            )}
-            {tasksByCategory.today.length > 0 && (
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: 'info.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
-                    <TodayIcon fontSize={isMobile ? "small" : "medium"} /> 今日中
+                  <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                    {tasksByCategory.delayed.length > 0 && <Chip size="small" label={`遅延 ${tasksByCategory.delayed.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'error.light', color: 'error.dark' }} />}
+                    {tasksByCategory.today.length > 0 && <Chip size="small" label={`今日 ${tasksByCategory.today.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'info.light', color: 'info.dark' }} />}
+                    {tasksByCategory.dueSoon.length > 0 && <Chip size="small" label={`期限間近 ${tasksByCategory.dueSoon.length}`} sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' }, bgcolor: 'warning.light', color: 'warning.dark' }} />}
+                    {tasksByCategory.other.length > 0 && <Chip size="small" label={`その他 ${tasksByCategory.other.length}`} variant="outlined" sx={{ height: { xs: 20, sm: 22 }, fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />}
                   </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.today.map((t) => {
-                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
-                      const loading = googleSyncingTaskId === t.id
-                      return (
-                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
-                            <Chip 
-                              label={t.name} 
-                              sx={{ 
-                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.dark : '#E3F2FD', 
-                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.light : '#1565C0', 
-                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                                height: { xs: 32, sm: 36 },
-                                padding: { xs: '0 8px', sm: '0 12px' },
-                                '& .MuiChip-label': {
-                                  padding: { xs: '0 6px', sm: '0 8px' },
-                                }
-                              }} 
-                            />
-                          </Tooltip>
-                          {googleStatus.connected && (
-                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
-                              <Checkbox
-                                size="small"
-                                checked={synced}
-                                disabled={loading}
-                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
-                                sx={{ p: 0.5 }}
-                              />
-                            </Tooltip>
-                          )}
-                        </Box>
-                      )
-                    })}
-                  </Box>
                 </Box>
-              </Grid>
-            )}
-            {tasksByCategory.dueSoon.length > 0 && (
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
-                    <ScheduleIcon fontSize={isMobile ? "small" : "medium"} /> 期限が近い
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.dueSoon.map((t) => {
-                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
-                      const loading = googleSyncingTaskId === t.id
-                      return (
-                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
-                            <Chip 
-                              label={t.name} 
-                              sx={{ 
-                                bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.dark : '#FFF3E0', 
-                                color: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.light : '#E65100', 
-                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                                height: { xs: 32, sm: 36 },
-                                padding: { xs: '0 8px', sm: '0 12px' },
-                                '& .MuiChip-label': {
-                                  padding: { xs: '0 6px', sm: '0 8px' },
-                                }
-                              }} 
-                            />
-                          </Tooltip>
-                          {googleStatus.connected && (
-                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
-                              <Checkbox
-                                size="small"
-                                checked={synced}
-                                disabled={loading}
-                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
-                                sx={{ p: 0.5 }}
-                              />
-                            </Tooltip>
-                          )}
+                <Grid container spacing={{ xs: 2, sm: 3 }}>
+                  {tasksByCategory.delayed.length > 0 && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ height: '100%' }}>
+                        <Typography variant="body1" sx={{ color: 'error.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                          <WarningIcon fontSize={isMobile ? "small" : "medium"} /> 遅れている
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
+                          {tasksByCategory.delayed.map((t) => {
+                            const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                            const loading = googleSyncingTaskId === t.id
+                            return (
+                              <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
+                                  <Chip
+                                    label={t.name}
+                                    sx={{
+                                      bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.dark : '#FFEBEE',
+                                      color: (theme) => theme.palette.mode === 'dark' ? theme.palette.error.light : '#C62828',
+                                      fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                      height: { xs: 32, sm: 36 },
+                                      padding: { xs: '0 8px', sm: '0 12px' },
+                                      '& .MuiChip-label': {
+                                        padding: { xs: '0 6px', sm: '0 8px' },
+                                      }
+                                    }}
+                                  />
+                                </Tooltip>
+                                {googleStatus.connected && (
+                                  <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                                    <Checkbox
+                                      size="small"
+                                      checked={synced}
+                                      disabled={loading}
+                                      onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                      sx={{ p: 0.5 }}
+                                    />
+                                  </Tooltip>
+                                )}
+                              </Box>
+                            )
+                          })}
                         </Box>
-                      )
-                    })}
-                  </Box>
-                </Box>
-              </Grid>
-            )}
-            {tasksByCategory.other.length > 0 && (
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ height: '100%' }}>
-                  <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 'bold', mb: 1.5, display: 'block', fontSize: { xs: '1rem', sm: '1.1rem' } }}>余裕をもって進める</Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
-                    {tasksByCategory.other.map((t) => {
-                      const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
-                      const loading = googleSyncingTaskId === t.id
-                      return (
-                        <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''}`}>
-                            <Chip 
-                              label={t.name} 
-                              variant="outlined" 
-                              sx={{ 
-                                fontSize: { xs: '0.85rem', sm: '0.95rem' },
-                                height: { xs: 32, sm: 36 },
-                                padding: { xs: '0 8px', sm: '0 12px' },
-                                '& .MuiChip-label': {
-                                  padding: { xs: '0 6px', sm: '0 8px' },
-                                }
-                              }} 
-                            />
-                          </Tooltip>
-                          {googleStatus.connected && (
-                            <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
-                              <Checkbox
-                                size="small"
-                                checked={synced}
-                                disabled={loading}
-                                onChange={() => handleGoogleSyncToggle(t.id, synced)}
-                                sx={{ p: 0.5 }}
-                              />
-                            </Tooltip>
-                          )}
+                      </Box>
+                    </Grid>
+                  )}
+                  {tasksByCategory.today.length > 0 && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ height: '100%' }}>
+                        <Typography variant="body1" sx={{ color: 'info.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                          <TodayIcon fontSize={isMobile ? "small" : "medium"} /> 今日中
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
+                          {tasksByCategory.today.map((t) => {
+                            const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                            const loading = googleSyncingTaskId === t.id
+                            return (
+                              <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
+                                  <Chip
+                                    label={t.name}
+                                    sx={{
+                                      bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.dark : '#E3F2FD',
+                                      color: (theme) => theme.palette.mode === 'dark' ? theme.palette.info.light : '#1565C0',
+                                      fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                      height: { xs: 32, sm: 36 },
+                                      padding: { xs: '0 8px', sm: '0 12px' },
+                                      '& .MuiChip-label': {
+                                        padding: { xs: '0 6px', sm: '0 8px' },
+                                      }
+                                    }}
+                                  />
+                                </Tooltip>
+                                {googleStatus.connected && (
+                                  <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                                    <Checkbox
+                                      size="small"
+                                      checked={synced}
+                                      disabled={loading}
+                                      onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                      sx={{ p: 0.5 }}
+                                    />
+                                  </Tooltip>
+                                )}
+                              </Box>
+                            )
+                          })}
                         </Box>
-                      )
-                    })}
-                  </Box>
-                </Box>
-              </Grid>
+                      </Box>
+                    </Grid>
+                  )}
+                  {tasksByCategory.dueSoon.length > 0 && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ height: '100%' }}>
+                        <Typography variant="body1" sx={{ color: 'warning.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, fontSize: { xs: '1rem', sm: '1.1rem' } }}>
+                          <ScheduleIcon fontSize={isMobile ? "small" : "medium"} /> 期限が近い
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
+                          {tasksByCategory.dueSoon.map((t) => {
+                            const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                            const loading = googleSyncingTaskId === t.id
+                            return (
+                              <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
+                                  <Chip
+                                    label={t.name}
+                                    sx={{
+                                      bgcolor: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.dark : '#FFF3E0',
+                                      color: (theme) => theme.palette.mode === 'dark' ? theme.palette.warning.light : '#E65100',
+                                      fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                      height: { xs: 32, sm: 36 },
+                                      padding: { xs: '0 8px', sm: '0 12px' },
+                                      '& .MuiChip-label': {
+                                        padding: { xs: '0 6px', sm: '0 8px' },
+                                      }
+                                    }}
+                                  />
+                                </Tooltip>
+                                {googleStatus.connected && (
+                                  <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                                    <Checkbox
+                                      size="small"
+                                      checked={synced}
+                                      disabled={loading}
+                                      onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                      sx={{ p: 0.5 }}
+                                    />
+                                  </Tooltip>
+                                )}
+                              </Box>
+                            )
+                          })}
+                        </Box>
+                      </Box>
+                    </Grid>
+                  )}
+                  {tasksByCategory.other.length > 0 && (
+                    <Grid item xs={12} sm={6} md={3}>
+                      <Box sx={{ height: '100%' }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 'bold', mb: 1.5, display: 'block', fontSize: { xs: '1rem', sm: '1.1rem' } }}>余裕をもって進める</Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', flexWrap: 'wrap', gap: 1 }}>
+                          {tasksByCategory.other.map((t) => {
+                            const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
+                            const loading = googleSyncingTaskId === t.id
+                            return (
+                              <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''}`}>
+                                  <Chip
+                                    label={t.name}
+                                    variant="outlined"
+                                    sx={{
+                                      fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                                      height: { xs: 32, sm: 36 },
+                                      padding: { xs: '0 8px', sm: '0 12px' },
+                                      '& .MuiChip-label': {
+                                        padding: { xs: '0 6px', sm: '0 8px' },
+                                      }
+                                    }}
+                                  />
+                                </Tooltip>
+                                {googleStatus.connected && (
+                                  <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                                    <Checkbox
+                                      size="small"
+                                      checked={synced}
+                                      disabled={loading}
+                                      onChange={() => handleGoogleSyncToggle(t.id, synced)}
+                                      sx={{ p: 0.5 }}
+                                    />
+                                  </Tooltip>
+                                )}
+                              </Box>
+                            )
+                          })}
+                        </Box>
+                      </Box>
+                    </Grid>
+                  )}
+                </Grid>
+              </>
             )}
-              </Grid>
-            </>
-          )}
-        </Paper>
+          </Paper>
         </>
       )}
 

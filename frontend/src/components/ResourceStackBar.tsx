@@ -42,6 +42,8 @@ export interface ResourceStackBarProps {
   overColor?: string;
   /** 適正以下のバーの色 */
   normalColor?: string;
+  /** グラフのタイトル */
+  title?: string;
 }
 
 /**
@@ -53,6 +55,7 @@ const ResourceStackBar: React.FC<ResourceStackBarProps> = ({
   maxHoursPerWeek = 40,
   overColor,
   normalColor,
+  title,
 }) => {
   const theme = useTheme();
   const over = overColor ?? theme.palette.error.main;
@@ -87,7 +90,7 @@ const ResourceStackBar: React.FC<ResourceStackBarProps> = ({
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-        リソース・スタックバー（今週の合計工数）
+        {title || 'リソース・スタックバー（今週の合計工数）'}
       </Typography>
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
         棒の高さ＝その週の合計工数（コストを稼働日で按分）。横線＝稼働限界（{maxHoursPerWeek}h/週）。棒をクリックでタスク内訳を表示。

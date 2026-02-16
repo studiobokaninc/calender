@@ -53,7 +53,7 @@ const Dashboard: React.FC = () => {
   const [currentMessageId, setCurrentMessageId] = useState<string | null>(null)
   const messageIdRef = useRef<string | null>(null) // 直接参照用のref
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  
+
   // アクション確認ダイアログ用の状態（単一・複数どちらも配列で保持）
   interface PendingAction {
     action_type: 'update_task' | 'create_task' | 'delete_task';
@@ -65,12 +65,12 @@ const Dashboard: React.FC = () => {
   const [isExecutingAction, setIsExecutingAction] = useState(false);
   const [projectsForAction, setProjectsForAction] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedProjectIdForAction, setSelectedProjectIdForAction] = useState<number | ''>('');
-  
-  
+
+
   // ページ状態管理の使用
   const { dashboardState, updateDashboardState, isInitialLoad } = useDashboardPageState();
   const { refreshGlobalData, globalData } = usePageState();
-  
+
   // 状態を分離（初期化時はページ状態から取得）
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
   const [conversationId, setConversationId] = useState<string | null>(null)
@@ -89,7 +89,7 @@ const Dashboard: React.FC = () => {
     if (!isInitialLoad && dashboardState.messages.length > 0) {
       // 状態復元中は状態更新を無効化
       setStateRestored(false);
-      
+
       // メッセージの内容を完全に復元（深いコピー）
       const restoredMessages = dashboardState.messages.map(msg => ({
         role: msg.role,
@@ -97,12 +97,12 @@ const Dashboard: React.FC = () => {
       }));
       setMessages(restoredMessages);
       setConversationId(dashboardState.conversationId);
-      
+
       // currentMessageIdも復元
       if (dashboardState.currentMessageId) {
         setCurrentMessageId(dashboardState.currentMessageId);
       }
-      
+
       // 状態復元が完了したことを示す
       setStateRestored(true);
     }
@@ -162,7 +162,7 @@ const Dashboard: React.FC = () => {
     recognitionRef.current = recognition
     setSpeechSupport(true)
     return () => {
-      try { 
+      try {
         if (recognitionRef.current) {
           recognitionRef.current.abort?.()
           recognitionRef.current.stop?.()
@@ -396,9 +396,9 @@ const Dashboard: React.FC = () => {
           const savedMsg = dashboardState.messages[index];
           return !savedMsg || msg.content !== savedMsg.content || msg.role !== savedMsg.role;
         });
-      
+
       const hasConversationChanged = conversationId !== dashboardState.conversationId;
-      
+
       if (hasMessagesChanged || hasConversationChanged) {
         // ストリーミング中は即座に更新、そうでなければデバウンス
         const delay = sending ? 0 : 100;
@@ -409,7 +409,7 @@ const Dashboard: React.FC = () => {
             currentMessageId, // currentMessageIdも保存
           });
         }, delay);
-        
+
         return () => clearTimeout(timeoutId);
       }
     }
@@ -420,19 +420,19 @@ const Dashboard: React.FC = () => {
     // イベントリスナーを設定する関数
     const setupWheelHandlers = () => {
       const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
-      
+
       containers.forEach((el) => {
         // 既にイベントリスナーが設定されている場合はスキップ
         if ((el as any)._wheelHandler) {
           return
         }
-        
+
         const onWheel = (e: WheelEvent) => {
           // ピンチズームや修飾キー時は素通し
           if (e.ctrlKey) return
           // 横オーバーフローがない場合は素通し
           if (el.scrollWidth <= el.clientWidth) return
-          
+
           // 横スクロールバーが出ている場合は、マウスホイールで横スクロール
           if (e.deltaY !== 0) {
             try {
@@ -443,7 +443,7 @@ const Dashboard: React.FC = () => {
             el.scrollLeft += e.deltaY
           }
         }
-        
+
         // より互換性の高いイベントリスナーの設定
         try {
           el.addEventListener('wheel', onWheel, { passive: false })
@@ -451,21 +451,21 @@ const Dashboard: React.FC = () => {
           // 古いブラウザやpassive: falseが使えない場合のフォールバック
           el.addEventListener('wheel', onWheel as any)
         }
-        ;(el as any)._wheelHandler = onWheel
+        ; (el as any)._wheelHandler = onWheel
       })
     }
 
     // 初回設定
     const initialTimeoutId = setTimeout(setupWheelHandlers, 100)
-    
+
     // 定期的にチェックしてイベントリスナーを設定（新しいテーブルが追加された場合に対応）
     const intervalId = setInterval(setupWheelHandlers, 500)
-    
+
     // クリーンアップ
     return () => {
       clearTimeout(initialTimeoutId)
       clearInterval(intervalId)
-      
+
       // すべてのイベントリスナーを削除
       const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
       containers.forEach((el) => {
@@ -604,7 +604,7 @@ const Dashboard: React.FC = () => {
     setChatInput('')
     setMessages((prev) => [...prev, { role: 'user', content: text }])
     setSending(true)
-    
+
     // 既存のEventSourceをクリーンアップ
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -631,7 +631,7 @@ const Dashboard: React.FC = () => {
         // エラーが発生してもローカルでの停止は実行
       }
     }
-    
+
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
@@ -850,230 +850,199 @@ const Dashboard: React.FC = () => {
   };
 
   const handleStreamingMessage = async (text: string) => {
-    const url = new URL('/api/chat/stream', window.location.origin)
-    url.searchParams.append('query', text)
-    if (conversationId) {
-      url.searchParams.append('conversation_id', conversationId)
+    // EventSourceの代わりにfetch APIとReadableStreamを使用する (POSTリクエスト)
+    const token = authToken ?? localStorage.getItem('token')
+
+    // イベントソースの参照をクリア（もう使わないが念のため）
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
     }
-    console.debug('[chat] send SSE', { query: text, conversationId: conversationId || null, url: url.toString() })
 
+    console.debug('[chat] send POST stream', { query: text, conversationId: conversationId || null })
     hasReceivedTaskActionRef.current = false
-    const eventSource = new EventSource(url.toString())
-    eventSourceRef.current = eventSource
-    console.log('[chat] setting isGenerating to true')
     setIsGenerating(true)
-    console.log('[chat] isGenerating set to true, current state:', isGenerating)
 
-    let aiStarted = false
     let streamEnded = false
-    let accumulatedContent = '' // 累積されたコンテンツを追跡
+    let aiStarted = false
+    let accumulatedContent = ''
 
-    eventSource.addEventListener('message', (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        
-        if (data.task_id) {
-          setCurrentTaskId(data.task_id)
-        }
-        
-        // message_idの取得を複数の方法で試行
-        let foundMessageId = null
-        
-        // 1. 直接message_idが含まれている場合
-        if (data.message_id) {
-          foundMessageId = data.message_id
-        }
-        // 2. node_finishedイベントでdata.outputs.answerにmessage_idが含まれている場合
-        else if (data.event === 'node_finished' && data.data && data.data.outputs && data.data.outputs.answer) {
-          const answerData = data.data.outputs.answer
-          if (answerData.message_id) {
-            foundMessageId = answerData.message_id
-          }
-        }
-        // 3. data.data.message_idが含まれている場合
-        else if (data.data && data.data.message_id) {
-          foundMessageId = data.data.message_id
-        }
-        // 4. data.data.outputs.answer.message_idが含まれている場合
-        else if (data.data && data.data.outputs && data.data.outputs.answer && data.data.outputs.answer.message_id) {
-          foundMessageId = data.data.outputs.answer.message_id
-        }
-        
-         if (foundMessageId) {
-           setCurrentMessageId(foundMessageId)
-           messageIdRef.current = foundMessageId // refにも保存
-         }
-         
-        if (data.conversation_id && !conversationId) {
-          setConversationId(data.conversation_id)
-        }
-        
-        if (data.answer) {
-          // 累積コンテンツを更新
-          accumulatedContent += data.answer
-          
-          if (!aiStarted) {
-            aiStarted = true
-            setMessages((prev) => {
-              const newMessages = [...prev, { role: 'assistant' as const, content: accumulatedContent }]
-              return newMessages
-            })
-          } else {
-            // デバウンス処理：頻繁な更新を防ぐ
-            if (updateTimeoutRef.current) {
-              clearTimeout(updateTimeoutRef.current)
+    try {
+      const response = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // 必要に応じてトークン付与
+        },
+        body: JSON.stringify({
+          query: text,
+          conversation_id: conversationId,
+          user: user?.email || 'user'
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('Response body is null')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // SSEフォーマットのパース
+        // イベントブロックごとに処理 (\n\n で区切られる)
+        const parts = buffer.split('\n\n')
+        // 最後の部分は不完全な可能性があるのでバッファに残す
+        buffer = parts.pop() || ''
+
+        for (const part of parts) {
+          if (!part.trim()) continue
+
+          const lines = part.split('\n')
+          let eventType = 'message'
+          let dataStr = ''
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.substring(7).trim()
+            } else if (line.startsWith('data: ')) {
+              dataStr += line.substring(6)
             }
-            
-            updateTimeoutRef.current = setTimeout(() => {
+          }
+
+          if (!dataStr) continue
+
+          // イベント処理
+          if (eventType === 'retry') continue
+
+          try {
+            const data = JSON.parse(dataStr)
+
+            // --- ここから既存のロジックを流用 ---
+            if (eventType === 'message') {
+              if (data.task_id) setCurrentTaskId(data.task_id)
+
+              // message_idの取得
+              let foundMessageId = null
+              if (data.message_id) foundMessageId = data.message_id
+              else if (data.data?.message_id) foundMessageId = data.data.message_id
+
+              if (foundMessageId) {
+                setCurrentMessageId(foundMessageId)
+                messageIdRef.current = foundMessageId
+              }
+
+              if (data.conversation_id && !conversationId) {
+                setConversationId(data.conversation_id)
+              }
+
+              if (data.answer) {
+                accumulatedContent += data.answer
+
+                if (!aiStarted) {
+                  aiStarted = true
+                  setMessages((prev) => [...prev, { role: 'assistant' as const, content: accumulatedContent }])
+                } else {
+                  if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current)
+                  updateTimeoutRef.current = setTimeout(() => {
+                    setMessages((prev) => {
+                      if (prev.length === 0) return prev
+                      const lastIdx = prev.length - 1
+                      const last = prev[lastIdx]
+                      if (last.role !== 'assistant') return [...prev, { role: 'assistant' as const, content: accumulatedContent }]
+                      const updated = [...prev]
+                      updated[lastIdx] = { ...last, content: accumulatedContent }
+                      return updated
+                    })
+                  }, 50)
+                }
+              } else if (data.type === 'error') {
+                const errorMsg = `ストリーミングエラー: ${data.detail || '不明なエラー'}`
+                setMessages((prev) => [...prev, { role: 'assistant', content: errorMsg }])
+              }
+            } else if (eventType === 'task_action') {
+              if (data?.type === 'task_action_candidate') {
+                const rawList = data.actions ?? (data.action ? [data.action] : [])
+                if (Array.isArray(rawList) && rawList.length > 0) {
+                  const list: PendingAction[] = rawList.map((a: any) => ({
+                    action_type: a.action_type,
+                    task_id: a.task_id,
+                    task_data: a.task_data,
+                    description: generateActionDescription(a),
+                  }))
+                  setPendingActions(list)
+                  hasReceivedTaskActionRef.current = true
+                }
+              }
+            } else if (eventType === 'message_end') {
+              streamEnded = true
+
+              // 最終メッセージID更新
+              if (data.message_id) {
+                setCurrentMessageId(data.message_id)
+                messageIdRef.current = data.message_id
+              }
+
+              // 残りの更新を即時反映
+              if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current)
+                updateTimeoutRef.current = null
+              }
               setMessages((prev) => {
                 if (prev.length === 0) return prev
                 const lastIdx = prev.length - 1
                 const last = prev[lastIdx]
-                if (last.role !== 'assistant') {
-                  return [...prev, { role: 'assistant' as const, content: accumulatedContent }]
+                if (last.role === 'assistant') {
+                  const updated = [...prev]
+                  updated[lastIdx] = { ...last, content: accumulatedContent }
+                  return updated
                 }
-                // 既存のアシスタントメッセージを累積コンテンツで更新
-                const updated = [...prev]
-                updated[lastIdx] = { ...last, content: accumulatedContent }
-                return updated
+                return prev
               })
-            }, 50) // 50msのデバウンス
-          }
-        } else if (data.type === 'error') {
-          const errorMsg = `ストリーミングエラー: ${data.detail || '不明なエラー'}`
-          setMessages((prev) => [...prev, { role: 'assistant', content: errorMsg }])
-          eventSource.close()
-        }
-      } catch (e) {
-        // SSE message parse error - silently handle
-      }
-    })
 
-    // バックエンドからのタスクアクション候補イベントを受信（単一 action / 複数 actions 両対応）
-    eventSource.addEventListener('task_action', (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data?.type !== 'task_action_candidate') return
-        const rawList = data.actions ?? (data.action ? [data.action] : [])
-        if (!Array.isArray(rawList) || rawList.length === 0) return
-        const list: PendingAction[] = rawList.map((a: any) => ({
-          action_type: a.action_type,
-          task_id: a.task_id,
-          task_data: a.task_data,
-          description: generateActionDescription(a),
-        }))
-        setPendingActions(list)
-        hasReceivedTaskActionRef.current = true
-      } catch (e) {
-        console.debug('Failed to handle task_action event:', e)
-      }
-    })
-
-    eventSource.addEventListener('message_end', (event) => {
-      streamEnded = true
-      
-      try {
-        const data = JSON.parse(event.data)
-        
-         // 複数の場所でmessage_idを探す
-         if (data.message_id) {
-           setCurrentMessageId(data.message_id)
-           messageIdRef.current = data.message_id // refにも保存
-         } else if (data.data && data.data.message_id) {
-           setCurrentMessageId(data.data.message_id)
-           messageIdRef.current = data.data.message_id // refにも保存
-         } else if (data.data && data.data.outputs && data.data.outputs.answer && data.data.outputs.answer.message_id) {
-           setCurrentMessageId(data.data.outputs.answer.message_id)
-           messageIdRef.current = data.data.outputs.answer.message_id // refにも保存
-         }
-      } catch (error) {
-        // Error parsing message_end data - silently handle
-      }
-      
-      // 残りの更新を即座に実行
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current)
-        updateTimeoutRef.current = null
-      }
-      
-      // 最終的なメッセージを即座に更新
-      setMessages((prev) => {
-        if (prev.length === 0) return prev
-        const lastIdx = prev.length - 1
-        const last = prev[lastIdx]
-        if (last.role === 'assistant') {
-          const updated = [...prev]
-          updated[lastIdx] = { ...last, content: accumulatedContent }
-          return updated
-        }
-        return prev
-      })
-      
-      // まだサーバー側から task_action イベントが来ていない場合のみ、
-      // テキストからアクションJSONを検出するフォールバックを実行
-      if (!hasReceivedTaskActionRef.current) {
-        try {
-          const detected = detectActionFromContent(accumulatedContent);
-          if (detected != null) {
-            const list = Array.isArray(detected) ? detected : [detected];
-            const pendingList: PendingAction[] = list.map((a: any) => ({
-              action_type: a.action_type,
-              task_id: a.task_id,
-              task_data: a.task_data,
-              description: generateActionDescription(a),
-            }));
-            setPendingActions(pendingList);
+              // アクション未受信時のフォールバック検出
+              if (!hasReceivedTaskActionRef.current) {
+                try {
+                  const detected = detectActionFromContent(accumulatedContent);
+                  if (detected != null) {
+                    const list = Array.isArray(detected) ? detected : [detected];
+                    const pendingList: PendingAction[] = list.map((a: any) => ({
+                      action_type: a.action_type,
+                      task_id: a.task_id,
+                      task_data: a.task_data,
+                      description: generateActionDescription(a),
+                    }));
+                    setPendingActions(pendingList);
+                  }
+                } catch (e) { console.debug('Action detection error:', e) }
+              }
+              hasReceivedTaskActionRef.current = false
+            } else if (eventType === 'task_list') {
+              // task_listイベントの処理（必要なら）
+            }
+          } catch (e) {
+            console.error('JSON parse error', e)
           }
-        } catch (e) {
-          console.debug('Action detection error:', e);
         }
       }
-      hasReceivedTaskActionRef.current = false
-      
-      eventSource.close()
-      eventSourceRef.current = null
+
+    } catch (e: any) {
+      console.error('Streaming error', e)
+      if (!streamEnded && !aiStarted) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: `エラーが発生しました: ${e.message}` }])
+      }
+    } finally {
       setIsGenerating(false)
       setSending(false)
       setCurrentTaskId(null)
-    })
-
-    eventSource.onerror = (error) => {
-      // デバッグ用の詳細ログ（開発時のみ）
-      if (process.env.NODE_ENV === 'development') {
-        console.debug('EventSource error:', {
-          readyState: eventSource.readyState,
-          url: eventSource.url,
-          streamEnded,
-          aiStarted,
-          error
-        })
-      }
-      
-      // タイムアウトをクリア
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current)
-        updateTimeoutRef.current = null
-      }
-      
-      // 正常終了後や一部受信済みの場合はエラーを表示しない
-      if (streamEnded || aiStarted || eventSource.readyState === EventSource.CLOSED) {
-        eventSource.close()
-        eventSourceRef.current = null
-        setIsGenerating(false)
-        setSending(false)
-        setCurrentTaskId(null)
-        setCurrentMessageId(null)
-        return
-      }
-      
-      // 実際の接続エラーの場合のみユーザーに通知
-      eventSource.close()
-      eventSourceRef.current = null
-      setIsGenerating(false)
-      setSending(false)
-      setCurrentTaskId(null)
-      setCurrentMessageId(null)
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'ストリーミング接続に失敗しました' }])
     }
   }
 
@@ -1088,7 +1057,7 @@ const Dashboard: React.FC = () => {
 
   const handleNewConversation = () => {
     if (eventSourceRef.current) {
-      try { eventSourceRef.current.close() } catch {}
+      try { eventSourceRef.current.close() } catch { }
       eventSourceRef.current = null
     }
     setConversationId(null)
@@ -1097,7 +1066,7 @@ const Dashboard: React.FC = () => {
     setSending(false)
     setChatInput('')
     setMessages([DASHBOARD_WELCOME_MESSAGE])
-    
+
     // 新しい会話開始時も状態を更新
     updateDashboardState({
       messages: [DASHBOARD_WELCOME_MESSAGE],
@@ -1260,45 +1229,45 @@ const Dashboard: React.FC = () => {
             '&:hover': { boxShadow: 4 },
           }}
         >
-            <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
-            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
-                <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', boxShadow: 2 }}>
-                  <Box sx={{ color: 'white' }}><CalendarTodayIcon sx={{ fontSize: 24 }} /></Box>
-                </Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今日の予定</Typography>
+          <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
+          <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
+              <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', boxShadow: 2 }}>
+                <Box sx={{ color: 'white' }}><CalendarTodayIcon sx={{ fontSize: 24 }} /></Box>
               </Box>
-              <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-                {!eventsLoaded && todayItems.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
-                  </Box>
-                ) : todayItems.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今日の予定はありません</Typography>
-                  </Box>
-                ) : (
-                  todayItems.map((item) => (
-                    <Box key={`${item.type}-${item.id}`} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : 'secondary.main', display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 } }}>
-                      <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : 'secondary.light', color: item.type === 'event' ? 'info.dark' : 'secondary.dark' }}>
-                        {item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今日の予定</Typography>
+            </Box>
+            <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+              {!eventsLoaded && todayItems.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
+                </Box>
+              ) : todayItems.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今日の予定はありません</Typography>
+                </Box>
+              ) : (
+                todayItems.map((item) => (
+                  <Box key={`${item.type}-${item.id}`} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : 'secondary.main', display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 } }}>
+                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : 'secondary.light', color: item.type === 'event' ? 'info.dark' : 'secondary.dark' }}>
+                      {item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}
+                    </Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} title={item.name}>{item.name}</Typography>
+                        <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : 'secondary.main', color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
+                        {item.timeLabel != null && <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.6, py: 0.15, borderRadius: 0.75, bgcolor: 'action.selected', color: 'text.secondary', fontSize: '0.7rem', fontWeight: 500 }}>{item.timeLabel}</Typography>}
                       </Box>
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-                          <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} title={item.name}>{item.name}</Typography>
-                          <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : 'secondary.main', color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
-                          {item.timeLabel != null && <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.6, py: 0.15, borderRadius: 0.75, bgcolor: 'action.selected', color: 'text.secondary', fontSize: '0.7rem', fontWeight: 500 }}>{item.timeLabel}</Typography>}
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography>
-                        </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography>
                       </Box>
                     </Box>
-                  ))
-                )}
-              </Box>
+                  </Box>
+                ))
+              )}
             </Box>
+          </Box>
         </Paper>
 
         {/* 今週の締切 */}
@@ -1319,73 +1288,73 @@ const Dashboard: React.FC = () => {
             '&:hover': { boxShadow: 4 },
           }}
         >
-            <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
-            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
-                <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', boxShadow: 2 }}>
-                  <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
-                </Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今週の締切</Typography>
-                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'grey.300', color: 'text.primary', fontWeight: 600 }}>
-                  {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${weekDeadlineTasks.length}件`}
-                </Typography>
+          <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
+          <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
+              <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', boxShadow: 2 }}>
+                <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
               </Box>
-              <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-                {(globalData?.lastFetched ?? 0) === 0 && weekDeadlineTasks.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
-                  </Box>
-                ) : weekDeadlineTasks.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今週の締切はありません</Typography>
-                  </Box>
-                ) : (
-                  weekDeadlineTasks.map((t: any) => (
-                    <Box
-                      key={t.id}
-                      sx={{
-                        py: 1,
-                        px: 1.25,
-                        mb: 1,
-                        borderRadius: 1.5,
-                        bgcolor: 'background.paper',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderLeft: '4px solid',
-                        borderLeftColor: 'warning.main',
-                        '&:last-of-type': { mb: 0 },
-                      }}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今週の締切</Typography>
+              <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'grey.300', color: 'text.primary', fontWeight: 600 }}>
+                {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${weekDeadlineTasks.length}件`}
+              </Typography>
+            </Box>
+            <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+              {(globalData?.lastFetched ?? 0) === 0 && weekDeadlineTasks.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
+                </Box>
+              ) : weekDeadlineTasks.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今週の締切はありません</Typography>
+                </Box>
+              ) : (
+                weekDeadlineTasks.map((t: any) => (
+                  <Box
+                    key={t.id}
+                    sx={{
+                      py: 1,
+                      px: 1.25,
+                      mb: 1,
+                      borderRadius: 1.5,
+                      bgcolor: 'background.paper',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderLeft: '4px solid',
+                      borderLeftColor: 'warning.main',
+                      '&:last-of-type': { mb: 0 },
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{ fontWeight: 600, color: 'text.primary' }}
+                      noWrap
+                      title={t.name}
                     >
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: 'text.primary' }}
-                        noWrap
-                        title={t.name}
-                      >
-                        {t.name}
+                      {t.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                      <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                        {t.projectName}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}
-                      </Typography>
+                    </Box>
+                    {t.assigneeName && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {t.projectName}
+                          {t.assigneeName}
                         </Typography>
                       </Box>
-                      {t.assigneeName && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                            {t.assigneeName}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  ))
-                )}
-              </Box>
+                    )}
+                  </Box>
+                ))
+              )}
             </Box>
+          </Box>
         </Paper>
 
         {/* 遅延タスク */}
@@ -1406,73 +1375,73 @@ const Dashboard: React.FC = () => {
             '&:hover': { boxShadow: 4 },
           }}
         >
-            <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
-            <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
-                <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', boxShadow: 2 }}>
-                  <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
-                </Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク</Typography>
-                <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>
-                  {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${delayedTasks.length}件`}
-                </Typography>
+          <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
+          <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
+              <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', boxShadow: 2 }}>
+                <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
               </Box>
-              <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-                {(globalData?.lastFetched ?? 0) === 0 && delayedTasks.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
-                  </Box>
-                ) : delayedTasks.length === 0 ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>遅延タスクはありません</Typography>
-                  </Box>
-                ) : (
-                  delayedTasks.map((t: any) => (
-                    <Box
-                      key={t.id}
-                      sx={{
-                        py: 1,
-                        px: 1.25,
-                        mb: 1,
-                        borderRadius: 1.5,
-                        bgcolor: 'background.paper',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderLeft: '4px solid',
-                        borderLeftColor: 'error.main',
-                        '&:last-of-type': { mb: 0 },
-                      }}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク</Typography>
+              <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>
+                {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${delayedTasks.length}件`}
+              </Typography>
+            </Box>
+            <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+              {(globalData?.lastFetched ?? 0) === 0 && delayedTasks.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
+                </Box>
+              ) : delayedTasks.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>遅延タスクはありません</Typography>
+                </Box>
+              ) : (
+                delayedTasks.map((t: any) => (
+                  <Box
+                    key={t.id}
+                    sx={{
+                      py: 1,
+                      px: 1.25,
+                      mb: 1,
+                      borderRadius: 1.5,
+                      bgcolor: 'background.paper',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderLeft: '4px solid',
+                      borderLeftColor: 'error.main',
+                      '&:last-of-type': { mb: 0 },
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{ fontWeight: 600, color: 'text.primary' }}
+                      noWrap
+                      title={t.name}
                     >
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: 'text.primary' }}
-                        noWrap
-                        title={t.name}
-                      >
-                        {t.name}
+                      {t.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                      <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                        {t.projectName}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}
-                      </Typography>
+                    </Box>
+                    {t.assigneeName && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {t.projectName}
+                          {t.assigneeName}
                         </Typography>
                       </Box>
-                      {t.assigneeName && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                            {t.assigneeName}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  ))
-                )}
-              </Box>
+                    )}
+                  </Box>
+                ))
+              )}
             </Box>
+          </Box>
         </Paper>
       </Box>
 
@@ -1744,7 +1713,7 @@ const Dashboard: React.FC = () => {
           </Box>
         </Box>
       </Paper>
-      
+
       {/* アクション確認ダイアログ（単一・複数両対応） */}
       <Dialog
         open={pendingActions != null && pendingActions.length > 0}
@@ -1827,8 +1796,8 @@ const Dashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-      </Box>
-    )
-  }
+    </Box>
+  )
+}
 
 export default Dashboard 

@@ -45,10 +45,8 @@ models.Base.metadata.create_all(bind=engine)
 
 # .env を読み込む（backend/.env など）
 load_dotenv()
-logger.debug("After load_dotenv - DIFY_API_URL: %s", os.getenv('DIFY_API_URL', 'NOT_SET'))
-api_key = os.getenv('DIFY_API_KEY')
-logger.debug("After load_dotenv - DIFY_API_KEY: %s", (api_key[:10] + '...') if api_key else 'NOT_SET')
-logger.debug("After load_dotenv - DIFY_USER: %s", os.getenv('DIFY_USER', 'NOT_SET'))
+google_api_key = os.getenv('GOOGLE_API_KEY')
+logger.debug("After load_dotenv - GOOGLE_API_KEY: %s", (google_api_key[:10] + '...') if google_api_key else 'NOT_SET')
 
 # FastAPIアプリケーションインスタンスの作成
 app = FastAPI(

@@ -179,7 +179,7 @@ const ChatPage: React.FC = () => {
     recognitionRef.current = recognition
     setSpeechSupport(true)
     return () => {
-      try { 
+      try {
         if (recognitionRef.current) {
           recognitionRef.current.abort?.()
           recognitionRef.current.stop?.()
@@ -468,125 +468,154 @@ const ChatPage: React.FC = () => {
       setSending(false)
       return
     }
-    const url = new URL('/api/chat/user/stream', window.location.origin)
-    url.searchParams.append('query', text)
-    if (conversationId) url.searchParams.append('conversation_id', conversationId)
-    url.searchParams.append('access_token', token)
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
 
     hasReceivedTaskActionRef.current = false
-    const eventSource = new EventSource(url.toString())
-    eventSourceRef.current = eventSource
     setIsGenerating(true)
 
-    let aiStarted = false
     let streamEnded = false
+    let aiStarted = false
     let accumulatedContent = ''
 
-    eventSource.addEventListener('message', (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.task_id) setCurrentTaskId(data.task_id)
-        if (data.conversation_id && !conversationId) setConversationId(data.conversation_id)
-        if (data.answer) {
-          accumulatedContent += data.answer
-          if (!aiStarted) {
-            aiStarted = true
-            setMessages(prev => [...prev, { role: 'assistant', content: accumulatedContent }])
-          } else {
-            if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current)
-            updateTimeoutRef.current = setTimeout(() => {
+    try {
+      const response = await fetch('/api/chat/user/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          query: text,
+          conversation_id: conversationId,
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('Response body is null')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
+
+        for (const part of parts) {
+          if (!part.trim()) continue
+          const lines = part.split('\n')
+          let eventType = 'message'
+          let dataStr = ''
+          for (const line of lines) {
+            if (line.startsWith('event: ')) eventType = line.substring(7).trim()
+            else if (line.startsWith('data: ')) dataStr += line.substring(6)
+          }
+
+          if (!dataStr) continue
+          if (eventType === 'retry') continue
+
+          try {
+            const data = JSON.parse(dataStr)
+
+            if (eventType === 'message') {
+              if (data.task_id) setCurrentTaskId(data.task_id)
+              if (data.conversation_id && !conversationId) setConversationId(data.conversation_id)
+
+              if (data.answer) {
+                accumulatedContent += data.answer
+                if (!aiStarted) {
+                  aiStarted = true
+                  setMessages(prev => [...prev, { role: 'assistant', content: accumulatedContent }])
+                } else {
+                  if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current)
+                  updateTimeoutRef.current = setTimeout(() => {
+                    setMessages(prev => {
+                      if (prev.length === 0) return prev
+                      const last = prev[prev.length - 1]
+                      if (last.role !== 'assistant') return [...prev, { role: 'assistant', content: accumulatedContent }]
+                      const updated = [...prev]
+                      updated[updated.length - 1] = { ...last, content: accumulatedContent }
+                      return updated
+                    })
+                  }, 50)
+                }
+              } else if (data.type === 'error') {
+                setMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${data.detail || '不明'}` }])
+              }
+            } else if (eventType === 'task_action') {
+              if (data?.type === 'task_action_candidate') {
+                const rawList = data.actions ?? (data.action ? [data.action] : [])
+                if (Array.isArray(rawList) && rawList.length > 0) {
+                  setPendingActions(
+                    rawList.map((a: any) => ({
+                      action_type: a.action_type,
+                      task_id: a.task_id,
+                      task_data: a.task_data,
+                      description: generateActionDescription(a),
+                    }))
+                  )
+                  hasReceivedTaskActionRef.current = true
+                }
+              }
+            } else if (eventType === 'message_end') {
+              streamEnded = true
+              if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current)
+                updateTimeoutRef.current = null
+              }
               setMessages(prev => {
                 if (prev.length === 0) return prev
                 const last = prev[prev.length - 1]
-                if (last.role !== 'assistant') return [...prev, { role: 'assistant', content: accumulatedContent }]
-                const updated = [...prev]
-                updated[updated.length - 1] = { ...last, content: accumulatedContent }
-                return updated
+                if (last.role === 'assistant') {
+                  const u = [...prev]
+                  u[u.length - 1] = { ...last, content: accumulatedContent }
+                  return u
+                }
+                return prev
               })
-            }, 50)
+
+              if (!hasReceivedTaskActionRef.current) {
+                const detected = detectActionFromContent(accumulatedContent)
+                if (detected != null) {
+                  const list = Array.isArray(detected) ? detected : [detected]
+                  setPendingActions(
+                    list.map((a: any) => ({
+                      action_type: a.action_type,
+                      task_id: a.task_id,
+                      task_data: a.task_data,
+                      description: generateActionDescription(a),
+                    }))
+                  )
+                }
+              }
+              hasReceivedTaskActionRef.current = false
+            }
+          } catch (e) {
+            console.error('JSON parse error', e)
           }
-        } else if (data.type === 'error') {
-          setMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${data.detail || '不明'}` }])
-          eventSource.close()
-        }
-      } catch (_) { }
-    })
-
-    eventSource.addEventListener('task_action', (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data?.type !== 'task_action_candidate') return
-        const rawList = data.actions ?? (data.action ? [data.action] : [])
-        if (!Array.isArray(rawList) || rawList.length === 0) return
-        setPendingActions(
-          rawList.map((a: any) => ({
-            action_type: a.action_type,
-            task_id: a.task_id,
-            task_data: a.task_data,
-            description: generateActionDescription(a),
-          }))
-        )
-        hasReceivedTaskActionRef.current = true
-      } catch (_) { }
-    })
-
-    eventSource.addEventListener('message_end', () => {
-      streamEnded = true
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current)
-        updateTimeoutRef.current = null
-      }
-      setMessages(prev => {
-        if (prev.length === 0) return prev
-        const last = prev[prev.length - 1]
-        if (last.role === 'assistant') {
-          const u = [...prev]
-          u[u.length - 1] = { ...last, content: accumulatedContent }
-          return u
-        }
-        return prev
-      })
-      if (!hasReceivedTaskActionRef.current) {
-        const detected = detectActionFromContent(accumulatedContent)
-        if (detected != null) {
-          const list = Array.isArray(detected) ? detected : [detected]
-          setPendingActions(
-            list.map((a: any) => ({
-              action_type: a.action_type,
-              task_id: a.task_id,
-              task_data: a.task_data,
-              description: generateActionDescription(a),
-            }))
-          )
         }
       }
-      hasReceivedTaskActionRef.current = false
-      eventSource.close()
-      eventSourceRef.current = null
+    } catch (e: any) {
+      console.error('Streaming error', e)
+      if (!streamEnded && !aiStarted) {
+        setMessages(prev => [...prev, { role: 'assistant', content: `エラーが発生しました: ${e.message}` }])
+      }
+    } finally {
       setIsGenerating(false)
       setSending(false)
       setCurrentTaskId(null)
-    })
-
-    eventSource.onerror = () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current)
-        updateTimeoutRef.current = null
-      }
-      if (streamEnded || aiStarted || eventSource.readyState === EventSource.CLOSED) {
-        eventSource.close()
-        eventSourceRef.current = null
-        setIsGenerating(false)
-        setSending(false)
-        setCurrentTaskId(null)
-        return
-      }
-      eventSource.close()
-      eventSourceRef.current = null
-      setIsGenerating(false)
-      setSending(false)
-      setCurrentTaskId(null)
-      setMessages(prev => [...prev, { role: 'assistant', content: 'ストリーミング接続に失敗しました' }])
     }
   }
 

@@ -47,11 +47,39 @@ def _parse_int_safe(value: str | None) -> int | None:
         print(f"Warning: Could not parse string to int: {value}")
         return None
 
+def _was_already_auto_delayed(db: Session, task_id: int, due_date: datetime) -> bool:
+    """
+    指定された期日に対して、既にシステムによる自動遅延処理（または担当者なしでの変更）が行われたかチェックする。
+    changed_by が NULL の DELAYED 履歴があれば、システムによる変更（または担当者なしの手動変更）とみなす。
+    """
+    if not due_date:
+        return False
+        
+    # due_date の 00:00:00 を基準
+    if isinstance(due_date, datetime):
+        due_date_start = due_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        # date型の場合のフォールバック
+        due_date_start = datetime.combine(due_date, datetime.min.time())
+        
+    exists = db.query(models.TaskStatusHistory).filter(
+        models.TaskStatusHistory.task_id == task_id,
+        models.TaskStatusHistory.status == models.TaskStatus.DELAYED,
+        models.TaskStatusHistory.changed_by == None,
+        models.TaskStatusHistory.changed_at >= due_date_start
+    ).first()
+    
+    return exists is not None
+
 def _check_and_update_overdue_task(db: Session, db_task: models.Task) -> bool:
     """期日を過ぎたタスクのステータスをdelayedに更新する。更新した場合Trueを返す。"""
     if db_task.due_date is None:
         return False
     
+    # 既に自動遅延が適用されているかチェック（適用済みなら何もしない）
+    if _was_already_auto_delayed(db, db_task.id, db_task.due_date):
+        return False
+
     # 期日が設定されている場合、現在時刻と比較
     now = now_jst_naive()
     # 期日を日付のみで比較（時刻を無視）
@@ -71,7 +99,7 @@ def _check_and_update_overdue_task(db: Session, db_task: models.Task) -> bool:
                 task_id=db_task.id,
                 status=models.TaskStatus.DELAYED,
                 changed_at=now,
-                changed_by=db_task.assigned_to
+                changed_by=None  # システムによる変更として記録
             )
             db.add(status_history_entry)
             db.commit()
@@ -312,6 +340,10 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
             now_date_only = now.replace(hour=0, minute=0, second=0, microsecond=0)
             
             for db_task in overdue_tasks:
+                # 既に自動遅延が適用されているかチェック（適用済みなら何もしない）
+                if _was_already_auto_delayed(db, db_task.id, db_task.due_date):
+                    continue
+
                 due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
                 if due_date_only < now_date_only:
                     original_status = db_task.status
@@ -323,7 +355,7 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                         task_id=db_task.id,
                         status=models.TaskStatus.DELAYED,
                         changed_at=now,
-                        changed_by=db_task.assigned_to
+                        changed_by=None  # システムによる変更として記録
                     )
                     db.add(status_history_entry)
                     logger.info(f"タスク {db_task.id} のステータスを {original_status} から DELAYED に自動更新しました（期日超過）")

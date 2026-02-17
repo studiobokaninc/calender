@@ -105,8 +105,8 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
         CSVファイルをインポート
       </Typography>
       <Typography variant="body2" color="text.secondary" paragraph>
-        CSVファイルをアップロードして、プロジェクトとタスクのデータを解析します。
-        テンプレートをダウンロードして、正しい形式でデータを作成できます。
+        CSVファイルをアップロードして、プロジェクト・タスク・会議・ワークショップ・イベント・締切・マイルストーンを一括登録できます。
+        テンプレートをダウンロードして、正しい形式でデータを作成してください。
       </Typography>
 
       {error && (

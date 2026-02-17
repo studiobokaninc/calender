@@ -163,6 +163,39 @@ body[data-theme='dark'] .fc-day-sun a.fc-daygrid-day-number {
   color: rgba(255, 255, 255, 0.7) !important; /* 土日は少しトーンを落とす */
 }
 
+/* FullCalendar Popover (More link) */
+body[data-theme='dark'] .fc-popover {
+  background-color: #1e1e1e !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45) !important;
+}
+
+body[data-theme='dark'] .fc-popover-header {
+  background-color: #2c2c2c !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+body[data-theme='dark'] .fc-popover-header .fc-popover-title,
+body[data-theme='dark'] .fc-popover-header .fc-popover-close {
+  color: #ffffff !important;
+}
+
+body[data-theme='dark'] .fc-popover-body {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+}
+
+/* More link 自身のスタイル */
+body[data-theme='dark'] .fc-daygrid-more-link {
+  color: #bbdefb !important;
+  font-weight: bold;
+}
+
+body[data-theme='dark'] .fc-daygrid-more-link:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
 /* ガントチャート全体の背景 */
 body[data-theme='dark'] .gantt-container {
   background-color: #121212;

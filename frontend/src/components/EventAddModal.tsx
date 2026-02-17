@@ -2,9 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select,
   MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Box, Grid,
-  FormHelperText, RadioGroup, Radio, Divider, Typography,
-
-  Autocomplete, Chip, IconButton // Added IconButton
+  FormHelperText, RadioGroup, Radio, Divider, Typography, Stack,
+  Autocomplete, Chip, IconButton
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add'; // Added AddIcon
 import { format, parseISO, isValid as isDateValid, addDays, addHours, startOfDay, setHours, setMinutes, parse } from 'date-fns';
@@ -322,7 +321,11 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           newProjectColor: '#4CAF50',
           dueDate: '', // This appears to be legacy or for other types, taskDueDate is primary for tasks
           taskDependsOn: eventToEdit.extendedProps?.dependsOn || [],
-          taskPhases: (eventToEdit.extendedProps as any)?.phases || [],
+          taskPhases: ((eventToEdit.extendedProps as any)?.phases || []).map((p: any) => ({
+            name: p.name || '',
+            date: p.date || p.due_date || '',
+            is_completed: p.is_completed ?? false,
+          })),
         } as EventFormData);
 
         // Populate selectedParticipants from eventToEdit
@@ -797,7 +800,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         dataToSave.seqID = formData.taskSeqID?.trim() ?? '';
         dataToSave.shotID = formData.taskShotID?.trim() ?? '';
         dataToSave.dependsOn = selectedDependencies.map(dep => dep.id);
-        dataToSave.phases = formData.taskPhases || [];
+        // 段階目標: カレンダー表示用に date と is_completed を含める（name のみの場合は is_completed: false）
+        dataToSave.phases = (formData.taskPhases || []).map((p: { name: string; date: string; is_completed?: boolean }) => ({
+          name: p.name,
+          date: p.date,
+          is_completed: p.is_completed ?? false,
+        })).filter((p: { name: string; date: string }) => p.name.trim() !== '' && p.date !== '');
         console.log("Formatted dependsOn to save:", JSON.stringify(dataToSave.dependsOn, null, 2));
 
         if (projectSelectionMode === 'existing' && formData.projectId) {
@@ -1266,11 +1274,11 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                     size="small"
                   />
                 </Grid>
-                {/* Phases */}
+                {/* 段階目標 (Phases) - タスクページの編集ダイアログと同じ表示 */}
                 <Grid item xs={12}>
-                  <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>段階目標 (Phases)</Typography>
+                  <Typography variant="subtitle2" sx={{ mt: 1 }}>段階目標 (Phases)</Typography>
                   {(formData.taskPhases || []).map((phase, index) => (
-                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Stack key={index} direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, mb: 0.5 }}>
                       <TextField
                         label="目標名"
                         value={phase.name}
@@ -1284,6 +1292,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       />
                       <TextField
                         type="date"
+                        label="日付"
                         value={phase.date}
                         onChange={(e) => {
                           const newPhases = [...(formData.taskPhases || [])];
@@ -1291,7 +1300,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                           setFormData({ ...formData, taskPhases: newPhases });
                         }}
                         size="small"
-                        sx={{ width: 140 }}
+                        sx={{ width: 150 }}
                         InputLabelProps={{ shrink: true }}
                       />
                       <Button
@@ -1305,7 +1314,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       >
                         ×
                       </Button>
-                    </Box>
+                    </Stack>
                   ))}
                   <Button
                     variant="outlined"
@@ -1314,6 +1323,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       const newPhases = [...(formData.taskPhases || []), { name: '', date: '' }];
                       setFormData({ ...formData, taskPhases: newPhases });
                     }}
+                    sx={{ mt: 0.5 }}
                   >
                     段階目標を追加
                   </Button>

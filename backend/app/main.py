@@ -1607,10 +1607,10 @@ def parse_phases(phases_str: str) -> List[Dict[str, Any]]:
                 name = parts[0].strip()
                 date_str = parts[1].strip()
                 try:
-                    # parse_date を再利用 (コンテキストなし)
+                    # parse_date を再利用 (コンテキストなし)。フロントは phase.date / phase.is_completed を参照する
                     dt = parse_date(date_str)
                     if dt:
-                        phases.append({"name": name, "due_date": dt.isoformat()})
+                        phases.append({"name": name, "date": dt.strftime("%Y-%m-%d"), "is_completed": False})
                 except Exception:
                     pass
     return phases
@@ -1630,6 +1630,20 @@ def parse_datetime(date_str: str) -> Optional[datetime]:
             d = parse_date(date_str)
             return d
     return None
+
+def parse_time_to_datetime(date_val: Optional[datetime], time_str: str) -> Optional[datetime]:
+    """日付と時刻文字列（HH:MM または HH:MM:SS）を結合して datetime を返す"""
+    if not date_val or not time_str or not time_str.strip():
+        return None
+    parts = time_str.strip().split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        h, m = int(parts[0]), int(parts[1])
+        s = int(parts[2]) if len(parts) > 2 else 0
+        return date_val.replace(hour=h, minute=m, second=s, microsecond=0)
+    except (ValueError, IndexError):
+        return None
 
 def parse_task_data(task_data: List[str], project_id: int, db: Session, project_start_date: Optional[datetime] = None, project_end_date: Optional[datetime] = None) -> dict:
     """
@@ -1758,13 +1772,14 @@ async def import_csv_data(
         csv_data = contents.decode('utf-8-sig').splitlines()  # BOMを考慮
         csv_reader = csv.reader(csv_data)
 
-        # プロジェクト情報セクションを探す
+        # プロジェクトセクションを探す（「プロジェクト」または「プロジェクト情報」）
         project_data = None
         while True:
             row = next(csv_reader, None)
             if row is None:
                 raise HTTPException(status_code=400, detail="プロジェクト情報が見つかりません")
-            if row[0].strip() == "プロジェクト情報":
+            first = row[0].strip() if row else ""
+            if first == "プロジェクト" or first == "プロジェクト情報":
                 break
 
         # ヘッダー行をスキップ
@@ -1815,15 +1830,17 @@ async def import_csv_data(
         # ヘッダー行をスキップ
         next(csv_reader, None)
 
-        # 1. 全タスクを一度DBに追加
+        # 1. 全タスクを一度DBに追加（次のセクション見出しまで読み込む）
+        event_section_headers = ("会議情報", "ワークショップ情報", "イベント情報", "締切情報", "マイルストーン情報")
         all_task_data = []
+        first_event_section = None  # タスクの次に現れたセクション見出し
         for task_data in csv_reader:
             if not task_data or not task_data[0].strip():  # 空行をスキップ
                 continue
             if task_data[0].strip() == "タスク名":
                 continue
-            if task_data[0].strip() == "イベント情報":
-                # イベント情報の開始ならタスク読み込みを終了
+            if task_data[0].strip() in event_section_headers:
+                first_event_section = task_data[0].strip()
                 break
             all_task_data.append(task_data)
 
@@ -1926,98 +1943,152 @@ async def import_csv_data(
             task.dependsOn = dependsOn_ids if dependsOn_ids else []
         db.commit()
 
-        # イベント情報セクションの処理
-        # csv_reader は "イベント情報" の行まで読んでいるか、EOFまで読んでいる
-        # "イベント情報" で break したなら、次はヘッダー行のはず
-        
-        # ヘッダー行をスキップ (存在する場合)
-        header_row = next(csv_reader, None)
-        if header_row and header_row[0].strip() == "タイトル":
-            pass # ヘッダー行なのでスキップ
-        
-        # イベント情報を読み込む
-        for event_data in csv_reader:
-            if not event_data or not event_data[0].strip():
-                continue
-            
-            try:
-                title = event_data[0].strip()
-                start_str = event_data[1].strip() if len(event_data) > 1 else ""
-                end_str = event_data[2].strip() if len(event_data) > 2 else ""
-                type_str = event_data[3].strip() if len(event_data) > 3 else "Generic"
-                description = event_data[4].strip() if len(event_data) > 4 else ""
-                location = event_data[5].strip() if len(event_data) > 5 else ""
-                participants_str = event_data[6].strip() if len(event_data) > 6 else ""
+        # イベント系セクション（会議・ワークショップ・イベント・締切・マイルストーン）の処理
+        def parse_participants_str(participants_str: str) -> list:
+            participants = []
+            if not participants_str:
+                return participants
+            s = participants_str.strip()
+            if s.startswith('"') and s.endswith('"'):
+                s = s[1:-1]
+            for p_name in [p.strip() for p in s.split(',') if p.strip()]:
+                uid = get_user_id_by_name(db, p_name)
+                if uid:
+                    participants.append({"type": "user", "id": uid})
+            return participants
 
-                start_time = parse_datetime(start_str)
-                end_time = parse_datetime(end_str)
-                
-                if not start_time:
-                    import_results["events"]["skipped"] += 1
-                    import_results["events"]["results"].append(f"スキップ: {title} (開始日時不正)")
+        current_section = first_event_section
+        while current_section:
+            header_row = next(csv_reader, None)  # ヘッダー行をスキップ
+            if header_row is None:
+                break
+            while True:
+                row = next(csv_reader, None)
+                if row is None:
+                    break
+                if not row or not row[0].strip():
                     continue
-                
-                if not end_time:
-                    # 終了日時がない場合、開始日時 + 1時間
-                    end_time = start_time + timedelta(hours=1)
+                if row[0].strip() in event_section_headers:
+                    current_section = row[0].strip()
+                    break
+                try:
+                    title = ""
+                    description = ""
+                    start_time = None
+                    end_time = None
+                    participants = []
+                    all_day = False
+                    event_type = models.EventType.GENERIC
 
-                # EventType のマッピング (大文字小文字無視)
-                event_type = models.EventType.GENERIC
-                for et in models.EventType:
-                    if et.value.lower() == type_str.lower():
-                        event_type = et
-                        break
-                
-                # 参加者のパース (カンマ区切りのユーザー名/ID)
-                participants = []
-                if participants_str:
-                    # 引用符除去
-                    if participants_str.startswith('"') and participants_str.endswith('"'):
-                        participants_str = participants_str[1:-1]
-                    
-                    p_names = [p.strip() for p in participants_str.split(',') if p.strip()]
-                    for p_name in p_names:
-                        uid = get_user_id_by_name(db, p_name)
-                        if uid:
-                            participants.append({"type": "user", "id": uid})
-                        else:
-                            # グループ検索も入れたい場合はここで
-                            pass
+                    if current_section == "会議情報":
+                        # 会議名,説明,実施日,開始時間,終了時間,参加者
+                        title = row[0].strip() if len(row) > 0 else ""
+                        description = row[1].strip() if len(row) > 1 else ""
+                        date_str = row[2].strip() if len(row) > 2 else ""
+                        start_time_str = row[3].strip() if len(row) > 3 else ""
+                        end_time_str = row[4].strip() if len(row) > 4 else ""
+                        participants_str = row[5].strip() if len(row) > 5 else ""
+                        date_val = parse_date(date_str)
+                        start_time = parse_time_to_datetime(date_val, start_time_str) if start_time_str else date_val
+                        end_time = parse_time_to_datetime(date_val, end_time_str) if end_time_str else (start_time + timedelta(hours=1) if start_time else None)
+                        participants = parse_participants_str(participants_str)
+                        event_type = models.EventType.MEETING
+                        if not start_time:
+                            import_results["events"]["skipped"] += 1
+                            import_results["events"]["results"].append(f"スキップ: {title} (実施日/開始時間不正)")
+                            continue
+                        if not end_time:
+                            end_time = start_time + timedelta(hours=1)
 
-                # イベントタイプに基づく詳細設定
-                all_day = False
-                
-                # Deadline, Milestoneは常に終日
-                if event_type in [models.EventType.DEADLINE, models.EventType.MILESTONE]:
-                    all_day = True
-                    # 終了日時が指定されていない場合は開始日と同じにする（終日イベントの慣例）
-                    if not end_str:
-                         end_time = start_time
-                
-                # Genericで時間が指定されていない場合も終日扱いにする判定（任意）
-                # ここでは明示的な指定がない限りFalseだが、入力形式によって判断も可能
-                
-                event = models.Event(
-                    title=title,
-                    description=description,
-                    start_time=start_time,
-                    end_time=end_time,
-                    location=location,
-                    type=event_type,
-                    allDay=all_day,
-                    participants=participants,
-                    project_id=project.id,
-                    status='online'
-                )
-                db.add(event)
-                import_results["events"]["imported"] += 1
-                import_results["events"]["results"].append(f"作成: {title}")
+                    elif current_section == "ワークショップ情報":
+                        # ワークショップ名,説明,実施日,開始時間,終了時間,参加者
+                        title = row[0].strip() if len(row) > 0 else ""
+                        description = row[1].strip() if len(row) > 1 else ""
+                        date_str = row[2].strip() if len(row) > 2 else ""
+                        start_time_str = row[3].strip() if len(row) > 3 else ""
+                        end_time_str = row[4].strip() if len(row) > 4 else ""
+                        participants_str = row[5].strip() if len(row) > 5 else ""
+                        date_val = parse_date(date_str)
+                        start_time = parse_time_to_datetime(date_val, start_time_str) if start_time_str else date_val
+                        end_time = parse_time_to_datetime(date_val, end_time_str) if end_time_str else (start_time + timedelta(hours=1) if start_time else None)
+                        participants = parse_participants_str(participants_str)
+                        event_type = models.EventType.WORKSHOP
+                        if not start_time:
+                            import_results["events"]["skipped"] += 1
+                            import_results["events"]["results"].append(f"スキップ: {title} (実施日/開始時間不正)")
+                            continue
+                        if not end_time:
+                            end_time = start_time + timedelta(hours=1)
 
-            except Exception as e:
-                import_results["events"]["skipped"] += 1
-                import_results["events"]["results"].append(f"エラー: {event_data[0]} - {str(e)}")
-                continue
-        
+                    elif current_section == "イベント情報":
+                        # イベント名,説明,実施日,参加者（終日）
+                        title = row[0].strip() if len(row) > 0 else ""
+                        description = row[1].strip() if len(row) > 1 else ""
+                        date_str = row[2].strip() if len(row) > 2 else ""
+                        participants_str = row[3].strip() if len(row) > 3 else ""
+                        date_val = parse_date(date_str)
+                        start_time = date_val
+                        end_time = (date_val + timedelta(days=1)) if date_val else None
+                        participants = parse_participants_str(participants_str)
+                        all_day = True
+                        event_type = models.EventType.GENERIC
+                        if not start_time:
+                            import_results["events"]["skipped"] += 1
+                            import_results["events"]["results"].append(f"スキップ: {title} (実施日不正)")
+                            continue
+
+                    elif current_section == "締切情報":
+                        # 締切名,説明,期日（終日）
+                        title = row[0].strip() if len(row) > 0 else ""
+                        description = row[1].strip() if len(row) > 1 else ""
+                        date_str = row[2].strip() if len(row) > 2 else ""
+                        start_time = parse_date(date_str)
+                        end_time = start_time
+                        all_day = True
+                        event_type = models.EventType.DEADLINE
+                        if not start_time:
+                            import_results["events"]["skipped"] += 1
+                            import_results["events"]["results"].append(f"スキップ: {title} (期日不正)")
+                            continue
+
+                    elif current_section == "マイルストーン情報":
+                        # マイルストーン名,説明,期日（終日）
+                        title = row[0].strip() if len(row) > 0 else ""
+                        description = row[1].strip() if len(row) > 1 else ""
+                        date_str = row[2].strip() if len(row) > 2 else ""
+                        start_time = parse_date(date_str)
+                        end_time = start_time
+                        all_day = True
+                        event_type = models.EventType.MILESTONE
+                        if not start_time:
+                            import_results["events"]["skipped"] += 1
+                            import_results["events"]["results"].append(f"スキップ: {title} (期日不正)")
+                            continue
+
+                    if not title:
+                        continue
+                    event = models.Event(
+                        title=title,
+                        description=description,
+                        start_time=start_time,
+                        end_time=end_time,
+                        location="",
+                        type=event_type,
+                        allDay=all_day,
+                        participants=participants,
+                        project_id=project.id,
+                        status='online'
+                    )
+                    db.add(event)
+                    import_results["events"]["imported"] += 1
+                    import_results["events"]["results"].append(f"作成: {title}")
+                except Exception as e:
+                    import_results["events"]["skipped"] += 1
+                    title_preview = row[0].strip() if row and len(row) > 0 else "?"
+                    import_results["events"]["results"].append(f"エラー: {title_preview} - {str(e)}")
+            if row is None:
+                break
+
         db.commit()
 
         return import_results
@@ -2439,7 +2510,7 @@ async def download_csv_template(
     current_user: models.User = Depends(get_current_active_admin)
 ):
     """CSVテンプレートをダウンロード（Viteプロキシで /api が剥がされるためパスは /admin/csv-template）"""
-    template = """プロジェクト情報
+    template = """プロジェクト
 プロジェクト名,開始日,終了日,説明
 プロジェクトX,2024/03/01,2024/03/31,プロジェクトXの説明
 
@@ -2447,15 +2518,30 @@ async def download_csv_template(
 タスク名,期日,説明,担当者,コスト,タイプ,seqID,shotID,依存タスク,段階
 T1,2024/03/15,T1の説明,user1,16,fx,SEQ001,SHOT001,
 T2,2024/03/20,T2の説明,user2,24,animation,SEQ001,SHOT002,T1
-T3,2024/03/25,T3 Description,user3,32,comp,SEQ002,SHOT001,"T1,T2","v1:2024/03/23"
+T3,2024/03/25,T3の説明,user3,32,comp,SEQ002,SHOT001,"T1,T2","v1:2024/03/23"
+
+会議情報
+会議名,説明,実施日,開始時間,終了時間,参加者
+キックオフ会議,プロジェクトキックオフ,2024/03/10,10:00,11:00,user1
+週次レビュー,進捗確認,2024/03/15,14:00,15:00,"user1,user2"
+
+ワークショップ情報
+ワークショップ名,説明,実施日,開始時間,終了時間,参加者
+デザインワークショップ,UIデザイン検討,2024/03/18,13:00,16:00,"user1,user2,user3"
 
 イベント情報
-タイトル,開始日時,終了日時,タイプ,説明,場所,参加者
-Meeting A,2024/03/10 10:00,2024/03/10 11:00,Meeting,Kickoff meeting,Room A,user1
-Workshop B,2024/03/15 13:00,2024/03/15 16:00,Workshop,Design Workshop,Room B,"user1,user2"
-Deadline C,2024/03/20,,Deadline,Submission deadline,,
-Milestone D,2024/03/25,,Milestone,Alpha release,,
-Generic E,2024/03/30,2024/03/31,Generic,Long event,,
+イベント名,説明,実施日,参加者
+全体ミーティング,月次全体会議,2024/03/25,"user1,user2"
+
+締切情報
+締切名,説明,期日
+提出締切,成果物提出期限,2024/03/20
+レビュー締切,コードレビュー期限,2024/03/28
+
+マイルストーン情報
+マイルストーン名,説明,期日
+Alpha版,Alphaリリース,2024/03/25
+Beta版,Betaリリース,2024/04/10
 """
     return Response(
         content=template.encode('utf-8-sig'),  # BOMを追加してUTF-8でエンコード

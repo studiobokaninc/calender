@@ -386,6 +386,7 @@ const CalendarPage: React.FC = () => {
                             status: undefined,
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
+                            phases: task.phases ?? undefined,
                         },
                     });
                 }
@@ -781,6 +782,7 @@ const CalendarPage: React.FC = () => {
                             status: undefined,
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
+                            phases: task.phases ?? undefined,
                         }
                     });
                 }
@@ -1558,6 +1560,7 @@ const CalendarPage: React.FC = () => {
                         type: md.taskType && md.taskType.trim() !== '' ? md.taskType.trim() : undefined,
                         seqID: seqIDValue,
                         shotID: shotIDValue,
+                        phases: md.phases != null ? md.phases : undefined,
                     };
                     console.log(`Updating task (PUT) with numeric ID: ${numericIdForApi}`, taskData);
                     response = await api.put(`/tasks/${numericIdForApi}`, taskData);
@@ -1645,6 +1648,7 @@ const CalendarPage: React.FC = () => {
                         type: md.taskType && md.taskType.trim() !== '' ? md.taskType.trim() : undefined,
                         seqID: seqIDValue,
                         shotID: shotIDValue,
+                        phases: md.phases != null ? md.phases : undefined,
                     };
                     console.log("[CalendarPage] Creating NEW TASK via POST /tasks with data:", JSON.stringify(taskData, null, 2));
                     response = await api.post('/tasks', taskData);

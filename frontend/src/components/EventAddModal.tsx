@@ -3,21 +3,21 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select,
   MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Box, Grid,
   FormHelperText, RadioGroup, Radio, Divider, Typography,
-  Autocomplete, Chip, CircularProgress
+
+  Autocomplete, Chip
 } from '@mui/material';
-import { format, parseISO, isValid as isDateValid, addDays, addHours, addMinutes, startOfDay, setHours, setMinutes, parse } from 'date-fns';
+import { format, parseISO, isValid as isDateValid, addDays, addHours, startOfDay, setHours, setMinutes, parse } from 'date-fns';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import ja from 'date-fns/locale/ja';
-import { Project, User, Group, Participant, CalendarEvent, Task } from '../types';
-import api from '../services/api';
-import { EventInput, EventApi } from '@fullcalendar/core';
+import { Project, User, Group, CalendarEvent, Task } from '../types';
+
 import { DateClickArg } from '@fullcalendar/interaction';
 
 // --- Interfaces ---
-type TimedEventType = 'Generic' | 'Meeting' | 'Deadline' | 'Milestone' | 'Workshop';
+
 
 interface EventFormData {
   type: string;
@@ -49,18 +49,9 @@ interface EventFormData {
 }
 
 interface ProjectOption { id: string; name: string; }
-interface UserOption { id: string; name?: string; }
 interface TaskOption { id: string; name: string; }
 
-// --- Dummy Data ---
-const dummyProjectList: ProjectOption[] = [
-  { id: 'proj-1', name: '既存プロジェクト A' },
-  { id: 'proj-2', name: '既存プロジェクト B' },
-];
-const dummyUserList: UserOption[] = [
-  { id: 'user-1', name: '田中 太郎' },
-  { id: 'user-2', name: '佐藤 花子' },
-];
+
 
 // --- Option type for Autocomplete ---
 interface ParticipantOption {
@@ -145,30 +136,30 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
     return {
       type: initialType,
-    title: '',
-    description: '',
+      title: '',
+      description: '',
       startDate: isTaskType ? undefined : format(initialStartDateTime, 'yyyy-MM-dd'),
       endDate: isTaskType ? undefined : format(initialEndDateTime, 'yyyy-MM-dd'),
       startTime: isTaskType ? undefined : format(initialStartDateTime, 'HH:mm'),
       endTime: isTaskType ? undefined : format(initialEndDateTime, 'HH:mm'),
-      allDay: isTaskType ? true : initialAllDay, 
-    projectId: null,
-    newProjectName: '',
-    newProjectDescription: '',
+      allDay: isTaskType ? true : initialAllDay,
+      projectId: null,
+      newProjectName: '',
+      newProjectDescription: '',
       newProjectStartDate: '',
       newProjectEndDate: '',
-    newProjectColor: '#4CAF50',
+      newProjectColor: '#4CAF50',
       taskDueDate: isTaskType ? format(initialStartDateTime, 'yyyy-MM-dd') : undefined,
       taskStartDate: isTaskType ? format(initialStartDateTime, 'yyyy-MM-dd') : undefined,
-    taskAssigneeId: null,
-    taskCost: '',
-    taskStatus: 'todo',
-    taskPriority: 'low',
-    taskType: '',
-    taskSeqID: '',
-    taskShotID: '',
+      taskAssigneeId: null,
+      taskCost: '',
+      taskStatus: 'todo',
+      taskPriority: 'low',
+      taskType: '',
+      taskSeqID: '',
+      taskShotID: '',
       taskDependsOn: [],
-    location: '',
+      location: '',
       dueDate: format(initialStartDateTime, 'yyyy-MM-dd'),
     };
   };
@@ -198,12 +189,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     return projectsFromProps.map(p => ({ id: String(p.id), name: p.name })) || [];
   }, [projectsFromProps]);
 
-  const userOptions = useMemo((): UserOption[] => {
-    return usersFromProps.map(u => ({
-      id: String(u.id),
-      name: u.name || u.email
-    })) || [];
-  }, [usersFromProps]);
+
 
   const participantOptions = useMemo(() => {
     const userParticipantOptions: ParticipantOption[] = usersFromProps.map(u => ({
@@ -220,7 +206,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   }, [usersFromProps, groupsFromProps]);
 
   const taskOptions = useMemo((): TaskOption[] => {
-    const editingTaskId = eventToEdit?.id?.startsWith('task-') ? eventToEdit.id.replace('task-','').toString() : null;
+    const editingTaskId = eventToEdit?.id?.startsWith('task-') ? eventToEdit.id.replace('task-', '').toString() : null;
 
     let tasksForCurrentProject: Task[] = [];
 
@@ -233,18 +219,18 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     } else {
       tasksForCurrentProject = [];
     }
-    
+
     const filteredTasks = tasksForCurrentProject
-        .filter(task => String(task.id) !== editingTaskId)
-        .map(t => ({ id: String(t.id), name: t.name || '(名称未設定)' }));
-    
+      .filter(task => String(task.id) !== editingTaskId)
+      .map(t => ({ id: String(t.id), name: t.name || '(名称未設定)' }));
+
     const uniqueTasks: TaskOption[] = [];
     const seenIds = new Set<string>();
     for (const task of filteredTasks) {
-        if (!seenIds.has(task.id)) {
-            uniqueTasks.push(task);
-            seenIds.add(task.id);
-        }
+      if (!seenIds.has(task.id)) {
+        uniqueTasks.push(task);
+        seenIds.add(task.id);
+      }
     }
     return uniqueTasks;
   }, [tasksFromProps, eventToEdit, formData.projectId, projectSelectionMode]);
@@ -263,7 +249,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         if (isTask) {
           const dueDateFromProps = eventToEdit.extendedProps?.taskDueDate || (eventToEdit as any).due_date;
           const cost = eventToEdit.extendedProps?.taskCost ? Number(eventToEdit.extendedProps.taskCost) : 0;
-          
+
           if (dueDateFromProps) {
             const dueDateObj = parseISO(dueDateFromProps);
             if (isDateValid(dueDateObj)) {
@@ -334,7 +320,22 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           taskDependsOn: eventToEdit.extendedProps?.dependsOn || [],
         } as EventFormData);
 
-        setSelectedParticipants([]); // Reset participants for now, assuming they are not part of eventToEdit for tasks directly
+        // Populate selectedParticipants from eventToEdit
+        if (eventToEdit.extendedProps?.participants) {
+          const initialParticipants: ParticipantOption[] = [];
+          eventToEdit.extendedProps.participants.forEach(p => {
+            // p.id is number, opt.id is string
+            const pIdStr = String(p.id);
+            const option = participantOptions.find(opt => opt.type === p.type && opt.id === pIdStr);
+            if (option) {
+              initialParticipants.push(option);
+            }
+          });
+          setSelectedParticipants(initialParticipants);
+        } else {
+          setSelectedParticipants([]);
+        }
+
         setSelectedDependencies([]);
 
         setProjectSelectionMode(eventToEdit.extendedProps?.projectId ? 'existing' : 'existing');
@@ -366,47 +367,47 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   }, [taskOptions, selectedDependencies, formData.type]);
 
   const parseDateString = (dateStr: string | undefined): Date | null => {
-      if (!dateStr) return null;
-      try {
-          // まずyyyy-MM-ddでパース
-          let parsed = parse(dateStr, 'yyyy-MM-dd', new Date());
-          if (isDateValid(parsed)) return parsed;
+    if (!dateStr) return null;
+    try {
+      // まずyyyy-MM-ddでパース
+      let parsed = parse(dateStr, 'yyyy-MM-dd', new Date());
+      if (isDateValid(parsed)) return parsed;
 
-          // ISO 8601形式 (例: 2023-10-27T10:00:00.000Z) も試す
-          parsed = parseISO(dateStr);
-          if (isDateValid(parsed)) return parsed;
+      // ISO 8601形式 (例: 2023-10-27T10:00:00.000Z) も試す
+      parsed = parseISO(dateStr);
+      if (isDateValid(parsed)) return parsed;
 
-          // 他の一般的な形式も試す (必要に応じて追加)
-          // ...
+      // 他の一般的な形式も試す (必要に応じて追加)
+      // ...
 
-          return null; // いずれの形式にも一致しない場合
-      } catch (e) {
-          return null; // パース中にエラーが発生した場合
-      }
+      return null; // いずれの形式にも一致しない場合
+    } catch (e) {
+      return null; // パース中にエラーが発生した場合
+    }
   };
 
 
   const parseTimeString = (timeStr: string | undefined, baseDate: Date | null): Date | null => {
-      if (!timeStr || !baseDate || !isDateValid(baseDate)) return null;
-      try {
-          const [hours, minutes] = timeStr.split(':').map(Number);
-          if (isNaN(hours) || isNaN(minutes)) return null;
-          // baseDateはJSTのDateオブジェクトなので、そのままsetHours/setMinutes
-          const dateWithHours = new Date(baseDate);
-          dateWithHours.setHours(hours, minutes, 0, 0); // 秒とミリ秒を0に設定
-          return isDateValid(dateWithHours) ? dateWithHours : null;
-      } catch (e) {
-          return null;
-      }
+    if (!timeStr || !baseDate || !isDateValid(baseDate)) return null;
+    try {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes)) return null;
+      // baseDateはJSTのDateオブジェクトなので、そのままsetHours/setMinutes
+      const dateWithHours = new Date(baseDate);
+      dateWithHours.setHours(hours, minutes, 0, 0); // 秒とミリ秒を0に設定
+      return isDateValid(dateWithHours) ? dateWithHours : null;
+    } catch (e) {
+      return null;
+    }
   };
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | any) => {
     const { name, value, type, checked } = event.target;
     let valueToSet: any = value;
     if (type === 'checkbox') {
-        valueToSet = checked;
+      valueToSet = checked;
     }
-    
+
     // コストが変更された場合、開始日を再計算
     if (name === 'taskCost' && formData.type === 'task' && formData.taskDueDate) {
       // S/M/L形式の場合は変換
@@ -425,14 +426,14 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           startDate: format(startDate, 'yyyy-MM-dd') // タスクの開始日も更新
         }));
       } else {
-    setFormData(prev => ({ ...prev, [name]: valueToSet }));
+        setFormData(prev => ({ ...prev, [name]: valueToSet }));
       }
     } else {
       setFormData(prev => ({ ...prev, [name]: valueToSet }));
     }
-    
+
     if (errors[name as keyof typeof errors]) {
-        setErrors(prev => ({ ...prev, [name]: undefined }));
+      setErrors(prev => ({ ...prev, [name]: undefined }));
     }
   };
 
@@ -472,106 +473,105 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     const baseDate = baseDateStr ? parseDateString(baseDateStr) : null;
 
     if (newValue && isDateValid(newValue) && baseDate && isDateValid(baseDate)) {
-        const newTimeStr = format(newValue, 'HH:mm');
-        setFormData(prev => ({ ...prev, [name]: newTimeStr }));
-        // 開始時刻が変更された場合、終了時刻も自動調整（例：1時間後）
-        if (name === 'startTime' && !formData.endTime) {
-          const newEndTime = addHours(newValue, 1);
-          setFormData(prev => ({ ...prev, endTime: format(newEndTime, 'HH:mm') }));
-        }
-         if (errors[name]) {
-            setErrors(prev => ({ ...prev, [name]: undefined }));
-        }
+      const newTimeStr = format(newValue, 'HH:mm');
+      setFormData(prev => ({ ...prev, [name]: newTimeStr }));
+      // 開始時刻が変更された場合、終了時刻も自動調整（例：1時間後）
+      if (name === 'startTime' && !formData.endTime) {
+        const newEndTime = addHours(newValue, 1);
+        setFormData(prev => ({ ...prev, endTime: format(newEndTime, 'HH:mm') }));
+      }
+      if (errors[name]) {
+        setErrors(prev => ({ ...prev, [name]: undefined }));
+      }
     } else {
-        // 無効な時刻またはベース日付がない場合はクリア
-        setFormData(prev => ({ ...prev, [name]: '' }));
-        setErrors(prev => ({ ...prev, [name]: '無効な時間です' }));
+      // 無効な時刻またはベース日付がない場合はクリア
+      setFormData(prev => ({ ...prev, [name]: '' }));
+      setErrors(prev => ({ ...prev, [name]: '無効な時間です' }));
     }
   };
 
 
   const handleTypeChange = (event: any) => {
     const newType = event.target.value as string;
-  
+
     setFormData((prev) => {
       // まずは現在の入力をすべて保持
       const next: EventFormData = { ...prev, type: newType };
-  
+
       // 型ごとに「必要な差分だけ」上書きする
       if (newType === 'Task' || newType === 'task') {
         // タスクは終日・時間不要。start/end は保存時に計算するのでクリア。
         next.allDay = true;
         next.startTime = undefined;
         next.endTime = undefined;
-  
+
         // 期日は可能なら既存値を優先。未設定なら既存の開始/終了日から推測、
         // それも無ければ空（= バリデーションで促す）。※今日にはしない
         if (!prev.taskDueDate) {
           next.taskDueDate = prev.endDate || prev.startDate || '';
         }
-  
+
         next.startDate = undefined;
         next.endDate = undefined;
-  
+
       } else if (newType === 'Project' || newType === 'project') {
         // プロジェクトは終日・時間不要。開始日と終了日が必要。
         next.allDay = true;
         next.startTime = undefined;
         next.endTime = undefined;
-  
+
         // 開始日・終了日は既存値を優先
         next.startDate = prev.startDate || prev.taskDueDate || '';
         next.endDate = prev.endDate || '';
-  
+
       } else if (newType === 'Deadline' || newType === 'Milestone') {
         // これらは終日・時間不要。必要なのは期日に相当する startDate。
         next.allDay = true;
         next.startTime = undefined;
         next.endTime = undefined;
-  
+
         // 既存の startDate を優先。無ければ taskDueDate → endDate の順に利用。
         next.startDate = prev.startDate || prev.taskDueDate || prev.endDate || '';
         next.endDate = undefined;
-  
+
       } else if (newType === 'Meeting') {
         // 会議は実施日のみ（終了日は設定しない）。時間あり（終日OFF固定）。
         next.allDay = false;
 
         // 実施日のみ。既存値を尊重。無ければ taskDueDate を流用。
         next.startDate = prev.startDate || prev.taskDueDate || '';
-        next.endDate   = undefined; // 会議は終了日を使わない
-  
+        next.endDate = undefined; // 会議は終了日を使わない
+
         // 時刻は既存値を優先、なければ軽いデフォルト（今日には依存しない）
         next.startTime = prev.startTime || '09:00';
-        next.endTime   = prev.endTime   || '10:00';
-  
+        next.endTime = prev.endTime || '10:00';
+
       } else if (newType === 'Workshop') {
-        // ワークショップは終日のみ
-        next.allDay = true;
-        next.startTime = undefined;
-        next.endTime = undefined;
-        
+        // ワークショップは会議と同様に時間指定あり（終日OFF固定）
+        next.allDay = false;
+
         // 実施日のみ。既存値を尊重。無ければ taskDueDate を流用。
         next.startDate = prev.startDate || prev.taskDueDate || '';
-        next.endDate   = undefined; // ワークショップは終了日を使わない
-  
+        next.endDate = undefined; // ワークショップは終了日を使わない
+
+        // 時刻は既存値を優先、なければ軽いデフォルト
+        next.startTime = prev.startTime || '13:00';
+        next.endTime = prev.endTime || '16:00';
+
       } else { // Generic
         // Generic は終日ON/OFFをユーザーに委ねる
         next.startDate = prev.startDate || prev.taskDueDate || '';
-        
+        next.endDate = undefined; // 終了日は使用しない
+
         if (prev.allDay) {
-          // 終日の場合は終了日を表示
-          next.endDate   = prev.endDate || '';
           next.startTime = '';
-          next.endTime   = '';
+          next.endTime = '';
         } else {
-          // 時間指定の場合は実施日のみ（終了日は非表示）
-          next.endDate   = undefined;
           next.startTime = prev.startTime || '09:00';
-          next.endTime   = prev.endTime   || '10:00';
+          next.endTime = prev.endTime || '10:00';
         }
       }
-  
+
       return next;
     });
 
@@ -586,8 +586,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     setProjectSelectionMode(newMode);
     setErrors(prev => ({ ...prev, projectId: undefined, newProjectName: undefined }));
     if (newMode === 'new') {
-        setFormData(prev => ({ ...prev, projectId: null }));
-        setSelectedDependencies([]); 
+      setFormData(prev => ({ ...prev, projectId: null }));
+      setSelectedDependencies([]);
     } else {
       setFormData(prev => ({ ...prev, newProjectName: '', newProjectDescription: '', newProjectStartDate: '', newProjectEndDate: '' }));
       // 既存プロジェクト選択モードに変わったとき、選択されていたプロジェクトIDに基づいて依存タスクを再評価するため、
@@ -604,18 +604,18 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     if (formData.type === 'task' || formData.type === 'Task') {
       // プロジェクトは任意（既存で未選択＝プロジェクトなしでOK）
       if (projectSelectionMode === 'new') {
-          if (!formData.newProjectName?.trim()) newErrors.newProjectName = '新規プロジェクト名を入力してください';
-          if (!formData.newProjectStartDate) newErrors.newProjectStartDate = '開始日を入力してください';
-          if (!formData.newProjectEndDate) newErrors.newProjectEndDate = '終了日を入力してください';
-          // TODO: 新規プロジェクトの日付検証 (開始日 <= 終了日)
+        if (!formData.newProjectName?.trim()) newErrors.newProjectName = '新規プロジェクト名を入力してください';
+        if (!formData.newProjectStartDate) newErrors.newProjectStartDate = '開始日を入力してください';
+        if (!formData.newProjectEndDate) newErrors.newProjectEndDate = '終了日を入力してください';
+        // TODO: 新規プロジェクトの日付検証 (開始日 <= 終了日)
       }
       if (!formData.taskDueDate) newErrors.taskDueDate = '期日を入力してください';
       // if (!formData.taskAssigneeId) newErrors.taskAssigneeId = '担当者を選択してください'; // 必須ではなくなった
       // S/M/L形式または数値を受け入れる
       if (formData.taskCost && !['S', 'M', 'L'].includes(String(formData.taskCost))) {
-          if (isNaN(Number(formData.taskCost))) {
-              newErrors.taskCost = 'コストにはS/M/Lまたは数値を入力してください';
-          }
+        if (isNaN(Number(formData.taskCost))) {
+          newErrors.taskCost = 'コストにはS/M/Lまたは数値を入力してください';
+        }
       }
 
     } else if (formData.type === 'project' || formData.type === 'Project') {
@@ -627,32 +627,28 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         newErrors.endDate = '終了日は開始日より後に設定してください';
       }
     } else if (formData.type) { // Generic, Meeting, Workshop, Deadline, Milestone
+      if (!formData.startDate) {
+        newErrors.startDate = (formData.type === 'Deadline' || formData.type === 'Milestone') ? '期日を入力してください' : '開始日を入力してください';
+      }
+      if (!formData.allDay) {
+        if (!formData.startTime) newErrors.startTime = '開始時間を入力してください';
+        // GenericとMeetingは時間指定の場合、終了時間を必須
+        if ((formData.type === 'Generic' || formData.type === 'Meeting') && !formData.endTime) {
+          newErrors.endTime = '終了時間を入力してください';
+        }
+        // 時間の順序検証 (開始時刻 < 終了時刻)。GenericとMeetingは同一実施日で比較
+        const startDateForCompare = formData.startDate;
+        if (startDateForCompare && formData.startTime && formData.endTime &&
+          `${startDateForCompare} ${formData.startTime}` >= `${startDateForCompare} ${formData.endTime}`) {
+          newErrors.endTime = '終了時刻は開始時刻より後に設定してください';
+        }
+      } else if (formData.type === 'Generic') {
+        // Genericで終日の場合は実施日のみ（終了日は使用しない）
         if (!formData.startDate) {
-            newErrors.startDate = (formData.type === 'Deadline' || formData.type === 'Milestone') ? '期日を入力してください' : '開始日を入力してください';
+          newErrors.startDate = '開始日を入力してください';
         }
-        if (!formData.allDay) {
-            if (!formData.startTime) newErrors.startTime = '開始時間を入力してください';
-            // GenericとMeetingは時間指定の場合、終了時間を必須
-            if ((formData.type === 'Generic' || formData.type === 'Meeting') && !formData.endTime) {
-                newErrors.endTime = '終了時間を入力してください';
-            }
-            // 時間の順序検証 (開始時刻 < 終了時刻)。GenericとMeetingは同一実施日で比較
-            const startDateForCompare = formData.startDate;
-            if (startDateForCompare && formData.startTime && formData.endTime &&
-                `${startDateForCompare} ${formData.startTime}` >= `${startDateForCompare} ${formData.endTime}`) {
-                newErrors.endTime = '終了時刻は開始時刻より後に設定してください';
-            }
-        } else if (formData.type === 'Generic') {
-            // Genericで終日の場合は終了日を必須
-            if (!formData.endDate) {
-                newErrors.endDate = '終了日を入力してください';
-            }
-            // 日付の順序検証
-            if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
-                newErrors.endDate = '終了日は開始日より後に設定してください';
-            }
-        }
-        // プロジェクトは任意（指定しなくてもよい）
+      }
+      // プロジェクトは任意（指定しなくてもよい）
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -712,57 +708,57 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       } else if (normalizedType === 'Task') {
         // start_time: 開始日 → startDate(期日-コスト) → 期日ベースのフォールバック
         if (formData.taskStartDate) {
-            const startDateObj = parseDateString(formData.taskStartDate);
-            if (startDateObj && isDateValid(startDateObj)) {
-                dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
-            }
+          const startDateObj = parseDateString(formData.taskStartDate);
+          if (startDateObj && isDateValid(startDateObj)) {
+            dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
+          }
         }
         if (!dataToSave.start_time && formData.startDate) {
-            const startDateObj = parseDateString(formData.startDate);
-            if (startDateObj && isDateValid(startDateObj)) {
-                dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
-            }
+          const startDateObj = parseDateString(formData.startDate);
+          if (startDateObj && isDateValid(startDateObj)) {
+            dataToSave.start_time = format(startOfDay(startDateObj), "yyyy-MM-dd'T'HH:mm:ssxxx");
+          }
         }
         if (!dataToSave.start_time && formData.taskDueDate) {
-            const dueDateObj = parseDateString(formData.taskDueDate);
-            if (dueDateObj && isDateValid(dueDateObj)) {
-                // S/M/L形式の場合は変換
-                let cost = 0;
-                if (formData.taskCost === 'S') cost = 2;
-                else if (formData.taskCost === 'M') cost = 8;
-                else if (formData.taskCost === 'L') cost = 24;
-                else if (formData.taskCost) cost = Number(formData.taskCost) || 0;
-                const days = Math.ceil(cost / 8);
-                const startDateObjFallback = addDays(dueDateObj, -days);
-                dataToSave.start_time = format(startOfDay(startDateObjFallback), "yyyy-MM-dd'T'HH:mm:ssxxx");
-            }
+          const dueDateObj = parseDateString(formData.taskDueDate);
+          if (dueDateObj && isDateValid(dueDateObj)) {
+            // S/M/L形式の場合は変換
+            let cost = 0;
+            if (formData.taskCost === 'S') cost = 2;
+            else if (formData.taskCost === 'M') cost = 8;
+            else if (formData.taskCost === 'L') cost = 24;
+            else if (formData.taskCost) cost = Number(formData.taskCost) || 0;
+            const days = Math.ceil(cost / 8);
+            const startDateObjFallback = addDays(dueDateObj, -days);
+            dataToSave.start_time = format(startOfDay(startDateObjFallback), "yyyy-MM-dd'T'HH:mm:ssxxx");
+          }
         }
 
         // Set end_time for tasks based on taskDueDate (期日の翌日の開始時刻)
         if (formData.taskDueDate) {
-            const dueDateObj = parseDateString(formData.taskDueDate);
-            if (dueDateObj && isDateValid(dueDateObj)) {
-                dataToSave.end_time = format(startOfDay(addDays(dueDateObj, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
-                dataToSave.due_date = format(dueDateObj, 'yyyy-MM-dd');
-            }
+          const dueDateObj = parseDateString(formData.taskDueDate);
+          if (dueDateObj && isDateValid(dueDateObj)) {
+            dataToSave.end_time = format(startOfDay(addDays(dueDateObj, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
+            dataToSave.due_date = format(dueDateObj, 'yyyy-MM-dd');
+          }
         }
         dataToSave.allDay = true;
 
         // assigned_toの処理を安全に行う
         if (formData.taskAssigneeId) {
-            const taskAssigneeIdStr = String(formData.taskAssigneeId);
-            const match = taskAssigneeIdStr.match(/^(user|group)-(\d+)$/);
-            if (match) {
-                dataToSave.assigned_to = parseInt(match[2], 10);
-                dataToSave.assignee_type = match[1];
-            } else {
-                // フォーマットが期待通りでない場合はnullに設定
-                dataToSave.assigned_to = null;
-                dataToSave.assignee_type = null;
-            }
-        } else {
+          const taskAssigneeIdStr = String(formData.taskAssigneeId);
+          const match = taskAssigneeIdStr.match(/^(user|group)-(\d+)$/);
+          if (match) {
+            dataToSave.assigned_to = parseInt(match[2], 10);
+            dataToSave.assignee_type = match[1];
+          } else {
+            // フォーマットが期待通りでない場合はnullに設定
             dataToSave.assigned_to = null;
             dataToSave.assignee_type = null;
+          }
+        } else {
+          dataToSave.assigned_to = null;
+          dataToSave.assignee_type = null;
         }
         // S/M/L形式の場合はそのまま送信（バックエンドで変換）
         dataToSave.cost = formData.taskCost ? (['S', 'M', 'L'].includes(String(formData.taskCost)) ? String(formData.taskCost) : Number(formData.taskCost)) : 0;
@@ -775,25 +771,25 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         console.log("Formatted dependsOn to save:", JSON.stringify(dataToSave.dependsOn, null, 2));
 
         if (projectSelectionMode === 'existing' && formData.projectId) {
-            dataToSave.project_id = parseInt(formData.projectId, 10);
+          dataToSave.project_id = parseInt(formData.projectId, 10);
         } else if (projectSelectionMode === 'existing') {
-            dataToSave.project_id = null; // プロジェクト未設定のタスク
+          dataToSave.project_id = null; // プロジェクト未設定のタスク
         } else if (projectSelectionMode === 'new') {
-              dataToSave.new_project = {
-                        name: formData.newProjectName,
-                        description: formData.newProjectDescription,
-                  start_date: formData.newProjectStartDate,
-                  end_date: formData.newProjectEndDate,
-                // color: formData.newProjectColor,
-            };
+          dataToSave.new_project = {
+            name: formData.newProjectName,
+            description: formData.newProjectDescription,
+            start_date: formData.newProjectStartDate,
+            end_date: formData.newProjectEndDate,
+            // color: formData.newProjectColor,
+          };
         }
         // ★新しいログ出力 START (既存ログの前に挿入)
         console.log("[EventAddModal:handleSaveClick] BEFORE ONSAVE - TASK data:", JSON.stringify({
           type: dataToSave.type,
           title: dataToSave.title,
-          start_time: dataToSave.start_time, 
-          due_date: dataToSave.due_date, 
-          end_time: dataToSave.end_time, 
+          start_time: dataToSave.start_time,
+          due_date: dataToSave.due_date,
+          end_time: dataToSave.end_time,
           cost: dataToSave.cost,
           allDay: dataToSave.allDay,
           project_id: dataToSave.project_id,
@@ -806,29 +802,29 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         // ★新しいログ出力 END
         // onSave(dataToSave); // この行をコメントアウトまたは削除
       } else { // Other event types
-        // Workshop, Deadline, Milestoneは常に終日
-        if (normalizedType === 'Workshop' || normalizedType === 'Deadline' || normalizedType === 'Milestone') {
+        // Deadline, Milestoneは常に終日
+        if (normalizedType === 'Deadline' || normalizedType === 'Milestone') {
           dataToSave.allDay = true;
         } else {
           dataToSave.allDay = formData.allDay;
         }
-        
-          if (formData.startDate) {
+
+        if (formData.startDate) {
           const startDateObj = parseDateString(formData.startDate);
           if (startDateObj) {
-            if (dataToSave.allDay || normalizedType === 'Deadline' || normalizedType === 'Milestone' || normalizedType === 'Workshop') {
-              // 締切・マイルストーン・ワークショップは常に終日。日付をそのまま使用（タイムゾーン問題を回避）
+            if (dataToSave.allDay || normalizedType === 'Deadline' || normalizedType === 'Milestone') {
+              // 締切・マイルストーンは常に終日。日付をそのまま使用（タイムゾーン問題を回避）
               const dateStr = format(startDateObj, 'yyyy-MM-dd');
               dataToSave.start_time = `${dateStr}T00:00:00+09:00`;
               dataToSave.end_time = `${dateStr}T00:00:00+09:00`;
-              } else if (formData.startTime) {
+            } else if (formData.startTime) {
               const startDateTime = parseTimeString(formData.startTime, startDateObj);
               if (startDateTime) dataToSave.start_time = format(startDateTime, "yyyy-MM-dd'T'HH:mm:ssxxx");
             }
           }
         }
 
-        if (!dataToSave.allDay && (normalizedType === 'Generic' || normalizedType === 'Meeting')) {
+        if (!dataToSave.allDay && (normalizedType === 'Generic' || normalizedType === 'Meeting' || normalizedType === 'Workshop')) {
           // 時間指定の場合、実施日のみを使用（終了日は使用しない）
           const endDateObj = parseDateString(formData.startDate);
           if (endDateObj && formData.endTime) {
@@ -838,41 +834,39 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             dataToSave.end_time = format(addHours(parseISO(dataToSave.start_time), 1), "yyyy-MM-dd'T'HH:mm:ssxxx");
           }
         } else if (dataToSave.allDay && normalizedType === 'Generic') {
-            if(dataToSave.start_time) {
-                 const startDateForEnd = parseISO(dataToSave.start_time);
-                 const endDateForEnd = formData.endDate ? parseDateString(formData.endDate) : startDateForEnd;
-                 if(endDateForEnd){
-                    dataToSave.end_time = format(startOfDay(addDays(endDateForEnd, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
-                 }
-            }
+          if (dataToSave.start_time) {
+            const startDateForEnd = parseISO(dataToSave.start_time);
+            // 終了日は入力ないので、開始日の翌日をend_timeとする(1日イベント)
+            dataToSave.end_time = format(startOfDay(addDays(startDateForEnd, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
+          }
         }
 
 
-          dataToSave.location = formData.location || '';
+        dataToSave.location = formData.location || '';
         // プロジェクトは任意：指定されていれば送信
         if (formData.projectId) {
           dataToSave.project_id = parseInt(formData.projectId, 10);
         }
-        if (normalizedType === 'Meeting' || normalizedType === 'Generic' ) {
-           dataToSave.participants = selectedParticipants.map(p => ({
-             type: p.type,
-             id: p.type === 'user' ? parseInt(p.id, 10) : p.id 
-           }));
+        if (normalizedType === 'Meeting' || normalizedType === 'Generic' || normalizedType === 'Workshop') {
+          dataToSave.participants = selectedParticipants.map(p => ({
+            type: p.type,
+            id: p.type === 'user' ? parseInt(p.id, 10) : p.id
+          }));
         }
       }
 
       if (eventToEdit && eventToEdit.id) {
-          const parts = eventToEdit.id.split('-');
-          const numericId = parts.length > 1 ? parts[parts.length - 1] : null;
-          if (numericId && !isNaN(parseInt(numericId, 10))) {
-            dataToSave.id = parseInt(numericId, 10);
-          } else {
-            console.warn("Could not parse numeric ID from eventToEdit.id:", eventToEdit.id);
-          }
+        const parts = eventToEdit.id.split('-');
+        const numericId = parts.length > 1 ? parts[parts.length - 1] : null;
+        if (numericId && !isNaN(parseInt(numericId, 10))) {
+          dataToSave.id = parseInt(numericId, 10);
+        } else {
+          console.warn("Could not parse numeric ID from eventToEdit.id:", eventToEdit.id);
+        }
       }
       onSave(dataToSave);
     } else {
-        console.log("Validation failed. Errors:", JSON.stringify(errors, null, 2));
+      console.log("Validation failed. Errors:", JSON.stringify(errors, null, 2));
     }
   };
 
@@ -901,24 +895,22 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
   const showTimeFields = useMemo(() => {
     if (!formData?.type || formData.allDay) return false;
-    // タスク、締切、マイルストーン、ワークショップでは非表示
-    if (['task', 'Task', 'Deadline', 'Milestone', 'Workshop'].includes(formData.type)) return false;
+    // タスク、締切、マイルストーンでは非表示
+    if (['task', 'Task', 'Deadline', 'Milestone'].includes(formData.type)) return false;
     return true; // Generic, Meeting のみ表示 (かつ終日でない場合)
   }, [formData?.type, formData.allDay]);
 
   const showEndDate = useMemo(() => {
     if (!formData?.type) return false;
-    // タスク、締切、マイルストーン、会議、ワークショップでは非表示（会議・WSは実施日のみ）
-    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop'].includes(formData.type)) return false;
-    // Genericは終日の場合のみ終了日を表示（時間指定の場合は実施日のみ）
-    if (formData.type === 'Generic' && !formData.allDay) return false;
-    return true; // Genericで終日の場合は終了日を表示
+    // タスク、締切、マイルストーン、会議、ワークショップ、イベントでは非表示（これらは実施日のみ）
+    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop', 'Generic'].includes(formData.type)) return false;
+    return true;
   }, [formData?.type, formData.allDay]);
 
   // 担当者オプション (ユーザー + グループ)
   const assigneeOptions = useMemo((): Array<{ id: string; label: string; type: string; }> => {
     const users = usersFromProps.map(u => ({ id: `user-${u.id}`, label: u.username || u.name || u.email || `User ${u.id}`, type: 'user' as const }));
-    return users.sort((a: {label: string}, b: {label: string}) => a.label.localeCompare(b.label));
+    return users.sort((a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label));
   }, [usersFromProps]);
 
 
@@ -928,18 +920,18 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       <DialogContent sx={{ pt: '8px !important' }}>
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ja}>
           <Grid container spacing={1.5}>
-          <Grid item xs={12}>
+            <Grid item xs={12}>
               {/* Event Type */}
               <FormControl fullWidth required error={!!errors.type} size="small" sx={{ mb: 1.5 }}>
-                 <InputLabel id="event-type-label">タイプ *</InputLabel>
-                 <Select
-                   labelId="event-type-label"
-                   name="type"
-                   value={formData.type}
-                   label="タイプ *"
-                   onChange={handleTypeChange}
-                   size="small"
-                   disabled={!!eventToEdit} // 編集時はタイプ変更不可
+                <InputLabel id="event-type-label">タイプ *</InputLabel>
+                <Select
+                  labelId="event-type-label"
+                  name="type"
+                  value={formData.type}
+                  label="タイプ *"
+                  onChange={handleTypeChange}
+                  size="small"
+                  disabled={!!eventToEdit} // 編集時はタイプ変更不可
                 >
                   {!eventTypesOnly && <MenuItem value="Task">タスク</MenuItem>}
                   {!eventTypesOnly && canCreateProject && <MenuItem value="Project">プロジェクト</MenuItem>}
@@ -948,489 +940,491 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                   <MenuItem value="Generic">イベント (通常)</MenuItem>
                   <MenuItem value="Deadline">締切</MenuItem>
                   <MenuItem value="Milestone">マイルストーン</MenuItem>
-             </Select>
-              {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
-               </FormControl>
+                </Select>
+                {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
+              </FormControl>
 
-               {/* Title */}
-               <TextField
-                  label={formData.type === 'task' || formData.type === 'Task' ? "タスク名 *" : "タイトル *"}
-                  name="title"
-                  value={formData.title}
-                  onChange={handleChange}
-                  fullWidth
-                  required
-                  error={!!errors.title}
-                  helperText={errors.title}
-                  size="small"
-                  sx={{ mb: 1.5 }}
-               />
-               
-               {/* Description (always shown if type is selected) */}
-               {formData.type && (
-                    <TextField
-                        label="説明"
-                        name="description"
-                        value={formData.description}
+              {/* Title */}
+              <TextField
+                label={formData.type === 'task' || formData.type === 'Task' ? "タスク名 *" : "タイトル *"}
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                fullWidth
+                required
+                error={!!errors.title}
+                helperText={errors.title}
+                size="small"
+                sx={{ mb: 1.5 }}
+              />
+
+
+
+              {/* Project Selection (for Task, Meeting, Workshop, Deadline, Milestone) */}
+              {showProjectSelection && (
+                <>
+                  <Divider sx={{ my: 1 }}><Typography variant="caption">プロジェクト情報</Typography></Divider>
+                  {canCreateProject ? (
+                    <FormControl component="fieldset" sx={{ mb: 1 }}>
+                      <RadioGroup row name="projectSelectionMode" value={projectSelectionMode} onChange={handleProjectSelectionModeChange}>
+                        <FormControlLabel value="existing" control={<Radio size="small" />} label="既存プロジェクト" sx={{ mr: 1 }} />
+                        <FormControlLabel value="new" control={<Radio size="small" />} label="新規プロジェクト" />
+                      </RadioGroup>
+                    </FormControl>
+                  ) : null}
+
+                  {projectSelectionMode === 'existing' && (
+                    <FormControl fullWidth error={!!errors.projectId} size="small" sx={{ mb: 1.5 }}>
+                      <InputLabel id="existing-project-label">プロジェクト（任意）</InputLabel>
+                      <Select
+                        labelId="existing-project-label"
+                        name="projectId"
+                        value={formData.projectId || ''}
+                        label="プロジェクト（任意）"
                         onChange={handleChange}
-                        fullWidth
-                        multiline
-                        rows={2}
                         size="small"
-                        sx={{ mb: 1.5 }}
-                    />
-                )}
-                
-               {/* Project Selection (for Task, Meeting, Workshop, Deadline, Milestone) */}
-               {showProjectSelection && (
-                  <>
-                     <Divider sx={{ my: 1 }}><Typography variant="caption">プロジェクト情報</Typography></Divider>
-                      {canCreateProject ? (
-                        <FormControl component="fieldset" sx={{ mb: 1 }}>
-                          <RadioGroup row name="projectSelectionMode" value={projectSelectionMode} onChange={handleProjectSelectionModeChange}>
-                            <FormControlLabel value="existing" control={<Radio size="small"/>} label="既存プロジェクト" sx={{ mr: 1 }}/>
-                            <FormControlLabel value="new" control={<Radio size="small"/>} label="新規プロジェクト" />
-                          </RadioGroup>
-                        </FormControl>
-                      ) : null}
-
-                      {projectSelectionMode === 'existing' && (
-                         <FormControl fullWidth error={!!errors.projectId} size="small" sx={{ mb: 1.5 }}>
-                             <InputLabel id="existing-project-label">プロジェクト（任意）</InputLabel>
-                             <Select
-                                labelId="existing-project-label"
-                                name="projectId"
-                                value={formData.projectId || ''}
-                                label="プロジェクト（任意）"
-                                onChange={handleChange}
-                                size="small"
-                                disabled={projectsLoading}
-                             >
-                                 <MenuItem value=""><em>{projectsLoading ? '読み込み中...' : '未設定'}</em></MenuItem>
-                                 {projectOptions.map((p) => (
-                                     <MenuItem key={`project-${p.id}`} value={p.id}>{p.name}</MenuItem>
-                                 ))}
-                             </Select>
-                             {errors.projectId && <FormHelperText>{errors.projectId}</FormHelperText>}
-                         </FormControl>
-                      )}
-                      {canCreateProject && projectSelectionMode === 'new' && (
-                        <Grid container spacing={1} sx={{pl: 1, mb: 1.5}}>
-                            <Grid item xs={12}>
-                                <TextField
-                                    label="新規プロジェクト名 *"
-                                    name="newProjectName"
-                                    value={formData.newProjectName}
-                                    onChange={handleChange}
-                                    fullWidth
-                                    required
-                                    size="small"
-                                    error={!!errors.newProjectName}
-                                    helperText={errors.newProjectName}
-                                />
-                            </Grid>
-                            <Grid item xs={12}>
-                                <TextField
-                                    label="新規プロジェクト概要"
-                                    name="newProjectDescription"
-                                    value={formData.newProjectDescription}
-                                    onChange={handleChange}
-                                    fullWidth
-                                    multiline
-                                    rows={2}
-                                    size="small"
-                                />
-                            </Grid>
-                            <Grid item xs={6}>
-                                <DatePicker
-                                    label="プロジェクト開始日 *"
-                                    value={parseDateString(formData.newProjectStartDate)}
-                                    onChange={(newValue) => handleDateChange('newProjectStartDate', newValue)}
-                                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.newProjectStartDate, helperText: errors.newProjectStartDate } }}
-                                />
-                            </Grid>
-                            <Grid item xs={6}>
-                                <DatePicker
-                                    label="プロジェクト終了日 *"
-                                    value={parseDateString(formData.newProjectEndDate)}
-                                    onChange={(newValue) => handleDateChange('newProjectEndDate', newValue)}
-                                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.newProjectEndDate, helperText: errors.newProjectEndDate } }}
-                                />
-                            </Grid>
-                        </Grid>
-                      )}
-                  </>
-               )}
+                        disabled={projectsLoading}
+                      >
+                        <MenuItem value=""><em>{projectsLoading ? '読み込み中...' : '未設定'}</em></MenuItem>
+                        {projectOptions.map((p) => (
+                          <MenuItem key={`project-${p.id}`} value={p.id}>{p.name}</MenuItem>
+                        ))}
+                      </Select>
+                      {errors.projectId && <FormHelperText>{errors.projectId}</FormHelperText>}
+                    </FormControl>
+                  )}
+                  {canCreateProject && projectSelectionMode === 'new' && (
+                    <Grid container spacing={1} sx={{ pl: 1, mb: 1.5 }}>
+                      <Grid item xs={12}>
+                        <TextField
+                          label="新規プロジェクト名 *"
+                          name="newProjectName"
+                          value={formData.newProjectName}
+                          onChange={handleChange}
+                          fullWidth
+                          required
+                          size="small"
+                          error={!!errors.newProjectName}
+                          helperText={errors.newProjectName}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <TextField
+                          label="新規プロジェクト概要"
+                          name="newProjectDescription"
+                          value={formData.newProjectDescription}
+                          onChange={handleChange}
+                          fullWidth
+                          multiline
+                          rows={2}
+                          size="small"
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <DatePicker
+                          label="プロジェクト開始日 *"
+                          value={parseDateString(formData.newProjectStartDate)}
+                          onChange={(newValue) => handleDateChange('newProjectStartDate', newValue)}
+                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.newProjectStartDate, helperText: errors.newProjectStartDate } }}
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <DatePicker
+                          label="プロジェクト終了日 *"
+                          value={parseDateString(formData.newProjectEndDate)}
+                          onChange={(newValue) => handleDateChange('newProjectEndDate', newValue)}
+                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.newProjectEndDate, helperText: errors.newProjectEndDate } }}
+                        />
+                      </Grid>
+                    </Grid>
+                  )}
+                </>
+              )}
             </Grid>
 
             {/* Task Specific Fields */}
             {(formData.type === 'task' || formData.type === 'Task') && (
-              <Grid item xs={12} container spacing={1.5}> 
-                  {/* Task Start Date（開始日を上に） */}
-                  <Grid item xs={12}>
-                      <DatePicker
-                          label="開始日"
-                          value={parseDateString(formData.taskStartDate)}
-                          onChange={(newValue) => handleDateChange('taskStartDate', newValue)}
-                          slotProps={{ textField: { fullWidth: true, size: 'small' } }}
-                      />
-                  </Grid>
-                  {/* Task Due Date（期日をその下に） */}
-                  <Grid item xs={12}>
-                      <DatePicker
-                          label="期日 *"
-                          value={parseDateString(formData.taskDueDate)}
-                          onChange={(newValue) => handleDateChange('taskDueDate', newValue)}
-                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.taskDueDate, helperText: errors.taskDueDate } }}
-                      />
-                  </Grid>
-                  {/* Assignee, Cost, Status, Dependencies */}
-                  <Grid item xs={12}>
-                      <FormControl fullWidth error={!!errors.taskAssigneeId} size="small">
-                          <InputLabel id="assignee-select-label">担当者</InputLabel>
-                          <Select
-                              labelId="assignee-select-label"
-                              name="taskAssigneeId"
-                              value={formData.taskAssigneeId || ''}
-                              label="担当者"
-                              onChange={handleChange}
-                          >
-                              <MenuItem value=""><em>未割り当て</em></MenuItem>
-                              {assigneeOptions.map((option) => (
-                                  <MenuItem key={option.id} value={option.id}>
-                                    {option.label}
-                                  </MenuItem>
-                              ))}
-                          </Select>
-                          {errors.taskAssigneeId && <FormHelperText>{errors.taskAssigneeId}</FormHelperText>}
-                      </FormControl>
-                  </Grid>
-                   <Grid item xs={6}>
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-                          <FormControl size="small" sx={{ minWidth: 120 }}>
-                              <InputLabel id="cost-preset-label">クイック選択</InputLabel>
-                              <Select
-                                  labelId="cost-preset-label"
-                                  name="costPreset"
-                                  value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? formData.taskCost : ''}
-                                  label="クイック選択"
-                                  onChange={(e) => {
-                                      const value = e.target.value;
-                                      if (value) {
-                                          handleChange({ target: { name: 'taskCost', value } } as any);
-                                      } else {
-                                          // 「手入力」を選択した場合は数値入力フィールドをクリア
-                                          handleChange({ target: { name: 'taskCost', value: '' } } as any);
-                                      }
-                                  }}
-                              >
-                                  <MenuItem value="">手入力</MenuItem>
-                                  <MenuItem value="S">S（2時間）</MenuItem>
-                                  <MenuItem value="M">M（8時間）</MenuItem>
-                                  <MenuItem value="L">L（24時間）</MenuItem>
-                              </Select>
-                          </FormControl>
-                          <TextField
-                              label="コスト（時間）"
-                              name="taskCost"
-                              type="number"
-                              value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? '' : (formData.taskCost || '')}
-                              onChange={(e) => {
-                                  const value = e.target.value;
-                                  handleChange({ target: { name: 'taskCost', value } } as any);
-                              }}
-                              fullWidth
-                              size="small"
-                              error={!!errors.taskCost}
-                              helperText={errors.taskCost || 'S/M/Lを選択するか、数値で入力してください'}
-                              inputProps={{ step: "0.1", min: 0 }}
-                              disabled={['S', 'M', 'L'].includes(String(formData.taskCost || ''))}
-                          />
-                      </Box>
-                  </Grid>
-                  <Grid item xs={6}>
-                      <FormControl fullWidth size="small">
-                          <InputLabel id="status-select-label">ステータス</InputLabel>
-                          <Select
-                              labelId="status-select-label"
-                              name="taskStatus"
-                              value={formData.taskStatus}
-                              label="ステータス"
-                              onChange={handleChange}
-                          >
-                              <MenuItem value="todo">未着手</MenuItem>
-                              <MenuItem value="in-progress">進行中</MenuItem>
-                              <MenuItem value="review">レビュー中</MenuItem>
-                              <MenuItem value="completed">完了</MenuItem>
-                              <MenuItem value="delayed">遅延</MenuItem>
-                          </Select>
-                      </FormControl>
-                  </Grid>
-                  <Grid item xs={6}>
-                      <FormControl fullWidth size="small">
-                          <InputLabel id="priority-select-label">優先度</InputLabel>
-                          <Select
-                              labelId="priority-select-label"
-                              name="taskPriority"
-                              value={formData.taskPriority ?? 'low'}
-                              label="優先度"
-                              onChange={handleChange}
-                          >
-                              <MenuItem value="high">高</MenuItem>
-                              <MenuItem value="medium">中</MenuItem>
-                              <MenuItem value="low">低</MenuItem>
-                          </Select>
-                      </FormControl>
-                  </Grid>
-                  <Grid item xs={6}>
-                      <FormControl fullWidth size="small">
-                          <InputLabel id="task-type-select-label">タスクタイプ</InputLabel>
-                          <Select
-                              labelId="task-type-select-label"
-                              name="taskType"
-                              value={formData.taskType ?? ''}
-                              label="タスクタイプ"
-                              onChange={handleChange}
-                          >
-                              <MenuItem value="">未設定</MenuItem>
-                              <MenuItem value="development">Development</MenuItem>
-                              <MenuItem value="design">Design</MenuItem>
-                              <MenuItem value="documentation">Documentation</MenuItem>
-                              <MenuItem value="testing">Testing</MenuItem>
-                              <MenuItem value="maintenance">Maintenance</MenuItem>
-                              <MenuItem value="fx">FX</MenuItem>
-                              <MenuItem value="asset">Asset</MenuItem>
-                              <MenuItem value="animation">Animation</MenuItem>
-                              <MenuItem value="lighting">Lighting</MenuItem>
-                              <MenuItem value="comp">Comp</MenuItem>
-                          </Select>
-                      </FormControl>
-                  </Grid>
-                  <Grid item xs={6}>
-                      <TextField
-                          label="seqID"
-                          name="taskSeqID"
-                          value={formData.taskSeqID ?? ''}
-                          onChange={handleChange}
-                          fullWidth
-                          size="small"
-                      />
-                  </Grid>
-                  <Grid item xs={6}>
-                      <TextField
-                          label="shotID"
-                          name="taskShotID"
-                          value={formData.taskShotID ?? ''}
-                          onChange={handleChange}
-                          fullWidth
-                          size="small"
-                      />
-                  </Grid>
-          <Grid item xs={12}>
-                      <Autocomplete
-                          multiple
-                          id="task-dependencies"
-                          options={taskOptions}
-                          getOptionLabel={(option) => option.name}
-                          value={selectedDependencies}
-                          onChange={(event, newValue) => {
-                              setSelectedDependencies(newValue);
-                          }}
-                          isOptionEqualToValue={(option, value) => option.id === value.id}
-                          disabled={projectSelectionMode === 'new' || !formData.projectId} // 新規プロジェクト作成時またはプロジェクト未選択時は無効
-                          renderInput={(params) => (
-                              <TextField
-                                  {...params}
-                                  variant="outlined"
-                                  label="依存元タスク"
-                                  placeholder="依存するタスクを選択"
-                                  size="small"
-                              />
-                          )}
-                          renderTags={(value: readonly TaskOption[], getTagProps) =>
-                              value.map((option: TaskOption, index: number) => {
-                                  const { key, ...tagProps } = getTagProps({ index });
-                                  return (
-                                      <Chip key={key} variant="outlined" label={option.name} {...tagProps} size="small" />
-                                  );
-                              })
+              <Grid item xs={12} container spacing={1.5}>
+                {/* Task Start Date（開始日を上に） */}
+                <Grid item xs={12}>
+                  <DatePicker
+                    label="開始日"
+                    value={parseDateString(formData.taskStartDate)}
+                    onChange={(newValue) => handleDateChange('taskStartDate', newValue)}
+                    slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+                  />
+                </Grid>
+                {/* Task Due Date（期日をその下に） */}
+                <Grid item xs={12}>
+                  <DatePicker
+                    label="期日 *"
+                    value={parseDateString(formData.taskDueDate)}
+                    onChange={(newValue) => handleDateChange('taskDueDate', newValue)}
+                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.taskDueDate, helperText: errors.taskDueDate } }}
+                  />
+                </Grid>
+                {/* Assignee, Cost, Status, Dependencies */}
+                <Grid item xs={12}>
+                  <FormControl fullWidth error={!!errors.taskAssigneeId} size="small">
+                    <InputLabel id="assignee-select-label">担当者</InputLabel>
+                    <Select
+                      labelId="assignee-select-label"
+                      name="taskAssigneeId"
+                      value={formData.taskAssigneeId || ''}
+                      label="担当者"
+                      onChange={handleChange}
+                    >
+                      <MenuItem value=""><em>未割り当て</em></MenuItem>
+                      {assigneeOptions.map((option) => (
+                        <MenuItem key={option.id} value={option.id}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {errors.taskAssigneeId && <FormHelperText>{errors.taskAssigneeId}</FormHelperText>}
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                      <InputLabel id="cost-preset-label">クイック選択</InputLabel>
+                      <Select
+                        labelId="cost-preset-label"
+                        name="costPreset"
+                        value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? formData.taskCost : ''}
+                        label="クイック選択"
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value) {
+                            handleChange({ target: { name: 'taskCost', value } } as any);
+                          } else {
+                            // 「手入力」を選択した場合は数値入力フィールドをクリア
+                            handleChange({ target: { name: 'taskCost', value: '' } } as any);
                           }
-                          renderOption={(props, option, { selected }) => (
-                            <li {...props} key={option.id}> {/* Ensure unique key for list items */}
-                              {option.name} (ID: {option.id})
-                            </li>
-                          )}
-                          size="small"
+                        }}
+                      >
+                        <MenuItem value="">手入力</MenuItem>
+                        <MenuItem value="S">S（2時間）</MenuItem>
+                        <MenuItem value="M">M（8時間）</MenuItem>
+                        <MenuItem value="L">L（24時間）</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <TextField
+                      label="コスト（時間）"
+                      name="taskCost"
+                      type="number"
+                      value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? '' : (formData.taskCost || '')}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        handleChange({ target: { name: 'taskCost', value } } as any);
+                      }}
+                      fullWidth
+                      size="small"
+                      error={!!errors.taskCost}
+                      helperText={errors.taskCost || 'S/M/Lを選択するか、数値で入力してください'}
+                      inputProps={{ step: "0.1", min: 0 }}
+                      disabled={['S', 'M', 'L'].includes(String(formData.taskCost || ''))}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="status-select-label">ステータス</InputLabel>
+                    <Select
+                      labelId="status-select-label"
+                      name="taskStatus"
+                      value={formData.taskStatus}
+                      label="ステータス"
+                      onChange={handleChange}
+                    >
+                      <MenuItem value="todo">未着手</MenuItem>
+                      <MenuItem value="in-progress">進行中</MenuItem>
+                      <MenuItem value="review">レビュー中</MenuItem>
+                      <MenuItem value="completed">完了</MenuItem>
+                      <MenuItem value="delayed">遅延</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="priority-select-label">優先度</InputLabel>
+                    <Select
+                      labelId="priority-select-label"
+                      name="taskPriority"
+                      value={formData.taskPriority ?? 'low'}
+                      label="優先度"
+                      onChange={handleChange}
+                    >
+                      <MenuItem value="high">高</MenuItem>
+                      <MenuItem value="medium">中</MenuItem>
+                      <MenuItem value="low">低</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="task-type-select-label">タスクタイプ</InputLabel>
+                    <Select
+                      labelId="task-type-select-label"
+                      name="taskType"
+                      value={formData.taskType ?? ''}
+                      label="タスクタイプ"
+                      onChange={handleChange}
+                    >
+                      <MenuItem value="">未設定</MenuItem>
+                      <MenuItem value="development">Development</MenuItem>
+                      <MenuItem value="design">Design</MenuItem>
+                      <MenuItem value="documentation">Documentation</MenuItem>
+                      <MenuItem value="testing">Testing</MenuItem>
+                      <MenuItem value="maintenance">Maintenance</MenuItem>
+                      <MenuItem value="fx">FX</MenuItem>
+                      <MenuItem value="asset">Asset</MenuItem>
+                      <MenuItem value="animation">Animation</MenuItem>
+                      <MenuItem value="lighting">Lighting</MenuItem>
+                      <MenuItem value="comp">Comp</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    label="seqID"
+                    name="taskSeqID"
+                    value={formData.taskSeqID ?? ''}
+                    onChange={handleChange}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    label="shotID"
+                    name="taskShotID"
+                    value={formData.taskShotID ?? ''}
+                    onChange={handleChange}
+                    fullWidth
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Autocomplete
+                    multiple
+                    id="task-dependencies"
+                    options={taskOptions}
+                    getOptionLabel={(option) => option.name}
+                    value={selectedDependencies}
+                    onChange={(_event, newValue) => {
+                      setSelectedDependencies(newValue);
+                    }}
+                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    disabled={projectSelectionMode === 'new' || !formData.projectId} // 新規プロジェクト作成時またはプロジェクト未選択時は無効
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        variant="outlined"
+                        label="依存元タスク"
+                        placeholder="依存するタスクを選択"
+                        size="small"
                       />
-          </Grid>
+                    )}
+                    renderTags={(value: readonly TaskOption[], getTagProps) =>
+                      value.map((option: TaskOption, index: number) => {
+                        const { key, ...tagProps } = getTagProps({ index });
+                        return (
+                          <Chip key={key} variant="outlined" label={option.name} {...tagProps} size="small" />
+                        );
+                      })
+                    }
+                    renderOption={(props, option, _state) => (
+                      <li {...props} key={option.id}> {/* Ensure unique key for list items */}
+                        {option.name} (ID: {option.id})
+                      </li>
+                    )}
+                    size="small"
+                  />
+                </Grid>
               </Grid>
             )}
 
             {/* Project Specific Fields */}
             {(formData.type === 'project' || formData.type === 'Project') && (
               <Grid item xs={12} container spacing={1.5}>
-                  {/* Project Start Date */}
-                  <Grid item xs={6}>
-                      <DatePicker
-                          label="開始日 *"
-                          value={parseDateString(formData.startDate)}
-                          onChange={(newValue) => handleDateChange('startDate', newValue)}
-                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
-                      />
-                  </Grid>
-                  {/* Project End Date */}
-                  <Grid item xs={6}>
-                      <DatePicker
-                          label="終了日 *"
-                          value={parseDateString(formData.endDate)}
-                          onChange={(newValue) => handleDateChange('endDate', newValue)}
-                          slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endDate, helperText: errors.endDate } }}
-                      />
-                  </Grid>
-                  {/* Project Status */}
-                  <Grid item xs={12}>
-                      <FormControl fullWidth size="small">
-                          <InputLabel id="project-status-select-label">ステータス</InputLabel>
-                          <Select
-                              labelId="project-status-select-label"
-                              name="taskStatus"
-                              value={formData.taskStatus}
-                              label="ステータス"
-                              onChange={handleChange}
-                          >
-                              <MenuItem value="planning">計画中</MenuItem>
-                              <MenuItem value="in-progress">進行中</MenuItem>
-                              <MenuItem value="completed">完了</MenuItem>
-                          </Select>
-                      </FormControl>
-                  </Grid>
+                {/* Project Start Date */}
+                <Grid item xs={6}>
+                  <DatePicker
+                    label="開始日 *"
+                    value={parseDateString(formData.startDate)}
+                    onChange={(newValue) => handleDateChange('startDate', newValue)}
+                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
+                  />
+                </Grid>
+                {/* Project End Date */}
+                <Grid item xs={6}>
+                  <DatePicker
+                    label="終了日 *"
+                    value={parseDateString(formData.endDate)}
+                    onChange={(newValue) => handleDateChange('endDate', newValue)}
+                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endDate, helperText: errors.endDate } }}
+                  />
+                </Grid>
+                {/* Project Status */}
+                <Grid item xs={12}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel id="project-status-select-label">ステータス</InputLabel>
+                    <Select
+                      labelId="project-status-select-label"
+                      name="taskStatus"
+                      value={formData.taskStatus}
+                      label="ステータス"
+                      onChange={handleChange}
+                    >
+                      <MenuItem value="planning">計画中</MenuItem>
+                      <MenuItem value="in-progress">進行中</MenuItem>
+                      <MenuItem value="completed">完了</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
               </Grid>
             )}
 
             {/* Fields for Non-Task Event Types (Generic, Meeting, Workshop, Deadline, Milestone) */}
             {formData.type && formData.type !== 'task' && formData.type !== 'Task' && formData.type !== 'project' && formData.type !== 'Project' && (
               <Grid item xs={12} container spacing={1.5}>
-                   {/* All Day Checkbox */}
-                   {showAllDayCheckbox && (
-                    <Grid item xs={12}>
-                        <FormControlLabel
-                            control={
-                                <Checkbox
-                                    checked={formData.allDay}
-                                    onChange={(e) => {
-                                        setFormData(prev => ({ ...prev, allDay: e.target.checked }));
-                                        if (e.target.checked) {
-                                            // 終日の場合、時間をクリア
-                                            setFormData(prev => ({
-                                                ...prev,
-                                                startTime: '', // Clear time
-                                                endTime: ''   // Clear time
-                                            }));
-                                        }
-                                    }}
-                                    size="small"
-                                />
+                {/* All Day Checkbox */}
+                {showAllDayCheckbox && (
+                  <Grid item xs={12}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.allDay}
+                          onChange={(e) => {
+                            setFormData(prev => ({ ...prev, allDay: e.target.checked }));
+                            if (e.target.checked) {
+                              // 終日の場合、時間をクリア
+                              setFormData(prev => ({
+                                ...prev,
+                                startTime: '', // Clear time
+                                endTime: ''   // Clear time
+                              }));
                             }
-                            label="終日"
+                          }}
+                          size="small"
                         />
-                    </Grid>
-                   )}
+                      }
+                      label="終日"
+                    />
+                  </Grid>
+                )}
 
-                   {/* 実施日/開始日 */}
-                   <Grid item xs={(formData.allDay || !showTimeFields) ? (showEndDate ? 6 : 12) : 12}>
-                        <DatePicker
-                            label={(formData.type === 'Deadline' || formData.type === 'Milestone') ? "期日 *" : (formData.type === 'Meeting' || formData.type === 'Workshop' || (formData.type === 'Generic' && !formData.allDay)) ? "実施日 *" : "開始日 *"}
-                            value={parseDateString(formData.startDate)}
-                            onChange={(newValue) => handleDateChange('startDate', newValue)}
-                            slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
-                        />
-                    </Grid>
+                {/* 実施日/開始日 */}
+                <Grid item xs={(formData.allDay || !showTimeFields) ? (showEndDate ? 6 : 12) : 12}>
+                  <DatePicker
+                    label={(formData.type === 'Deadline' || formData.type === 'Milestone') ? "期日 *" : (formData.type === 'Meeting' || formData.type === 'Workshop' || formData.type === 'Generic') ? "実施日 *" : "開始日 *"}
+                    value={parseDateString(formData.startDate)}
+                    onChange={(newValue) => handleDateChange('startDate', newValue)}
+                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
+                  />
+                </Grid>
 
-                    {/* 終了日（Genericで終日の場合のみ表示） */}
-                    {showEndDate && (
-                        <Grid item xs={6}>
-                            <DatePicker
-                                label="終了日 *"
-                                value={parseDateString(formData.endDate)}
-                                onChange={(newValue) => handleDateChange('endDate', newValue)}
-                                slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endDate, helperText: errors.endDate } }}
-                            />
-                        </Grid>
-                    )}
-                    {/* 開始時間・終了時間（会議・ワークショップ・Genericで時間ありのとき、横並びで表示） */}
-                    {showTimeFields && (
-                        <>
-                            <Grid item xs={6}>
-                                <TimePicker
-                                    label="開始時間 *"
-                                    value={parseTimeString(formData.startTime, parseDateString(formData.startDate))}
-                                    onChange={(newValue) => handleTimeChange('startTime', newValue)}
-                                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startTime, helperText: errors.startTime } }}
-                                />
-                            </Grid>
-                            <Grid item xs={6}>
-                                <TimePicker
-                                    label="終了時間 *"
-                                    value={parseTimeString(formData.endTime, parseDateString(formData.startDate))}
-                                    onChange={(newValue) => handleTimeChange('endTime', newValue)}
-                                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endTime, helperText: errors.endTime } }}
-                                />
-                            </Grid>
-                        </>
-                    )}
-                  {/* Location (for Meeting, Workshop, Generic) */}
-                  {showLocation && (
-                      <Grid item xs={12}>
-                          <TextField label="場所" name="location" value={formData.location} onChange={handleChange} fullWidth size="small" sx={{ mb: 1 }}/>
-                      </Grid>
-                  )}
-                  
-                  {/* Participants (for Meeting, Workshop, Generic) */}
-                  {showParticipants && (
-              <Grid item xs={12}>
-                <Autocomplete
-                  multiple
-                  id="participants-autocomplete"
-                        size="small"
-                  options={participantOptions}
-                        getOptionLabel={(option) => option.label}
-                  value={selectedParticipants}
-                  onChange={(event, newValue) => {
-                    setSelectedParticipants(newValue);
-                  }}
-                        isOptionEqualToValue={(option, value) => option.id === value.id && option.type === value.type}
-                  renderTags={(value, getTagProps) =>
-                          value.map((option, index) => {
-                            const { key, ...tagProps } = getTagProps({ index });
-                            return (
-                      <Chip 
-                                key={key}
-                        variant="outlined" 
-                        size="small" 
-                                label={option.label}
-                                {...tagProps}
-                              />
-                            );
-                          })
-                        }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      variant="outlined"
-                            label="参加者"
-                            placeholder="ユーザーを選択"
+                {/* 終了日（Genericで終日の場合のみ表示） */}
+                {showEndDate && (
+                  <Grid item xs={6}>
+                    <DatePicker
+                      label="終了日 *"
+                      value={parseDateString(formData.endDate)}
+                      onChange={(newValue) => handleDateChange('endDate', newValue)}
+                      slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endDate, helperText: errors.endDate } }}
+                    />
+                  </Grid>
+                )}
+                {/* 開始時間・終了時間（会議・ワークショップ・Genericで時間ありのとき、横並びで表示） */}
+                {showTimeFields && (
+                  <>
+                    <Grid item xs={6}>
+                      <TimePicker
+                        label="開始時間 *"
+                        value={parseTimeString(formData.startTime, parseDateString(formData.startDate))}
+                        onChange={(newValue) => handleTimeChange('startTime', newValue)}
+                        slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startTime, helperText: errors.startTime } }}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TimePicker
+                        label="終了時間 *"
+                        value={parseTimeString(formData.endTime, parseDateString(formData.startDate))}
+                        onChange={(newValue) => handleTimeChange('endTime', newValue)}
+                        slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.endTime, helperText: errors.endTime } }}
+                      />
+                    </Grid>
+                  </>
+                )}
+                {/* Location (for Meeting, Workshop, Generic) */}
+                {showLocation && (
+                  <Grid item xs={12}>
+                    <TextField label="場所" name="location" value={formData.location} onChange={handleChange} fullWidth size="small" sx={{ mb: 1 }} />
+                  </Grid>
+                )}
+
+                {/* Participants (for Meeting, Workshop, Generic) */}
+                {showParticipants && (
+                  <Grid item xs={12}>
+                    <Autocomplete
+                      multiple
+                      id="participants-autocomplete"
                       size="small"
-                          />
-                        )}
-                  loading={participantsLoading}
-                        loadingText="読み込み中..."
-                        noOptionsText="該当なし"
+                      options={participantOptions}
+                      getOptionLabel={(option) => option.label}
+                      value={selectedParticipants}
+                      onChange={(_event, newValue) => {
+                        setSelectedParticipants(newValue);
+                      }}
+                      isOptionEqualToValue={(option, value) => option.id === value.id && option.type === value.type}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => {
+                          const { key, ...tagProps } = getTagProps({ index });
+                          return (
+                            <Chip
+                              key={key}
+                              variant="outlined"
+                              size="small"
+                              label={option.label}
+                              {...tagProps}
+                            />
+                          );
+                        })
+                      }
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          variant="outlined"
+                          label="参加者"
+                          placeholder="ユーザーを選択"
+                          size="small"
+                        />
+                      )}
+                      loading={participantsLoading}
+                      loadingText="読み込み中..."
+                      noOptionsText="該当なし"
+                    />
+                  </Grid>
+                )}
+              </Grid>
+            )}
+            {/* Description (always shown if type is selected) - Moved to bottom */}
+            {formData.type && (
+              <Grid item xs={12} sx={{ mt: 1.5 }}>
+                <TextField
+                  label="説明"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  fullWidth
+                  multiline
+                  rows={2}
+                  size="small"
                 />
-            </Grid>
-          )}
-            </Grid>
-          )}
-        </Grid>
+              </Grid>
+            )}
+          </Grid>
         </LocalizationProvider>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>

@@ -5,51 +5,7 @@ import api, { mockDataApi } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { usePageState } from '../contexts/PageStateContext';
 
-interface ParsedData {
-  users: Array<{
-    email: string;
-    full_name: string;
-    role: string;
-  }>;
-  projects: Array<{
-    name: string;
-    description: string;
-    status: string;
-    startDate: string;
-    endDate: string;
-    budget?: number;
-    priority?: string;
-    display_status?: string;
-    color?: string;
-  }>;
-  tasks: Array<{
-    name: string;
-    description: string;
-    project_id: number;
-    due_date: string;
-    assigned_to?: number;
-    cost: number;
-    status: string;
-    priority?: string;
-    type?: string;
-    start_date?: string;
-    progress?: number;
-    shotID?: string;
-    seqID?: string;
-    display_status?: string;
-    dependsOn: string[];
-  }>;
-  events?: Array<{
-    title: string;
-    description?: string;
-    start_time: string;
-    end_time: string;
-    location?: string;
-    type: string;
-    allDay?: boolean;
-    participants?: Array<{ email: string; role: string }>;
-  }>;
-}
+
 
 interface CsvParserProps {
   onImportComplete?: () => void;
@@ -89,28 +45,29 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
       formData.append('file', file);
 
       const result = await mockDataApi.importCsvData(formData);
-      
+
       // インポート結果サマリを表示
       const projectsImported = result.projects?.imported || 0;
       const tasksImported = result.tasks?.imported || 0;
-      setSuccess(`インポート完了: プロジェクト ${projectsImported}件、タスク ${tasksImported}件`);
-      
+      const eventsImported = result.events?.imported || 0;
+      setSuccess(`インポート完了: プロジェクト ${projectsImported}件、タスク ${tasksImported}件、イベント ${eventsImported}件`);
+
       // 警告がある場合は表示
       if (result.warnings && result.warnings.length > 0) {
         setWarnings(result.warnings);
       }
-      
+
       // グローバルデータを更新
       console.log('[CsvParser] Refreshing global data after CSV import...');
       await refreshGlobalData();
       console.log('[CsvParser] Global data refresh completed');
-      
+
       // CSVインポート完了を通知するカスタムイベントを発火
       console.log('[CsvParser] Dispatching csvImportCompleted event...');
       window.dispatchEvent(new CustomEvent('csvImportCompleted', {
         detail: { message: result.message }
       }));
-      
+
       if (onImportComplete) {
         onImportComplete();
       }

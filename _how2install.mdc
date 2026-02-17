@@ -54,17 +54,26 @@ cd calender
 
 #### バックエンドのセットアップ
 ```bash
-# 仮想環境の作成
-python3.11 -m venv venv
+# 仮想環境の作成 (Windows)
+python -m venv venv
 
-# 仮想環境の有効化
-source venv/bin/activate  # macOS/Linux
+# 仮想環境の有効化 (Windows)
+.\venv\Scripts\activate
 
 # 依存パッケージのインストール
-pip install -r requirements.txt
+# requirements.txt は backend ディレクトリにあります
+pip install -r backend/requirements.txt
 
 # データベースの初期化
-python scripts/init_db.py
+python backend/scripts/init_db.py
+```
+
+※ macOS/Linuxの場合:
+```bash
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r backend/requirements.txt
+python backend/scripts/init_db.py
 ```
 
 #### フロントエンドのセットアップ

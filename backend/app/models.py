@@ -123,6 +123,7 @@ class Task(Base):
     dependsOn: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     shotID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     seqID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
+    phases: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column()
     display_status: Mapped[str] = mapped_column(String, default='online', index=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column()

@@ -216,6 +216,7 @@ class TaskBase(BaseModel):
     dependsOn: Optional[List[str]] = Field(default_factory=list)
     shotID: Optional[str] = None
     seqID: Optional[str] = None
+    phases: Optional[List[Dict[str, Any]]] = None
 
 class TaskCreate(TaskBase):
     project_id: Optional[int] = None

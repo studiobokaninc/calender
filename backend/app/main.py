@@ -38,6 +38,10 @@ logging.basicConfig(
         logging.FileHandler('app.log')  # ファイル出力
     ]
 )
+# 特定のライブラリのログを抑制
+logging.getLogger("google_genai").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # データベーステーブルの作成
@@ -1581,6 +1585,48 @@ def parse_dependencies(depends_str: str) -> List[str]:
     # カンマで分割して各要素の空白を除去
     return [dep.strip() for dep in depends_str.split(',') if dep.strip()]
 
+def parse_phases(phases_str: str) -> List[Dict[str, Any]]:
+    """段階的タスク（フェーズ）の文字列を解析する関数"""
+    if not phases_str:
+        return []
+    phases = []
+    # 引用符除去
+    phases_str = phases_str.strip()
+    if phases_str.startswith('"') and phases_str.endswith('"'):
+        phases_str = phases_str[1:-1]
+    
+    items = phases_str.split(',')
+    for item in items:
+        if ':' in item:
+            parts = item.split(':')
+            if len(parts) >= 2:
+                name = parts[0].strip()
+                date_str = parts[1].strip()
+                try:
+                    # parse_date を再利用 (コンテキストなし)
+                    dt = parse_date(date_str)
+                    if dt:
+                        phases.append({"name": name, "due_date": dt.isoformat()})
+                except Exception:
+                    pass
+    return phases
+
+def parse_datetime(date_str: str) -> Optional[datetime]:
+    """日時文字列を解析する関数"""
+    if not date_str:
+        return None
+    try:
+        return datetime.fromisoformat(date_str.replace('/', '-').replace(' ', 'T'))
+    except ValueError:
+        try:
+            # YYYY/MM/DD HH:MM
+            return datetime.strptime(date_str, "%Y/%m/%d %H:%M")
+        except ValueError:
+             # YYYY/MM/DD
+            d = parse_date(date_str)
+            return d
+    return None
+
 def parse_task_data(task_data: List[str], project_id: int, db: Session, project_start_date: Optional[datetime] = None, project_end_date: Optional[datetime] = None) -> dict:
     """
     タスクデータをパースする関数
@@ -1612,6 +1658,7 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session, project_
         seq_id = task_data[6].strip() if len(task_data) > 6 and task_data[6].strip() else None
         shot_id = task_data[7].strip() if len(task_data) > 7 and task_data[7].strip() else None
         depends_on = parse_dependencies(task_data[8]) if len(task_data) > 8 and task_data[8].strip() else []
+        phases = parse_phases(task_data[9]) if len(task_data) > 9 and task_data[9].strip() else []
 
         # 警告メッセージを収集
         warnings = []
@@ -1659,6 +1706,7 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session, project_
             "display_status": "offline",
             "priority": models.TaskPriority.MEDIUM,
             "start_date": start_date,
+            "phases": phases,
             "warnings": warnings  # 警告メッセージを追加
         }
     except Exception as e:
@@ -1696,6 +1744,7 @@ async def import_csv_data(
     import_results = {
         "projects": {"imported": 0, "skipped": 0, "results": []},
         "tasks": {"imported": 0, "skipped": 0, "results": []},
+        "events": {"imported": 0, "skipped": 0, "results": []},
         "warnings": []  # 警告メッセージを収集
     }
 
@@ -1769,6 +1818,9 @@ async def import_csv_data(
                 continue
             if task_data[0].strip() == "タスク名":
                 continue
+            if task_data[0].strip() == "イベント情報":
+                # イベント情報の開始ならタスク読み込みを終了
+                break
             all_task_data.append(task_data)
 
         # タスク名だけでなく、seqID/shotIDも含めた複合キーで管理
@@ -1803,7 +1855,8 @@ async def import_csv_data(
                     dependsOn=task_dict["dependsOn"],
                     display_status=task_dict["display_status"],
                     priority=models.TaskPriority.MEDIUM,
-                    start_date=task_dict.get("start_date")
+                    start_date=task_dict.get("start_date"),
+                    phases=task_dict.get("phases")
                 )
                 db.add(task)
                 db.flush()  # IDを発番
@@ -1867,6 +1920,100 @@ async def import_csv_data(
             
             # 依存関係を更新（空の場合は空リストが設定される）
             task.dependsOn = dependsOn_ids if dependsOn_ids else []
+        db.commit()
+
+        # イベント情報セクションの処理
+        # csv_reader は "イベント情報" の行まで読んでいるか、EOFまで読んでいる
+        # "イベント情報" で break したなら、次はヘッダー行のはず
+        
+        # ヘッダー行をスキップ (存在する場合)
+        header_row = next(csv_reader, None)
+        if header_row and header_row[0].strip() == "タイトル":
+            pass # ヘッダー行なのでスキップ
+        
+        # イベント情報を読み込む
+        for event_data in csv_reader:
+            if not event_data or not event_data[0].strip():
+                continue
+            
+            try:
+                title = event_data[0].strip()
+                start_str = event_data[1].strip() if len(event_data) > 1 else ""
+                end_str = event_data[2].strip() if len(event_data) > 2 else ""
+                type_str = event_data[3].strip() if len(event_data) > 3 else "Generic"
+                description = event_data[4].strip() if len(event_data) > 4 else ""
+                location = event_data[5].strip() if len(event_data) > 5 else ""
+                participants_str = event_data[6].strip() if len(event_data) > 6 else ""
+
+                start_time = parse_datetime(start_str)
+                end_time = parse_datetime(end_str)
+                
+                if not start_time:
+                    import_results["events"]["skipped"] += 1
+                    import_results["events"]["results"].append(f"スキップ: {title} (開始日時不正)")
+                    continue
+                
+                if not end_time:
+                    # 終了日時がない場合、開始日時 + 1時間
+                    end_time = start_time + timedelta(hours=1)
+
+                # EventType のマッピング (大文字小文字無視)
+                event_type = models.EventType.GENERIC
+                for et in models.EventType:
+                    if et.value.lower() == type_str.lower():
+                        event_type = et
+                        break
+                
+                # 参加者のパース (カンマ区切りのユーザー名/ID)
+                participants = []
+                if participants_str:
+                    # 引用符除去
+                    if participants_str.startswith('"') and participants_str.endswith('"'):
+                        participants_str = participants_str[1:-1]
+                    
+                    p_names = [p.strip() for p in participants_str.split(',') if p.strip()]
+                    for p_name in p_names:
+                        uid = get_user_id_by_name(db, p_name)
+                        if uid:
+                            participants.append({"type": "user", "id": uid})
+                        else:
+                            # グループ検索も入れたい場合はここで
+                            pass
+
+                # イベントタイプに基づく詳細設定
+                all_day = False
+                
+                # Deadline, Milestoneは常に終日
+                if event_type in [models.EventType.DEADLINE, models.EventType.MILESTONE]:
+                    all_day = True
+                    # 終了日時が指定されていない場合は開始日と同じにする（終日イベントの慣例）
+                    if not end_str:
+                         end_time = start_time
+                
+                # Genericで時間が指定されていない場合も終日扱いにする判定（任意）
+                # ここでは明示的な指定がない限りFalseだが、入力形式によって判断も可能
+                
+                event = models.Event(
+                    title=title,
+                    description=description,
+                    start_time=start_time,
+                    end_time=end_time,
+                    location=location,
+                    type=event_type,
+                    allDay=all_day,
+                    participants=participants,
+                    project_id=project.id,
+                    status='online'
+                )
+                db.add(event)
+                import_results["events"]["imported"] += 1
+                import_results["events"]["results"].append(f"作成: {title}")
+
+            except Exception as e:
+                import_results["events"]["skipped"] += 1
+                import_results["events"]["results"].append(f"エラー: {event_data[0]} - {str(e)}")
+                continue
+        
         db.commit()
 
         return import_results
@@ -2293,10 +2440,18 @@ async def download_csv_template(
 プロジェクトX,2024/03/01,2024/03/31,プロジェクトXの説明
 
 タスク情報
-タスク名,期日,説明,担当者,コスト,タイプ,seqID,shotID,依存タスク
+タスク名,期日,説明,担当者,コスト,タイプ,seqID,shotID,依存タスク,段階
 T1,2024/03/15,T1の説明,user1,16,fx,SEQ001,SHOT001,
 T2,2024/03/20,T2の説明,user2,24,animation,SEQ001,SHOT002,T1
-T3,2024/03/25,T3の説明,user3,32,comp,SEQ002,SHOT001,"T1,T2"
+T3,2024/03/25,T3 Description,user3,32,comp,SEQ002,SHOT001,"T1,T2","v1:2024/03/23"
+
+イベント情報
+タイトル,開始日時,終了日時,タイプ,説明,場所,参加者
+Meeting A,2024/03/10 10:00,2024/03/10 11:00,Meeting,Kickoff meeting,Room A,user1
+Workshop B,2024/03/15 13:00,2024/03/15 16:00,Workshop,Design Workshop,Room B,"user1,user2"
+Deadline C,2024/03/20,,Deadline,Submission deadline,,
+Milestone D,2024/03/25,,Milestone,Alpha release,,
+Generic E,2024/03/30,2024/03/31,Generic,Long event,,
 """
     return Response(
         content=template.encode('utf-8-sig'),  # BOMを追加してUTF-8でエンコード

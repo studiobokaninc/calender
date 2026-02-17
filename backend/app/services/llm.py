@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from ..timezone import now_jst_naive
 
 # Ensure logs are visible
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 会話履歴をメモリに保持 (再起動で消える)
@@ -220,7 +220,7 @@ id, name, project_id, assigned_to, due_date, status, priority
                 # new chunk object structure
                 text_chunk = chunk.text
                 if text_chunk:
-                    logger.info(f"[LLM] Received chunk: {text_chunk[:20]}...") # Log start of chunk (INFO)
+                    # logger.info(f"[LLM] Received chunk: {text_chunk[:20]}...") # Log start of chunk (INFO)
                     accumulated_text += text_chunk
                     
                     yield {
@@ -230,18 +230,19 @@ id, name, project_id, assigned_to, due_date, status, priority
                         "message_id": "gemini-msg-" + conversation_id
                     }
                 else:
-                    logger.info("[LLM] Received empty text chunk")
+                    # logger.info("[LLM] Received empty text chunk")
+                    pass
                 
                 # Check for finish reason
                 if hasattr(chunk, 'candidates') and chunk.candidates:
                     for cand in chunk.candidates:
                         if cand.finish_reason:
-                            logger.info(f"Gemini Finish Reason: {cand.finish_reason}")
+                            # logger.info(f"Gemini Finish Reason: {cand.finish_reason}")
                             if cand.finish_reason != "STOP":
                                 logger.warning(f"Stream ended with non-STOP reason: {cand.finish_reason}")
             
-            logger.info(f"[LLM] Full accumulated text length: {len(accumulated_text)}")
-            logger.info(f"[LLM] Full text: {accumulated_text}") # INFO level for full text
+            # logger.info(f"[LLM] Full accumulated text length: {len(accumulated_text)}")
+            # logger.info(f"[LLM] Full text: {accumulated_text}") # INFO level for full text
 
             # Workaround: manually update history
             self._update_history(conversation_id, "user", query)

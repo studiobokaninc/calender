@@ -44,6 +44,10 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+# DBマイグレーション（カラム追加など）
+from . import db_auto_migrate
+db_auto_migrate.check_and_migrate_db()
+
 # データベーステーブルの作成
 models.Base.metadata.create_all(bind=engine)
 

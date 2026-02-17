@@ -46,6 +46,7 @@ interface EventFormData {
   taskDependsOn?: string[];
   location?: string;
   dueDate?: string;
+  taskPhases?: { name: string; date: string }[];
 }
 
 interface ProjectOption { id: string; name: string; }
@@ -161,6 +162,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       taskDependsOn: [],
       location: '',
       dueDate: format(initialStartDateTime, 'yyyy-MM-dd'),
+      taskPhases: [],
     };
   };
 
@@ -318,6 +320,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           newProjectColor: '#4CAF50',
           dueDate: '', // This appears to be legacy or for other types, taskDueDate is primary for tasks
           taskDependsOn: eventToEdit.extendedProps?.dependsOn || [],
+          taskPhases: (eventToEdit.extendedProps as any)?.phases || [],
         } as EventFormData);
 
         // Populate selectedParticipants from eventToEdit
@@ -768,6 +771,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         dataToSave.seqID = formData.taskSeqID?.trim() ?? '';
         dataToSave.shotID = formData.taskShotID?.trim() ?? '';
         dataToSave.dependsOn = selectedDependencies.map(dep => dep.id);
+        dataToSave.phases = formData.taskPhases || [];
         console.log("Formatted dependsOn to save:", JSON.stringify(dataToSave.dependsOn, null, 2));
 
         if (projectSelectionMode === 'existing' && formData.projectId) {
@@ -783,24 +787,6 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             // color: formData.newProjectColor,
           };
         }
-        // ★新しいログ出力 START (既存ログの前に挿入)
-        console.log("[EventAddModal:handleSaveClick] BEFORE ONSAVE - TASK data:", JSON.stringify({
-          type: dataToSave.type,
-          title: dataToSave.title,
-          start_time: dataToSave.start_time,
-          due_date: dataToSave.due_date,
-          end_time: dataToSave.end_time,
-          cost: dataToSave.cost,
-          allDay: dataToSave.allDay,
-          project_id: dataToSave.project_id,
-          assigned_to: dataToSave.assigned_to,
-          assignee_type: dataToSave.assignee_type,
-          status: dataToSave.status,
-          dependsOn: dataToSave.dependsOn,
-          new_project: dataToSave.new_project
-        }, null, 2));
-        // ★新しいログ出力 END
-        // onSave(dataToSave); // この行をコメントアウトまたは削除
       } else { // Other event types
         // Deadline, Milestoneは常に終日
         if (normalizedType === 'Deadline' || normalizedType === 'Milestone') {
@@ -1241,6 +1227,58 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                     )}
                     size="small"
                   />
+                </Grid>
+                {/* Phases */}
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>段階目標 (Phases)</Typography>
+                  {(formData.taskPhases || []).map((phase, index) => (
+                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <TextField
+                        label="目標名"
+                        value={phase.name}
+                        onChange={(e) => {
+                          const newPhases = [...(formData.taskPhases || [])];
+                          newPhases[index].name = e.target.value;
+                          setFormData({ ...formData, taskPhases: newPhases });
+                        }}
+                        size="small"
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        type="date"
+                        value={phase.date}
+                        onChange={(e) => {
+                          const newPhases = [...(formData.taskPhases || [])];
+                          newPhases[index].date = e.target.value;
+                          setFormData({ ...formData, taskPhases: newPhases });
+                        }}
+                        size="small"
+                        sx={{ width: 140 }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <Button
+                        color="error"
+                        size="small"
+                        style={{ minWidth: '40px' }}
+                        onClick={() => {
+                          const newPhases = (formData.taskPhases || []).filter((_, i) => i !== index);
+                          setFormData({ ...formData, taskPhases: newPhases });
+                        }}
+                      >
+                        ×
+                      </Button>
+                    </Box>
+                  ))}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      const newPhases = [...(formData.taskPhases || []), { name: '', date: '' }];
+                      setFormData({ ...formData, taskPhases: newPhases });
+                    }}
+                  >
+                    段階目標を追加
+                  </Button>
                 </Grid>
               </Grid>
             )}

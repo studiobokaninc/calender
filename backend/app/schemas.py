@@ -237,6 +237,7 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     dependsOn: Optional[List[str]] = None
     shotID: Optional[str] = None
     seqID: Optional[str] = None
+    phases: Optional[List[Dict[str, Any]]] = None
 
 class TaskBulkUpdateRequest(BaseModel):
     """一括更新: 指定したタスクに同じ項目を適用"""

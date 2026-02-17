@@ -37,6 +37,7 @@ export interface Task {
   priority?: 'low' | 'medium' | 'high' | 'LOW' | 'MEDIUM' | 'HIGH' | string | null;
   seqID?: string | null;
   shotID?: string | null;
+  phases?: { name: string; date: string }[] | null;
   extendedProps: {
     type: 'project' | 'task' | 'Meeting' | 'Workshop' | 'Deadline' | 'Milestone' | 'Generic' | string;
     description?: string | null;
@@ -73,8 +74,8 @@ export interface StatusHistoryEntry {
 
 // Define participant structure
 export interface Participant {
-    id: number;
-    type: 'user' | 'group';
+  id: number;
+  type: 'user' | 'group';
 }
 
 // Assuming a basic backend Event structure
@@ -219,22 +220,22 @@ export interface TaskCreate {
 
 // イベント作成用
 export interface EventCreate {
-    title: string;
-    start: string; // ISO形式
-    end: string;   // ISO形式
-    description?: string | null;
+  title: string;
+  start: string; // ISO形式
+  end: string;   // ISO形式
+  description?: string | null;
 }
 
 // グループ作成用
 export interface GroupCreate {
-    name: string;
-    description?: string | null;
+  name: string;
+  description?: string | null;
 }
 
 // ユーザーグループ作成用
 export interface UserGroupCreate {
-    user_id: string;
-    group_id: string;
+  user_id: string;
+  group_id: string;
 }
 
 

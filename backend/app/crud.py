@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import func, or_
 import logging
 from fastapi import HTTPException, status
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -311,8 +312,8 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
         if display_status_in is not None and display_status_in:
             placeholders = ','.join([f":status{i}" for i in range(len(display_status_in))])
             conditions.append(f"display_status IN ({placeholders})")
-            for i, status in enumerate(display_status_in):
-                params[f"status{i}"] = status
+            for i, status_val in enumerate(display_status_in):
+                params[f"status{i}"] = status_val
         
         if conditions:
             query_parts.append("WHERE " + " AND ".join(conditions))
@@ -416,7 +417,6 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                 depends_on = row.dependsOn if row.dependsOn else []
                 if not isinstance(depends_on, list):
                     if isinstance(depends_on, str):
-                        import json
                         try:
                             depends_on = json.loads(depends_on)
                         except:
@@ -425,6 +425,24 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                         depends_on = []
             except:
                 depends_on = []
+
+            # phasesの安全な処理
+            try:
+                phases = row.phases if hasattr(row, 'phases') and row.phases else []
+                # logger.info(f"[get_tasks] Task {row.id} raw phases: {row.phases} (type: {type(row.phases)})")
+                if not isinstance(phases, list):
+                    if isinstance(phases, str):
+                        try:
+                            phases = json.loads(phases)
+                            # logger.info(f"[get_tasks] Task {row.id} parsed phases from string: {phases}")
+                        except:
+                            logger.warning(f"[get_tasks] Failed to parse phases JSON for task {row.id}: {row.phases}")
+                            phases = []
+                    else:
+                        phases = []
+            except Exception as e:
+                logger.error(f"[get_tasks] Error processing phases for task {row.id}: {e}")
+                phases = []
             
             task_dict = {
                 'id': row.id,
@@ -444,9 +462,15 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                 'seqID': row.seqID if hasattr(row, 'seqID') else None,
                 'created_at': safe_date_format(row.created_at),
                 'display_status': row.display_status if hasattr(row, 'display_status') else 'offline',
+                'display_status': row.display_status if hasattr(row, 'display_status') else 'offline',
                 'updated_at': safe_date_format(row.updated_at),
+                'phases': phases,
                 'status_history': []
             }
+            
+            if phases:
+                logger.info(f"[get_tasks] Task {row.id} ('{row.name}') has {len(phases)} phases: {phases}")
+
             
             # ステータス履歴を取得して辞書に変換
             try:
@@ -502,6 +526,7 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         shotID=task.shotID,
         seqID=task.seqID,
         type=task.type,
+        phases=task.phases,
         created_at=now_jst_naive(),
         updated_at=now_jst_naive()
     )
@@ -550,6 +575,8 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             continue
         elif key == "priority" and value not in ['low', 'medium', 'high', None]:
             continue
+        elif key == "phases":
+            db_key = "phases"
         # typeは任意の文字列を許容するため、検証を削除
 
         if hasattr(db_task, db_key):

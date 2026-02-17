@@ -3,17 +3,13 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select,
   MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Box, Grid,
   FormHelperText, RadioGroup, Radio, Divider, Typography,
-  Autocomplete, Chip, CircularProgress
+  Autocomplete, Chip
 } from '@mui/material';
 import { format, parseISO, isValid as isDateValid, addDays, addHours, startOfDay, setHours, setMinutes, parse } from 'date-fns';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
-import ja from 'date-fns/locale/ja';
-import { Project, User, Group, Participant, CalendarEvent, Task } from '../types';
-import api from '../services/api';
-import { EventInput, EventApi } from '@fullcalendar/core';
+import { Project, User, Group, CalendarEvent, Task } from '../types';
 import { DateClickArg } from '@fullcalendar/interaction';
 import { SelectChangeEvent } from '@mui/material/Select';
 
@@ -44,6 +40,7 @@ interface EventFormData {
   dueDate?: string;
   displayStatus?: 'online' | 'offline' | 'archived';
   priority?: 'low' | 'medium' | 'high';
+  taskPhases?: { name: string; date: string }[];
 }
 
 interface ProjectOption { id: string; name: string; }
@@ -122,13 +119,13 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
       dueDate: format(initialStartDateTime, 'yyyy-MM-dd'),
       displayStatus: 'online',
       priority: 'medium',
+      taskPhases: [],
     };
   };
 
   const [formData, setFormData] = useState<EventFormData>(getInitialState());
   const [projectSelectionMode, setProjectSelectionMode] = useState<'existing' | 'new'>('existing');
   const [errors, setErrors] = useState<Partial<Record<keyof EventFormData | 'newProjectName' | 'taskDueDate' | 'taskAssigneeId' | 'participants', string>>>({});
-  const [participantsLoading, setParticipantsLoading] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<ParticipantOption[]>([]);
   const [selectedDependencies, setSelectedDependencies] = useState<TaskOption[]>([]);
@@ -138,7 +135,6 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
       if (eventToEdit) {
         const eventTypeFromEditRaw = eventToEdit.extendedProps?.type;
         const eventTypeFromEdit = (eventTypeFromEditRaw === 'Task' || eventTypeFromEditRaw === 'task') ? 'Task' : (eventTypeFromEditRaw || 'Generic');
-        const isTask = eventTypeFromEdit === 'Task';
         const taskDueDateFromProps = eventToEdit.extendedProps?.taskDueDate;
         const eventStartDate = eventToEdit.start ? new Date(eventToEdit.start as string) : new Date();
         const eventEndDate = eventToEdit.end ? new Date(eventToEdit.end as string) : new Date();
@@ -163,12 +159,12 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
           location: eventToEdit.extendedProps?.location || '',
           displayStatus: 'online',
           priority: 'medium',
+          taskPhases: (eventToEdit.extendedProps as any)?.phases || [],
         }));
       } else {
         setFormData(getInitialState());
       }
       setProjectsLoading(false);
-      setParticipantsLoading(false);
     }
   }, [open, eventToEdit]);
 
@@ -198,10 +194,10 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
   }, [usersFromProps, groupsFromProps]);
 
   const taskOptions = useMemo((): TaskOption[] => {
-    const editingTaskId = eventToEdit?.id?.startsWith('task-') ? eventToEdit.id.replace('task-','').toString() : null;
+    const editingTaskId = eventToEdit?.id?.startsWith('task-') ? eventToEdit.id.replace('task-', '').toString() : null;
     return tasksFromProps
-        .filter(task => String(task.id) !== editingTaskId)
-        .map(t => ({ id: String(t.id), name: t.name || '(名称未設定)' })) || [];
+      .filter(task => String(task.id) !== editingTaskId)
+      .map(t => ({ id: String(t.id), name: t.name || '(名称未設定)' })) || [];
   }, [tasksFromProps, eventToEdit]);
 
   const parseDateString = (dateStr: string | undefined): Date | null => {
@@ -220,13 +216,13 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
   const parseTimeString = (timeStr: string | undefined, baseDate: Date | null): Date | null => {
     if (!timeStr || !baseDate) return null;
     try {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const date = new Date(baseDate);
-        date.setHours(hours, minutes, 0, 0);
-        return date;
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const date = new Date(baseDate);
+      date.setHours(hours, minutes, 0, 0);
+      return date;
     } catch (e) {
-        console.error('Error parsing time string:', e);
-        return null;
+      console.error('Error parsing time string:', e);
+      return null;
     }
   };
 
@@ -273,6 +269,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
       location: '',
       displayStatus: 'online',
       priority: 'medium',
+      taskPhases: [],
     }));
     setSelectedDependencies([]);
     setProjectSelectionMode('existing');
@@ -294,14 +291,14 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
     const baseDate = baseDateStr ? parseDateString(baseDateStr) : null;
 
     if (newValue && isDateValid(newValue) && baseDate && isDateValid(baseDate)) {
-        const newTimeStr = format(newValue, 'HH:mm');
-        setFormData(prev => ({ ...prev, [name]: newTimeStr }));
-        if (errors[name]) {
-            setErrors(prev => ({ ...prev, [name]: undefined }));
-        }
+      const newTimeStr = format(newValue, 'HH:mm');
+      setFormData(prev => ({ ...prev, [name]: newTimeStr }));
+      if (errors[name]) {
+        setErrors(prev => ({ ...prev, [name]: undefined }));
+      }
     } else {
-        setFormData(prev => ({ ...prev, [name]: '' }));
-        setErrors(prev => ({ ...prev, [name]: '無効な時間です' }));
+      setFormData(prev => ({ ...prev, [name]: '' }));
+      setErrors(prev => ({ ...prev, [name]: '無効な時間です' }));
     }
   };
 
@@ -311,21 +308,21 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
     if (!formData.title.trim()) newErrors.title = 'タイトル/タスク名を入力してください';
 
     if (formData.type === 'Task') {
-        if (projectSelectionMode === 'existing' && !formData.projectId) { newErrors.projectId = '既存プロジェクトを選択してください'; }
-        else if (projectSelectionMode === 'new') {
-            if (!formData.newProjectName?.trim()) newErrors.newProjectName = '新規プロジェクト名を入力してください';
-            if (!formData.newProjectStartDate) newErrors.newProjectStartDate = '開始日を入力してください';
-            if (!formData.newProjectEndDate) newErrors.newProjectEndDate = '終了日を入力してください';
-        }
-        if (!formData.taskDueDate) newErrors.taskDueDate = '期日を入力してください';
-        if (!formData.taskAssigneeId) newErrors.taskAssigneeId = '担当者を選択してください';
-        if (formData.taskCost && isNaN(Number(formData.taskCost))) newErrors.taskCost = 'コストには数値を入力してください';
+      if (projectSelectionMode === 'existing' && !formData.projectId) { newErrors.projectId = '既存プロジェクトを選択してください'; }
+      else if (projectSelectionMode === 'new') {
+        if (!formData.newProjectName?.trim()) newErrors.newProjectName = '新規プロジェクト名を入力してください';
+        if (!formData.newProjectStartDate) newErrors.newProjectStartDate = '開始日を入力してください';
+        if (!formData.newProjectEndDate) newErrors.newProjectEndDate = '終了日を入力してください';
+      }
+      if (!formData.taskDueDate) newErrors.taskDueDate = '期日を入力してください';
+      if (!formData.taskAssigneeId) newErrors.taskAssigneeId = '担当者を選択してください';
+      if (formData.taskCost && isNaN(Number(formData.taskCost))) newErrors.taskCost = 'コストには数値を入力してください';
     } else if (formData.type) {
-        if (!formData.startDate) newErrors.startDate = '期日を入力してください';
-        if (!formData.allDay && !formData.startTime) newErrors.startTime = '開始時間を入力してください';
-        if ((formData.type === 'Meeting' || formData.type === 'Workshop') && selectedParticipants.length === 0) {
-            newErrors.participants = '参加者を選択してください';
-        }
+      if (!formData.startDate) newErrors.startDate = '期日を入力してください';
+      if (!formData.allDay && !formData.startTime) newErrors.startTime = '開始時間を入力してください';
+      if ((formData.type === 'Meeting' || formData.type === 'Workshop') && selectedParticipants.length === 0) {
+        newErrors.participants = '参加者を選択してください';
+      }
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -359,6 +356,7 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
         dataToSave.priority = formData.priority || 'medium';
         dataToSave.dependsOn = selectedDependencies.map(dep => parseInt(dep.id, 10));
         dataToSave.display_status = formData.displayStatus || 'online';
+        dataToSave.phases = formData.taskPhases || [];
 
         if (projectSelectionMode === 'existing') {
           dataToSave.project_id = formData.projectId ? parseInt(formData.projectId, 10) : undefined;
@@ -472,8 +470,8 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
               </FormControl>
             </Grid>
             <Grid item xs={12}>
-              <TextField label={formData.type === 'Task' ? "タスク名 *" : "タイトル *"} name="title" value={formData.title} onChange={handleChange} fullWidth required error={!!errors.title} helperText={errors.title} size="small" sx={{ mb: 1.5 }}/>
-              
+              <TextField label={formData.type === 'Task' ? "タスク名 *" : "タイトル *"} name="title" value={formData.title} onChange={handleChange} fullWidth required error={!!errors.title} helperText={errors.title} size="small" sx={{ mb: 1.5 }} />
+
               {formData.type && (
                 <TextField
                   label="説明"
@@ -487,14 +485,14 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
                   sx={{ mb: 1.5 }}
                 />
               )}
-              
+
               {formData.type === 'Task' && (
                 <>
                   <Divider sx={{ my: 1 }}><Typography variant="caption">プロジェクト情報</Typography></Divider>
                   <FormControl component="fieldset" sx={{ mb: 1 }}>
                     <RadioGroup row name="projectSelectionMode" value={projectSelectionMode} onChange={handleProjectSelectionModeChange}>
-                      <FormControlLabel value="existing" control={<Radio size="small"/>} label="既存" sx={{ mr: 1 }}/>
-                      <FormControlLabel value="new" control={<Radio size="small"/>} label="新規" />
+                      <FormControlLabel value="existing" control={<Radio size="small" />} label="既存" sx={{ mr: 1 }} />
+                      <FormControlLabel value="new" control={<Radio size="small" />} label="新規" />
                     </RadioGroup>
                   </FormControl>
                   {projectSelectionMode === 'existing' && (
@@ -502,15 +500,15 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
                       <InputLabel id="ex-proj-lbl">既存プロジェクト *</InputLabel>
                       <Select labelId="ex-proj-lbl" name="projectId" value={formData.projectId || ''} label="既存プロジェクト *" onChange={handleChange} size="small" disabled={projectsLoading}>
                         <MenuItem value="" disabled><em>{projectsLoading ? '読み込み中...' : '選択'}</em></MenuItem>
-                        {projectOptions.map((p) => ( <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem> ))}
+                        {projectOptions.map((p) => (<MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>))}
                       </Select>
                       {errors.projectId && <FormHelperText>{errors.projectId}</FormHelperText>}
                     </FormControl>
                   )}
                   {projectSelectionMode === 'new' && (
-                    <Grid container spacing={1} sx={{pl: 1, mb: 1.5}}>
-                      <Grid item xs={12}> <TextField label="新規プロジェクト名 *" name="newProjectName" value={formData.newProjectName} onChange={handleChange} fullWidth required size="small" error={!!errors.newProjectName} helperText={errors.newProjectName}/> </Grid>
-                      <Grid item xs={12}> <TextField label="新規プロジェクト概要" name="newProjectDescription" value={formData.newProjectDescription} onChange={handleChange} fullWidth multiline rows={2} size="small"/> </Grid>
+                    <Grid container spacing={1} sx={{ pl: 1, mb: 1.5 }}>
+                      <Grid item xs={12}> <TextField label="新規プロジェクト名 *" name="newProjectName" value={formData.newProjectName} onChange={handleChange} fullWidth required size="small" error={!!errors.newProjectName} helperText={errors.newProjectName} /> </Grid>
+                      <Grid item xs={12}> <TextField label="新規プロジェクト概要" name="newProjectDescription" value={formData.newProjectDescription} onChange={handleChange} fullWidth multiline rows={2} size="small" /> </Grid>
                       <Grid item xs={6}>
                         <DatePicker
                           label="プロジェクト開始日 *"
@@ -534,8 +532,8 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
             </Grid>
 
             {formData.type === 'Task' && (
-              <Grid item xs={12} container spacing={1.5}> 
-                <Grid item xs={12}> 
+              <Grid item xs={12} container spacing={1.5}>
+                <Grid item xs={12}>
                   <DatePicker
                     label="期限日 *"
                     value={parseDateString(formData.taskDueDate)}
@@ -623,6 +621,57 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
                       ))
                     }
                   />
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>段階目標 (Phases)</Typography>
+                  {(formData.taskPhases || []).map((phase, index) => (
+                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <TextField
+                        label="目標名"
+                        value={phase.name}
+                        onChange={(e) => {
+                          const newPhases = [...(formData.taskPhases || [])];
+                          newPhases[index].name = e.target.value;
+                          setFormData({ ...formData, taskPhases: newPhases });
+                        }}
+                        size="small"
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        type="date"
+                        value={phase.date}
+                        onChange={(e) => {
+                          const newPhases = [...(formData.taskPhases || [])];
+                          newPhases[index].date = e.target.value;
+                          setFormData({ ...formData, taskPhases: newPhases });
+                        }}
+                        size="small"
+                        sx={{ width: 140 }}
+                        InputLabelProps={{ shrink: true }}
+                      />
+                      <Button
+                        color="error"
+                        size="small"
+                        style={{ minWidth: '40px' }}
+                        onClick={() => {
+                          const newPhases = (formData.taskPhases || []).filter((_, i) => i !== index);
+                          setFormData({ ...formData, taskPhases: newPhases });
+                        }}
+                      >
+                        ×
+                      </Button>
+                    </Box>
+                  ))}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => {
+                      const newPhases = [...(formData.taskPhases || []), { name: '', date: '' }];
+                      setFormData({ ...formData, taskPhases: newPhases });
+                    }}
+                  >
+                    段階目標を追加
+                  </Button>
                 </Grid>
               </Grid>
             )}

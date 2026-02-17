@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel,
-  Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider,
+  Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography,
 } from '@mui/material';
 import { format, parseISO, isValid } from 'date-fns';
 import api from '../services/api';
@@ -165,6 +165,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     seqID: '',
     shotID: '',
     dependsOn: [] as string[],
+    phases: [] as { name: string; date: string }[],
   });
 
   useEffect(() => {
@@ -198,6 +199,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
           seqID: (t as any).seqID ?? (t as any).extendedProps?.seqID ?? '',
           shotID: (t as any).shotID ?? (t as any).extendedProps?.shotID ?? '',
           dependsOn: t.dependsOn ?? [],
+          phases: t.phases ?? [],
         });
       })
       .catch(() => setError('タスクの取得に失敗しました'))
@@ -244,7 +246,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     setSaving(true);
     setError(null);
     try {
-      await api.put(`/tasks/${taskId}`, {
+      const payload = {
         name: form.name,
         description: form.description || null,
         status: form.status,
@@ -258,8 +260,13 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
         seqID: form.seqID || '',
         shotID: form.shotID || '',
         dependsOn: form.dependsOn || [],
+        phases: form.phases || [],
         display_status: 'online',
-      });
+      };
+
+      console.log("[TaskEditDialog] Saving task with phases:", form.name, payload.phases);
+
+      await api.put(`/tasks/${taskId}`, payload);
       onSaved();
       onClose();
     } catch (err: any) {
@@ -370,6 +377,42 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
                 </Box>
               </Select>
             </FormControl>
+
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>段階目標 (Phases)</Typography>
+            {form.phases.map((phase, index) => (
+              <Stack direction="row" spacing={1} key={index} alignItems="center">
+                <TextField
+                  label="目標名"
+                  value={phase.name}
+                  onChange={(e) => {
+                    const newPhases = [...form.phases];
+                    newPhases[index].name = e.target.value;
+                    setForm({ ...form, phases: newPhases });
+                  }}
+                  size="small"
+                  sx={{ flex: 1 }}
+                />
+                <TextField
+                  type="date"
+                  value={phase.date}
+                  onChange={(e) => {
+                    const newPhases = [...form.phases];
+                    newPhases[index].date = e.target.value;
+                    setForm({ ...form, phases: newPhases });
+                  }}
+                  size="small"
+                  sx={{ width: 150 }}
+                  InputLabelProps={{ shrink: true }}
+                />
+                <Button color="error" size="small" style={{ minWidth: '40px' }} onClick={() => {
+                  const newPhases = form.phases.filter((_, i) => i !== index);
+                  setForm({ ...form, phases: newPhases });
+                }}>×</Button>
+              </Stack>
+            ))}
+            <Button variant="outlined" size="small" onClick={() => {
+              setForm({ ...form, phases: [...form.phases, { name: '', date: '' }] });
+            }}>段階目標を追加</Button>
           </Stack>
         )}
       </DialogContent>

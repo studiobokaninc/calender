@@ -24,154 +24,154 @@ import { debounce } from 'lodash';
 
 // ★★★ バックアップ版から getEventColor, getProjectColor, getTaskColor を移植 ★★★
 const getEventColor = (
-  type?: string, 
-  projectStatus?: string, 
-  eventDate?: string | Date | null
+    type?: string,
+    projectStatus?: string,
+    eventDate?: string | Date | null
 ): string => {
-  // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
-  const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
-  
-  // プロジェクトが完了またはキャンセルの場合は、イベントの種類に関わらずグレーにする
-  if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
-    return '#9E9E9E';
-  }
-  
-  // 日付が過ぎている場合はグレーにする
-  if (eventDate) {
-    const isPast = isDatePast(eventDate);
-    if (isPast) {
-      return '#9E9E9E';
+    // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
+    const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
+
+    // プロジェクトが完了またはキャンセルの場合は、イベントの種類に関わらずグレーにする
+    if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
+        return '#9E9E9E';
     }
-  }
-  
-  const t = type?.toLowerCase();
-  switch (t) {
-    case 'meeting': return '#1976d2';
-    case 'review': case 'workshop': return '#00897b';   // ティール（青背景と調和）
-    case 'deadline': return '#d32f2f';
-    case 'milestone': return '#9C27B0';
-    default: return '#2196f3'; // Default blue for generic events
-  }
+
+    // 日付が過ぎている場合はグレーにする
+    if (eventDate) {
+        const isPast = isDatePast(eventDate);
+        if (isPast) {
+            return '#9E9E9E';
+        }
+    }
+
+    const t = type?.toLowerCase();
+    switch (t) {
+        case 'meeting': return '#1976d2';
+        case 'review': case 'workshop': return '#00897b';   // ティール（青背景と調和）
+        case 'deadline': return '#d32f2f';
+        case 'milestone': return '#9C27B0';
+        default: return '#2196f3'; // Default blue for generic events
+    }
 };
 
 const getProjectColor = (project?: { status?: string | null; color?: string | null; display_status?: string | null } | string): string => {
-  // プロジェクトオブジェクトの場合、display_statusがofflineの場合はグレーを返す
-  if (typeof project === 'object' && project) {
-    if (project.display_status === 'offline') {
-      return '#9E9E9E'; // オフラインはグレー
+    // プロジェクトオブジェクトの場合、display_statusがofflineの場合はグレーを返す
+    if (typeof project === 'object' && project) {
+        if (project.display_status === 'offline') {
+            return '#9E9E9E'; // オフラインはグレー
+        }
+        const status = project.status;
+        switch (status) {
+            case 'planning': return '#FF9800';
+            case 'in-progress': return '#4CAF50';
+            case 'completed': return '#9E9E9E';
+            default: return '#757575';
+        }
     }
-    const status = project.status;
+    // ステータス文字列の場合（後方互換性）
+    const status = typeof project === 'string' ? project : undefined;
     switch (status) {
-      case 'planning': return '#FF9800';
-      case 'in-progress': return '#4CAF50';
-      case 'completed': return '#9E9E9E';
-      default: return '#757575';
+        case 'planning': return '#FF9800';
+        case 'in-progress': return '#4CAF50';
+        case 'completed': return '#9E9E9E';
+        default: return '#757575';
     }
-  }
-  // ステータス文字列の場合（後方互換性）
-  const status = typeof project === 'string' ? project : undefined;
-  switch (status) {
-    case 'planning': return '#FF9800';
-    case 'in-progress': return '#4CAF50';
-    case 'completed': return '#9E9E9E';
-    default: return '#757575';
-  }
 };
 
 // 日付が過ぎているかどうかを判定するヘルパー関数
 // 2/5の時に2/4 00:00~00:00のイベントもグレーになるように、日付のみで比較（時刻は無視）
 const isDatePast = (dateStr: string | Date | null | undefined): boolean => {
-  if (!dateStr) return false;
-  try {
-    const date = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
-    if (!isValidDateFns(date)) return false;
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const eventDate = new Date(date);
-    eventDate.setHours(0, 0, 0, 0);
-    
-    // 日付のみで比較（2/4のイベントは2/5の時点で「過ぎている」と判定）
-    // eventDate < today ではなく、eventDate <= today - 1日 で判定
-    // つまり、今日より前の日付のイベントは「過ぎている」
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-    
-    // イベント日付が昨日以前なら「過ぎている」
-    return eventDate <= yesterday;
-  } catch {
-    return false;
-  }
+    if (!dateStr) return false;
+    try {
+        const date = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
+        if (!isValidDateFns(date)) return false;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const eventDate = new Date(date);
+        eventDate.setHours(0, 0, 0, 0);
+
+        // 日付のみで比較（2/4のイベントは2/5の時点で「過ぎている」と判定）
+        // eventDate < today ではなく、eventDate <= today - 1日 で判定
+        // つまり、今日より前の日付のイベントは「過ぎている」
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+
+        // イベント日付が昨日以前なら「過ぎている」
+        return eventDate <= yesterday;
+    } catch {
+        return false;
+    }
 };
 
 const getTaskColor = (
-  status?: string, 
-  projectStatus?: string, 
-  _dueDate?: string | Date | null
+    status?: string,
+    projectStatus?: string,
+    _dueDate?: string | Date | null
 ): string => {
-  // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
-  const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
-  
-  // プロジェクトが完了またはキャンセルの場合は、タスクのステータスに関わらずグレーにする
-  if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
-    return '#9E9E9E';
-  }
-  
-  // タスクは日付が過ぎただけではグレーにしない（プロジェクトステータスのみで判定）
-  
-  switch (status) {
-    case 'todo': return '#2196F3';
-    case 'in-progress': return '#FF9800';
-    case 'review': return '#9C27B0';
-    case 'delayed': return '#F44336';
-    case 'completed': return '#9E9E9E';
-    default: return '#BDBDBD';
-  }
+    // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
+    const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
+
+    // プロジェクトが完了またはキャンセルの場合は、タスクのステータスに関わらずグレーにする
+    if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
+        return '#9E9E9E';
+    }
+
+    // タスクは日付が過ぎただけではグレーにしない（プロジェクトステータスのみで判定）
+
+    switch (status) {
+        case 'todo': return '#2196F3';
+        case 'in-progress': return '#FF9800';
+        case 'review': return '#9C27B0';
+        case 'delayed': return '#F44336';
+        case 'completed': return '#9E9E9E';
+        default: return '#BDBDBD';
+    }
 };
 
 // ★★★ バックアップ版から sortEventsForDisplay を移植 (customEventSort ではなくシンプルな方を使用) ★★★
 const sortEventsForDisplay = (eventsToSort: CalendarEvent[]): CalendarEvent[] => {
-  console.log("Sorting events...");
-  return eventsToSort.sort((a, b) => {
-    const aStart = a.start ? new Date(a.start).getTime() : 0;
-    const bStart = b.start ? new Date(b.start).getTime() : 0;
-    const aIsAllDay = a.allDay;
-    const bIsAllDay = b.allDay;
-    const aType = a.extendedProps.type;
-    const bType = b.extendedProps.type;
-    // プロジェクトの開始日を取得 (extendedProps 内)
-    const aProjectStart = a.extendedProps.projectStartDate ? new Date(a.extendedProps.projectStartDate).getTime() : 0;
-    const bProjectStart = b.extendedProps.projectStartDate ? new Date(b.extendedProps.projectStartDate).getTime() : 0;
+    console.log("Sorting events...");
+    return eventsToSort.sort((a, b) => {
+        const aStart = a.start ? new Date(a.start).getTime() : 0;
+        const bStart = b.start ? new Date(b.start).getTime() : 0;
+        const aIsAllDay = a.allDay;
+        const bIsAllDay = b.allDay;
+        const aType = a.extendedProps.type;
+        const bType = b.extendedProps.type;
+        // プロジェクトの開始日を取得 (extendedProps 内)
+        const aProjectStart = a.extendedProps.projectStartDate ? new Date(a.extendedProps.projectStartDate).getTime() : 0;
+        const bProjectStart = b.extendedProps.projectStartDate ? new Date(b.extendedProps.projectStartDate).getTime() : 0;
 
-    // 1. Projects first (sort by their start date)
-    if (aType === 'project' && bType !== 'project') return -1;
-    if (aType !== 'project' && bType === 'project') return 1;
-    if (aType === 'project' && bType === 'project') {
-      return aProjectStart - bProjectStart || (a.title || '').localeCompare(b.title || ''); // null チェック追加
-    }
+        // 1. Projects first (sort by their start date)
+        if (aType === 'project' && bType !== 'project') return -1;
+        if (aType !== 'project' && bType === 'project') return 1;
+        if (aType === 'project' && bType === 'project') {
+            return aProjectStart - bProjectStart || (a.title || '').localeCompare(b.title || ''); // null チェック追加
+        }
 
-    // 2. Then Tasks (sort by due date)
-    if (aType === 'task' && bType !== 'task') return -1;
-    if (aType !== 'task' && bType === 'task') return 1;
-    if (aType === 'task' && bType === 'task') {
-        const aDueDate = a.extendedProps.taskDueDate ? new Date(a.extendedProps.taskDueDate).getTime() : 0;
-        const bDueDate = b.extendedProps.taskDueDate ? new Date(b.extendedProps.taskDueDate).getTime() : 0;
-        // 期日でソート、同じならタイトルでソート
-        return aDueDate - bDueDate || (a.title || '').localeCompare(b.title || ''); // null チェック追加
-    }
+        // 2. Then Tasks (sort by due date)
+        if (aType === 'task' && bType !== 'task') return -1;
+        if (aType !== 'task' && bType === 'task') return 1;
+        if (aType === 'task' && bType === 'task') {
+            const aDueDate = a.extendedProps.taskDueDate ? new Date(a.extendedProps.taskDueDate).getTime() : 0;
+            const bDueDate = b.extendedProps.taskDueDate ? new Date(b.extendedProps.taskDueDate).getTime() : 0;
+            // 期日でソート、同じならタイトルでソート
+            return aDueDate - bDueDate || (a.title || '').localeCompare(b.title || ''); // null チェック追加
+        }
 
-    // 3. Then All-day timed events (sort by start date)
-    if (aIsAllDay && !bIsAllDay) return -1;
-    if (!aIsAllDay && bIsAllDay) return 1;
-    if (aIsAllDay && bIsAllDay) {
-      return aStart - bStart || (a.title || '').localeCompare(b.title || ''); // null チェック追加
-    }
+        // 3. Then All-day timed events (sort by start date)
+        if (aIsAllDay && !bIsAllDay) return -1;
+        if (!aIsAllDay && bIsAllDay) return 1;
+        if (aIsAllDay && bIsAllDay) {
+            return aStart - bStart || (a.title || '').localeCompare(b.title || ''); // null チェック追加
+        }
 
-    // 4. Finally, non-all-day timed events (sort by start time)
-    return aStart - bStart || (a.title || '').localeCompare(b.title || ''); // null チェック追加
-  });
+        // 4. Finally, non-all-day timed events (sort by start time)
+        return aStart - bStart || (a.title || '').localeCompare(b.title || ''); // null チェック追加
+    });
 };
 
 const CalendarPage: React.FC = () => {
@@ -198,7 +198,7 @@ const CalendarPage: React.FC = () => {
     // ページ状態管理の使用
     const { calendarState, updateCalendarState, isInitialLoad, globalData, updateGlobalData } = useCalendarPageState();
     const { refreshGlobalData } = usePageState();
-    
+
     // デフォルトの種類フィルター（永続化のマージ用）
     // ※ 'event' はバックエンドが返す「通常」イベントの type に合わせる
     const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
@@ -322,7 +322,7 @@ const CalendarPage: React.FC = () => {
                     title: project.name,
                     start: project.start_date ? parseISO(project.start_date) : new Date(),
                     end: project.end_date ? addDays(parseISO(project.end_date), 1) : undefined, // FullCalendarの終日イベントは排他的なので+1日
-                    allDay: true, 
+                    allDay: true,
                     backgroundColor: getProjectColor(project),
                     borderColor: getProjectColor(project),
                     extendedProps: {
@@ -347,45 +347,71 @@ const CalendarPage: React.FC = () => {
                 }));
 
             // 2. Process Tasks into CalendarEvents
-            const taskEvents: CalendarEvent[] = tasksData
-                .filter(task => task.due_date)
-                .map((task) => {
-                    const project = projectsData.find(p => p.id === task.project_id);
+            const taskEvents: CalendarEvent[] = tasksData.flatMap((task) => {
+                const events: CalendarEvent[] = [];
+                const project = projectsData.find(p => p.id === task.project_id);
+
+                if (task.due_date) {
                     const taskColor = getTaskColor(
-                        task.status ?? 'todo', 
+                        task.status ?? 'todo',
                         project?.status ?? undefined,
                         task.due_date
                     );
-                    return {
-                    id: `task-${task.id}`,
-                    title: task.name,
+                    events.push({
+                        id: `task-${task.id}`,
+                        title: task.name,
                         start: task.due_date ? parseISO(task.due_date) : new Date(),
                         end: undefined,
                         allDay: true,
                         backgroundColor: taskColor,
                         borderColor: taskColor,
-                    extendedProps: {
+                        extendedProps: {
                             type: 'task',
                             taskId: task.id,
                             description: task.description,
-                        location: undefined,
-                        participants: undefined,
-                        projectId: task.project_id ? String(task.project_id) : undefined,
-                        taskDueDate: task.due_date,
-                        taskStartDate: task.start_date ?? undefined,
-                        taskAssigneeId: task.assigned_to ? String(task.assigned_to) : undefined,
-                        taskCost: task.cost,
-                        taskStatus: task.status,
-                        taskPriority: task.priority ?? undefined,
-                        taskType: task.type ?? undefined,
-                        taskSeqID: task.seqID ?? undefined,
-                        taskShotID: task.shotID ?? undefined,
+                            location: undefined,
+                            participants: undefined,
+                            projectId: task.project_id ? String(task.project_id) : undefined,
+                            taskDueDate: task.due_date,
+                            taskStartDate: task.start_date ?? undefined,
+                            taskAssigneeId: task.assigned_to ? String(task.assigned_to) : undefined,
+                            taskCost: task.cost,
+                            taskStatus: task.status,
+                            taskPriority: task.priority ?? undefined,
+                            taskType: task.type ?? undefined,
+                            taskSeqID: task.seqID ?? undefined,
+                            taskShotID: task.shotID ?? undefined,
                             status: undefined,
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
                         },
-                    };
-                });
+                    });
+                }
+
+                if (task.phases && Array.isArray(task.phases)) {
+                    if (task.phases.length > 0) console.log(`[CalendarPage:fetchData] Task ${task.id} (${task.name}) has phases:`, task.phases);
+                    task.phases.forEach((phase: any, index: number) => {
+                        if (phase.date) {
+                            events.push({
+                                id: `task-${task.id}-phase-${index}`,
+                                title: `${task.name}: ${phase.name}`,
+                                start: parseISO(phase.date),
+                                allDay: true,
+                                backgroundColor: '#E91E63', // Pink for phases
+                                borderColor: '#E91E63',
+                                extendedProps: {
+                                    type: 'milestone',
+                                    taskId: task.id,
+                                    description: `Phase: ${phase.name}`,
+                                    projectId: task.project_id ? String(task.project_id) : undefined,
+                                    displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                }
+                            });
+                        }
+                    });
+                }
+                return events;
+            });
 
             // 3. Process BackendEvents (regular events from /calendar/events) into CalendarEvents
             const processedBackendEvents: CalendarEvent[] = backendEventsData
@@ -403,26 +429,26 @@ const CalendarPage: React.FC = () => {
                     const normalizedTypeForConversion = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                         ? be.type
                         : 'Generic';
-                    
+
                     if (normalizedTypeForConversion === 'Meeting' && originalStartTimeStr && originalEndTimeStr) {
                         const startDate = parseISO(originalStartTimeStr);
                         const endDate = parseISO(originalEndTimeStr);
-                        
+
                         // 同じ日付で、両方が00:00:00の場合
-                        if (isSameDay(startDate, endDate) && 
+                        if (isSameDay(startDate, endDate) &&
                             startDate.getHours() === 0 && startDate.getMinutes() === 0 &&
                             endDate.getHours() === 0 && endDate.getMinutes() === 0) {
                             // start_timeをその日の5:00:00に変換
                             const newStartDate = setHours(setMinutes(startDate, 0), 5);
                             // end_timeを翌日の4:59:00に変換（28:59:00を意味する）
                             const newEndDate = addDays(setHours(setMinutes(startDate, 59), 4), 1);
-                            
+
                             originalStartTimeStr = newStartDate.toISOString();
                             originalEndTimeStr = newEndDate.toISOString();
-                            
+
                             // allDayフラグをfalseに変更（時間指定イベントになるため）
                             be.allDay = false;
-                            
+
                             console.log(`[fetchData] Converted 00:00~00:00 Meeting event to 5:00~28:59: ${be.title}`, {
                                 original: { start: be.start_time, end: be.end_time },
                                 converted: { start: originalStartTimeStr, end: originalEndTimeStr }
@@ -432,9 +458,9 @@ const CalendarPage: React.FC = () => {
                         // 会議以外は終日として扱う（allDay=trueに設定）
                         const startDate = parseISO(originalStartTimeStr);
                         const endDate = parseISO(originalEndTimeStr);
-                        
+
                         // 同じ日付で、両方が00:00:00の場合、終日として扱う
-                        if (isSameDay(startDate, endDate) && 
+                        if (isSameDay(startDate, endDate) &&
                             startDate.getHours() === 0 && startDate.getMinutes() === 0 &&
                             endDate.getHours() === 0 && endDate.getMinutes() === 0) {
                             be.allDay = true;
@@ -462,21 +488,21 @@ const CalendarPage: React.FC = () => {
                             project?.status ?? undefined,
                             eventDate
                         );
-                        
+
                         return {
-                    id: `event-${be.id}`,
+                            id: `event-${be.id}`,
                             title: be.title,
                             start: parseISO(originalStartTimeStr),
                             end: originalEndTimeStr ? parseISO(originalEndTimeStr) : undefined,
                             allDay: be.allDay ?? false,
                             backgroundColor: eventColor,
                             borderColor: eventColor,
-                    extendedProps: {
+                            extendedProps: {
                                 type: normalizedType,
-                        description: be.description ?? undefined,
-                        location: be.location ?? undefined,
-                        participants: be.participants ?? undefined,
-                        projectId: be.project_id ? String(be.project_id) : undefined,
+                                description: be.description ?? undefined,
+                                location: be.location ?? undefined,
+                                participants: be.participants ?? undefined,
+                                projectId: be.project_id ? String(be.project_id) : undefined,
                                 status: be.status ?? undefined,
                                 displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             },
@@ -484,7 +510,7 @@ const CalendarPage: React.FC = () => {
                     }
                 })
                 .filter((event): event is CalendarEvent => event !== null);
-            
+
             console.log("[fetchData] Processed projectEvents:", projectEvents.length);
             console.log("[fetchData] Processed taskEvents:", taskEvents.length);
             console.log("[fetchData] Processed processedBackendEvents:", processedBackendEvents.length);
@@ -493,14 +519,14 @@ const CalendarPage: React.FC = () => {
             setBackendEvents(processedBackendEvents);
 
             const allCalendarEvents = sortEventsForDisplay([
-                ...projectEvents, 
-                ...taskEvents, 
+                ...projectEvents,
+                ...taskEvents,
                 ...processedBackendEvents
             ]);
             console.log("[fetchData] Total events for calendar after merge and sort:", allCalendarEvents.length);
-            
+
             setRawEvents(allCalendarEvents);
-            
+
             // グローバルデータも更新（eventsは各ページで生成されるため含めない）
             if (updateGlobalData) {
                 updateGlobalData({
@@ -529,7 +555,7 @@ const CalendarPage: React.FC = () => {
                 console.log('[CalendarPage] Fetching backend events...');
                 const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
                 const backendEventsData = eventsResponse.data;
-                
+
                 const processedBackendEvents: CalendarEvent[] = backendEventsData
                     .map((be): CalendarEvent | null => {
                         const eventType = be.type;
@@ -557,7 +583,7 @@ const CalendarPage: React.FC = () => {
                                 project?.status ?? undefined,
                                 eventDate
                             );
-                            
+
                             return {
                                 id: `event-${be.id}`,
                                 title: be.title,
@@ -579,7 +605,7 @@ const CalendarPage: React.FC = () => {
                         }
                     })
                     .filter((event): event is CalendarEvent => event !== null);
-                
+
                 console.log('[CalendarPage] Backend events loaded:', processedBackendEvents.length);
                 setBackendEvents(processedBackendEvents);
             } catch (err) {
@@ -645,7 +671,7 @@ const CalendarPage: React.FC = () => {
         console.log("[CalendarPage] Adding globalDataRefreshed and csvImportCompleted event listeners");
         window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
         window.addEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
-        
+
         return () => {
             console.log("[CalendarPage] Removing globalDataRefreshed and csvImportCompleted event listeners");
             window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
@@ -686,7 +712,7 @@ const CalendarPage: React.FC = () => {
         window.addEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
         window.addEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
         window.addEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
-        
+
         return () => {
             console.log("[CalendarPage] Removing project change event listeners");
             window.removeEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
@@ -701,17 +727,18 @@ const CalendarPage: React.FC = () => {
         // タスクとプロジェクトが存在し、かつローディング中でない場合のみ実行
         if ((tasks.length > 0 || projects.length > 0 || groups.length > 0) && !loading) {
             console.log("[CalendarPage] Regenerating events from tasks, projects, and groups");
-            
-            const taskEvents = tasks
-                .filter(task => task.due_date) // 期日がないタスクは除外
-                .map(task => {
-                    const project = projects.find(p => p.id === task.project_id);
+
+            const taskEvents = tasks.flatMap(task => {
+                const events: CalendarEvent[] = [];
+                const project = projects.find(p => p.id === task.project_id);
+
+                if (task.due_date) {
                     const taskColor = getTaskColor(
-                        task.status ?? 'todo', 
+                        task.status ?? 'todo',
                         project?.status ?? undefined,
                         task.due_date
                     );
-                    return {
+                    events.push({
                         id: `task-${task.id}`,
                         title: task.name || 'Untitled Task',
                         start: task.due_date ? parseISO(task.due_date) : new Date(),
@@ -739,8 +766,33 @@ const CalendarPage: React.FC = () => {
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
                         }
-                    };
-                });
+                    });
+                }
+
+                if (task.phases && Array.isArray(task.phases)) {
+                    if (task.phases.length > 0) console.log(`[CalendarPage:useEffect] Task ${task.id} (${task.name}) has phases:`, task.phases);
+                    task.phases.forEach((phase: any, index: number) => {
+                        if (phase.date) {
+                            events.push({
+                                id: `task-${task.id}-phase-${index}`,
+                                title: `${task.name}: ${phase.name}`,
+                                start: parseISO(phase.date),
+                                allDay: true,
+                                backgroundColor: '#E91E63', // Pink for phases
+                                borderColor: '#E91E63',
+                                extendedProps: {
+                                    type: 'milestone',
+                                    taskId: task.id,
+                                    description: `Phase: ${phase.name}`,
+                                    projectId: task.project_id ? String(task.project_id) : undefined,
+                                    displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                }
+                            });
+                        }
+                    });
+                }
+                return events;
+            });
 
             const projectEvents = projects
                 .filter(project => project.start_date) // 開始日がないプロジェクトは除外
@@ -809,11 +861,11 @@ const CalendarPage: React.FC = () => {
             projects.forEach(project => {
                 projectsMapForRecalc.set(String(project.id), project);
             });
-            
+
             const recalculatedBackendEvents = backendEvents.map(event => {
                 const projectId = event.extendedProps?.projectId;
                 const project = projectId ? projectsMapForRecalc.get(String(projectId)) : undefined;
-                
+
                 // 会議・ワークショップは実施日（start）で過去/色判定。終日は排他的終了日のため end の前日で判定
                 const eventType = event.extendedProps?.type;
                 let eventDate: string | Date | null = null;
@@ -825,28 +877,28 @@ const CalendarPage: React.FC = () => {
                 } else if (event.start) {
                     eventDate = typeof event.start === 'string' ? event.start : event.start;
                 }
-                
+
                 const eventColor = getEventColor(
                     eventType ?? 'Generic',
                     project?.status ?? undefined,
                     eventDate
                 );
-                
+
                 return {
                     ...event,
                     backgroundColor: eventColor,
                     borderColor: eventColor,
                 };
             });
-            
+
             // バックエンドイベントと統合
             const allCalendarEvents = sortEventsForDisplay([
-                ...projectEvents, 
+                ...projectEvents,
                 ...taskEvents,
                 ...groupEvents,
                 ...recalculatedBackendEvents
             ]);
-            
+
             console.log("[CalendarPage] Setting rawEvents with", allCalendarEvents.length, "events");
             setRawEvents(allCalendarEvents);
         }
@@ -860,7 +912,7 @@ const CalendarPage: React.FC = () => {
             projects.forEach(project => {
                 projectsMapForUpdate.set(String(project.id), project);
             });
-            
+
             const updatedBackendEvents = backendEvents.map(event => {
                 const projectId = event.extendedProps?.projectId;
                 const project = projectId ? projectsMapForUpdate.get(String(projectId)) : undefined;
@@ -875,20 +927,20 @@ const CalendarPage: React.FC = () => {
                 } else if (event.start) {
                     eventDate = typeof event.start === 'string' ? event.start : event.start;
                 }
-                
+
                 const eventColor = getEventColor(
                     eventType ?? 'Generic',
                     project?.status ?? undefined,
                     eventDate
                 );
-                
+
                 return {
                     ...event,
                     backgroundColor: eventColor,
                     borderColor: eventColor,
                 };
             });
-            
+
             // 必ず更新して、rawEventsの再生成をトリガーする
             setBackendEvents(updatedBackendEvents);
         }
@@ -903,17 +955,17 @@ const CalendarPage: React.FC = () => {
             setProjects(globalData.projects);
             setUsers(globalData.users || []);
             setGroups(globalData.groups || []);
-            
+
             // イベントはtasksとprojectsの更新時にuseEffectで自動的に再生成される
             setLoading(false);
-            
+
             // バックエンドイベントも再取得（通常のイベント用）
             const fetchBackendEvents = async () => {
                 try {
                     console.log('[CalendarPage] Fetching backend events...');
                     const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
                     const backendEventsData = eventsResponse.data;
-                    
+
                     const processedBackendEvents: CalendarEvent[] = backendEventsData
                         .map((be): CalendarEvent | null => {
                             const eventType = be.type;
@@ -945,7 +997,7 @@ const CalendarPage: React.FC = () => {
                                     project?.status ?? undefined,
                                     eventDate
                                 );
-                                
+
                                 return {
                                     id: `event-${be.id}`,
                                     title: be.title,
@@ -967,16 +1019,16 @@ const CalendarPage: React.FC = () => {
                             }
                         })
                         .filter((event): event is CalendarEvent => event !== null);
-                    
+
                     console.log('[CalendarPage] Backend events loaded:', processedBackendEvents.length);
                     setBackendEvents(processedBackendEvents);
                 } catch (err) {
                     console.error('[CalendarPage] Failed to fetch backend events:', err);
                 }
             };
-            
+
             fetchBackendEvents();
-            
+
             // バックグラウンドで最新データを取得
             if (refreshGlobalData) {
                 console.log("[CalendarPage] Refreshing data in background...");
@@ -1125,7 +1177,7 @@ const CalendarPage: React.FC = () => {
             // バックエンドイベント（会議、マイルストーン、締切、ワークショップなど）の色を再計算
             let backgroundColor = event.backgroundColor;
             let borderColor = event.borderColor;
-            
+
             const eventType = event.extendedProps?.type?.toLowerCase();
             if (eventType && eventType !== 'project' && eventType !== 'task' && eventType !== 'group') {
                 // バックエンドイベントの場合、色を再計算（Mapを使用してO(1)検索）
@@ -1142,13 +1194,13 @@ const CalendarPage: React.FC = () => {
                 } else if (event.start) {
                     eventDate = typeof event.start === 'string' ? event.start : event.start;
                 }
-                
+
                 const recalculatedColor = getEventColor(
                     typeForColor ?? 'Generic',
                     project?.status ?? undefined,
                     eventDate
                 );
-                
+
                 backgroundColor = recalculatedColor;
                 borderColor = recalculatedColor;
             } else if (eventType === 'task') {
@@ -1156,13 +1208,13 @@ const CalendarPage: React.FC = () => {
                 const projectId = event.extendedProps?.projectId;
                 const project = projectId ? projectsMap.get(String(projectId)) : undefined;
                 const taskDueDate = event.extendedProps?.taskDueDate;
-                
+
                 const recalculatedColor = getTaskColor(
                     event.extendedProps?.taskStatus ?? 'todo',
                     project?.status ?? undefined,
                     taskDueDate
                 );
-                
+
                 backgroundColor = recalculatedColor;
                 borderColor = recalculatedColor;
             }
@@ -1187,7 +1239,7 @@ const CalendarPage: React.FC = () => {
             const timeoutId = setTimeout(() => {
                 const calendarApi = calendarRef.current?.getApi();
                 if (!calendarApi) return;
-                
+
                 // タスクの色のみ更新（最小限の処理）
                 eventsForFullCalendar.forEach(event => {
                     const eventType = event.extendedProps?.type?.toLowerCase();
@@ -1198,7 +1250,7 @@ const CalendarPage: React.FC = () => {
                             existingEvent.setProp('backgroundColor', event.backgroundColor);
                             existingEvent.setProp('borderColor', event.borderColor);
                             existingEvent.setProp('color', event.color);
-                            
+
                             // DOM要素の色も更新
                             const eventEl = (existingEvent as any).el;
                             if (eventEl) {
@@ -1210,7 +1262,7 @@ const CalendarPage: React.FC = () => {
                 });
                 // render()は呼ばない（FullCalendarが自動的に再レンダリングする）
             }, 0);
-            
+
             return () => clearTimeout(timeoutId);
         }
     }, [eventsForFullCalendar]);
@@ -1253,7 +1305,7 @@ const CalendarPage: React.FC = () => {
             console.log("[CalendarPage] Single clicked on date:", arg.date);
             const newSelectedDate = arg.date;
             setSelectedDate(newSelectedDate);
-            setSelectedEventDetails({ event: null }); 
+            setSelectedEventDetails({ event: null });
             console.log("[CalendarPage] After click - selectedDate:", newSelectedDate, "selectedEventDetails.event:", null);
         }
         lastClickTimeRef.current = clickTime;
@@ -1391,7 +1443,7 @@ const CalendarPage: React.FC = () => {
         delete (apiData as any).id;
         delete (apiData as any).created_at;
         delete (apiData as any).updated_at;
-        console.log("Constructed common apiData for save/update:", apiData); 
+        console.log("Constructed common apiData for save/update:", apiData);
 
         const modalId = modalData.id;
         const editingEventId = modalEventToEdit?.id;
@@ -1420,7 +1472,7 @@ const CalendarPage: React.FC = () => {
                             assignedToValue = parseInt(match[2], 10);
                         }
                     }
-                    
+
                     // due_dateのフォーマット処理（yyyy-MM-dd形式の場合はISO形式に変換）
                     let dueDateValue: string | undefined = undefined;
                     if (md.due_date) {
@@ -1440,7 +1492,7 @@ const CalendarPage: React.FC = () => {
                             dueDateValue = md.taskDueDate;
                         }
                     }
-                    
+
                     // priorityの処理（小文字を大文字に変換、またはundefined）
                     let priorityValue: string | undefined = undefined;
                     if (md.priority) {
@@ -1453,11 +1505,11 @@ const CalendarPage: React.FC = () => {
                             priorityValue = 'HIGH';
                         }
                     }
-                    
+
                     // seqIDとshotIDの処理（空文字列の場合はundefined）
                     const seqIDValue = md.seqID && md.seqID.trim() !== '' ? md.seqID.trim() : undefined;
                     const shotIDValue = md.shotID && md.shotID.trim() !== '' ? md.shotID.trim() : undefined;
-                    
+
                     const taskData = {
                         name: md.title,
                         description: md.description || '',
@@ -1494,7 +1546,7 @@ const CalendarPage: React.FC = () => {
                 }
             } else {
                 if (normalizedType === 'Task') {
-                    const md: any = modalData; 
+                    const md: any = modalData;
                     // assigned_toはEventAddModalから既に設定されているので、それを優先使用
                     let assignedToValue: number | undefined = undefined;
                     if (md.assigned_to !== null && md.assigned_to !== undefined) {
@@ -1507,7 +1559,7 @@ const CalendarPage: React.FC = () => {
                             assignedToValue = parseInt(match[2], 10);
                         }
                     }
-                    
+
                     // due_dateのフォーマット処理（yyyy-MM-dd形式の場合はISO形式に変換）
                     let dueDateValue: string | undefined = undefined;
                     if (md.due_date) {
@@ -1527,7 +1579,7 @@ const CalendarPage: React.FC = () => {
                             dueDateValue = md.taskDueDate;
                         }
                     }
-                    
+
                     // priorityの処理（小文字を大文字に変換、またはundefined）
                     let priorityValue: string | undefined = undefined;
                     if (md.priority) {
@@ -1540,11 +1592,11 @@ const CalendarPage: React.FC = () => {
                             priorityValue = 'HIGH';
                         }
                     }
-                    
+
                     // seqIDとshotIDの処理（空文字列の場合はundefined）
                     const seqIDValue = md.seqID && md.seqID.trim() !== '' ? md.seqID.trim() : undefined;
                     const shotIDValue = md.shotID && md.shotID.trim() !== '' ? md.shotID.trim() : undefined;
-                    
+
                     const taskData: any = {
                         name: md.title,
                         description: md.description || '',
@@ -1553,7 +1605,7 @@ const CalendarPage: React.FC = () => {
                         project_id: md.project_id != null && md.project_id !== '' ? parseInt(String(md.project_id)) : null,
                         assigned_to: assignedToValue,
                         cost: md.taskCost ? Number(md.taskCost) : (md.cost ? Number(md.cost) : undefined),
-                        dependsOn: md.dependsOn || [], 
+                        dependsOn: md.dependsOn || [],
                         start_date: md.start_time,
                         priority: priorityValue,
                         type: md.taskType && md.taskType.trim() !== '' ? md.taskType.trim() : undefined,
@@ -1577,7 +1629,7 @@ const CalendarPage: React.FC = () => {
                     response = await api.post('/projects', projectData);
                 } else {
                     console.log("[CalendarPage] Creating NEW GENERIC EVENT via POST /calendar/events with data:", apiData);
-                response = await api.post('/calendar/events', apiData); 
+                    response = await api.post('/calendar/events', apiData);
                 }
             }
             console.log("Save/Update response:", response.data);
@@ -1586,9 +1638,9 @@ const CalendarPage: React.FC = () => {
             console.error("Failed to save event:", err);
             console.error("Error response:", err.response);
             console.error("Error response data:", err.response?.data);
-            
+
             let errorMessage = 'Unknown error';
-            
+
             if (err.response?.data?.detail) {
                 const detail = err.response.data.detail;
                 if (Array.isArray(detail)) {
@@ -1618,7 +1670,7 @@ const CalendarPage: React.FC = () => {
             } else {
                 errorMessage = JSON.stringify(err, null, 2);
             }
-            
+
             console.error("Formatted error message:", errorMessage);
             setError(`イベントの保存に失敗しました: ${errorMessage}`);
             setLoading(false);
@@ -1629,13 +1681,13 @@ const CalendarPage: React.FC = () => {
                 await refreshGlobalData();
                 console.log('[CalendarPage] Global data refresh completed for event save/update');
             }
-            
+
             // 通常のイベント（Milestone、Deadlineなど）も再取得
             try {
                 console.log('[CalendarPage] Fetching backend events after save/update...');
                 const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
                 const backendEventsData = eventsResponse.data;
-                
+
                 const processedBackendEvents: CalendarEvent[] = backendEventsData
                     .map((be): CalendarEvent | null => {
                         const eventType = be.type;
@@ -1667,7 +1719,7 @@ const CalendarPage: React.FC = () => {
                                 project?.status ?? undefined,
                                 eventDate
                             );
-                            
+
                             return {
                                 id: `event-${be.id}`,
                                 title: be.title,
@@ -1689,13 +1741,13 @@ const CalendarPage: React.FC = () => {
                         }
                     })
                     .filter((event): event is CalendarEvent => event !== null);
-                
+
                 console.log('[CalendarPage] Backend events refreshed:', processedBackendEvents.length);
                 setBackendEvents(processedBackendEvents);
             } catch (err) {
                 console.error('[CalendarPage] Failed to refresh backend events:', err);
             }
-            
+
             // モーダルを閉じて選択をクリア
             handleCloseModal();
             setSelectedEventDetails({ event: null });
@@ -1733,22 +1785,22 @@ const CalendarPage: React.FC = () => {
             }
 
             setSelectedEventDetails({ event: null }); // 詳細パネルをクリア
-            
+
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
                 console.log('[CalendarPage] Refreshing global data after event deletion...');
                 await refreshGlobalData();
                 console.log('[CalendarPage] Global data refresh completed for event deletion');
             }
-            
+
             // 通常のイベント（Milestone、Deadlineなど）も再取得
-            if (event.extendedProps.type !== 'task' && event.extendedProps.type !== 'Task' && 
+            if (event.extendedProps.type !== 'task' && event.extendedProps.type !== 'Task' &&
                 event.extendedProps.type !== 'project' && event.extendedProps.type !== 'Project') {
                 try {
                     console.log('[CalendarPage] Fetching backend events after deletion...');
                     const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
                     const backendEventsData = eventsResponse.data;
-                    
+
                     const processedBackendEvents: CalendarEvent[] = backendEventsData
                         .map((be): CalendarEvent | null => {
                             const eventType = be.type;
@@ -1780,7 +1832,7 @@ const CalendarPage: React.FC = () => {
                                     project?.status ?? undefined,
                                     eventDate
                                 );
-                                
+
                                 return {
                                     id: `event-${be.id}`,
                                     title: be.title,
@@ -1802,7 +1854,7 @@ const CalendarPage: React.FC = () => {
                             }
                         })
                         .filter((event): event is CalendarEvent => event !== null);
-                    
+
                     console.log('[CalendarPage] Backend events refreshed after deletion:', processedBackendEvents.length);
                     setBackendEvents(processedBackendEvents);
                 } catch (err) {
@@ -1825,12 +1877,12 @@ const CalendarPage: React.FC = () => {
 
     // FullCalendarのdatesSetでタイトルを更新
     const handleDatesSet = useCallback((_arg: any) => {
-      // サイズ更新を非同期で実行
-      setTimeout(() => {
-        if (calendarRef.current) {
-          calendarRef.current.getApi().updateSize();
-        }
-      }, 0);
+        // サイズ更新を非同期で実行
+        setTimeout(() => {
+            if (calendarRef.current) {
+                calendarRef.current.getApi().updateSize();
+            }
+        }, 0);
     }, []);
 
     // ドラッグ時はそのまま範囲をhandleSelectに渡す
@@ -1991,13 +2043,13 @@ const CalendarPage: React.FC = () => {
         const { type } = eventInfo.event.extendedProps;
         const title = eventInfo.event.title || '';
         const typeLabel = getEventTypeLabel(type);
-        
+
         // 複数日にまたがるイベント判定
-        const isMultiDay = eventInfo.event.allDay && 
-                           eventInfo.event.start && 
-                           eventInfo.event.end && 
-                           eventInfo.event.start.getTime() !== eventInfo.event.end.getTime();
-        
+        const isMultiDay = eventInfo.event.allDay &&
+            eventInfo.event.start &&
+            eventInfo.event.end &&
+            eventInfo.event.start.getTime() !== eventInfo.event.end.getTime();
+
         // プロジェクトまたは複数日にまたがる通常イベント
         if (type === 'project' || isMultiDay) {
             return (
@@ -2011,7 +2063,7 @@ const CalendarPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         // マイルストーン（Milestone）
         if (type === 'Milestone') {
             return (
@@ -2021,7 +2073,7 @@ const CalendarPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         // 締切（Deadline）
         if (type === 'Deadline') {
             return (
@@ -2031,7 +2083,7 @@ const CalendarPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         // 会議（Meeting）・ワークショップ（Workshop）- 時間を表示
         if (type === 'Meeting' || type === 'Workshop') {
             const timeText = eventInfo.timeText || '';
@@ -2047,7 +2099,7 @@ const CalendarPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         // 通常イベント（Generic / Event）- 時間指定の場合は時間を表示
         if (type === 'Generic' || (type && type.toLowerCase() === 'generic') || (type && type.toLowerCase() === 'event')) {
             const isTimedEvent = !eventInfo.event.allDay && eventInfo.timeText;
@@ -2063,7 +2115,7 @@ const CalendarPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         // タスク
         if (type === 'task') {
             return (
@@ -2073,7 +2125,7 @@ const CalendarPage: React.FC = () => {
                 </div>
             );
         }
-        
+
         // その他（ラベル＋タイトル）
         return (
             <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden' }}>
@@ -2175,7 +2227,7 @@ const CalendarPage: React.FC = () => {
                 >
                     <IconButton
                         onClick={() => setMobileFilterOpen(true)}
-                        sx={{ 
+                        sx={{
                             color: 'text.primary',
                             minWidth: 48,
                             minHeight: 48,
@@ -2241,7 +2293,7 @@ const CalendarPage: React.FC = () => {
                         width: '100%',
                     }}
                 >
-            <style>{`
+                    <style>{`
                 /* Google風: ツールバーをフラットに */
                 .fc .fc-header-toolbar,
                 .fc .fc-toolbar {
@@ -2744,17 +2796,17 @@ const CalendarPage: React.FC = () => {
 
                     {error && <Typography color="error" sx={{ px: 1 }}>{error}</Typography>}
                     {loading && (
-                        <Box sx={{ 
-                            position: 'absolute', 
-                            top: 0, 
-                            left: 0, 
-                            right: 0, 
-                            bottom: 0, 
-                            display: 'flex', 
-                            alignItems: 'center', 
+                        <Box sx={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            display: 'flex',
+                            alignItems: 'center',
                             justifyContent: 'center',
                             backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                            zIndex: 10 
+                            zIndex: 10
                         }}>
                             <CircularProgress />
                         </Box>
@@ -2773,7 +2825,7 @@ const CalendarPage: React.FC = () => {
                             right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                         }}
                         events={eventsForFullCalendar}
-                    locale={'ja'}
+                        locale={'ja'}
                         timeZone={'Asia/Tokyo'}
                         slotMinTime="05:00:00"
                         slotMaxTime="29:00:00"
@@ -2789,18 +2841,18 @@ const CalendarPage: React.FC = () => {
                         dateClick={handleDateClick}
                         select={handleSelect}
                         eventClick={handleEventClick}
-                        eventContent={renderEventContent} 
+                        eventContent={renderEventContent}
                         eventClassNames={(arg) => {
                             const type = arg.event.extendedProps.type;
                             const projectId = arg.event.extendedProps.projectId;
                             const classes: string[] = [];
-                            
+
                             // プロジェクトのステータスを確認（Mapを使用してO(1)検索）
                             const project = projectId ? projectsMap.get(String(projectId)) : undefined;
                             const projectStatusStr = project?.status ? String(project.status).toLowerCase() : undefined;
                             const isCompletedProject = projectStatusStr === 'completed';
                             const isCancelledProject = projectStatusStr === 'cancelled';
-                            
+
                             // イベントの日付を確認（過去判定用）
                             // 会議・ワークショップは実施日（start）で判定。
                             // 終日イベントは FullCalendar が排他的終了日（翌日00:00）で持つため、実質の最終日は end の前日で判定する
@@ -2824,17 +2876,17 @@ const CalendarPage: React.FC = () => {
                                 eventDate = typeof arg.event.start === 'string' ? parseISO(arg.event.start) : arg.event.start;
                             }
                             const isPastEvent = eventDate ? isDatePast(eventDate) : false;
-                            
+
                             // プロジェクトが完了またはキャンセル、または日付が過ぎた場合は特別なクラスを追加
                             if (isCompletedProject || isCancelledProject || isPastEvent) {
                                 classes.push('grey-event');
                             }
-                            
+
                             // 完了プロジェクトの場合は特別なクラスを追加（後方互換性のため）
                             if (isCompletedProject) {
                                 classes.push('completed-project-event');
                             }
-                            
+
                             // 既存のクラス設定
                             if (type === 'project') {
                                 classes.push('project-event');
@@ -2860,44 +2912,44 @@ const CalendarPage: React.FC = () => {
                             } else {
                                 classes.push('custom-event');
                             }
-                            
+
                             // 複数日にまたがる通常イベントにもproject-eventスタイルを適用
-                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end && 
-                                               arg.event.start.getTime() !== arg.event.end.getTime();
-                            
+                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end &&
+                                arg.event.start.getTime() !== arg.event.end.getTime();
+
                             if (isMultiDay && type !== 'project') {
                                 classes.push('project-event');
                             }
-                            
+
                             return classes;
                         }}
                         eventDidMount={(arg) => {
                             // 複数日にまたがるイベントのクラスを動的に追加
                             const type = arg.event.extendedProps.type;
-                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end && 
-                                               arg.event.start.getTime() !== arg.event.end.getTime();
-                            
+                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end &&
+                                arg.event.start.getTime() !== arg.event.end.getTime();
+
                             if (isMultiDay && type !== 'project') {
                                 arg.el.classList.add('project-event');
                             }
-                            
+
                             // タスクの色を設定（タスクはeventClassNamesで処理されないため、ここで設定が必要）
                             const eventType = type?.toLowerCase();
                             if (eventType === 'task') {
                                 const projectId = arg.event.extendedProps?.projectId;
                                 const project = projectId ? projectsMap.get(String(projectId)) : undefined;
                                 const taskDueDate = arg.event.extendedProps?.taskDueDate;
-                                
+
                                 const recalculatedColor = getTaskColor(
                                     arg.event.extendedProps?.taskStatus ?? 'todo',
                                     project?.status ?? undefined,
                                     taskDueDate
                                 );
-                                
+
                                 // タスクの色を設定
                                 arg.el.style.setProperty('background-color', recalculatedColor, 'important');
                                 arg.el.style.setProperty('border-color', recalculatedColor, 'important');
-                                
+
                                 // イベントオブジェクトの色も更新
                                 arg.event.setProp('backgroundColor', recalculatedColor);
                                 arg.event.setProp('borderColor', recalculatedColor);
@@ -2943,7 +2995,7 @@ const CalendarPage: React.FC = () => {
                             selectedDate={selectedDate}
                             selectedEvent={selectedEventDetails.event}
                             totalCost={selectedEventDetails.totalCost}
-                        events={filteredEvents}
+                            events={filteredEvents}
                             onEventSelect={handlePanelEventSelect}
                             isMinimized={isPanelMinimized}
                             onToggleMinimize={handleTogglePanelMinimize}
@@ -2952,11 +3004,11 @@ const CalendarPage: React.FC = () => {
                             groups={groups}
                             onEdit={handleOpenEditModal}
                             onDelete={handleDeleteEvent as (event: import('../types').CalendarEvent) => void}
-                        eventStatusFilter={eventStatusFilter}
-                        onEventStatusFilterChange={handleEventStatusFilterChange}
-                        eventTypeFilter={eventTypeFilter}
-                        onEventTypeFilterChange={handleEventTypeFilterChange}
-                        projects={projects}
+                            eventStatusFilter={eventStatusFilter}
+                            onEventStatusFilterChange={handleEventStatusFilterChange}
+                            eventTypeFilter={eventTypeFilter}
+                            onEventTypeFilterChange={handleEventTypeFilterChange}
+                            projects={projects}
                         />
                     </Box>
                 )}
@@ -2988,7 +3040,7 @@ const CalendarPage: React.FC = () => {
                                 <CloseIcon />
                             </IconButton>
                         </Box>
-                        
+
                         {/* プロジェクトフィルター */}
                         <FormControl fullWidth sx={{ mb: 2 }}>
                             <InputLabel>プロジェクト</InputLabel>
@@ -3023,14 +3075,14 @@ const CalendarPage: React.FC = () => {
                                     }
                                     label={
                                         type === 'task' ? 'タスク' :
-                                        type === 'meeting' ? '会議' :
-                                        type === 'deadline' ? '締切' :
-                                        type === 'milestone' ? 'マイルストーン' :
-                                        type === 'workshop' ? 'ワークショップ' :
-                                        type === 'generic' ? '通常イベント' :
-                                        type === 'project' ? 'プロジェクト' :
-                                        type === 'group' ? 'グループ' :
-                                        type
+                                            type === 'meeting' ? '会議' :
+                                                type === 'deadline' ? '締切' :
+                                                    type === 'milestone' ? 'マイルストーン' :
+                                                        type === 'workshop' ? 'ワークショップ' :
+                                                            type === 'generic' ? '通常イベント' :
+                                                                type === 'project' ? 'プロジェクト' :
+                                                                    type === 'group' ? 'グループ' :
+                                                                        type
                                     }
                                     sx={{ fontSize: '0.875rem' }}
                                 />
@@ -3056,10 +3108,10 @@ const CalendarPage: React.FC = () => {
                         }
                     }}
                 >
-                    <Box sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between', 
+                    <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
                         p: 2,
                         borderBottom: '1px solid',
                         borderColor: 'divider',
@@ -3072,8 +3124,8 @@ const CalendarPage: React.FC = () => {
                             <CloseIcon />
                         </IconButton>
                     </Box>
-                    <Box sx={{ 
-                        flex: 1, 
+                    <Box sx={{
+                        flex: 1,
                         overflowY: 'auto',
                         p: 2,
                     }}>
@@ -3087,7 +3139,7 @@ const CalendarPage: React.FC = () => {
                                 setMobileEventDetailsOpen(true);
                             }}
                             isMinimized={false}
-                            onToggleMinimize={() => {}}
+                            onToggleMinimize={() => { }}
                             onOpenAddModal={() => {
                                 setMobileEventDetailsOpen(false);
                                 handleOpenAddModal();

@@ -748,7 +748,34 @@ const ChatPage: React.FC = () => {
     })
 
     console.log('[ChatPage] Filtered tasks for user', userId, ':', filteredTasks.length, 'tasks')
-    return filteredTasks
+
+    // Phaseを展開してタスクリストに追加
+    const expandedTasks: any[] = []
+    filteredTasks.forEach((task: Task) => {
+      // 元のタスクを追加
+      expandedTasks.push(task)
+
+      // Phaseを追加（完了していないタスクのみ）
+      if (task.phases && Array.isArray(task.phases)) {
+        task.phases.forEach((p: any, idx: number) => {
+          if (p.date) {
+            // 負のIDを使用して一意性を保つ（PhaseはGoogle同期対象外とするためIDはあくまでReactのkey用）
+            // task.id * 1000 + idx だと task.id が大きい場合にオーバーフローする可能性は低いが考慮
+            const phaseId = -1 * (task.id * 100 + idx)
+            expandedTasks.push({
+              ...task,
+              id: phaseId,
+              originalId: task.id,
+              name: `${task.name}: ${p.name}`,
+              due_date: p.date,
+              isPhase: true
+            })
+          }
+        })
+      }
+    })
+
+    return expandedTasks
   }, [user?.id, globalData?.tasks, globalData?.projects])
 
   const tasksByCategory = useMemo(() => {
@@ -1177,6 +1204,7 @@ const ChatPage: React.FC = () => {
                           {tasksByCategory.delayed.map((t) => {
                             const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
                             const loading = googleSyncingTaskId === t.id
+                            const isPhase = (t as any).isPhase === true
                             return (
                               <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
@@ -1194,7 +1222,7 @@ const ChatPage: React.FC = () => {
                                     }}
                                   />
                                 </Tooltip>
-                                {googleStatus.connected && (
+                                {googleStatus.connected && !isPhase && (
                                   <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
                                     <Checkbox
                                       size="small"
@@ -1222,6 +1250,7 @@ const ChatPage: React.FC = () => {
                           {tasksByCategory.today.map((t) => {
                             const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
                             const loading = googleSyncingTaskId === t.id
+                            const isPhase = (t as any).isPhase === true
                             return (
                               <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
@@ -1239,7 +1268,7 @@ const ChatPage: React.FC = () => {
                                     }}
                                   />
                                 </Tooltip>
-                                {googleStatus.connected && (
+                                {googleStatus.connected && !isPhase && (
                                   <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
                                     <Checkbox
                                       size="small"
@@ -1267,6 +1296,7 @@ const ChatPage: React.FC = () => {
                           {tasksByCategory.dueSoon.map((t) => {
                             const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
                             const loading = googleSyncingTaskId === t.id
+                            const isPhase = (t as any).isPhase === true
                             return (
                               <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'}`}>
@@ -1284,7 +1314,7 @@ const ChatPage: React.FC = () => {
                                     }}
                                   />
                                 </Tooltip>
-                                {googleStatus.connected && (
+                                {googleStatus.connected && !isPhase && (
                                   <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
                                     <Checkbox
                                       size="small"
@@ -1310,6 +1340,7 @@ const ChatPage: React.FC = () => {
                           {tasksByCategory.other.map((t) => {
                             const synced = googleStatus.connected && googleStatus.synced_task_ids.includes(t.id)
                             const loading = googleSyncingTaskId === t.id
+                            const isPhase = (t as any).isPhase === true
                             return (
                               <Box key={t.id} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                 <Tooltip title={`📁 ${projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''}`}>
@@ -1326,7 +1357,7 @@ const ChatPage: React.FC = () => {
                                     }}
                                   />
                                 </Tooltip>
-                                {googleStatus.connected && (
+                                {googleStatus.connected && !isPhase && (
                                   <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
                                     <Checkbox
                                       size="small"

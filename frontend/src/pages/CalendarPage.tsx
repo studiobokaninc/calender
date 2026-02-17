@@ -10,6 +10,7 @@ import api from '../services/api';
 import { Project, Task, BackendEvent, CalendarEvent, User, Group } from '../types';
 import EventDetailsPanel from '../components/EventDetailsPanel';
 import EventAddModal from '../components/EventAddModal';
+import PhaseEditModal from '../components/PhaseEditModal'; // Added import
 import { useAuth } from '../contexts/AuthContext';
 import { useCalendarPageState, usePageState } from '../contexts/PageStateContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -188,6 +189,7 @@ const CalendarPage: React.FC = () => {
     const [mobileEventDetailsOpen, setMobileEventDetailsOpen] = useState(false);
     const [isPanelMinimized, setIsPanelMinimized] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isPhaseEditModalOpen, setIsPhaseEditModalOpen] = useState(false); // Added state
     /** モーダルで編集するイベント。null のときは新規作成。作成ボタンでは常に null にする */
     const [modalEventToEdit, setModalEventToEdit] = useState<CalendarEvent | null>(null);
     const [users, setUsers] = useState<User[]>([]);
@@ -377,7 +379,7 @@ const CalendarPage: React.FC = () => {
                             taskAssigneeId: task.assigned_to ? String(task.assigned_to) : undefined,
                             taskCost: task.cost,
                             taskStatus: task.status,
-                            taskPriority: task.priority ?? undefined,
+                            taskPriority: (task.priority as any) ?? undefined,
                             taskType: task.type ?? undefined,
                             taskSeqID: task.seqID ?? undefined,
                             taskShotID: task.shotID ?? undefined,
@@ -392,18 +394,32 @@ const CalendarPage: React.FC = () => {
                     if (task.phases.length > 0) console.log(`[CalendarPage:fetchData] Task ${task.id} (${task.name}) has phases:`, task.phases);
                     task.phases.forEach((phase: any, index: number) => {
                         if (phase.date) {
+                            // Phaseの色設定
+                            const isDelayed = !phase.is_completed && new Date(phase.date) < new Date(new Date().setHours(0, 0, 0, 0));
+                            const phaseColor = phase.is_completed
+                                ? '#9E9E9E' // 完了: グレー
+                                : isDelayed
+                                    ? '#D32F2F' // 遅延: 赤
+                                    : '#FFA000'; // 未完了: アンバー（黄色系）
+
                             events.push({
                                 id: `task-${task.id}-phase-${index}`,
                                 title: `${task.name}: ${phase.name}`,
                                 start: parseISO(phase.date),
                                 allDay: true,
-                                backgroundColor: '#E91E63', // Pink for phases
-                                borderColor: '#E91E63',
+                                backgroundColor: phaseColor,
+                                borderColor: phaseColor,
+                                textColor: '#ffffff', // テキスト色: 白
                                 extendedProps: {
-                                    type: 'milestone',
+                                    type: 'task', // フィルターでタスクとして扱われるように 'task' に設定
+                                    isPhase: true, // Phaseであることを識別するフラグ
+                                    isCompleted: phase.is_completed, // 完了ステータス
+                                    isDelayed: isDelayed, // 遅延ステータス
                                     taskId: task.id,
                                     description: `Phase: ${phase.name}`,
                                     projectId: task.project_id ? String(task.project_id) : undefined,
+                                    taskDueDate: phase.date, // Phaseの日付を期日として扱う
+                                    taskStatus: task.status, // 親タスクのステータスを継承
                                     displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                                 }
                             });
@@ -758,7 +774,7 @@ const CalendarPage: React.FC = () => {
                             taskAssigneeId: task.assigned_to ? String(task.assigned_to) : undefined,
                             taskCost: task.cost,
                             taskStatus: task.status,
-                            taskPriority: task.priority ?? undefined,
+                            taskPriority: (task.priority as any) ?? undefined,
                             taskType: task.type ?? undefined,
                             taskSeqID: task.seqID ?? undefined,
                             taskShotID: task.shotID ?? undefined,
@@ -773,18 +789,32 @@ const CalendarPage: React.FC = () => {
                     if (task.phases.length > 0) console.log(`[CalendarPage:useEffect] Task ${task.id} (${task.name}) has phases:`, task.phases);
                     task.phases.forEach((phase: any, index: number) => {
                         if (phase.date) {
+                            // Phaseの色設定
+                            const isDelayed = !phase.is_completed && new Date(phase.date) < new Date(new Date().setHours(0, 0, 0, 0));
+                            const phaseColor = phase.is_completed
+                                ? '#9E9E9E' // 完了: グレー
+                                : isDelayed
+                                    ? '#D32F2F' // 遅延: 赤
+                                    : '#FFA000'; // 未完了: アンバー（黄色系）
+
                             events.push({
                                 id: `task-${task.id}-phase-${index}`,
                                 title: `${task.name}: ${phase.name}`,
                                 start: parseISO(phase.date),
                                 allDay: true,
-                                backgroundColor: '#E91E63', // Pink for phases
-                                borderColor: '#E91E63',
+                                backgroundColor: phaseColor,
+                                borderColor: phaseColor,
+                                textColor: '#ffffff', // テキスト色: 白
                                 extendedProps: {
-                                    type: 'milestone',
+                                    type: 'task', // フィルター用
+                                    isPhase: true, // 識別用
+                                    isCompleted: phase.is_completed, // 完了ステータス
+                                    isDelayed: isDelayed, // 遅延ステータス
                                     taskId: task.id,
                                     description: `Phase: ${phase.name}`,
                                     projectId: task.project_id ? String(task.project_id) : undefined,
+                                    taskDueDate: phase.date,
+                                    taskStatus: task.status,
                                     displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                                 }
                             });
@@ -1401,7 +1431,11 @@ const CalendarPage: React.FC = () => {
         const cost = event.extendedProps.type === 'task' ? (event.extendedProps.taskCost ?? 0) : undefined;
         setSelectedEventDetails({ event: event, totalCost: cost });
         setModalEventToEdit(event); // 編集時のみモーダルに渡す
-        setIsAddModalOpen(true);
+        if (event.extendedProps?.isPhase) {
+            setIsPhaseEditModalOpen(true);
+        } else {
+            setIsAddModalOpen(true);
+        }
     };
 
     const handleCloseModal = () => {
@@ -1760,6 +1794,37 @@ const CalendarPage: React.FC = () => {
         console.log(`Event type: ${event.extendedProps.type}`); // イベントタイプをログ出力
         console.log(`Event extendedProps:`, event.extendedProps); // 拡張プロパティをログ出力
 
+        if (event.extendedProps?.isPhase) {
+            // Phase deletion logic
+            if (!event.extendedProps?.taskId) return;
+
+            try {
+                const taskId = event.extendedProps.taskId;
+                const phaseIndex = Number(event.id.split('-').pop());
+                const task = tasks.find(t => t.id === Number(taskId));
+
+                if (!task) return;
+
+                const currentPhases = task.phases || [];
+                if (phaseIndex >= 0 && phaseIndex < currentPhases.length) {
+                    const updatedPhases = currentPhases.filter((_, index) => index !== phaseIndex);
+
+                    await api.put(`/tasks/${taskId}`, {
+                        ...task,
+                        phases: updatedPhases
+                    });
+
+                    setSelectedEventDetails({ event: null }); // Close details panel
+                    fetchData();
+                    console.log("Phase deleted successfully.");
+                }
+            } catch (error) {
+                console.error("Failed to delete phase:", error);
+                alert("Phaseの削除に失敗しました。");
+            }
+            return; // Exit after handling phase
+        }
+
         setLoading(true);
         setError(null);
         try {
@@ -1867,6 +1932,72 @@ const CalendarPage: React.FC = () => {
             setError("イベントの削除に失敗しました。");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSavePhase = async (phaseUpdateData: any) => {
+        try {
+            // Fetch the parent task first to get current phases
+            const taskId = phaseUpdateData.taskId;
+            const task = tasks.find(t => t.id === Number(taskId));
+
+            if (!task) {
+                console.error("Parent task not found for phase update");
+                return;
+            }
+
+            const currentPhases = task.phases || [];
+            if (phaseUpdateData.phaseIndex >= 0 && phaseUpdateData.phaseIndex < currentPhases.length) {
+                // Update the specific phase
+                const updatedPhases = [...currentPhases];
+                updatedPhases[phaseUpdateData.phaseIndex] = {
+                    ...updatedPhases[phaseUpdateData.phaseIndex],
+                    name: phaseUpdateData.newName,
+                    date: phaseUpdateData.newDate,
+                    is_completed: phaseUpdateData.isCompleted
+                };
+
+                // Update the task with new phases
+                await api.put(`/tasks/${taskId}`, {
+                    phases: updatedPhases
+                });
+
+                setIsPhaseEditModalOpen(false);
+                fetchData(); // Refresh calendar
+            }
+        } catch (error) {
+            console.error("Failed to save phase:", error);
+            alert("Phaseの保存に失敗しました。");
+        }
+    };
+
+    const handleDeletePhase = async () => {
+        if (!modalEventToEdit || !modalEventToEdit.extendedProps?.taskId) return;
+
+        try {
+            const taskId = modalEventToEdit.extendedProps.taskId;
+            const phaseIndex = Number(modalEventToEdit.id.split('-').pop());
+            const task = tasks.find(t => t.id === Number(taskId));
+
+            if (!task) return;
+
+            const currentPhases = task.phases || [];
+            if (phaseIndex >= 0 && phaseIndex < currentPhases.length) {
+                const updatedPhases = currentPhases.filter((_, index) => index !== phaseIndex);
+
+                await api.put(`/tasks/${taskId}`, {
+                    phases: updatedPhases
+                });
+
+                setIsPhaseEditModalOpen(false);
+                setModalEventToEdit(null);
+                setSelectedEventDetails({ event: null }); // Close details panel if open
+                fetchData();
+            }
+
+        } catch (error) {
+            console.error("Failed to delete phase:", error);
+            alert("Phaseの削除に失敗しました。");
         }
     };
 
@@ -2074,6 +2205,60 @@ const CalendarPage: React.FC = () => {
             );
         }
 
+        // Phase（Task の一部だがマイルストーン的に表示）
+        if (eventInfo.event.extendedProps.isPhase) {
+            const phaseTitle = title;
+            const isCompleted = eventInfo.event.extendedProps.isCompleted;
+            const isDelayed = eventInfo.event.extendedProps.isDelayed !== undefined
+                ? eventInfo.event.extendedProps.isDelayed
+                : (!isCompleted && eventInfo.event.start && new Date(eventInfo.event.start) < new Date(new Date().setHours(0, 0, 0, 0)));
+
+            const bgColor = isCompleted
+                ? '#9E9E9E' // 完了: グレー
+                : isDelayed
+                    ? '#D32F2F' // 遅延: 赤
+                    : '#FFA000'; // 未完了: アンバー
+
+            return (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: '100%',
+                    height: '100%',
+                    overflow: 'hidden',
+                    backgroundColor: bgColor,
+                    color: '#ffffff',
+                    borderRadius: '4px',
+                    padding: '0 4px',
+                    boxSizing: 'border-box',
+                    border: `1px solid ${bgColor}`, // 枠線を背景色と同じにして二重枠を防ぐ
+                    boxShadow: 'none',
+                    margin: 0
+                }}>
+                    <span style={{
+                        backgroundColor: '#8E24AA', // 鮮やかな紫 (Purple 600)
+                        color: 'white',
+                        fontSize: '0.65em',
+                        padding: '1px 4px',
+                        borderRadius: '3px',
+                        marginRight: '6px',
+                        fontWeight: 'bold',
+                        flexShrink: 0,
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                    }}>PHASE</span>
+                    <span style={{
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        fontWeight: 600,
+                        fontSize: '0.85em',
+                        textDecoration: isCompleted ? 'line-through' : 'none',
+                        opacity: isCompleted ? 0.8 : 1
+                    }}>{phaseTitle}</span>
+                </div>
+            );
+        }
+
         // 締切（Deadline）
         if (type === 'Deadline') {
             return (
@@ -2137,10 +2322,24 @@ const CalendarPage: React.FC = () => {
 
     // モーダルのレンダリング
     const renderEventModal = () => {
+        // PhaseEditModal render logic
+        if (isPhaseEditModalOpen) {
+            return (
+                <PhaseEditModal
+                    open={isPhaseEditModalOpen}
+                    onClose={() => {
+                        setIsPhaseEditModalOpen(false);
+                        setModalEventToEdit(null);
+                    }}
+                    onSave={handleSavePhase}
+                    onDelete={handleDeletePhase}
+                    eventToEdit={modalEventToEdit}
+                />
+            );
+        }
+
         if (!isAddModalOpen) return null;
 
-        // EventAddModalMonthly の部分はコメントアウトされているので、EventAddModal のみを考慮
-        // 以前 commonProps を使っていたが、可読性のため直接propsを渡す形に戻しつつ groups を追加
         return (
             <EventAddModal
                 open={isAddModalOpen}

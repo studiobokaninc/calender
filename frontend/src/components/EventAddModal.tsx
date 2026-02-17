@@ -4,8 +4,9 @@ import {
   MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Box, Grid,
   FormHelperText, RadioGroup, Radio, Divider, Typography,
 
-  Autocomplete, Chip
+  Autocomplete, Chip, IconButton // Added IconButton
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add'; // Added AddIcon
 import { format, parseISO, isValid as isDateValid, addDays, addHours, startOfDay, setHours, setMinutes, parse } from 'date-fns';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -173,6 +174,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<ParticipantOption[]>([]);
   const [selectedDependencies, setSelectedDependencies] = useState<TaskOption[]>([]);
+  const [isRange, setIsRange] = useState(false); // Added for Generic event range selection
 
   useEffect(() => {
     if (open) {
@@ -348,10 +350,25 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         const initialSelectedOptions = taskOptions.filter(opt => initialDeps.includes(opt.id));
         setSelectedDependencies(initialSelectedOptions);
 
+        // Set isRange for Generic events
+        if (eventTypeFromEdit === 'Generic' && (eventToEdit.allDay ?? false)) {
+          // If start date and end date are different (and valid), it's a range
+          // Note: FullCalendar end date for allDay is exclusive (+1 day).
+          // calculatedStartDateStr and endDateStr are already normalized to YYYY-MM-DD.
+          if (calculatedStartDateStr && endDateStr && calculatedStartDateStr !== endDateStr) {
+            setIsRange(true);
+          } else {
+            setIsRange(false);
+          }
+        } else {
+          setIsRange(false);
+        }
+
       } else {
         setFormData(getInitialState());
         setSelectedParticipants([]);
         setSelectedDependencies([]);
+        setIsRange(false);
         setProjectSelectionMode('existing');
         setErrors({});
       }
@@ -581,6 +598,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     // タイプ変更時は常に依存関係をリセットし、プロジェクト選択を既存に戻す
     setSelectedDependencies([]);
     setProjectSelectionMode('existing');
+    setIsRange(false); // Reset isRange
     setErrors({});
   };
 
@@ -649,6 +667,14 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         // Genericで終日の場合は実施日のみ（終了日は使用しない）
         if (!formData.startDate) {
           newErrors.startDate = '開始日を入力してください';
+        }
+        // Genericで終日かつ期間指定の場合は終了日必須
+        if (formData.allDay && isRange && !formData.endDate) {
+          newErrors.endDate = '終了日を入力してください';
+        }
+        // 終了日が開始日より前でないかのチェック
+        if (formData.allDay && isRange && formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
+          newErrors.endDate = '終了日は開始日より後に設定してください';
         }
       }
       // プロジェクトは任意（指定しなくてもよい）
@@ -822,8 +848,18 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         } else if (dataToSave.allDay && normalizedType === 'Generic') {
           if (dataToSave.start_time) {
             const startDateForEnd = parseISO(dataToSave.start_time);
-            // 終了日は入力ないので、開始日の翌日をend_timeとする(1日イベント)
-            dataToSave.end_time = format(startOfDay(addDays(startDateForEnd, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
+            if (isRange && formData.endDate) {
+              // 期間指定あり: endDate + 1日 (終日仕様)
+              const endDateObj = parseDateString(formData.endDate);
+              if (endDateObj) {
+                dataToSave.end_time = format(startOfDay(addDays(endDateObj, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
+                dataToSave.end = dataToSave.end_time; // For safety/redundancy
+              }
+            } else {
+              // 期間指定なし (単日): 開始日の翌日
+              dataToSave.end_time = format(startOfDay(addDays(startDateForEnd, 1)), "yyyy-MM-dd'T'HH:mm:ssxxx");
+              dataToSave.end = dataToSave.end_time;
+            }
           }
         }
 
@@ -888,10 +924,15 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
   const showEndDate = useMemo(() => {
     if (!formData?.type) return false;
-    // タスク、締切、マイルストーン、会議、ワークショップ、イベントでは非表示（これらは実施日のみ）
-    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop', 'Generic'].includes(formData.type)) return false;
+    // Generic の場合、allDay かつ isRange なら表示
+    if (formData.type === 'Generic') {
+      return formData.allDay && isRange;
+    }
+    // タスク、締切、マイルストーン、会議、ワークショップは非表示
+    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop'].includes(formData.type)) return false;
+    // Project などは表示
     return true;
-  }, [formData?.type, formData.allDay]);
+  }, [formData?.type, formData.allDay, isRange]);
 
   // 担当者オプション (ユーザー + グループ)
   const assigneeOptions = useMemo((): Array<{ id: string; label: string; type: string; }> => {
@@ -940,6 +981,19 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                 required
                 error={!!errors.title}
                 helperText={errors.title}
+                size="small"
+                sx={{ mb: 1.5 }}
+              />
+
+              {/* Description (Moved from bottom) */}
+              <TextField
+                label="説明"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                fullWidth
+                multiline
+                rows={2}
                 size="small"
                 sx={{ mb: 1.5 }}
               />
@@ -1072,45 +1126,29 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                 </Grid>
                 <Grid item xs={6}>
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-                    <FormControl size="small" sx={{ minWidth: 120 }}>
-                      <InputLabel id="cost-preset-label">クイック選択</InputLabel>
-                      <Select
-                        labelId="cost-preset-label"
-                        name="costPreset"
-                        value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? formData.taskCost : ''}
-                        label="クイック選択"
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          if (value) {
-                            handleChange({ target: { name: 'taskCost', value } } as any);
-                          } else {
-                            // 「手入力」を選択した場合は数値入力フィールドをクリア
-                            handleChange({ target: { name: 'taskCost', value: '' } } as any);
-                          }
-                        }}
-                      >
-                        <MenuItem value="">手入力</MenuItem>
-                        <MenuItem value="S">S（2時間）</MenuItem>
-                        <MenuItem value="M">M（8時間）</MenuItem>
-                        <MenuItem value="L">L（24時間）</MenuItem>
-                      </Select>
-                    </FormControl>
                     <TextField
                       label="コスト（時間）"
                       name="taskCost"
                       type="number"
-                      value={['S', 'M', 'L'].includes(String(formData.taskCost || '')) ? '' : (formData.taskCost || '')}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        handleChange({ target: { name: 'taskCost', value } } as any);
-                      }}
+                      value={formData.taskCost || ''}
+                      onChange={handleChange}
                       fullWidth
                       size="small"
                       error={!!errors.taskCost}
-                      helperText={errors.taskCost || 'S/M/Lを選択するか、数値で入力してください'}
+                      helperText={errors.taskCost}
                       inputProps={{ step: "0.1", min: 0 }}
-                      disabled={['S', 'M', 'L'].includes(String(formData.taskCost || ''))}
                     />
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        const currentCost = Number(formData.taskCost) || 0;
+                        handleChange({ target: { name: 'taskCost', value: String(currentCost + 1) } } as any);
+                      }}
+                      sx={{ ml: 1, border: '1px solid rgba(0,0,0,0.23)', borderRadius: '4px' }}
+                      title="コストを+1時間"
+                    >
+                      <AddIcon fontSize="small" />
+                    </IconButton>
                   </Box>
                 </Grid>
                 <Grid item xs={6}>
@@ -1329,7 +1367,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
               <Grid item xs={12} container spacing={1.5}>
                 {/* All Day Checkbox */}
                 {showAllDayCheckbox && (
-                  <Grid item xs={12}>
+                  <Grid item xs={12} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -1337,12 +1375,11 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                           onChange={(e) => {
                             setFormData(prev => ({ ...prev, allDay: e.target.checked }));
                             if (e.target.checked) {
-                              // 終日の場合、時間をクリア
-                              setFormData(prev => ({
-                                ...prev,
-                                startTime: '', // Clear time
-                                endTime: ''   // Clear time
-                              }));
+                              setFormData(prev => ({ ...prev, startTime: '', endTime: '' }));
+                              // 終日にしたとき、デフォルトで期間はオフに
+                              // setIsRange(false); // ユーザーの操作性を考えて維持または自動設定するか... 一旦維持
+                            } else {
+                              setIsRange(false); // 終日解除なら期間も解除
                             }
                           }}
                           size="small"
@@ -1350,6 +1387,19 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       }
                       label="終日"
                     />
+
+                    {formData.type === 'Generic' && formData.allDay && (
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={isRange}
+                            onChange={(e) => setIsRange(e.target.checked)}
+                            size="small"
+                          />
+                        }
+                        label="期間（終了日を設定）"
+                      />
+                    )}
                   </Grid>
                 )}
 
@@ -1447,21 +1497,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                 )}
               </Grid>
             )}
-            {/* Description (always shown if type is selected) - Moved to bottom */}
-            {formData.type && (
-              <Grid item xs={12} sx={{ mt: 1.5 }}>
-                <TextField
-                  label="説明"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  fullWidth
-                  multiline
-                  rows={2}
-                  size="small"
-                />
-              </Grid>
-            )}
+            {/* Description (Moved to top) */}
           </Grid>
         </LocalizationProvider>
       </DialogContent>

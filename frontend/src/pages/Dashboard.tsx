@@ -306,12 +306,37 @@ const Dashboard: React.FC = () => {
     endOfWeek.setDate(startOfWeek.getDate() + 6)
     endOfWeek.setHours(23, 59, 59, 999)
     const completed = ['completed', 'COMPLETED']
-    return tasks
-      .filter((t: any) => {
-        const due = t.due_date ? new Date(t.due_date) : null
-        if (!due || completed.includes(String(t.status ?? ''))) return false
-        return due >= startOfWeek && due <= endOfWeek
-      })
+    const expandedTasks: any[] = []
+
+    tasks.forEach((t: any) => {
+      const isTaskCompleted = completed.includes(String(t.status ?? ''))
+
+      // 1. タスク自体の判定
+      const due = t.due_date ? new Date(t.due_date) : null
+      if (due && !isTaskCompleted && due >= startOfWeek && due <= endOfWeek) {
+        expandedTasks.push({ ...t, isPhase: false })
+      }
+
+      // 2. Phaseの判定（タスクが未完了の場合のみ）
+      if (!isTaskCompleted && t.phases && Array.isArray(t.phases)) {
+        t.phases.forEach((p: any, idx: number) => {
+          const phaseDate = p.date ? new Date(p.date) : null
+          // Phaseの日付が今週の範囲内なら追加
+          if (phaseDate && phaseDate >= startOfWeek && phaseDate <= endOfWeek) {
+            expandedTasks.push({
+              ...t,
+              id: `phase-${t.id}-${idx}`, // IDを一意・文字列に
+              originalId: t.id,
+              name: `${t.name}: ${p.name}`, // 名前を修飾
+              due_date: p.date, // 期日をPhaseの日付に
+              isPhase: true
+            })
+          }
+        })
+      }
+    })
+
+    return expandedTasks
       .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
       .map((t: any) => ({
         ...t,
@@ -342,15 +367,50 @@ const Dashboard: React.FC = () => {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
     const completed = ['completed', 'COMPLETED']
-    return tasks
-      .filter((t: any) => {
-        if (completed.includes(String(t.status ?? ''))) return false
-        if (String(t.status ?? '').toLowerCase() === 'delayed') return true
+    const expandedTasks: any[] = []
+
+    tasks.forEach((t: any) => {
+      const isTaskCompleted = completed.includes(String(t.status ?? ''))
+      if (isTaskCompleted) return
+
+      // 1. タスク自体の判定
+      let isTaskDelayed = false
+      if (String(t.status ?? '').toLowerCase() === 'delayed') {
+        isTaskDelayed = true
+      } else {
         const due = t.due_date ? new Date(t.due_date) : null
-        if (!due) return false
-        due.setHours(0, 0, 0, 0)
-        return due < todayStart
-      })
+        if (due) {
+          due.setHours(0, 0, 0, 0)
+          if (due < todayStart) isTaskDelayed = true
+        }
+      }
+      if (isTaskDelayed) {
+        expandedTasks.push({ ...t, isPhase: false })
+      }
+
+      // 2. Phaseの判定
+      if (t.phases && Array.isArray(t.phases)) {
+        t.phases.forEach((p: any, idx: number) => {
+          const phaseDate = p.date ? new Date(p.date) : null
+          if (phaseDate) {
+            phaseDate.setHours(0, 0, 0, 0)
+            // Phaseの日付が過去なら遅延とみなす
+            if (phaseDate < todayStart) {
+              expandedTasks.push({
+                ...t,
+                id: `phase-${t.id}-${idx}`,
+                originalId: t.id,
+                name: `${t.name}: ${p.name}`,
+                due_date: p.date,
+                isPhase: true
+              })
+            }
+          }
+        })
+      }
+    })
+
+    return expandedTasks
       .sort((a: any, b: any) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())
       .map((t: any) => ({
         ...t,

@@ -37,7 +37,7 @@ export interface Task {
   priority?: 'low' | 'medium' | 'high' | 'LOW' | 'MEDIUM' | 'HIGH' | string | null;
   seqID?: string | null;
   shotID?: string | null;
-  phases?: { name: string; date: string }[] | null;
+  phases?: { name: string; date: string; is_completed?: boolean }[] | null;
   extendedProps: {
     type: 'project' | 'task' | 'Meeting' | 'Workshop' | 'Deadline' | 'Milestone' | 'Generic' | string;
     description?: string | null;
@@ -50,15 +50,20 @@ export interface Task {
     projectEndDate?: string | null;
     taskId?: number | null;
     taskDueDate?: string | null;
+    taskStartDate?: string | null; // Added
     taskAssigneeId?: string | number | null;
     taskCost?: number | null;
     taskStatus?: string | null;
     status?: 'online' | 'offline' | string | null;
     displayStatus?: 'online' | 'offline' | 'archived' | string | null;
     dependsOn?: string[] | null;
+    taskType?: string | null; // Added
     priority?: 'low' | 'medium' | 'high' | null;
     seqID?: string | null;
     shotID?: string | null;
+    isPhase?: boolean; // Added
+    isCompleted?: boolean; // Added for Phase status
+    isDelayed?: boolean; // Added for Phase status
   };
 }
 
@@ -120,6 +125,7 @@ export interface CalendarEvent {
     projectEndDate?: string | null;
     taskId?: number | null;
     taskDueDate?: string | null;
+    taskStartDate?: string | null; // Added
     taskAssigneeId?: string | number | null;
     taskCost?: number | null;
     taskStatus?: string | null;
@@ -127,6 +133,10 @@ export interface CalendarEvent {
     displayStatus?: 'online' | 'offline' | 'archived' | string | null;
     dependsOn?: string[] | null;
     actualStartTime?: string | null;
+    taskPriority?: 'low' | 'medium' | 'high' | null; // Added
+    isPhase?: boolean; // Added
+    isCompleted?: boolean; // Added for Phase status
+    isDelayed?: boolean; // Added for Phase status
   };
 }
 

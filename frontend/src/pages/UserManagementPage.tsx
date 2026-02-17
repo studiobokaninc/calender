@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Box, Typography, Button, CircularProgress, Paper, 
-  IconButton, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, 
-  TextField, FormControl, InputLabel, Select, MenuItem, Snackbar, Alert, Card, 
+import {
+  Box, Typography, Button, CircularProgress, Paper,
+  IconButton, Avatar, Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, FormControl, InputLabel, Select, MenuItem, Snackbar, Alert, Card,
   CardContent, Chip, Grid, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme
 } from '@mui/material';
-import { User, Task, Project, UserGroup, Group } from '../types';
+import { User, Task, Project, UserGroup, Group, CalendarEvent } from '../types';
 import api from '../services/api';
-import { 
-  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, 
+import {
+  Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   Assignment as AssignmentIcon,
   Person as PersonIcon,
   Today as TodayIcon, Warning as WarningIcon, Schedule as ScheduleIcon,
@@ -17,6 +17,7 @@ import {
 } from '@mui/icons-material';
 import UserAddModal, { NewUserData } from '../components/UserAddModal';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
+import PhaseEditModal from '../components/PhaseEditModal';
 import { SelectChangeEvent } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid } from 'date-fns';
@@ -97,12 +98,14 @@ const UserManagementPage: React.FC = () => {
   const [editPassword, setEditPassword] = useState('');
   const [editConfirmPassword, setEditConfirmPassword] = useState('');
   const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
-  const [snackbar, setSnackbar] = useState<{open: boolean, message: string, severity: 'success' | 'error'}>({
+  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({
     open: false,
     message: '',
     severity: 'success'
   });
   const [taskEditId, setTaskEditId] = useState<number | null>(null);
+  const [isPhaseEditModalOpen, setIsPhaseEditModalOpen] = useState(false);
+  const [phaseEventToEdit, setPhaseEventToEdit] = useState<CalendarEvent | null>(null);
 
   useEffect(() => {
     fetchAllData();
@@ -142,11 +145,11 @@ const UserManagementPage: React.FC = () => {
       setTasks(tasksResponse.data);
       setProjects(projectsResponse.data);
       setGroups(groupsResponse.data || []);
-      
+
       // 全ユーザーのグループ所属情報を取得
       if (usersResponse.data.length > 0) {
         try {
-          const userGroupPromises = usersResponse.data.map(user => 
+          const userGroupPromises = usersResponse.data.map(user =>
             api.get<UserGroup[]>(`/user_groups?user_id=${user.id}`).catch(err => {
               console.warn(`Failed to fetch user groups for user ${user.id}:`, err);
               return { data: [] };
@@ -217,15 +220,15 @@ const UserManagementPage: React.FC = () => {
     // タスクをユーザーごとにグループ化（完了タスク・完了プロジェクトのタスク・オフラインプロジェクトのタスクは含めない）
     tasks.forEach(task => {
       if (!task.assigned_to) return;
-      
+
       // 完了タスクを除外
       if (isTaskCompleted(task)) return;
-      
+
       const projectId = task.project_id ?? 0;
-      
+
       // 完了プロジェクトのタスクを除外
       if (projectId !== 0 && completedProjectIds.has(projectId)) return;
-      
+
       // オフラインのプロジェクトのタスクを除外
       if (projectId !== 0 && offlineProjectIds.has(projectId)) return;
 
@@ -241,18 +244,45 @@ const UserManagementPage: React.FC = () => {
         };
       }
 
+      // メインタスクを追加
       infoMap[userId].tasks.push(task);
       infoMap[userId].totalTasks++;
-      
+
       // コスト（所要時間）を集計（コストが設定されている場合のみ）
       if (task.cost && typeof task.cost === 'number' && task.cost > 0) {
         infoMap[userId].totalCost += task.cost;
       }
 
+      // プロジェクト別タスクリストに追加
       if (!infoMap[userId].tasksByProject[projectId]) {
         infoMap[userId].tasksByProject[projectId] = [];
       }
       infoMap[userId].tasksByProject[projectId].push(task);
+
+      // Phaseも個別のタスクとして追加（完了していない場合のみ）
+      if (task.phases && Array.isArray(task.phases)) {
+        task.phases.forEach((p: any, idx: number) => {
+          if (p.date) {
+            // Phase用の疑似タスクオブジェクトを作成
+            const phaseTask: any = {
+              ...task,
+              id: -1 * (task.id * 100 + idx), // 一意なID
+              originalId: task.id,
+              _phaseIndex: idx,
+              _isCompleted: !!p.is_completed,
+              name: `${task.name}: ${p.name}`, // タスク名: 段階目標名
+              due_date: p.date,
+              isPhase: true, // Phaseであることを示すフラグ
+              cost: 0 // Phase自体にはコストを持たせない（二重計上防止）
+            };
+
+            // Phaseをタスクリストに追加
+            infoMap[userId].tasks.push(phaseTask);
+            // プロジェクト別リストにも追加（必要なら）
+            infoMap[userId].tasksByProject[projectId].push(phaseTask);
+          }
+        });
+      }
 
       if (projectId && projectMap.has(projectId)) {
         infoMap[userId].projectNames[projectId] = projectMap.get(projectId)!;
@@ -287,7 +317,7 @@ const UserManagementPage: React.FC = () => {
     try {
       const response = await api.post<User>('/api/users', newUserData);
       const createdUser = response.data;
-      
+
       setUsers(prevUsers => [...prevUsers, createdUser]);
       setSnackbar({
         open: true,
@@ -296,7 +326,7 @@ const UserManagementPage: React.FC = () => {
       });
       // データを再取得してタスク情報を更新
       await fetchAllData();
-      
+
       return;
     } catch (error) {
       console.error("Failed to save new user:", error);
@@ -367,21 +397,21 @@ const UserManagementPage: React.FC = () => {
       }
       const response = await api.put<User>(`/api/users/${currentEditUser.id}`, payload);
       const updatedUser = response.data;
-      
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
+
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
           user.id === updatedUser.id ? updatedUser : user
         )
       );
       // データを再取得してタスク情報を更新
       await fetchAllData();
-      
+
       setSnackbar({
         open: true,
         message: 'ユーザー情報が正常に更新されました',
         severity: 'success'
       });
-      
+
       handleCloseEditModal();
     } catch (error) {
       console.error("Failed to update user:", error);
@@ -417,7 +447,7 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleCloseSnackbar = () => {
-    setSnackbar({...snackbar, open: false});
+    setSnackbar({ ...snackbar, open: false });
   };
 
   const handleDeleteUserFromDialog = async () => {
@@ -439,7 +469,74 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleTaskDoubleClick = (task: Task) => {
+    // 段階目標の場合はカレンダーページと同じ PhaseEditModal を開く
+    if ((task as any).isPhase && (task as any).originalId != null && (task as any)._phaseIndex != null) {
+      const originalId = (task as any).originalId as number;
+      const phaseIndex = (task as any)._phaseIndex as number;
+      const eventToEdit: CalendarEvent = {
+        id: `task-${originalId}-phase-${phaseIndex}`,
+        title: task.name,
+        start: task.due_date ? parseISO(task.due_date) : new Date(),
+        allDay: true,
+        extendedProps: {
+          type: 'task',
+          isPhase: true,
+          taskId: originalId,
+          isCompleted: !!(task as any)._isCompleted,
+        },
+      };
+      setPhaseEventToEdit(eventToEdit);
+      setIsPhaseEditModalOpen(true);
+      return;
+    }
     setTaskEditId(task.id);
+  };
+
+  const handleSavePhase = async (phaseUpdateData: { taskId: number; phaseIndex: number; newName: string; newDate: string | null; isCompleted: boolean }) => {
+    try {
+      const task = tasks.find(t => t.id === Number(phaseUpdateData.taskId));
+      if (!task) return;
+      const currentPhases = task.phases || [];
+      if (phaseUpdateData.phaseIndex >= 0 && phaseUpdateData.phaseIndex < currentPhases.length) {
+        const updatedPhases = [...currentPhases];
+        updatedPhases[phaseUpdateData.phaseIndex] = {
+          ...updatedPhases[phaseUpdateData.phaseIndex],
+          name: phaseUpdateData.newName,
+          date: phaseUpdateData.newDate || updatedPhases[phaseUpdateData.phaseIndex].date,
+          is_completed: phaseUpdateData.isCompleted,
+        };
+        await api.put(`/tasks/${phaseUpdateData.taskId}`, { phases: updatedPhases });
+        setIsPhaseEditModalOpen(false);
+        setPhaseEventToEdit(null);
+        setSnackbar({ open: true, message: '段階目標を更新しました', severity: 'success' });
+        await fetchAllData();
+      }
+    } catch (error) {
+      console.error('Failed to save phase:', error);
+      setSnackbar({ open: true, message: '段階目標の保存に失敗しました', severity: 'error' });
+    }
+  };
+
+  const handleDeletePhase = async () => {
+    if (!phaseEventToEdit?.extendedProps?.taskId) return;
+    try {
+      const taskId = Number(phaseEventToEdit.extendedProps.taskId);
+      const phaseIndex = Number(phaseEventToEdit.id.split('-').pop());
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      const currentPhases = task.phases || [];
+      if (phaseIndex >= 0 && phaseIndex < currentPhases.length) {
+        const updatedPhases = currentPhases.filter((_, index) => index !== phaseIndex);
+        await api.put(`/tasks/${taskId}`, { phases: updatedPhases });
+        setIsPhaseEditModalOpen(false);
+        setPhaseEventToEdit(null);
+        setSnackbar({ open: true, message: '段階目標を削除しました', severity: 'success' });
+        await fetchAllData();
+      }
+    } catch (error) {
+      console.error('Failed to delete phase:', error);
+      setSnackbar({ open: true, message: '段階目標の削除に失敗しました', severity: 'error' });
+    }
   };
 
   const usersWithTasks = users.filter(user => {
@@ -468,7 +565,7 @@ const UserManagementPage: React.FC = () => {
     const map = new Map<number, Group[]>();
     const groupMap = new Map<number, Group>();
     groups.forEach(g => groupMap.set(g.id, g));
-    
+
     userGroups.forEach(ug => {
       const group = groupMap.get(ug.group_id);
       if (group) {
@@ -498,12 +595,12 @@ const UserManagementPage: React.FC = () => {
       const info = userTaskInfo[user.id];
       const hasTasks = info && info.totalTasks > 0;
       const isInGroup = usersInGroups.has(user.id);
-      
+
       // グループに所属しているユーザーはタスク未担当リストから除外
       if (isInGroup) {
         return false;
       }
-      
+
       // タスクを持っていないユーザーのみ
       return !hasTasks;
     });
@@ -592,11 +689,26 @@ const UserManagementPage: React.FC = () => {
                                     <WarningIcon fontSize="small" /> 遅れている
                                   </Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {part.delayed.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                        <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE', color: isDarkMode ? '#EF9A9A' : '#C62828', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                      </Tooltip>
-                                    ))}
+                                    {part.delayed.map((t) => {
+                                      const isPhase = (t as any).isPhase;
+                                      return (
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                          <Chip
+                                            size="small"
+                                            label={t.name}
+                                            variant={isPhase ? "outlined" : "filled"}
+                                            sx={{
+                                              bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE'),
+                                              color: isDarkMode ? '#EF9A9A' : '#C62828',
+                                              borderColor: isPhase ? (isDarkMode ? '#EF9A9A' : '#C62828') : 'transparent',
+                                              maxWidth: 200,
+                                              cursor: 'pointer'
+                                            }}
+                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          />
+                                        </Tooltip>
+                                      );
+                                    })}
                                   </Box>
                                 </Box>
                               )}
@@ -606,11 +718,26 @@ const UserManagementPage: React.FC = () => {
                                     <TodayIcon fontSize="small" /> 今日中
                                   </Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {part.today.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                        <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD', color: isDarkMode ? '#90CAF9' : '#1565C0', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                      </Tooltip>
-                                    ))}
+                                    {part.today.map((t) => {
+                                      const isPhase = (t as any).isPhase;
+                                      return (
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                          <Chip
+                                            size="small"
+                                            label={t.name}
+                                            variant={isPhase ? "outlined" : "filled"}
+                                            sx={{
+                                              bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD'),
+                                              color: isDarkMode ? '#90CAF9' : '#1565C0',
+                                              borderColor: isPhase ? (isDarkMode ? '#90CAF9' : '#1565C0') : 'transparent',
+                                              maxWidth: 200,
+                                              cursor: 'pointer'
+                                            }}
+                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          />
+                                        </Tooltip>
+                                      );
+                                    })}
                                   </Box>
                                 </Box>
                               )}
@@ -620,11 +747,26 @@ const UserManagementPage: React.FC = () => {
                                     <ScheduleIcon fontSize="small" /> 期限が近い
                                   </Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {part.dueSoon.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                        <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100', maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                      </Tooltip>
-                                    ))}
+                                    {part.dueSoon.map((t) => {
+                                      const isPhase = (t as any).isPhase;
+                                      return (
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                          <Chip
+                                            size="small"
+                                            label={t.name}
+                                            variant={isPhase ? "outlined" : "filled"}
+                                            sx={{
+                                              bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0'),
+                                              color: isDarkMode ? '#FFB74D' : '#E65100',
+                                              borderColor: isPhase ? (isDarkMode ? '#FFB74D' : '#E65100') : 'transparent',
+                                              maxWidth: 200,
+                                              cursor: 'pointer'
+                                            }}
+                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          />
+                                        </Tooltip>
+                                      );
+                                    })}
                                   </Box>
                                 </Box>
                               )}
@@ -632,11 +774,24 @@ const UserManagementPage: React.FC = () => {
                                 <Box>
                                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', mb: 0.5, display: 'block' }}>余裕をもって進める</Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {part.other.map((t) => (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                        <Chip size="small" label={t.name} variant="outlined" sx={{ maxWidth: 200, cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                      </Tooltip>
-                                    ))}
+                                    {part.other.map((t) => {
+                                      const isPhase = (t as any).isPhase;
+                                      return (
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                          <Chip
+                                            size="small"
+                                            label={t.name}
+                                            variant="outlined"
+                                            sx={{
+                                              maxWidth: 200,
+                                              cursor: 'pointer',
+                                              ...(isPhase && { borderStyle: 'dashed' })
+                                            }}
+                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          />
+                                        </Tooltip>
+                                      );
+                                    })}
                                   </Box>
                                 </Box>
                               )}
@@ -681,38 +836,92 @@ const UserManagementPage: React.FC = () => {
                               </TableCell>
                               <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(244, 67, 54, 0.1)' : 'rgba(244, 67, 54, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {part.delayed.length === 0 ? '—' : part.delayed.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                      <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE', color: isDarkMode ? '#EF9A9A' : '#C62828', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                    </Tooltip>
-                                  ))}
+                                  {part.delayed.length === 0 ? '—' : part.delayed.map((t) => {
+                                    const isPhase = (t as any).isPhase;
+                                    return (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Chip
+                                          size="small"
+                                          label={t.name}
+                                          variant={isPhase ? "outlined" : "filled"}
+                                          sx={{
+                                            bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE'),
+                                            color: isDarkMode ? '#EF9A9A' : '#C62828',
+                                            borderColor: isPhase ? (isDarkMode ? '#EF9A9A' : '#C62828') : 'transparent',
+                                            cursor: 'pointer'
+                                          }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                        />
+                                      </Tooltip>
+                                    );
+                                  })}
                                 </Box>
                               </TableCell>
                               <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(33, 150, 243, 0.1)' : 'rgba(33, 150, 243, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {part.today.length === 0 ? '—' : part.today.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                      <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD', color: isDarkMode ? '#90CAF9' : '#1565C0', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                    </Tooltip>
-                                  ))}
+                                  {part.today.length === 0 ? '—' : part.today.map((t) => {
+                                    const isPhase = (t as any).isPhase;
+                                    return (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Chip
+                                          size="small"
+                                          label={t.name}
+                                          variant={isPhase ? "outlined" : "filled"}
+                                          sx={{
+                                            bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD'),
+                                            color: isDarkMode ? '#90CAF9' : '#1565C0',
+                                            borderColor: isPhase ? (isDarkMode ? '#90CAF9' : '#1565C0') : 'transparent',
+                                            cursor: 'pointer'
+                                          }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                        />
+                                      </Tooltip>
+                                    );
+                                  })}
                                 </Box>
                               </TableCell>
                               <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(255, 152, 0, 0.1)' : 'rgba(255, 152, 0, 0.04)' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {part.dueSoon.length === 0 ? '—' : part.dueSoon.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                      <Chip size="small" label={t.name} sx={{ bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100', cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                    </Tooltip>
-                                  ))}
+                                  {part.dueSoon.length === 0 ? '—' : part.dueSoon.map((t) => {
+                                    const isPhase = (t as any).isPhase;
+                                    return (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Chip
+                                          size="small"
+                                          label={t.name}
+                                          variant={isPhase ? "outlined" : "filled"}
+                                          sx={{
+                                            bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0'),
+                                            color: isDarkMode ? '#FFB74D' : '#E65100',
+                                            borderColor: isPhase ? (isDarkMode ? '#FFB74D' : '#E65100') : 'transparent',
+                                            cursor: 'pointer'
+                                          }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                        />
+                                      </Tooltip>
+                                    );
+                                  })}
                                 </Box>
                               </TableCell>
                               <TableCell sx={{ verticalAlign: 'top' }}>
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {part.other.length === 0 ? '—' : part.other.map((t) => (
-                                    <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
-                                      <Chip size="small" label={t.name} variant="outlined" sx={{ cursor: 'pointer' }} onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }} />
-                                    </Tooltip>
-                                  ))}
+                                  {part.other.length === 0 ? '—' : part.other.map((t) => {
+                                    const isPhase = (t as any).isPhase;
+                                    return (
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Chip
+                                          size="small"
+                                          label={t.name}
+                                          variant="outlined"
+                                          sx={{
+                                            cursor: 'pointer',
+                                            ...(isPhase && { borderStyle: 'dashed' })
+                                          }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                        />
+                                      </Tooltip>
+                                    );
+                                  })}
                                 </Box>
                               </TableCell>
                             </TableRow>
@@ -765,16 +974,16 @@ const UserManagementPage: React.FC = () => {
                               {userGroupsList.length > 0 ? (
                                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                   {userGroupsList.map((group) => (
-                                    <Chip 
-                                      key={group.id} 
-                                      label={group.name} 
-                                      size="small" 
-                                      sx={{ 
-                                        bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.28)' : '#E1BEE7', 
-                                        color: isDarkMode ? '#E1BEE7' : '#7B1FA2', 
+                                    <Chip
+                                      key={group.id}
+                                      label={group.name}
+                                      size="small"
+                                      sx={{
+                                        bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.28)' : '#E1BEE7',
+                                        color: isDarkMode ? '#E1BEE7' : '#7B1FA2',
                                         fontWeight: 600,
                                         maxWidth: 200,
-                                      }} 
+                                      }}
                                     />
                                   ))}
                                 </Box>
@@ -824,16 +1033,16 @@ const UserManagementPage: React.FC = () => {
                                 {userGroupsList.length > 0 ? (
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {userGroupsList.map((group) => (
-                                      <Chip 
-                                        key={group.id} 
-                                        label={group.name} 
-                                        size="small" 
-                                        sx={{ 
-                                          bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.28)' : '#E1BEE7', 
-                                          color: isDarkMode ? '#E1BEE7' : '#7B1FA2', 
+                                      <Chip
+                                        key={group.id}
+                                        label={group.name}
+                                        size="small"
+                                        sx={{
+                                          bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.28)' : '#E1BEE7',
+                                          color: isDarkMode ? '#E1BEE7' : '#7B1FA2',
                                           fontWeight: 600,
                                           cursor: 'default',
-                                        }} 
+                                        }}
                                       />
                                     ))}
                                   </Box>
@@ -872,9 +1081,9 @@ const UserManagementPage: React.FC = () => {
                 <Grid container spacing={2}>
                   {usersWithoutTasks.map((user) => (
                     <Grid item xs={12} sm={6} md={4} key={user.id}>
-                      <Card 
-                        variant="outlined" 
-                        sx={{ 
+                      <Card
+                        variant="outlined"
+                        sx={{
                           bgcolor: 'background.paper',
                           transition: 'all 0.2s ease-in-out',
                           '&:hover': {
@@ -903,10 +1112,10 @@ const UserManagementPage: React.FC = () => {
                             </Box>
                             {isAdmin && (
                               <Box>
-                                <IconButton 
+                                <IconButton
                                   size="small"
-                                  edge="end" 
-                                  aria-label="edit" 
+                                  edge="end"
+                                  aria-label="edit"
                                   onClick={() => handleEditUserClick(user)}
                                 >
                                   <EditIcon fontSize="small" />
@@ -936,7 +1145,7 @@ const UserManagementPage: React.FC = () => {
       )}
 
       {isAdmin && (
-        <UserAddModal 
+        <UserAddModal
           open={isAddModalOpen}
           onClose={handleCloseAddModal}
           onSave={handleSaveNewUser}
@@ -945,75 +1154,75 @@ const UserManagementPage: React.FC = () => {
 
       {/* ユーザー編集モーダル（管理者のみ） */}
       {isAdmin && (
-      <Dialog open={isEditModalOpen} onClose={handleCloseEditModal} maxWidth="sm" fullWidth>
-        <DialogTitle>ユーザー情報の編集</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="ユーザー名"
-              name="username"
-              value={currentEditUser?.username || ''}
-              onChange={handleEditChange}
-              fullWidth
-            />
-            <TextField
-              label="氏名"
-              name="full_name"
-              value={currentEditUser?.full_name || ''}
-              onChange={handleEditChange}
-              fullWidth
-            />
-            <TextField
-              label="メールアドレス"
-              name="email"
-              value={currentEditUser?.email || ''}
-              onChange={handleEditChange}
-              fullWidth
-            />
-            <FormControl fullWidth>
-              <InputLabel>役割</InputLabel>
-              <Select
-                name="role"
-                value={currentEditUser?.role || 'user'}
+        <Dialog open={isEditModalOpen} onClose={handleCloseEditModal} maxWidth="sm" fullWidth>
+          <DialogTitle>ユーザー情報の編集</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <TextField
+                label="ユーザー名"
+                name="username"
+                value={currentEditUser?.username || ''}
                 onChange={handleEditChange}
-                label="役割"
-              >
-                <MenuItem value="user">一般ユーザー</MenuItem>
-                <MenuItem value="admin">管理者</MenuItem>
-              </Select>
-            </FormControl>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              パスワードを変更する場合のみ入力してください（空欄の場合は変更されません）
-            </Typography>
-            <TextField
-              label="新しいパスワード"
-              type="password"
-              value={editPassword}
-              onChange={(e) => setEditPassword(e.target.value)}
-              fullWidth
-              error={!!editPasswordError}
-              helperText={editPasswordError}
-              placeholder="8文字以上"
-              inputProps={{ autoComplete: 'new-password' }}
-            />
-            <TextField
-              label="新しいパスワード（確認）"
-              type="password"
-              value={editConfirmPassword}
-              onChange={(e) => setEditConfirmPassword(e.target.value)}
-              fullWidth
-              error={!!editPasswordError}
-              inputProps={{ autoComplete: 'new-password' }}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseEditModal}>キャンセル</Button>
-          <Button onClick={handleSaveEditUser} variant="contained" color="primary">
-            保存
-          </Button>
-        </DialogActions>
-      </Dialog>
+                fullWidth
+              />
+              <TextField
+                label="氏名"
+                name="full_name"
+                value={currentEditUser?.full_name || ''}
+                onChange={handleEditChange}
+                fullWidth
+              />
+              <TextField
+                label="メールアドレス"
+                name="email"
+                value={currentEditUser?.email || ''}
+                onChange={handleEditChange}
+                fullWidth
+              />
+              <FormControl fullWidth>
+                <InputLabel>役割</InputLabel>
+                <Select
+                  name="role"
+                  value={currentEditUser?.role || 'user'}
+                  onChange={handleEditChange}
+                  label="役割"
+                >
+                  <MenuItem value="user">一般ユーザー</MenuItem>
+                  <MenuItem value="admin">管理者</MenuItem>
+                </Select>
+              </FormControl>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                パスワードを変更する場合のみ入力してください（空欄の場合は変更されません）
+              </Typography>
+              <TextField
+                label="新しいパスワード"
+                type="password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                fullWidth
+                error={!!editPasswordError}
+                helperText={editPasswordError}
+                placeholder="8文字以上"
+                inputProps={{ autoComplete: 'new-password' }}
+              />
+              <TextField
+                label="新しいパスワード（確認）"
+                type="password"
+                value={editConfirmPassword}
+                onChange={(e) => setEditConfirmPassword(e.target.value)}
+                fullWidth
+                error={!!editPasswordError}
+                inputProps={{ autoComplete: 'new-password' }}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseEditModal}>キャンセル</Button>
+            <Button onClick={handleSaveEditUser} variant="contained" color="primary">
+              保存
+            </Button>
+          </DialogActions>
+        </Dialog>
       )}
 
       {/* タスク編集ダイアログ（タスク部分ダブルクリックで表示・共通コンポーネント） */}
@@ -1026,6 +1235,18 @@ const UserManagementPage: React.FC = () => {
           setSnackbar({ open: true, message: 'タスクを更新しました', severity: 'success' });
           fetchAllData();
         }}
+      />
+
+      {/* 段階目標編集ダイアログ（段階目標ダブルクリックで表示・カレンダーページと同じ） */}
+      <PhaseEditModal
+        open={isPhaseEditModalOpen}
+        onClose={() => {
+          setIsPhaseEditModalOpen(false);
+          setPhaseEventToEdit(null);
+        }}
+        onSave={handleSavePhase}
+        onDelete={handleDeletePhase}
+        eventToEdit={phaseEventToEdit}
       />
 
       {/* ユーザー削除ダイアログ（管理者のみ） */}
@@ -1056,9 +1277,9 @@ const UserManagementPage: React.FC = () => {
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseDeleteDialog}>キャンセル</Button>
-            <Button 
-              onClick={handleDeleteUserFromDialog} 
-              variant="contained" 
+            <Button
+              onClick={handleDeleteUserFromDialog}
+              variant="contained"
               color="error"
               disabled={!selectedDeleteUserId}
             >
@@ -1069,14 +1290,14 @@ const UserManagementPage: React.FC = () => {
       )}
 
       {/* 操作結果の通知 */}
-      <Snackbar 
-        open={snackbar.open} 
-        autoHideDuration={5000} 
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={5000}
         onClose={handleCloseSnackbar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={handleCloseSnackbar} 
+        <Alert
+          onClose={handleCloseSnackbar}
           severity={snackbar.severity}
           sx={{ width: '100%' }}
         >

@@ -134,6 +134,7 @@ export interface CalendarEvent {
     dependsOn?: string[] | null;
     actualStartTime?: string | null;
     taskPriority?: 'low' | 'medium' | 'high' | null; // Added
+    taskType?: string | null; // Added to fix lint error
     isPhase?: boolean; // Added
     isCompleted?: boolean; // Added for Phase status
     isDelayed?: boolean; // Added for Phase status

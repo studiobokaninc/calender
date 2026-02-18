@@ -47,6 +47,7 @@ interface EventFormData {
   location?: string;
   dueDate?: string;
   taskPhases?: { name: string; date: string }[];
+  phaseTargetTaskId?: string | null; // Added for Phase creation
 }
 
 interface ProjectOption { id: string; name: string; }
@@ -163,12 +164,13 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       location: '',
       dueDate: format(initialStartDateTime, 'yyyy-MM-dd'),
       taskPhases: [],
+      phaseTargetTaskId: null,
     };
   };
 
   const [formData, setFormData] = useState<EventFormData>(getInitialState());
   const [projectSelectionMode, setProjectSelectionMode] = useState<'existing' | 'new'>('existing');
-  const [errors, setErrors] = useState<Partial<Record<keyof EventFormData | 'newProjectName' | 'taskDueDate' | 'taskAssigneeId', string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof EventFormData | 'newProjectName' | 'taskDueDate' | 'taskAssigneeId' | 'phaseTargetTaskId', string>>>({});
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<ParticipantOption[]>([]);
@@ -581,6 +583,16 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         next.startTime = prev.startTime || '13:00';
         next.endTime = prev.endTime || '16:00';
 
+      } else if (newType === 'Phase') {
+        // Phase creation mode
+        next.allDay = true;
+        next.startTime = undefined;
+        next.endTime = undefined;
+        // Phase date (use startDate)
+        next.startDate = prev.startDate || prev.taskDueDate || '';
+        next.endDate = undefined;
+        // Reset task related fields except those needed for phase logic if any
+        next.phaseTargetTaskId = null;
       } else { // Generic
         // Generic は終日ON/OFFをユーザーに委ねる
         next.startDate = prev.startDate || prev.taskDueDate || '';
@@ -621,7 +633,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof EventFormData | 'newProjectName' | 'taskDueDate' | 'taskAssigneeId', string>> = {};
+    const newErrors: Partial<Record<keyof EventFormData | 'newProjectName' | 'taskDueDate' | 'taskAssigneeId' | 'phaseTargetTaskId', string>> = {};
     if (!formData.type) newErrors.type = 'イベントタイプを選択してください';
     if (!formData.title.trim()) newErrors.title = 'タイトル/タスク名を入力してください';
 
@@ -650,6 +662,10 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
         newErrors.endDate = '終了日は開始日より後に設定してください';
       }
+    } else if (formData.type === 'Phase') {
+      if (!formData.phaseTargetTaskId) newErrors.phaseTargetTaskId = 'タスクを選択してください';
+      if (!formData.title.trim()) newErrors.title = '段階目標名を入力してください';
+      if (!formData.startDate) newErrors.startDate = '目標日を入力してください';
     } else if (formData.type) { // Generic, Meeting, Workshop, Deadline, Milestone
       if (!formData.startDate) {
         newErrors.startDate = (formData.type === 'Deadline' || formData.type === 'Milestone') ? '期日を入力してください' : '開始日を入力してください';
@@ -710,6 +726,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         Milestone: 'Milestone',
         workshop: 'Workshop',
         Workshop: 'Workshop',
+        phase: 'Phase',
+        Phase: 'Phase',
         generic: 'Generic',
         Generic: 'Generic',
       };
@@ -737,6 +755,10 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         dataToSave.projectDescription = formData.description || '';
         dataToSave.projectStatus = formData.taskStatus || 'planning'; // プロジェクトのステータス
         dataToSave.status = formData.taskStatus || 'planning'; // APIに送信するステータス
+      } else if (normalizedType === 'Phase') {
+        dataToSave.phaseTargetTaskId = formData.phaseTargetTaskId;
+        dataToSave.date = formData.startDate; // Phase date
+        dataToSave.allDay = true;
       } else if (normalizedType === 'Task') {
         // start_time: 開始日 → startDate(期日-コスト) → 期日ベースのフォールバック
         if (formData.taskStartDate) {
@@ -919,14 +941,14 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
   const showAllDayCheckbox = useMemo(() => {
     if (!formData?.type) return false;
-    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop'].includes(formData.type)) return false;
+    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop', 'Phase', 'phase'].includes(formData.type)) return false;
     return true; // Generic のみ表示
   }, [formData?.type]);
 
   const showTimeFields = useMemo(() => {
     if (!formData?.type || formData.allDay) return false;
-    // タスク、締切、マイルストーンでは非表示
-    if (['task', 'Task', 'Deadline', 'Milestone'].includes(formData.type)) return false;
+    // タスク、締切、マイルストーン、Phaseでは非表示
+    if (['task', 'Task', 'Deadline', 'Milestone', 'Phase', 'phase'].includes(formData.type)) return false;
     return true; // Generic, Meeting のみ表示 (かつ終日でない場合)
   }, [formData?.type, formData.allDay]);
 
@@ -936,8 +958,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     if (formData.type === 'Generic') {
       return formData.allDay && isRange;
     }
-    // タスク、締切、マイルストーン、会議、ワークショップは非表示
-    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop'].includes(formData.type)) return false;
+    // タスク、締切、マイルストーン、会議、ワークショップ、Phaseは非表示
+    if (['task', 'Task', 'Deadline', 'Milestone', 'Meeting', 'Workshop', 'Phase', 'phase'].includes(formData.type)) return false;
     // Project などは表示
     return true;
   }, [formData?.type, formData.allDay, isRange]);
@@ -948,6 +970,27 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     return users.sort((a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label));
   }, [usersFromProps]);
 
+  const normalizedType = useMemo(() => {
+    const map: Record<string, string> = {
+      task: 'Task',
+      Task: 'Task',
+      project: 'Project',
+      Project: 'Project',
+      meeting: 'Meeting',
+      Meeting: 'Meeting',
+      deadline: 'Deadline',
+      Deadline: 'Deadline',
+      milestone: 'Milestone',
+      Milestone: 'Milestone',
+      workshop: 'Workshop',
+      Workshop: 'Workshop',
+      phase: 'Phase',
+      Phase: 'Phase',
+      generic: 'Generic',
+      Generic: 'Generic',
+    };
+    return map[formData.type] || 'Generic';
+  }, [formData.type]);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -972,16 +1015,17 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                   {!eventTypesOnly && canCreateProject && <MenuItem value="Project">プロジェクト</MenuItem>}
                   <MenuItem value="Meeting">会議</MenuItem>
                   <MenuItem value="Workshop">ワークショップ</MenuItem>
-                  <MenuItem value="Generic">イベント (通常)</MenuItem>
+                  <MenuItem value="Generic">通常イベント (Generic)</MenuItem>
                   <MenuItem value="Deadline">締切</MenuItem>
-                  <MenuItem value="Milestone">マイルストーン</MenuItem>
+                  <MenuItem value="Milestone">マイルストーン (Milestone)</MenuItem>
+                  <MenuItem value="Phase">段階目標 (Phase)</MenuItem>
                 </Select>
                 {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
               </FormControl>
 
               {/* Title */}
               <TextField
-                label={formData.type === 'task' || formData.type === 'Task' ? "タスク名 *" : "タイトル *"}
+                label={formData.type === 'task' || formData.type === 'Task' ? "タスク名 *" : (formData.type === 'Phase' ? "段階目標名 *" : "タイトル *")}
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
@@ -1331,6 +1375,55 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
               </Grid>
             )}
 
+            {/* Phase Type Fields */}
+            {normalizedType === 'Phase' && (
+              <>
+                <Grid item xs={12}>
+                  <FormControl fullWidth error={!!errors.phaseTargetTaskId} size="small" sx={{ mb: 1.5 }}>
+                    <Autocomplete
+                      options={tasksFromProps
+                        .filter(t => t.status !== 'completed' && t.status !== 'cancelled')
+                        .map(t => ({ id: String(t.id), label: t.name || `Task ${t.id}` }))}
+                      getOptionLabel={(option) => option.label || ''}
+                      value={formData.phaseTargetTaskId ? (
+                        tasksFromProps.find(t => String(t.id) === formData.phaseTargetTaskId)
+                          ? { id: formData.phaseTargetTaskId, label: tasksFromProps.find(t => String(t.id) === formData.phaseTargetTaskId)?.name || '' }
+                          : null
+                      ) : null}
+                      onChange={(_, newValue) => {
+                        setFormData({ ...formData, phaseTargetTaskId: newValue ? newValue.id : null });
+                        if (newValue && errors.phaseTargetTaskId) {
+                          setErrors({ ...errors, phaseTargetTaskId: undefined });
+                        }
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="対象タスク (未完了のみ) *"
+                          error={!!errors.phaseTargetTaskId}
+                          helperText={errors.phaseTargetTaskId}
+                          required
+                          size="small"
+                        />
+                      )}
+                      isOptionEqualToValue={(option, value) => option.id === value.id}
+                    />
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12}>
+                  {/* Phase Name reuses Title */}
+                </Grid>
+                <Grid item xs={12}>
+                  <DatePicker
+                    label="目標日 *"
+                    value={parseDateString(formData.startDate)}
+                    onChange={(newValue) => handleDateChange('startDate', newValue)}
+                    slotProps={{ textField: { fullWidth: true, size: 'small', required: true, error: !!errors.startDate, helperText: errors.startDate } }}
+                  />
+                </Grid>
+              </>
+            )}
+
             {/* Project Specific Fields */}
             {(formData.type === 'project' || formData.type === 'Project') && (
               <Grid item xs={12} container spacing={1.5}>
@@ -1373,7 +1466,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             )}
 
             {/* Fields for Non-Task Event Types (Generic, Meeting, Workshop, Deadline, Milestone) */}
-            {formData.type && formData.type !== 'task' && formData.type !== 'Task' && formData.type !== 'project' && formData.type !== 'Project' && (
+            {formData.type && formData.type !== 'task' && formData.type !== 'Task' && formData.type !== 'project' && formData.type !== 'Project' && formData.type !== 'Phase' && formData.type !== 'phase' && (
               <Grid item xs={12} container spacing={1.5}>
                 {/* All Day Checkbox */}
                 {showAllDayCheckbox && (

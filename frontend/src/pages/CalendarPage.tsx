@@ -1652,6 +1652,36 @@ const CalendarPage: React.FC = () => {
                     };
                     console.log("[CalendarPage] Creating NEW TASK via POST /tasks with data:", JSON.stringify(taskData, null, 2));
                     response = await api.post('/tasks', taskData);
+                } else if (normalizedType === 'Phase') {
+                    const md: any = modalData;
+                    const targetTaskId = md.phaseTargetTaskId;
+                    if (!targetTaskId) {
+                        throw new Error("Target task for phase not selected");
+                    }
+                    // find target task from current state to get existing phases
+                    const targetTask = tasks.find(t => String(t.id) === String(targetTaskId));
+                    if (!targetTask) {
+                        // If not found in state, we might need to fetch it or fail. 
+                        // For now, fail or try to proceed if we assume backend handles merge (backend usually replaces phases list).
+                        // Backend REPLACE phases typically. So we NEED the existing phases.
+                        throw new Error("Target task not found locally. Please refresh.");
+                    }
+
+                    const newPhase = {
+                        name: md.title,
+                        date: md.date,
+                        is_completed: false
+                    };
+                    // Append new phase to existing phases
+                    const updatedPhases = [...(targetTask.phases || []), newPhase];
+
+                    const taskData = {
+                        phases: updatedPhases
+                    };
+                    console.log(`[CalendarPage] Adding Phase to Task ${targetTaskId}:`, JSON.stringify(newPhase));
+                    // Update the task with the new list of phases
+                    response = await api.put(`/tasks/${targetTaskId}`, taskData);
+
                 } else if (normalizedType === 'Project') {
                     const md: any = modalData;
                     const projectData = {

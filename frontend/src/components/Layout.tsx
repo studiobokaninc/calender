@@ -84,7 +84,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
   const [currentTitle, setCurrentTitle] = useState('')
   const { mode, toggleMode } = useThemeMode()
-  
+
   // モックデータ管理用の状態
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -93,7 +93,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [exportType, setExportType] = useState<'all' | 'users' | 'events'>('all')
-  
+
   // ファイル入力用のref
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const userDataFileInputRef = React.useRef<HTMLInputElement>(null)
@@ -212,7 +212,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       const now = new Date()
       const hour = now.getHours()
       const minute = now.getMinutes()
-      
+
       // 5:00になったらログアウト（5:00〜5:01の間）
       if (hour === 5 && minute === 0) {
         console.log('[Layout] 5:00 reached, logging out user')
@@ -284,13 +284,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const checkCycleChange = () => {
       const now = new Date()
       const currentCycleDate = getCycleDate(now)
-      
+
       if (lastCycleDate !== null && lastCycleDate !== currentCycleDate) {
         console.log('[UserActivity] Cycle changed:', lastCycleDate, '->', currentCycleDate)
         // 周期が変わったらアクティビティを記録（重複防止はrecordActivity内で処理）
         recordActivity()
       }
-      
+
       lastCycleDate = currentCycleDate
     }
 
@@ -330,11 +330,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setIsLoading(true)
     setErrorMessage(null)
     setExportType(type)
-    
+
     try {
       let data;
       let message;
-      
+
       switch (type) {
         case 'users':
           data = await mockDataApi.exportUserData();
@@ -348,7 +348,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           data = await mockDataApi.exportMockData();
           message = 'モックデータを正常にエクスポートしました';
       }
-      
+
       setExportedData(data)
       setIsExportDialogOpen(true)
       setSuccessMessage(message)
@@ -392,10 +392,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const jsonData = transformImportData(raw)
         setIsLoading(true)
         setErrorMessage(null)
-        
+
         await importMockData(jsonData)
         setSuccessMessage('モックデータを正常にインポートしました')
-        
+
         // ファイル選択をリセット
         if (fileInputRef.current) {
           fileInputRef.current.value = ''
@@ -421,7 +421,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     reader.readAsText(file)
   }
-  
+
   // ユーザーデータのインポート
   const handleUserDataFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -433,11 +433,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const userData = JSON.parse(e.target?.result as string)
         setIsLoading(true)
         setErrorMessage(null)
-        
+
         // 既存のイベントデータと結合してインポート
         await mockDataApi.importCombinedData(userData, {})
         setSuccessMessage('ユーザーデータを正常にインポートしました')
-        
+
         // ファイル選択をリセット
         if (userDataFileInputRef.current) {
           userDataFileInputRef.current.value = ''
@@ -454,7 +454,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
     reader.readAsText(file)
   }
-  
+
   // イベントデータのインポート
   const handleEventDataFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -466,11 +466,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         const eventData = JSON.parse(e.target?.result as string)
         setIsLoading(true)
         setErrorMessage(null)
-        
+
         // 既存のユーザーデータと結合してインポート
         await mockDataApi.importCombinedData({}, eventData)
         setSuccessMessage('イベントデータを正常にインポートしました')
-        
+
         // ファイル選択をリセット
         if (eventDataFileInputRef.current) {
           eventDataFileInputRef.current.value = ''
@@ -491,14 +491,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // エクスポートしたデータのダウンロード
   const handleDownloadExportedData = () => {
     if (!exportedData) return
-    
+
     const dataStr = JSON.stringify(exportedData, null, 2)
     const dataBlob = new Blob([dataStr], { type: 'application/json' })
     const url = URL.createObjectURL(dataBlob)
-    
+
     const link = document.createElement('a')
     link.href = url
-    
+
     // ファイル名をエクスポートタイプに基づいて設定
     let filename;
     switch (exportType) {
@@ -511,18 +511,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       default:
         filename = `mock_data_export_${new Date().toISOString().split('T')[0]}.json`;
     }
-    
+
     link.download = filename
     link.setAttribute('download', filename)
-    
+
     // ファイルの保存先を /Users/ryoji/calender/data/ に指定
     // (ブラウザではセキュリティ上の制限により直接指定できないため、
     // ユーザーが手動で保存先を選択する必要があります)
-    
+
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
+
     setIsExportDialogOpen(false)
   }
 
@@ -549,7 +549,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               if (isMobile) setMobileOpen(false)
             }}
             selected={location.pathname.startsWith(item.path)}
-            sx={{ 
+            sx={{
               px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
               minHeight: { xs: 56, sm: 48 },
               py: { xs: 1.5, sm: 0 },
@@ -579,7 +579,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   if (isMobile) setMobileOpen(false)
                 }}
                 selected={location.pathname.startsWith(item.path)}
-                sx={{ 
+                sx={{
                   px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
                   minHeight: { xs: 56, sm: 48 },
                   py: { xs: 1.5, sm: 0 },
@@ -598,10 +598,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       )}
       <Divider />
       <List>
-        <ListItem 
-          button 
+        <ListItem
+          button
           onClick={logout}
-          sx={{ 
+          sx={{
             px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
             minHeight: { xs: 56, sm: 48 },
             py: { xs: 1.5, sm: 0 },
@@ -623,12 +623,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <CssBaseline />
       {/* 通知メッセージ */}
       {successMessage && (
-        <Alert 
-          severity="success" 
-          sx={{ 
-            position: 'fixed', 
-            top: '16px', 
-            right: '16px', 
+        <Alert
+          severity="success"
+          sx={{
+            position: 'fixed',
+            top: '16px',
+            right: '16px',
             zIndex: 9999,
             boxShadow: 3
           }}
@@ -638,12 +638,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </Alert>
       )}
       {errorMessage && (
-        <Alert 
-          severity="error" 
-          sx={{ 
-            position: 'fixed', 
-            top: '16px', 
-            right: '16px', 
+        <Alert
+          severity="error"
+          sx={{
+            position: 'fixed',
+            top: '16px',
+            right: '16px',
             zIndex: 9999,
             boxShadow: 3
           }}
@@ -652,18 +652,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {errorMessage}
         </Alert>
       )}
-      
+
       {/* エクスポートデータのダイアログ */}
-      <Dialog 
-        open={isExportDialogOpen} 
+      <Dialog
+        open={isExportDialogOpen}
         onClose={() => setIsExportDialogOpen(false)}
         maxWidth="md"
         fullWidth
       >
         <DialogTitle>
-          {exportType === 'users' ? 'ユーザーデータのエクスポート' : 
-           exportType === 'events' ? 'イベントデータのエクスポート' : 
-           'モックデータのエクスポート'}
+          {exportType === 'users' ? 'ユーザーデータのエクスポート' :
+            exportType === 'events' ? 'イベントデータのエクスポート' :
+              'モックデータのエクスポート'}
         </DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" gutterBottom>
@@ -784,7 +784,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         onClose={() => setSearchEditTarget(null)}
         onSaved={handleSearchEditSaved}
       />
-      
+
       <AppBar
         position="fixed"
         sx={{
@@ -864,8 +864,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           ModalProps={{ keepMounted: true }}
           sx={{
             display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
               width: drawerWidth,
               transition: theme.transitions.create('width', {
                 easing: theme.transitions.easing.sharp,
@@ -880,8 +880,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
               width: drawerWidth,
               transition: theme.transitions.create('width', {
                 easing: theme.transitions.easing.sharp,
@@ -906,7 +906,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           padding: { xs: theme.spacing(1), sm: theme.spacing(1, 2, 2, 2) },
         }}
       >
-        <Toolbar sx={{ minHeight: { xs: '48px !important', sm: '40px !important' }, flexShrink: 0 }} />
+        <Toolbar sx={{ minHeight: { xs: '56px !important', sm: '40px !important' }, flexShrink: 0 }} />
         <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
           {children}
         </Box>

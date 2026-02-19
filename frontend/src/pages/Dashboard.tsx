@@ -242,43 +242,122 @@ const Dashboard: React.FC = () => {
       return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0
     }
 
-    type TodayItem = { type: 'event'; name: string; projectName: string; id: number; timeLabel?: string; kindLabel: string; startTime?: string }
+    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; }
 
-    // キャンセル・完了したプロジェクトのイベントは今日の予定に含めない
-    const isExcludedProject = (projectId: number | null | undefined): boolean => {
-      if (projectId == null) return false
-      const p = projects.find((x: any) => x.id === projectId)
-      const status = (p?.status ?? '').toString().toLowerCase()
-      return status === 'completed' || status === 'cancelled'
-    }
-
-    // 今日のイベントのみ表示。2/4 00:00〜2/5 00:00 のような「翌日 00:00」で終了するものは 2/4 のイベントとみなし、2/5 には出さない
     const eventList: TodayItem[] = []
+
+    // 1. イベントの処理
     backendEvents.forEach((ev: BackendEvent) => {
-      if (isExcludedProject(ev.project_id ?? null)) return
-      const startDate = toLocalDateStr(ev.start_time)
-      const endDate = ev.end_time ? toLocalDateStr(ev.end_time) : startDate
-      if (!startDate) return
-      const startsToday = startDate === todayStr
-      const endIsMidnight = isMidnight(ev.end_time)
-      const endsToday = endDate === todayStr && !endIsMidnight
-      const spansToday = startDate <= todayStr && todayStr <= endDate && !(todayStr === endDate && endIsMidnight)
-      if (!startsToday && !endsToday && !spansToday) return
-      const evType = (ev.type ?? 'Generic').toString()
-      eventList.push({
-        type: 'event',
-        name: ev.title ?? `イベント #${ev.id}`,
-        projectName: getProjectName(ev.project_id ?? undefined),
-        id: ev.id,
-        timeLabel: ev.start_time ? new Date(ev.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : undefined,
-        kindLabel: eventTypeToLabel[evType] ?? evType,
-        startTime: ev.start_time ?? undefined,
-      })
-    })
-    eventList.sort((a, b) => (a.startTime ?? '').localeCompare(b.startTime ?? ''))
+      const p = projects.find((x: any) => x.id === ev.project_id);
+      if (p && (p.status === 'completed' || p.status === 'cancelled')) return; // プロジェクト完了/キャンセルなら除外
+
+      let startDate = '';
+      if (ev.start_time) {
+        const d = new Date(ev.start_time);
+        if (!isNaN(d.getTime())) {
+          startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+      }
+
+      let endDate = startDate;
+      if (ev.end_time) {
+        const d = new Date(ev.end_time);
+        if (!isNaN(d.getTime())) {
+          // 終了日が00:00ちょうど、または終日イベントの場合は、表示上の終了日を前日に戻す（終了日は排他扱いのため）
+          // ただし、これにより開始日より前になってしまう場合は開始日と同じにする（同日終了のケース）
+          const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
+          if (isMidnight || ev.allDay) {
+            d.setDate(d.getDate() - 1);
+          }
+          endDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+          if (endDate < startDate) {
+            endDate = startDate;
+          }
+        }
+      }
+
+      // デバッグ用: 今日の日付と範囲のログ出力（必要に応じて有効化）
+      // if (ev.title?.includes('テスト')) console.log(`Event: ${ev.title}, Start: ${startDate}, End: ${endDate}, Today: ${todayStr}, Show: ${todayStr >= startDate && todayStr <= endDate}`);
+
+      if (!startDate) return;
+
+      // 今日の日付が期間内か
+      if (todayStr >= startDate && todayStr <= endDate) {
+        const evType = (ev.type ?? 'Generic').toString()
+        eventList.push({
+          type: 'event',
+          id: String(ev.id),
+          name: ev.title ?? `イベント #${ev.id}`,
+          projectName: getProjectName(ev.project_id ?? undefined),
+          timeLabel: ev.allDay ? '終日' : (ev.start_time ? new Date(ev.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''),
+          kindLabel: eventTypeToLabel[evType] ?? evType,
+          startTime: ev.start_time ?? '',
+          isPhase: false
+        })
+      }
+    });
+
+    // 2. タスクとPhaseの処理
+    const tasks = globalData?.tasks ?? [];
+    const completedStatuses = ['completed', 'COMPLETED', 'cancelled', 'CANCELLED'];
+
+    tasks.forEach((t: any) => {
+      const isTaskCompleted = completedStatuses.includes(String(t.status ?? ''));
+
+      // タスク自体の締切判定
+      if (!isTaskCompleted && t.due_date) {
+        const due = new Date(t.due_date);
+        const dueStr = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
+        if (dueStr === todayStr) {
+          eventList.push({
+            type: 'task',
+            id: String(t.id),
+            name: t.name,
+            projectName: getProjectName(t.project_id ?? null),
+            timeLabel: '締切', // タスクは時間を持たないことが多いので「締切」等
+            kindLabel: 'タスク',
+            startTime: t.due_date, // ソート用
+            isPhase: false
+          });
+        }
+      }
+
+      // Phaseの判定 (タスクが未完了、かつPhaseも未完了と仮定)
+      // Phaseデータの構造: { name: string, date: string, is_completed?: boolean }
+      if (!isTaskCompleted && t.phases && Array.isArray(t.phases)) {
+        t.phases.forEach((p: any, idx: number) => {
+          if (p.is_completed) return; // 完了済みPhaseは除外
+          if (!p.date) return;
+
+          const pDate = new Date(p.date);
+          const pDateStr = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}-${String(pDate.getDate()).padStart(2, '0')}`;
+
+          if (pDateStr === todayStr) {
+            eventList.push({
+              type: 'task', // アイコン等はタスクと同じ扱いで良いか、区別するか
+              id: `phase-${t.id}-${idx}`,
+              name: `${t.name}: ${p.name}`,
+              projectName: getProjectName(t.project_id ?? null),
+              timeLabel: '目標日',
+              kindLabel: '段階目標',
+              startTime: p.date,
+              isPhase: true
+            });
+          }
+        });
+      }
+    });
+
+    // 時間順にソート (終日が先、時刻ありは後)
+    eventList.sort((a, b) => {
+      if (a.timeLabel === '終日' && b.timeLabel !== '終日') return -1;
+      if (a.timeLabel !== '終日' && b.timeLabel === '終日') return 1;
+      return (a.startTime ?? '').localeCompare(b.startTime ?? '');
+    });
 
     return eventList
-  }, [globalData?.projects, todayStr, backendEvents])
+  }, [globalData?.projects, globalData?.tasks, todayStr, backendEvents])
 
   // 今週の締切（期日が今週で未完了のタスク）※プロジェクト名・担当者名も付与
   const weekDeadlineTasks = useMemo(() => {
@@ -843,8 +922,10 @@ const Dashboard: React.FC = () => {
   }, [hasCreateTaskAction]);
 
   // アクションを実行（複数件の場合は順に実行）
-  const executeAction = async () => {
-    if (!pendingActions || pendingActions.length === 0) return;
+  const executeAction = async (actionsToExecute?: PendingAction[]) => {
+    const actions = actionsToExecute || pendingActions;
+    if (!actions || actions.length === 0) return;
+
     // タスク操作にはログインが必要（AuthContext のトークンを優先し、localStorage と同期）
     const token = authToken ?? localStorage.getItem('token');
     if (!token) {
@@ -858,7 +939,7 @@ const Dashboard: React.FC = () => {
     setIsExecutingAction(true);
     const results: string[] = [];
     try {
-      for (const pa of pendingActions) {
+      for (const pa of actions) {
         const payload: any = {
           action_type: pa.action_type,
           task_id: pa.task_id,
@@ -1028,6 +1109,10 @@ const Dashboard: React.FC = () => {
                 const errorMsg = `ストリーミングエラー: ${data.detail || '不明なエラー'}`
                 setMessages((prev) => [...prev, { role: 'assistant', content: errorMsg }])
               }
+            } else if (eventType === 'action_executed') {
+              if (data.results && data.results.length > 0) {
+                if (refreshGlobalData) await refreshGlobalData()
+              }
             } else if (eventType === 'task_action') {
               if (data?.type === 'task_action_candidate') {
                 const rawList = data.actions ?? (data.action ? [data.action] : [])
@@ -1038,7 +1123,8 @@ const Dashboard: React.FC = () => {
                     task_data: a.task_data,
                     description: generateActionDescription(a),
                   }))
-                  setPendingActions(list)
+                  // 自動実行（確認ダイアログなし）
+                  executeAction(list);
                   hasReceivedTaskActionRef.current = true
                 }
               }
@@ -1080,7 +1166,8 @@ const Dashboard: React.FC = () => {
                       task_data: a.task_data,
                       description: generateActionDescription(a),
                     }));
-                    setPendingActions(pendingList);
+                    // 自動実行（確認ダイアログなし）
+                    executeAction(pendingList);
                   }
                 } catch (e) { console.debug('Action detection error:', e) }
               }
@@ -1308,14 +1395,14 @@ const Dashboard: React.FC = () => {
                 </Box>
               ) : (
                 todayItems.map((item) => (
-                  <Box key={`${item.type}-${item.id}`} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : 'secondary.main', display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 } }}>
-                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : 'secondary.light', color: item.type === 'event' ? 'info.dark' : 'secondary.dark' }}>
+                  <Box key={`${item.type}-${item.id}`} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 } }}>
+                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : (item.isPhase ? 'secondary.light' : 'warning.light'), color: item.type === 'event' ? 'info.dark' : (item.isPhase ? 'secondary.dark' : 'warning.dark') }}>
                       {item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}
                     </Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
                         <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} title={item.name}>{item.name}</Typography>
-                        <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : 'secondary.main', color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
+                        <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
                         {item.timeLabel != null && <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.6, py: 0.15, borderRadius: 0.75, bgcolor: 'action.selected', color: 'text.secondary', fontSize: '0.7rem', fontWeight: 500 }}>{item.timeLabel}</Typography>}
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -1847,7 +1934,7 @@ const Dashboard: React.FC = () => {
             キャンセル
           </Button>
           <Button
-            onClick={executeAction}
+            onClick={() => executeAction()}
             variant="contained"
             color={pendingActions?.some(a => a.action_type === 'delete_task') ? 'error' : 'primary'}
             disabled={isExecutingAction}

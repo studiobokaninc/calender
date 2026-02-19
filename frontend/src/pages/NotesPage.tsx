@@ -16,6 +16,8 @@ import {
   DialogContent,
   DialogActions,
   Button,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -58,6 +60,8 @@ interface PdfItem {
 }
 
 const NotesPage: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { pageStates, updatePageState, isInitialLoad } = usePageState();
   const [currentNote, setCurrentNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,11 +94,11 @@ const NotesPage: React.FC = () => {
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
-  
+
   // コンテナの最小高さを計算（テキストボックスと画像とPDFの最大のbottom位置を計算）
   const minHeight = useMemo(() => {
     let maxBottom = 0;
-    
+
     // テキストボックスの最大bottom位置を計算
     textBoxes.forEach(tb => {
       const bottom = tb.y + tb.height;
@@ -102,7 +106,7 @@ const NotesPage: React.FC = () => {
         maxBottom = bottom;
       }
     });
-    
+
     // 画像の最大bottom位置を計算
     images.forEach(img => {
       const bottom = img.y + img.height;
@@ -110,7 +114,7 @@ const NotesPage: React.FC = () => {
         maxBottom = bottom;
       }
     });
-    
+
     // PDFの最大bottom位置を計算
     pdfs.forEach(p => {
       const bottom = p.y + p.height;
@@ -118,11 +122,11 @@ const NotesPage: React.FC = () => {
         maxBottom = bottom;
       }
     });
-    
+
     // 最小高さは、最大bottom位置 + 余白（100px）と、画面高さの大きい方
     return Math.max(maxBottom + 100, window.innerHeight - 200);
   }, [textBoxes, images, pdfs]);
-  
+
   // 要素を前面に表示する関数
   const bringToFront = useCallback((key: string) => {
     setMaxZIndex(prev => {
@@ -134,7 +138,7 @@ const NotesPage: React.FC = () => {
       return newZIndex;
     });
   }, []);
-  
+
   // 要素のz-indexを取得する関数
   const getZIndex = useCallback((key: string, defaultZIndex: number, isSelected: boolean) => {
     if (isSelected && elementZIndices[key]) {
@@ -142,7 +146,7 @@ const NotesPage: React.FC = () => {
     }
     return defaultZIndex;
   }, [elementZIndices]);
-  
+
   // コンポーネントのクリーンアップ時にイベントリスナーを削除
   useEffect(() => {
     return () => {
@@ -171,7 +175,7 @@ const NotesPage: React.FC = () => {
       console.log('fetchNote called with projectId:', projectId);
       setLoading(true);
       setError(null);
-      
+
       // projectIdが'other'の場合はnullに変換（project_id_is_null=trueを送信）
       // projectIdがnullの場合はnullのまま（project_id_is_null=trueを送信）
       // projectIdがundefinedの場合はundefinedのまま（全件取得）
@@ -181,12 +185,12 @@ const NotesPage: React.FC = () => {
       console.log('Calling notesApi.getNotes with project_id:', apiProjectId, 'shouldFetchOther:', shouldFetchOther);
       const data = await notesApi.getNotes(0, 1, shouldFetchOther ? null : apiProjectId);
       console.log('Notes data received:', data);
-      
+
       if (data && data.length > 0) {
         const note = data[0];
         console.log('Setting note:', note);
         setCurrentNote(note);
-        
+
         // テキストボックスデータを読み込み
         if (note.text_boxes && Array.isArray(note.text_boxes) && note.text_boxes.length > 0) {
           // text_boxes配列から読み込み
@@ -234,7 +238,7 @@ const NotesPage: React.FC = () => {
           (note.image_urls || []).map(async (url: string, index: number) => {
             const position = note.image_positions?.[url];
             let aspectRatio: number;
-            
+
             // 位置情報にアスペクト比が保存されている場合はそれを使用、なければ画像から取得
             if (position?.width && position?.height) {
               aspectRatio = position.width / position.height;
@@ -245,10 +249,10 @@ const NotesPage: React.FC = () => {
                 aspectRatio = 1; // デフォルト値
               }
             }
-            
+
             let width: number;
             let height: number;
-            
+
             if (position?.width && position?.height) {
               // 保存された位置情報がある場合はそれを使用
               width = position.width;
@@ -266,7 +270,7 @@ const NotesPage: React.FC = () => {
                 width = height * aspectRatio;
               }
             }
-            
+
             return {
               url,
               width,
@@ -417,7 +421,7 @@ const NotesPage: React.FC = () => {
         const baseWidth = 200;
         let width: number;
         let height: number;
-        
+
         if (aspectRatio >= 1) {
           // 横長または正方形：幅を基準にする
           width = baseWidth;
@@ -427,7 +431,7 @@ const NotesPage: React.FC = () => {
           height = baseWidth;
           width = height * aspectRatio;
         }
-        
+
         // 現在の画像数を取得して、重ならないように配置
         setImages(prevImages => {
           const currentCount = prevImages.length;
@@ -435,7 +439,7 @@ const NotesPage: React.FC = () => {
           const cols = 3; // 1行あたりの画像数
           const x = 50 + (currentCount % cols) * spacing;
           const y = 50 + Math.floor(currentCount / cols) * spacing;
-          
+
           const newImage: ImageItem = {
             url: result.url,
             width,
@@ -574,12 +578,12 @@ const NotesPage: React.FC = () => {
     const rect = container.getBoundingClientRect();
     const newX = e.clientX - rect.left - pdfDragOffset.x;
     const newY = e.clientY - rect.top - pdfDragOffset.y;
-    
+
     requestAnimationFrame(() => {
       setPdfs(prev => {
         const pdf = prev[draggingPdfIndex];
         if (!pdf) return prev;
-        
+
         return prev.map((p, i) =>
           i === draggingPdfIndex
             ? { ...p, x: Math.max(0, Math.min(newX, rect.width - p.width)), y: Math.max(0, Math.min(newY, rect.height - p.height)) }
@@ -598,13 +602,13 @@ const NotesPage: React.FC = () => {
   const handleRemoveImage = async (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
     setImages(newImages);
-    
+
     if (selectedImageIndex === index) {
       setSelectedImageIndex(null);
     } else if (selectedImageIndex !== null && selectedImageIndex > index) {
       setSelectedImageIndex(selectedImageIndex - 1);
     }
-    
+
     // メモが存在する場合、データベースを更新
     if (currentNote) {
       try {
@@ -619,7 +623,7 @@ const NotesPage: React.FC = () => {
             height: img.height,
           };
         });
-        
+
         // テキストボックスデータを保存
         const textBoxesData = textBoxes.map(tb => ({
           id: tb.id,
@@ -629,7 +633,7 @@ const NotesPage: React.FC = () => {
           width: tb.width,
           height: tb.height,
         }));
-        
+
         const pdfUrls = pdfs.map(p => p.url);
         const pdfPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
         pdfs.forEach(p => {
@@ -688,18 +692,18 @@ const NotesPage: React.FC = () => {
   const handleImageDrag = useCallback((e: React.MouseEvent) => {
     if (draggingImageIndex === null || dragOffset === null) return;
     e.preventDefault();
-    
+
     const container = dropZoneRef.current;
     if (!container) return;
-    
+
     const rect = container.getBoundingClientRect();
     // ドラッグオフセットを考慮して画像の位置を計算
     const newX = e.clientX - rect.left - dragOffset.x;
     const newY = e.clientY - rect.top - dragOffset.y;
-    
+
     requestAnimationFrame(() => {
-      setImages(prevImages => prevImages.map((img, i) => 
-        i === draggingImageIndex 
+      setImages(prevImages => prevImages.map((img, i) =>
+        i === draggingImageIndex
           ? { ...img, x: Math.max(0, Math.min(newX, rect.width - img.width)), y: Math.max(0, Math.min(newY, rect.height - img.height)) }
           : img
       ));
@@ -737,7 +741,7 @@ const NotesPage: React.FC = () => {
 
   // テキストボックスの内容を更新
   const handleTextBoxContentChange = (id: string, content: string) => {
-    setTextBoxes(textBoxes.map(tb => 
+    setTextBoxes(textBoxes.map(tb =>
       tb.id === id ? { ...tb, content } : tb
     ));
   };
@@ -764,20 +768,20 @@ const NotesPage: React.FC = () => {
   const handleTextBoxDrag = useCallback((e: React.MouseEvent) => {
     if (!draggingTextBoxId || textBoxDragOffset === null) return;
     e.preventDefault();
-    
+
     const container = dropZoneRef.current;
     if (!container) return;
-    
+
     const rect = container.getBoundingClientRect();
     const newX = e.clientX - rect.left - textBoxDragOffset.x;
     const newY = e.clientY - rect.top - textBoxDragOffset.y;
-    
+
     requestAnimationFrame(() => {
       setTextBoxes(prevTextBoxes => {
         const textBox = prevTextBoxes.find(tb => tb.id === draggingTextBoxId);
         if (!textBox) return prevTextBoxes;
-        
-        return prevTextBoxes.map(tb => 
+
+        return prevTextBoxes.map(tb =>
           tb.id === draggingTextBoxId
             ? { ...tb, x: Math.max(0, Math.min(newX, rect.width - tb.width)), y: Math.max(0, Math.min(newY, rect.height - tb.height)) }
             : tb
@@ -797,7 +801,7 @@ const NotesPage: React.FC = () => {
   // メモ削除
   const handleDelete = async () => {
     if (!currentNote) return;
-    
+
     try {
       await notesApi.deleteNote(currentNote.id);
       setCurrentNote(null);
@@ -815,25 +819,25 @@ const NotesPage: React.FC = () => {
   // 自動保存（デバウンス付き）
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
-  
+
   useEffect(() => {
     if (isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
       return;
     }
-    
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    
+
     // 初回ロード時は保存しない
     if (loading) return;
-    
+
     saveTimeoutRef.current = setTimeout(async () => {
       if (currentNote || textBoxes.length > 0 || images.length > 0) {
         try {
           setError(null);
-          
+
           const imageUrls = images.map(img => img.url);
           // 画像の位置情報を保存
           const imagePositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
@@ -845,7 +849,7 @@ const NotesPage: React.FC = () => {
               height: img.height,
             };
           });
-          
+
           // テキストボックスデータを保存
           const textBoxesData = textBoxes.map(tb => ({
             id: tb.id,
@@ -855,7 +859,7 @@ const NotesPage: React.FC = () => {
             width: tb.width,
             height: tb.height,
           }));
-          
+
           const pdfUrls = pdfs.map(p => p.url);
           const pdfPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
           pdfs.forEach(p => {
@@ -900,17 +904,25 @@ const NotesPage: React.FC = () => {
 
   return (
     <Box sx={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Box>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'flex-start' : 'center',
+        mb: 2,
+        gap: isMobile ? 2 : 0
+      }}>
+        <Box sx={{ width: isMobile ? '100%' : 'auto' }}>
           <Typography variant="h4" component="h1">
             メモ
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             個人メモ（作成者のみ閲覧・編集可能）。
+            <br />
             画像・PDFをドラッグ&ドロップで配置できます。PDFはカード内で常に表示・閲覧できます。
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'flex-end' : 'flex-start' }}>
           <FormControl size="small" sx={{ minWidth: 200 }}>
             <InputLabel>プロジェクト</InputLabel>
             <Select
@@ -1033,13 +1045,16 @@ const NotesPage: React.FC = () => {
           sx={{
             flexGrow: 1,
             position: 'relative',
-            overflow: 'auto',
-            p: 3,
+            overflow: isMobile ? 'visible' : 'auto',
+            p: isMobile ? 1 : 3,
             backgroundColor: (theme) =>
               theme.palette.mode === 'dark'
                 ? theme.palette.background.default
                 : '#ffffff',
-            minHeight: `${minHeight}px`,
+            minHeight: isMobile ? 'auto' : `${minHeight}px`,
+            display: isMobile ? 'flex' : 'block',
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? 2 : 0,
             cursor: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'grabbing' : 'text',
             userSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
             WebkitUserSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
@@ -1071,7 +1086,7 @@ const NotesPage: React.FC = () => {
           {textBoxes.map((textBox) => {
             const isSelected = selectedTextBoxId === textBox.id;
             const isDragging = draggingTextBoxId === textBox.id;
-            
+
             return (
               <Box
                 key={textBox.id}
@@ -1092,10 +1107,10 @@ const NotesPage: React.FC = () => {
                   }
                 }}
                 sx={(theme) => ({
-                  position: 'absolute',
-                  left: `${textBox.x}px`,
-                  top: `${textBox.y}px`,
-                  width: `${textBox.width}px`,
+                  position: isMobile ? 'static' : 'absolute',
+                  left: isMobile ? 'auto' : `${textBox.x}px`,
+                  top: isMobile ? 'auto' : `${textBox.y}px`,
+                  width: isMobile ? '100%' : `${textBox.width}px`,
                   minHeight: `${textBox.height}px`,
                   border: isSelected
                     ? `3px solid ${theme.palette.primary.main}`
@@ -1106,9 +1121,9 @@ const NotesPage: React.FC = () => {
                       ? theme.palette.background.paper
                       : 'rgba(255, 255, 255, 0.95)',
                   boxShadow: isSelected ? 4 : 2,
-                  zIndex: 1,
-                  cursor: isDragging ? 'grabbing' : (isSelected ? 'move' : 'text'),
-                  transition: isDragging ? 'none' : 'box-shadow 0.2s',
+                  zIndex: isMobile ? 'auto' : 1,
+                  cursor: isMobile ? 'text' : (isDragging ? 'grabbing' : (isSelected ? 'move' : 'text')),
+                  transition: isMobile ? 'box-shadow 0.2s' : (isDragging ? 'none' : 'box-shadow 0.2s'),
                   '&:hover': {
                     boxShadow: 4,
                     borderColor: isSelected ? theme.palette.primary.main : theme.palette.divider,
@@ -1158,14 +1173,14 @@ const NotesPage: React.FC = () => {
                     setSelectedImageIndex(null);
                     bringToFront(`textbox-${textBox.id}`);
                   }}
-                  sx={{ 
+                  sx={{
                     '& .MuiInput-underline:before': { borderBottom: 'none' },
                     '& .MuiInput-underline:after': { borderBottom: 'none' },
                     '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottom: 'none' },
                     '& .MuiInputBase-input': {
                       padding: '8px',
                     },
-                    '& textarea': { 
+                    '& textarea': {
                       minHeight: `${textBox.height - 16}px`,
                       fontSize: '1rem',
                       lineHeight: 1.6,
@@ -1189,7 +1204,7 @@ const NotesPage: React.FC = () => {
           {images.map((image, index) => {
             const imageUrl = image.url.startsWith('http') ? image.url : `${window.location.origin}${image.url}`;
             const isSelected = selectedImageIndex === index;
-            
+
             return (
               <Box
                 key={index}
@@ -1210,21 +1225,21 @@ const NotesPage: React.FC = () => {
                   handleImageDragEnd();
                 }}
                 sx={(theme) => ({
-                  position: 'absolute',
-                  left: `${image.x}px`,
-                  top: `${image.y}px`,
-                  width: `${image.width}px`,
-                  height: `${image.height}px`,
+                  position: isMobile ? 'static' : 'absolute',
+                  left: isMobile ? 'auto' : `${image.x}px`,
+                  top: isMobile ? 'auto' : `${image.y}px`,
+                  width: isMobile ? '100%' : `${image.width}px`,
+                  height: isMobile ? 'auto' : `${image.height}px`,
                   border: isSelected
                     ? `3px solid ${theme.palette.primary.main}`
                     : `2px solid ${theme.palette.divider}`,
                   borderRadius: 1,
-                  overflow: 'visible', // 削除ボタンとリサイズハンドルが見えるように
-                  cursor: draggingImageIndex === index ? 'grabbing' : 'move',
+                  overflow: 'visible',
+                  cursor: isMobile ? 'default' : (draggingImageIndex === index ? 'grabbing' : 'move'),
                   backgroundColor: 'transparent',
                   boxShadow: isSelected ? 4 : 2,
-                  zIndex: getZIndex(`image-${index}`, 2, isSelected),
-                  transition: (draggingImageIndex === index || resizingImageIndex === index) ? 'none' : 'box-shadow 0.2s',
+                  zIndex: isMobile ? 'auto' : getZIndex(`image-${index}`, 2, isSelected),
+                  transition: isMobile ? 'box-shadow 0.2s' : ((draggingImageIndex === index || resizingImageIndex === index) ? 'none' : 'box-shadow 0.2s'),
                   '&:hover': {
                     boxShadow: 4,
                     borderColor: isSelected ? theme.palette.primary.main : theme.palette.divider,
@@ -1279,14 +1294,14 @@ const NotesPage: React.FC = () => {
                     >
                       <CloseIcon fontSize="small" />
                     </IconButton>
-                    
+
                     {/* リサイズハンドル（右下） */}
                     <Box
                       className="resize-handle"
                       onMouseDown={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        
+
                         // 既存のイベントリスナーをクリーンアップ
                         if (resizeMouseMoveRef.current) {
                           document.removeEventListener('mousemove', resizeMouseMoveRef.current);
@@ -1294,7 +1309,7 @@ const NotesPage: React.FC = () => {
                         if (resizeMouseUpRef.current) {
                           document.removeEventListener('mouseup', resizeMouseUpRef.current as (e: MouseEvent) => void, { capture: true });
                         }
-                        
+
                         // リサイズ開始 - 現在の画像情報を取得
                         const currentImage = images[index];
                         const startX = e.clientX;
@@ -1302,62 +1317,62 @@ const NotesPage: React.FC = () => {
                         const startWidth = currentImage.width;
                         const startHeight = currentImage.height;
                         const aspectRatio = currentImage.aspectRatio || (startWidth / startHeight);
-                        
+
                         // 状態を設定
                         setResizingImageIndex(index);
                         isResizingRef.current = true;
-                        
+
                         // グローバルなマウスイベントリスナーを追加（requestAnimationFrameで最適化）
                         const handleMouseMove = (moveEvent: MouseEvent) => {
                           // リサイズ中でない場合は何もしない
                           if (!isResizingRef.current) {
                             return;
                           }
-                          
+
                           moveEvent.preventDefault();
                           moveEvent.stopPropagation();
-                          
+
                           // 移動量を計算
                           const deltaX = moveEvent.clientX - startX;
                           const deltaY = moveEvent.clientY - startY;
                           // 対角線方向の移動量を計算（右下方向が正）
                           const delta = Math.sqrt(deltaX * deltaX + deltaY * deltaY) * (deltaX > 0 || deltaY > 0 ? 1 : -1);
-                          
+
                           // 新しいサイズを計算
                           const newWidth = Math.max(50, Math.min(800, startWidth + delta));
                           const newHeight = newWidth / aspectRatio;
-                          
+
                           // 画像のサイズを更新（requestAnimationFrameで最適化）
                           requestAnimationFrame(() => {
-                            setImages(prevImages => prevImages.map((img, i) => 
-                              i === index 
+                            setImages(prevImages => prevImages.map((img, i) =>
+                              i === index
                                 ? { ...img, width: newWidth, height: newHeight }
                                 : img
                             ));
                           });
                         };
-                        
+
                         const handleMouseUp = (upEvent: MouseEvent) => {
                           upEvent.preventDefault();
                           upEvent.stopPropagation();
-                          
+
                           // リサイズ終了
                           isResizingRef.current = false;
                           setResizingImageIndex(null);
-                          
+
                           // イベントリスナーを削除
                           document.removeEventListener('mousemove', handleMouseMove);
                           document.removeEventListener('mouseup', handleMouseUp, { capture: true });
-                          
+
                           // refをクリア
                           resizeMouseMoveRef.current = null;
                           resizeMouseUpRef.current = null;
                         };
-                        
+
                         // refに保存
                         resizeMouseMoveRef.current = handleMouseMove;
                         resizeMouseUpRef.current = handleMouseUp as (e?: MouseEvent) => void;
-                        
+
                         // イベントリスナーを追加（capture: trueで確実に取得）
                         document.addEventListener('mousemove', handleMouseMove, { passive: false });
                         document.addEventListener('mouseup', handleMouseUp, { capture: true, once: false });
@@ -1395,11 +1410,12 @@ const NotesPage: React.FC = () => {
                 key={index}
                 data-pdf-box
                 sx={(theme) => ({
-                  position: 'absolute',
-                  left: `${pdf.x}px`,
-                  top: `${pdf.y}px`,
-                  width: `${pdf.width}px`,
-                  height: `${pdf.height}px`,
+                  position: isMobile ? 'static' : 'absolute',
+                  left: isMobile ? 'auto' : `${pdf.x}px`,
+                  top: isMobile ? 'auto' : `${pdf.y}px`,
+                  width: isMobile ? '100%' : `${pdf.width}px`,
+                  height: isMobile ? '400px' : `${pdf.height}px`,
+                  marginBottom: isMobile ? 2 : 0,
                   border: isSelected
                     ? `3px solid ${theme.palette.error.main}`
                     : `2px solid ${theme.palette.divider}`,
@@ -1410,7 +1426,7 @@ const NotesPage: React.FC = () => {
                       ? theme.palette.background.paper
                       : '#fff',
                   boxShadow: isSelected ? 4 : 2,
-                  zIndex: getZIndex(`pdf-${index}`, 2, isSelected),
+                  zIndex: isMobile ? 'auto' : getZIndex(`pdf-${index}`, 2, isSelected),
                   display: 'flex',
                   flexDirection: 'column',
                   '&:hover': {
@@ -1468,9 +1484,9 @@ const NotesPage: React.FC = () => {
                         e.stopPropagation();
                         handleRemovePdf(index);
                       }}
-                    sx={{
-                      backgroundColor: 'error.main',
-                      color: 'common.white',
+                      sx={{
+                        backgroundColor: 'error.main',
+                        color: 'common.white',
                         width: 24,
                         height: 24,
                         p: 0,

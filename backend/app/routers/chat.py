@@ -108,23 +108,12 @@ async def stream_chat(
     # inputs にタスクリストCSV、プロジェクトリスト、ユーザーリストを含める
     inputs: dict = {}
     try:
-        csv_text = task_list_module.build_task_list_for_chat(db)
-        if csv_text:
-            inputs["csv"] = csv_text
+        inputs = task_list_module.get_dashboard_context(db)
+        inputs["mode"] = "admin"
     except Exception as e:
-        logger.warning("[chat/stream] task_list for inputs failed: %s", e)
-    try:
-        proj_text = task_list_module.build_projects_list_for_chat(db)
-        if proj_text:
-            inputs["proj"] = proj_text
-    except Exception as e:
-        logger.warning("[chat/stream] projects_list for inputs failed: %s", e)
-    try:
-        user_list_text = task_list_module.build_users_list_for_chat(db)
-        if user_list_text:
-            inputs["user_list"] = user_list_text
-    except Exception as e:
-        logger.warning("[chat/stream] users_list for inputs failed: %s", e)
+        logger.warning("[chat/stream] get_dashboard_context failed: %s", e)
+        # Fallback to empty context
+        inputs = {"csv": "", "proj": "", "user_list": "", "mode": "admin"}
         
     if conversation_id is None:
         import uuid
@@ -163,64 +152,43 @@ async def stream_chat(
                     message_buffer += event_data.get("answer", "")
                 
                 if event_data.get("event") == "message_end":
-                    # アクション検出ロジック (既存のコードを再利用)
+                    
+                    # --- Admin Auto-Execution Logic ---
                     full_answer = message_buffer
-                    action_list = None
-
-                    def _parse_action_candidates(raw: str):
-                        try:
-                            parsed = json.loads(raw)
-                        except json.JSONDecodeError:
-                            return None
-                        if isinstance(parsed, list):
-                            if not parsed: return None
-                            if all(isinstance(x, dict) and x.get("action_type") in ("update_task", "create_task", "delete_task") for x in parsed):
-                                return parsed
-                            return None
-                        if isinstance(parsed, dict) and parsed.get("action_type") in ("update_task", "create_task", "delete_task"):
-                            return [parsed]
-                        return None
-
-                    def _collect_all_code_blocks(text: str):
-                        return re.findall(r"```(?:json)?\s*([\s\S]*?)```", text)
-
-                    all_blocks = _collect_all_code_blocks(full_answer)
-                    if all_blocks:
-                        action_list = []
-                        for block_content in all_blocks:
-                            block_content = block_content.strip()
-                            if not block_content: continue
-                            candidates = _parse_action_candidates(block_content)
-                            if candidates:
-                                action_list.extend(candidates)
-                        if not action_list: action_list = None
-
-                    if action_list is None:
-                        # フォールバック
-                        cleaned = full_answer.strip()
-                        if "---" in cleaned:
-                            cleaned = cleaned.split("---", 1)[1].strip() if len(cleaned.split("---", 1)) > 1 else cleaned
-                        if cleaned.startswith("```"):
-                            cleaned = cleaned[3:].lstrip()
-                            if cleaned.lower().startswith("json"):
-                                cleaned = cleaned[4:].lstrip()
-                            if cleaned.endswith("```"):
-                                cleaned = cleaned[:-3].strip()
-                        if cleaned.startswith("{") and cleaned.endswith("}"):
-                            action_list = _parse_action_candidates(cleaned)
-                        elif cleaned.startswith("[") and cleaned.endswith("]"):
-                            action_list = _parse_action_candidates(cleaned)
+                    action_list = _extract_actions(full_answer)
 
                     if action_list:
+                        logger.info("[SSE Admin] Auto-executing actions: %s", action_list)
+                        
+                        executed_results = []
+                        for action in action_list:
+                            try:
+                                # 管理者権限とみなして実行
+                                result = _execute_task_action_internal(action=action, db=db, current_user=None)
+                                result["action_type"] = action.get("action_type")
+                                executed_results.append(result)
+                            except Exception as ex:
+                                logger.error(f"Auto-execution failed for action {action}: {ex}")
+                                executed_results.append({"success": False, "error": str(ex), "action_type": action.get("action_type")})
+
+                        # Notify frontend of execution results
                         notification = {
-                            "type": "task_action_candidate",
-                            "actions": action_list,
+                            "type": "action_executed",
+                            "results": executed_results
                         }
-                        logger.info("[SSE] Detected task action candidate(s): count=%s", len(action_list))
                         yield (
-                            "event: task_action\n"
+                            "event: action_executed\n"
                             f"data: {json.dumps(notification, ensure_ascii=False)}\n\n"
                         ).encode("utf-8")
+                        
+                        # Add a system message to the chat stream explaining what happened
+                        success_count = sum(1 for r in executed_results if r.get("success"))
+                        if success_count > 0:
+                            system_msg = f"\n\n[システム通知] {success_count}件のアクションを自動実行しました。"
+                            yield (
+                                "event: message\n"
+                                f"data: {json.dumps({'event': 'message', 'answer': system_msg, 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
+                            ).encode("utf-8")
 
             # 終了（LLMClientがmessage_endを送ってくれるはずだが、念のため改行）
             yield b"\n"
@@ -259,28 +227,17 @@ async def stream_chat_user(
         raise HTTPException(status_code=400, detail="queryパラメータが必要です")
 
     client = get_llm_client()
-    user = current_user.email
+    user_email = current_user.email
 
     inputs: dict = {}
     try:
-        csv_text = task_list_module.build_task_list_for_chat(db)
-        if csv_text:
-            inputs["csv"] = csv_text
+        inputs = task_list_module.get_personal_context(db, current_user.id)
+        inputs["mode"] = "personal"
+        inputs["user_name"] = current_user.name or current_user.username or "User"
     except Exception as e:
-        logger.warning("[chat/user/stream] task_list for inputs failed: %s", e)
-    try:
-        proj_text = task_list_module.build_projects_list_for_chat(db)
-        if proj_text:
-            inputs["proj"] = proj_text
-    except Exception as e:
-        logger.warning("[chat/user/stream] projects_list for inputs failed: %s", e)
-    try:
-        user_list_text = task_list_module.build_users_list_for_chat(db)
-        if user_list_text:
-            inputs["user_list"] = user_list_text
-    except Exception as e:
-        logger.warning("[chat/user/stream] users_list for inputs failed: %s", e)
-    
+        logger.warning("[chat/user/stream] get_personal_context failed: %s", e)
+        inputs = {"csv": "", "proj": "", "events": "", "mode": "personal"}
+
     if conversation_id is None:
         import uuid
         conversation_id = str(uuid.uuid4())
@@ -305,7 +262,7 @@ async def stream_chat_user(
 
             message_buffer = ""
 
-            async for event_data in client.stream_chat(query, conversation_id, inputs, user):
+            async for event_data in client.stream_chat(query, conversation_id, inputs, user_email):
                 json_str = json.dumps(event_data, ensure_ascii=False)
                 yield f"data: {json_str}\n\n".encode("utf-8")
                 
@@ -314,36 +271,9 @@ async def stream_chat_user(
                 
                 if event_data.get("event") == "message_end":
                     full_answer = message_buffer
-                    action_list = None
                     
                     # Logic is same as stream_chat, compacted here
-                    def _parse(raw):
-                        try:
-                            parsed = json.loads(raw)
-                            if isinstance(parsed, list): return parsed if parsed and all(isinstance(x, dict) and x.get("action_type") in ("update_task", "create_task", "delete_task") for x in parsed) else None
-                            if isinstance(parsed, dict) and parsed.get("action_type") in ("update_task", "create_task", "delete_task"): return [parsed]
-                            return None
-                        except: return None
-                    
-                    def _blocks(text): return re.findall(r"```(?:json)?\s*([\s\S]*?)```", text)
-                    
-                    all_blocks = _blocks(full_answer)
-                    if all_blocks:
-                        action_list = []
-                        for b in all_blocks:
-                            c = _parse(b.strip())
-                            if c: action_list.extend(c)
-                        if not action_list: action_list = None
-                    
-                    if not action_list:
-                        cleaned = full_answer.strip()
-                        if "---" in cleaned: cleaned = cleaned.split("---", 1)[1].strip()
-                        if cleaned.startswith("```"):
-                            cleaned = cleaned[3:].lstrip()
-                            if cleaned.lower().startswith("json"): cleaned = cleaned[4:].lstrip()
-                            if cleaned.endswith("```"): cleaned = cleaned[:-3].strip()
-                        if (cleaned.startswith("{") and cleaned.endswith("}")) or (cleaned.startswith("[") and cleaned.endswith("]")):
-                            action_list = _parse(cleaned)
+                    action_list = _extract_actions(full_answer)
                             
                     if action_list:
                         notification = {"type": "task_action_candidate", "actions": action_list}
@@ -455,6 +385,32 @@ def _normalize_priority(value):  # noqa: ANN201
     return None
 
 
+def _normalize_status(status_str: str) -> Optional[str]:
+    """ステータス文字列を正規化"""
+    if not status_str or not isinstance(status_str, str):
+        return None
+    s = status_str.strip().lower()
+    # 一般的な表現を内部Enum値にマッピング
+    mapping = {
+        "done": "completed",
+        "finished": "completed",
+        "complete": "completed",
+        "completed": "completed",
+        "todo": "todo",
+        "new": "todo",
+        "open": "todo",
+        "in-progress": "in-progress",
+        "inprogress": "in-progress",
+        "doing": "in-progress",
+        "working": "in-progress",
+        "review": "review",
+        "reviewing": "review",
+        "delayed": "delayed",
+        "delay": "delayed",
+    }
+    return mapping.get(s, s)
+
+
 def _execute_task_action_internal(
     action: dict,
     db: Session,
@@ -487,7 +443,9 @@ def _execute_task_action_internal(
             if "description" in task_data_dict:
                 update_data["description"] = task_data_dict["description"]
             if "status" in task_data_dict:
-                update_data["status"] = task_data_dict["status"]
+                normalized_status = _normalize_status(task_data_dict["status"])
+                if normalized_status:
+                    update_data["status"] = normalized_status
             if "priority" in task_data_dict:
                 normalized = _normalize_priority(task_data_dict["priority"])
                 if normalized is not None:
@@ -521,10 +479,11 @@ def _execute_task_action_internal(
 
             # 必須フィールドの設定
             priority_val = _normalize_priority(task_data_dict.get("priority")) or "MEDIUM"
+            status_val = _normalize_status(task_data_dict.get("status")) or "todo"
             task_data = schemas.TaskCreate(
                 name=task_data_dict.get("name"),
                 description=task_data_dict.get("description", ""),
-                status=task_data_dict.get("status", "todo"),
+                status=status_val,
                 priority=priority_val,
                 project_id=task_data_dict.get("project_id"),
                 assigned_to=task_data_dict.get("assigned_to"),
@@ -577,3 +536,44 @@ def _execute_task_action_internal(
         return {"success": False, "error": f"エラーが発生しました: {str(e)}"}
 
 
+
+def _extract_actions(text: str) -> Optional[list]:
+    """
+    LLMの回答テキストからアクションJSONブロックを抽出するヘルパー関数
+    """
+    action_list = None
+    
+    def _parse(raw):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed if parsed and all(isinstance(x, dict) and x.get("action_type") in ("update_task", "create_task", "delete_task") for x in parsed) else None
+            if isinstance(parsed, dict) and parsed.get("action_type") in ("update_task", "create_task", "delete_task"):
+                return [parsed]
+            return None
+        except: return None
+    
+    def _blocks(t): return re.findall(r"```(?:json)?\s*([\s\S]*?)```", t)
+    
+    all_blocks = _blocks(text)
+    if all_blocks:
+        action_list = []
+        for b in all_blocks:
+            c = _parse(b.strip())
+            if c: action_list.extend(c)
+        if not action_list: action_list = None
+    
+    # フォールバック（コードブロック無しの場合）
+    if not action_list:
+        cleaned = text.strip()
+        if "---" in cleaned: cleaned = cleaned.split("---", 1)[1].strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:].lstrip()
+            if cleaned.lower().startswith("json"): cleaned = cleaned[4:].lstrip()
+            if cleaned.endswith("```"): cleaned = cleaned[:-3].strip()
+        
+        # 配列またはオブジェクトとしてトライ
+        if (cleaned.startswith("{") and cleaned.endswith("}")) or (cleaned.startswith("[") and cleaned.endswith("]")):
+            action_list = _parse(cleaned)
+            
+    return action_list

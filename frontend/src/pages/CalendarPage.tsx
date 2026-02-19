@@ -16,7 +16,7 @@ import { useCalendarPageState, usePageState } from '../contexts/PageStateContext
 import { useLocation, useNavigate } from 'react-router-dom';
 import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { Box, CircularProgress, Typography, useMediaQuery, useTheme, Theme, SelectChangeEvent, Button, Snackbar, Alert, Fab, Drawer, IconButton, Chip, FormControl, InputLabel, Select, MenuItem, Checkbox, FormControlLabel, FormGroup } from '@mui/material';
+import { Box, CircularProgress, Typography, useMediaQuery, useTheme, Theme, SelectChangeEvent, Button, Snackbar, Alert, Fab, Drawer, IconButton, FormControl, InputLabel, Select, MenuItem, Checkbox, FormControlLabel, FormGroup } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
@@ -381,8 +381,7 @@ const CalendarPage: React.FC = () => {
                             taskStatus: task.status,
                             taskPriority: (task.priority as any) ?? undefined,
                             taskType: task.type ?? undefined,
-                            taskSeqID: task.seqID ?? undefined,
-                            taskShotID: task.shotID ?? undefined,
+
                             status: undefined,
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
@@ -777,8 +776,7 @@ const CalendarPage: React.FC = () => {
                             taskStatus: task.status,
                             taskPriority: (task.priority as any) ?? undefined,
                             taskType: task.type ?? undefined,
-                            taskSeqID: task.seqID ?? undefined,
-                            taskShotID: task.shotID ?? undefined,
+
                             status: undefined,
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
@@ -2091,7 +2089,67 @@ const CalendarPage: React.FC = () => {
         const type = (ev.extendedProps?.type as string)?.toLowerCase?.();
 
         try {
-            if (type === 'task') {
+
+            if (ev.extendedProps?.isPhase) {
+                // Phase drag and drop
+                // ID format: task-{taskId}-phase-{index}
+                // Try regex matching for robustness
+                const match = idStr.match(/^task-(\d+)-phase-(\d+)$/);
+
+                let tId = -1;
+                let pIndex = -1;
+
+                if (match) {
+                    tId = parseInt(match[1], 10);
+                    pIndex = parseInt(match[2], 10);
+                } else {
+                    // Fallback or explicit failure
+                    console.warn('[CalendarPage] Phase drop reverted: ID format mismatch', idStr);
+                    arg.revert();
+                    return;
+                }
+
+                if (tId === -1 || pIndex === -1) {
+                    console.warn('[CalendarPage] Phase drop reverted: Failed to parse ID', idStr);
+                    arg.revert();
+                    return;
+                }
+
+                const newDate = formatForApi(start, true); // Phase is date only
+                if (!newDate) {
+                    console.warn('[CalendarPage] Phase drop reverted: Invalid new date');
+                    arg.revert();
+                    return;
+                }
+
+                // Fetch current task to get latest phases state
+                const task = tasks.find(t => t.id === tId);
+                if (!task) {
+                    console.warn('[CalendarPage] Phase drop reverted: Parent task not found', tId);
+                    arg.revert();
+                    return;
+                }
+                if (!task.phases) {
+                    console.warn('[CalendarPage] Phase drop reverted: Task has no phases', tId);
+                    arg.revert();
+                    return;
+                }
+
+                const updatedPhases = [...task.phases];
+                if (pIndex >= 0 && pIndex < updatedPhases.length) {
+                    updatedPhases[pIndex] = {
+                        ...updatedPhases[pIndex],
+                        date: newDate
+                    };
+
+                    await api.put(`/tasks/${tId}`, { phases: updatedPhases });
+                } else {
+                    console.warn('[CalendarPage] Phase drop reverted: Invalid phase index', pIndex);
+                    arg.revert();
+                    return;
+                }
+
+            } else if (type === 'task') {
                 const dueDate = formatForApi(start, true);
                 if (!dueDate) {
                     arg.revert();
@@ -2126,7 +2184,7 @@ const CalendarPage: React.FC = () => {
             console.error('Event drop update failed:', err);
             arg.revert();
         }
-    }, [refreshGlobalData]);
+    }, [refreshGlobalData, tasks]); // Added tasks to dependency array
 
     const handleEventResize = useCallback(async (arg: EventResizeDoneArg) => {
         const ev = arg.event;
@@ -2484,16 +2542,7 @@ const CalendarPage: React.FC = () => {
                     >
                         作成
                     </Button>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flex: 1, justifyContent: 'flex-end', minWidth: 0 }}>
-                        {Object.entries(eventTypeFilter).filter(([_, enabled]) => enabled).map(([type, _]) => (
-                            <Chip
-                                key={type}
-                                label={type === 'task' ? 'タスク' : type === 'meeting' ? '会議' : type === 'deadline' ? '締切' : type === 'milestone' ? 'マイルストーン' : type === 'workshop' ? 'ワークショップ' : type === 'generic' ? '通常' : type}
-                                size="small"
-                                sx={{ fontSize: '0.7rem', height: 28, minHeight: 28 }}
-                            />
-                        ))}
-                    </Box>
+
                 </Box>
             )}
 
@@ -2569,38 +2618,48 @@ const CalendarPage: React.FC = () => {
                 .fc .fc-col-header-cell.fc-day-mon,
                 .fc .fc-col-header-cell.fc-day-mon a,
                 .fc .fc-col-header-cell.fc-day-mon .fc-scrollgrid-sync-inner,
+                .fc .fc-col-header-cell.fc-day-mon .fc-col-header-cell-cushion,
                 .fc .fc-daygrid-day.fc-day-mon .fc-daygrid-day-number,
                 .fc .fc-col-header-cell.fc-day-tue,
                 .fc .fc-col-header-cell.fc-day-tue a,
                 .fc .fc-col-header-cell.fc-day-tue .fc-scrollgrid-sync-inner,
+                .fc .fc-col-header-cell.fc-day-tue .fc-col-header-cell-cushion,
                 .fc .fc-daygrid-day.fc-day-tue .fc-daygrid-day-number,
                 .fc .fc-col-header-cell.fc-day-wed,
                 .fc .fc-col-header-cell.fc-day-wed a,
                 .fc .fc-col-header-cell.fc-day-wed .fc-scrollgrid-sync-inner,
+                .fc .fc-col-header-cell.fc-day-wed .fc-col-header-cell-cushion,
                 .fc .fc-daygrid-day.fc-day-wed .fc-daygrid-day-number,
                 .fc .fc-col-header-cell.fc-day-thu,
                 .fc .fc-col-header-cell.fc-day-thu a,
                 .fc .fc-col-header-cell.fc-day-thu .fc-scrollgrid-sync-inner,
+                .fc .fc-col-header-cell.fc-day-thu .fc-col-header-cell-cushion,
                 .fc .fc-daygrid-day.fc-day-thu .fc-daygrid-day-number,
                 .fc .fc-col-header-cell.fc-day-fri,
                 .fc .fc-col-header-cell.fc-day-fri a,
                 .fc .fc-col-header-cell.fc-day-fri .fc-scrollgrid-sync-inner,
+                .fc .fc-col-header-cell.fc-day-fri .fc-col-header-cell-cushion,
                 .fc .fc-daygrid-day.fc-day-fri .fc-daygrid-day-number {
                     color: ${isDark ? '#e8eaed' : '#000000'} !important;
+                    background-color: ${isDark ? '#202124' : '#ffffff'};
                 }
                 /* 土曜日: 青系（ダークモードではやや明るめの青） */
                 .fc .fc-col-header-cell.fc-day-sat,
                 .fc .fc-col-header-cell.fc-day-sat a,
                 .fc .fc-col-header-cell.fc-day-sat .fc-scrollgrid-sync-inner,
+                .fc .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion,
                 .fc .fc-daygrid-day.fc-day-sat .fc-daygrid-day-number {
                     color: ${isDark ? '#8ab4f8' : '#1a73e8'} !important;
+                    background-color: ${isDark ? '#202124' : '#ffffff'};
                 }
                 /* 日曜日: 赤系（ダークモードではやや明るめの赤） */
                 .fc .fc-col-header-cell.fc-day-sun,
                 .fc .fc-col-header-cell.fc-day-sun a,
                 .fc .fc-col-header-cell.fc-day-sun .fc-scrollgrid-sync-inner,
+                .fc .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion,
                 .fc .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number {
                     color: ${isDark ? '#f28b82' : '#d93025'} !important;
+                    background-color: ${isDark ? '#202124' : '#ffffff'};
                 }
                 .fc                 .fc-list-event-dot {
                     border-color: var(--fc-event-border-color, #3788d8);
@@ -3025,6 +3084,18 @@ const CalendarPage: React.FC = () => {
                 .fc-event.generic-event .fc-event-main * {
                     color: #fff !important;
                 }
+                /* ダークモード対策 */
+                .fc-col-header-cell-cushion,
+                .fc-daygrid-day-number {
+                    color: ${theme.palette.text.primary} !important;
+                    text-decoration: none !important;
+                }
+                .fc-theme-standard .fc-scrollgrid {
+                    border-color: ${theme.palette.divider} !important;
+                }
+                .fc-theme-standard td, .fc-theme-standard th {
+                    border-color: ${theme.palette.divider} !important;
+                }
             `}</style>
 
                     {error && <Typography color="error" sx={{ px: 1 }}>{error}</Typography>}
@@ -3047,11 +3118,11 @@ const CalendarPage: React.FC = () => {
                     <FullCalendar
                         ref={calendarRef}
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-                        initialView={isMobile ? "listWeek" : "dayGridMonth"}
+                        initialView={isMobile ? "dayGridMonth" : "dayGridMonth"}
                         headerToolbar={isMobile ? {
-                            left: 'prev,next',
+                            left: 'prev,next today',
                             center: 'title',
-                            right: 'listWeek'
+                            right: 'dayGridMonth,listMonth'
                         } : {
                             left: 'prev,next today',
                             center: 'title',
@@ -3193,7 +3264,11 @@ const CalendarPage: React.FC = () => {
                         }}
                         dayMaxEventRows={5}
                         dayMaxEvents={5}
-                        moreLinkClick="popover"
+                        moreLinkClick={isMobile ? (arg) => {
+                            setSelectedDate(arg.date);
+                            setSelectedEventDetails({ event: null });
+                            setMobileEventDetailsOpen(true);
+                        } : "popover"}
                         moreLinkContent={(arg) => `+${arg.num}件`}
                         dayCellDidMount={handleDayCellMount}
                         selectable={false}

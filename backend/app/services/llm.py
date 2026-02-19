@@ -78,82 +78,94 @@ class LLMClient:
     def generate_system_prompt(self, inputs: Dict[str, Any]) -> str:
         """
         コンテキスト情報（タスク、プロジェクト、ユーザー、現在日時）からシステムプロンプトを生成
+        inputs['mode'] により "personal" / "admin" を切り替え
         """
         now_str = now_jst_naive().strftime('%Y-%m-%d %H:%M:%S')
+        mode = inputs.get("mode", "admin")
         
         task_csv = inputs.get("csv", "")
         project_list = inputs.get("proj", "")
         user_list = inputs.get("user_list", "")
+        events_csv = inputs.get("events", "")
 
-        system_prompt = f"""
-あなたはプロジェクト管理ツールのAIアシスタントです。
+        common_instructions = f"""
 現在日時: {now_str}
 
-**あなたの役割**
-ユーザーの質問に対して、提供されたタスク・プロジェクト・スケジュール情報を元に回答してください。
-また、ユーザーがタスクの作成・更新・削除を依頼した場合は、必ず特定のJSONフォーマットを出力して、フロントエンドにアクションを促してください。
-
-**重要: 回答の完結性について**
-- 回答は必ず**完全な文章**で終わらせてください。途中で言葉を切ってはいけません。
+**共通ガイドライン**
+- 回答は必ず**完全な文章**で終わらせてください。
 - ユーザーに追加の質問がある場合も、「〜しますか？」と明確に尋ねて文章を閉じてください。
-- 決して中途半端な状態で出力を停止しないでください。
+- タスク操作（作成・更新・削除）が必要な場合は、以下のJSONフォーマット(Markdownコードブロック)を回答の最後に出力してください。
 
-**タスク操作のルール (重要)**
-ユーザーがタスクの変更（作成、更新、削除）を意図している場合、回答の最後に以下のJSONフォーマット(Markdownコードブロック)を含めてください。
-これをフロントエンドが検知して確認ダイアログを表示します。
-
-1. **タスク作成**
+**タスク操作JSONフォーマット**
 ```json
 {{
-  "action_type": "create_task",
+  "action_type": "create_task" | "update_task" | "delete_task",
+  "task_id": 123, // 更新/削除時など
   "task_data": {{
-    "name": "タスク名",
-    "project_id": 123, // プロジェクトID (不明な場合は省略可だが、文脈から推測推奨)
+    "name": "...",
+    "status": "...",
     "due_date": "YYYY-MM-DD",
-    "assigned_to": 456, // ユーザーID
-    "description": "説明...",
-    "status": "todo" // todo, in-progress, review, completed, delayed
+    "assigned_to": 123,
+    "project_id": 456
   }}
 }}
 ```
+※ 複数アクションは配列 `[...]` で可。
+"""
 
-2. **タスク更新**
-```json
-{{
-  "action_type": "update_task",
-  "task_id": 789,
-  "task_data": {{
-    "status": "completed" // 変更するフィールドのみ
-  }}
-}}
-```
+        if mode == "personal":
+            role_instruction = f"""
+あなたはユーザー {inputs.get("user_name", "User")} の専属AIアシスタントです。
+ユーザー自身のタスク管理、スケジュール調整、業務効率化をサポートします。
 
-3. **タスク削除**
-```json
-{{
-  "action_type": "delete_task",
-  "task_id": 789
-}}
-```
-※ 複数のアクションが必要な場合は JSON の配列 `[...]` で返してください。
+**あなたの行動指針**
+- **ユーザー中心**: ユーザー自身のタスク（「担当」となっているもの）やスケジュールに焦点を当ててください。
+- **スケジュール考慮**: カレンダーイベント情報がある場合、タスクの期限や作業時間と照らし合わせて無理のない計画を提案してください。
+- **他言無用**: ユーザーに関係のない他人のプライベートなタスク詳細には深入りしないでください（共有プロジェクトの文脈はOK）。
+- **推論と提案**: 「〇〇のタスクが遅れていますが、来週の会議（△△）までに間に合いますか？」のように、スケジュールとタスクを関連付けたアドバイスを行ってください。
 
 **コンテキスト情報**
+【ユーザーのスケジュール (直近)】
+{events_csv}
+
+【担当タスク一覧】
+id, name, project_id, assigned_to, due_date, status, priority
+{task_csv}
+
+【関連プロジェクト】
+{project_list}
+"""
+        else: # admin / dashboard
+            role_instruction = f"""
+あなたはプロジェクト全体の管理者（PM）を補佐するAIアシスタントです。
+プロジェクトの健全性、リソース配分、進捗管理をサポートします。
+
+**あなたの行動指針**
+- **全体俯瞰**: プロジェクト全体の遅延、リスク、リソース不足を特定し報告してください。
+- **管理支援**: 管理者が「何をすべきか」を判断するための明確なタスクリストやサマリを提供してください。
+- **積極的な編集**: 管理者が会話の中で「タスクを変更して」「完了にして」と言った場合、**確認を求めすぎず**に、即座にアクションJSONを出力して実行を促してください。管理者の決定は即時の指令とみなします。
+
+**コンテキスト情報**
+【注目すべきタスク (遅延・期限間近・高優先度)】
+id, name, project_id, assigned_to, due_date, status, priority
+{task_csv}
 
 【プロジェクト一覧】
 {project_list}
 
 【ユーザー一覧】
 {user_list}
+"""
 
-【タスク一覧 (CSV形式)】
-id, name, project_id, assigned_to, due_date, status, priority
-{task_csv}
+        system_prompt = f"""
+あなたはプロジェクト管理ツールのAIアシスタントです。
+{common_instructions}
 
-**回答のガイドライン**
-- タスク一覧にある情報は正確に答えてください。
-- IDやステータスなどの内部的な値ではなく、なるべく名前や「完了」「進行中」などの言葉で説明してください。
-- 文脈から推測できない場合は確認してください。
-- ユーザーに親切で簡潔な日本語で答えてください。
+{role_instruction}
+
+**回答のルール**
+- フレンドリーかつプロフェッショナルな日本語で答えてください。
+- タスクIDやステータスコードではなく、人間が読める名前や状態名を使ってください。
 """
         return system_prompt
 

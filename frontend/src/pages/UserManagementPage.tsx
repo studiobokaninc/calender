@@ -659,7 +659,7 @@ const UserManagementPage: React.FC = () => {
                     {isNarrow ? `タスクリスト（${usersWithTasks.length}名）` : `ユーザー別タスクリスト（${usersWithTasks.length}名）`}
                   </Typography>
                 </Box>
-                {isNarrow ? (
+                {false ? (
                   /* 縦リスト: ユーザーごとにカード、中に今日/遅延/期限間近/その他とタスク名を並べる */
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {usersWithTasks.map((user) => {
@@ -803,7 +803,7 @@ const UserManagementPage: React.FC = () => {
                   </Box>
                 ) : (
                   /* 横: テーブル 1行＝1ユーザー、列＝遅延/今日中にやるべき/期限間近/その他（タスク名を表示） */
-                  <TableContainer>
+                  <TableContainer sx={{ overflowX: 'auto' }}>
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
@@ -931,6 +931,7 @@ const UserManagementPage: React.FC = () => {
                     </Table>
                   </TableContainer>
                 )}
+
               </Paper>
             </Grid>
           )}

@@ -46,7 +46,7 @@ interface PageStates {
 /** ダッシュボードチャットの最初のメッセージ（唯一の定義場所） */
 export const DASHBOARD_WELCOME_MESSAGE: { role: 'assistant'; content: string } = {
   role: 'assistant',
-  content: 'ようこそ！タスクのステータス更新や作成、削除などお気軽にどうぞ！',
+  content: 'タスクについてお気軽にご相談ください！',
 };
 
 // デフォルト状態
@@ -215,7 +215,7 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
         ...prev[page],
         ...updates,
       };
-      
+
       // 状態が実際に変更された場合のみ更新
       if (JSON.stringify(prev[page]) !== JSON.stringify(newPageState)) {
         return {
@@ -223,7 +223,7 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
           [page]: newPageState,
         };
       }
-      
+
       return prev;
     });
   }, []);
@@ -246,10 +246,10 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
   const refreshGlobalData = useCallback(async () => {
     try {
       console.log('[PageStateContext] Starting global data refresh...');
-      
+
       // データを再取得するためのAPI呼び出し
       const { fetchTasks, fetchProjects, fetchUsers, fetchGroups } = await import('../services/api');
-      
+
       const [tasks, projects, users, groups] = await Promise.all([
         fetchTasks(),
         fetchProjects(),
@@ -272,9 +272,9 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
         events: [], // イベントは各ページで生成されるため空配列
         lastFetched: Date.now(),
       });
-      
+
       console.log('[PageStateContext] Global data updated successfully');
-      
+
       // カスタムイベントを発火して、各ページにデータ更新を通知
       console.log('[PageStateContext] Dispatching globalDataRefreshed event with data:', {
         tasks: tasks.length,
@@ -319,7 +319,7 @@ export const usePageState = () => {
 // ページごとの専用フック
 export const useTasksPageState = () => {
   const { pageStates, updatePageState, isInitialLoad, globalData, updateGlobalData } = usePageState();
-  
+
   const updateTasksState = useCallback((updates: Partial<PageStates['tasks']>) => {
     updatePageState('tasks', updates);
   }, [updatePageState]);
@@ -335,7 +335,7 @@ export const useTasksPageState = () => {
 
 export const useMetricsPageState = () => {
   const { pageStates, updatePageState, isInitialLoad, globalData, updateGlobalData } = usePageState();
-  
+
   const updateMetricsState = useCallback((updates: Partial<PageStates['metrics']>) => {
     updatePageState('metrics', updates);
   }, [updatePageState]);
@@ -351,7 +351,7 @@ export const useMetricsPageState = () => {
 
 export const useCalendarPageState = () => {
   const { pageStates, updatePageState, isInitialLoad, globalData, updateGlobalData } = usePageState();
-  
+
   const updateCalendarState = useCallback((updates: Partial<PageStates['calendar']>) => {
     updatePageState('calendar', updates);
   }, [updatePageState]);
@@ -367,7 +367,7 @@ export const useCalendarPageState = () => {
 
 export const useDashboardPageState = () => {
   const { pageStates, updatePageState, isInitialLoad, globalData, updateGlobalData } = usePageState();
-  
+
   const updateDashboardState = useCallback((updates: Partial<PageStates['dashboard']>) => {
     updatePageState('dashboard', updates);
   }, [updatePageState]);

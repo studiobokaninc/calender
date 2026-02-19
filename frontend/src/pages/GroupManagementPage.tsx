@@ -4,7 +4,7 @@ import {
   Divider, Button, IconButton, TextField, Dialog,
   DialogActions, DialogContent, DialogTitle, Select, MenuItem, FormControl,
   InputLabel, Tooltip, Stack, Snackbar, Alert, Card, CardContent, InputAdornment,
-  Chip, useTheme
+  Chip, useTheme, useMediaQuery
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -15,6 +15,7 @@ import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import api from '../services/api';
 import { Group, User, UserGroup } from '../types';
 import { format, parseISO, isValid } from 'date-fns';
@@ -170,14 +171,14 @@ const GroupManagementPage: React.FC = () => {
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return;
     try {
-      const response = await api.post<Group>('/api/groups', { 
-        name: newGroupName.trim(), 
+      const response = await api.post<Group>('/api/groups', {
+        name: newGroupName.trim(),
         description: newGroupDesc.trim() || undefined,
         start_date: newGroupStartDate || undefined,
         end_date: newGroupEndDate || undefined,
       });
       const newGroup = response.data;
-      
+
       // 選択されたユーザーをグループに追加
       if (newGroupUsers.length > 0) {
         for (const userId of newGroupUsers) {
@@ -188,10 +189,10 @@ const GroupManagementPage: React.FC = () => {
           }
         }
       }
-      
+
       await fetchInitialData();
       handleCloseCreateModal();
-      const userMessage = newGroupUsers.length > 0 
+      const userMessage = newGroupUsers.length > 0
         ? `グループ「${newGroupName}」を作成し、${newGroupUsers.length}人のメンバーを追加しました`
         : `グループ「${newGroupName}」を作成しました`;
       setSnackbar({ open: true, message: userMessage, severity: 'success' });
@@ -229,16 +230,16 @@ const GroupManagementPage: React.FC = () => {
         start_date: editGroupStartDate || undefined,
         end_date: editGroupEndDate || undefined,
       });
-      setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { 
-        ...g, 
-        name: editGroupName.trim(), 
+      setGroups(prev => prev.map(g => g.id === selectedGroup.id ? {
+        ...g,
+        name: editGroupName.trim(),
         description: editGroupDesc.trim() || undefined,
         start_date: editGroupStartDate || undefined,
         end_date: editGroupEndDate || undefined,
       } : g));
-      setSelectedGroup(prev => prev && prev.id === selectedGroup.id ? { 
-        ...prev, 
-        name: editGroupName.trim(), 
+      setSelectedGroup(prev => prev && prev.id === selectedGroup.id ? {
+        ...prev,
+        name: editGroupName.trim(),
         description: editGroupDesc.trim() || undefined,
         start_date: editGroupStartDate || undefined,
         end_date: editGroupEndDate || undefined,
@@ -362,6 +363,7 @@ const GroupManagementPage: React.FC = () => {
 
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   if (loading && groups.length === 0) {
     return (
@@ -381,372 +383,385 @@ const GroupManagementPage: React.FC = () => {
   }
 
   return (
-      <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden', flexDirection: 'row' }}>
       {/* 左: グループ一覧 */}
-      <Paper
-        elevation={0}
-        sx={{
-          width: 280,
-          flexShrink: 0,
-          borderRight: 1,
-          borderColor: 'divider',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 0,
-        }}
-      >
-        <Box sx={{ p: 2, pb: 1 }}>
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 1.5 }}>グループ</Typography>
-          <TextField
-            size="small"
-            placeholder="検索..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            fullWidth
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" color="action" />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 1 }}
-          />
-          <Button
-            variant="contained"
-            size="small"
-            fullWidth
-            startIcon={<AddIcon />}
-            onClick={handleOpenCreateModal}
-          >
-            新規作成
-          </Button>
-        </Box>
-        <Divider />
-        <List sx={{ overflowY: 'auto', flexGrow: 1, py: 0 }}>
-          {filteredGroups.length === 0 ? (
-            <ListItem>
-              <Typography variant="body2" color="text.secondary">
-                {searchQuery ? '該当するグループがありません' : 'グループがまだありません'}
-              </Typography>
-            </ListItem>
-          ) : (
-            filteredGroups.map((group) => {
-              const isSelected = selectedGroup?.id === group.id;
-              return (
-                <ListItem key={group.id} disablePadding>
-                  <ListItemButton
-                    selected={isSelected}
-                    onClick={() => handleGroupSelect(group)}
-                    sx={{ 
-                      py: 1.5, 
-                      borderRadius: 1,
-                      mx: 0.5,
-                      mb: 0.5,
-                      border: isSelected ? 2 : 1,
-                      borderColor: isSelected ? 'primary.main' : 'divider',
-                      bgcolor: isSelected ? 'primary.50' : 'background.paper',
-                      '&:hover': {
-                        bgcolor: isSelected ? 'primary.100' : 'action.hover',
-                        borderColor: 'primary.main',
-                      },
-                      transition: 'all 0.2s ease-in-out',
-                    }}
-                  >
-                    <Box sx={{ width: '100%' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography 
-                          variant="subtitle1" 
-                          fontWeight={isSelected ? 700 : 600}
-                          color={isSelected ? 'primary.main' : 'text.primary'}
-                        >
-                          {group.name}
-                        </Typography>
-                      </Box>
-                      {group.description && (
-                        <Typography 
-                          variant="caption" 
-                          color="text.secondary" 
-                          sx={{ 
-                            display: 'block',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {group.description}
-                        </Typography>
-                      )}
-                    </Box>
-                  </ListItemButton>
-                </ListItem>
-              );
-            })
-          )}
-        </List>
-      </Paper>
-
-      {/* 右: 選択グループの詳細 */}
-      <Box
-        sx={{
-          flexGrow: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          bgcolor: isDarkMode ? 'background.default' : 'grey.50',
-        }}
-      >
-        {selectedGroup ? (
-          <Card sx={{ m: 2, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 2 }}>
-            <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', pb: 2 }}>
-              <Box 
-                sx={{ 
-                  p: 2, 
-                  mb: 2, 
-                  borderRadius: 2,
-                  bgcolor: 'primary.50',
-                  border: 2,
-                  borderColor: 'primary.light',
-                  boxShadow: 1,
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <GroupIcon sx={{ fontSize: 28, color: 'primary.main' }} />
-                      <Typography variant="h4" fontWeight={700} color="primary.main">
-                        {selectedGroup.name}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Stack direction="row" spacing={1} flexWrap="wrap">
-                    <Tooltip title="編集">
-                      <IconButton 
-                        size="small" 
-                        onClick={handleOpenEditModal} 
-                        color="primary"
-                        sx={{ 
-                          bgcolor: 'background.paper',
-                          '&:hover': { bgcolor: 'primary.light', color: 'white' }
-                        }}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Button 
-                      variant="contained" 
-                      size="small" 
-                      startIcon={<PersonAddIcon />} 
-                      onClick={handleOpenAddUserModal}
-                    >
-                      メンバー追加
-                    </Button>
-                    <Tooltip title={usersInSelectedGroup.length === 0 ? 'メンバーを追加してから会議を作成できます' : 'グループのメンバーを参加者とする会議を作成'}>
-                      <span>
-                        <Button 
-                          variant="outlined" 
-                          size="small" 
-                          startIcon={<MeetingRoomIcon />} 
-                          onClick={handleOpenCreateMeetingModal}
-                          disabled={usersInSelectedGroup.length === 0}
-                        >
-                          会議を作成
-                        </Button>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="グループを削除">
-                      <IconButton 
-                        size="small" 
-                        onClick={handleDeleteGroup}
-                        color="error"
-                        sx={{ 
-                          bgcolor: 'background.paper',
-                          '&:hover': { bgcolor: 'error.light', color: 'white' }
-                        }}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </Stack>
-                </Box>
-              </Box>
-              {/* グループ情報サマリー */}
-              <Box 
-                sx={{ 
-                  mb: 2, 
-                  p: 2, 
-                  bgcolor: 'background.paper', 
-                  borderRadius: 2, 
-                  border: 2, 
-                  borderColor: 'primary.light',
-                  boxShadow: 2,
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <Box sx={{ 
-                    width: 4, 
-                    height: 24, 
-                    bgcolor: 'primary.main', 
-                    borderRadius: 1 
-                  }} />
-                  <Typography variant="h6" color="primary.main" sx={{ fontWeight: 700 }}>
-                    グループ情報
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {/* 説明 */}
-                  <Box sx={(theme) => ({ 
-                    p: 1.5, 
-                    bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.50', 
-                    borderRadius: 1,
-                    border: 1,
-                    borderColor: 'divider',
-                  })}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        説明
-                      </Typography>
-                    </Box>
-                    {selectedGroup.description ? (
-                      <Typography variant="body2" color="text.primary" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                        {selectedGroup.description}
-                      </Typography>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                        説明が設定されていません
-                      </Typography>
-                    )}
-                  </Box>
-                  
-                  {/* 期間情報 */}
-                  <Box sx={(theme) => ({ 
-                    p: 1.5, 
-                    bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.100', 
-                    borderRadius: 1,
-                    border: 1,
-                    borderColor: theme.palette.mode === 'dark' ? 'divider' : 'grey.300',
-                  })}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>
-                        期間
-                      </Typography>
-                      {(selectedGroup.start_date || selectedGroup.end_date) ? (
-                        <Typography variant="body2" fontWeight={500} color="text.primary" sx={{ fontSize: '0.85rem' }}>
-                          {formatDateRange(selectedGroup.start_date, selectedGroup.end_date)}
-                        </Typography>
-                      ) : (
-                        <Typography variant="body2" fontWeight={500} color="text.secondary">
-                          未設定
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-                  
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <Box sx={{ 
-                  width: 4, 
-                  height: 20, 
-                  bgcolor: 'secondary.main', 
-                  borderRadius: 1 
-                }} />
-                <Typography variant="h6" color="text.primary" sx={{ fontWeight: 700 }}>
-                  所属メンバー
+      {(!isMobile || !selectedGroup) && (
+        <Paper
+          elevation={0}
+          sx={{
+            width: isMobile ? '100%' : 280,
+            flexShrink: 0,
+            borderRight: isMobile ? 0 : 1,
+            borderColor: 'divider',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 0,
+            height: '100%',
+          }}
+        >
+          <Box sx={{ p: 2, pb: 1 }}>
+            <Typography variant="h6" fontWeight={600} sx={{ mb: 1.5 }}>グループ</Typography>
+            <TextField
+              size="small"
+              placeholder="検索..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 1 }}
+            />
+            <Button
+              variant="contained"
+              size="small"
+              fullWidth
+              startIcon={<AddIcon />}
+              onClick={handleOpenCreateModal}
+            >
+              新規作成
+            </Button>
+          </Box>
+          <Divider />
+          <List sx={{ overflowY: 'auto', flexGrow: 1, py: 0 }}>
+            {filteredGroups.length === 0 ? (
+              <ListItem>
+                <Typography variant="body2" color="text.secondary">
+                  {searchQuery ? '該当するグループがありません' : 'グループがまだありません'}
                 </Typography>
-                <Chip 
-                  label={`${usersInSelectedGroup.length}人`} 
-                  size="small" 
-                  color="secondary"
-                  sx={{ fontWeight: 600 }}
-                />
-              </Box>
-              {loadingMembers ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                  <CircularProgress size={28} />
-                </Box>
-              ) : membersError ? (
-                <Typography color="error">{membersError}</Typography>
-              ) : usersInSelectedGroup.length > 0 ? (
-                <List dense disablePadding sx={{ overflowY: 'auto' }}>
-                  {usersInSelectedGroup.map((user, index) => (
-                    <ListItem
-                      key={user.id}
-                      secondaryAction={
-                        <Tooltip title="グループから外す">
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleRemoveUser(user.id)} 
-                            sx={{ 
-                              color: 'warning.main',
-                              '&:hover': { bgcolor: 'warning.light', color: 'warning.dark' }
-                            }}
-                          >
-                            <PersonRemoveIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      }
-                      sx={{ 
-                        borderBottom: index < usersInSelectedGroup.length - 1 ? 1 : 0, 
-                        borderColor: 'divider', 
+              </ListItem>
+            ) : (
+              filteredGroups.map((group) => {
+                const isSelected = selectedGroup?.id === group.id;
+                return (
+                  <ListItem key={group.id} disablePadding>
+                    <ListItemButton
+                      selected={isSelected}
+                      onClick={() => handleGroupSelect(group)}
+                      sx={{
                         py: 1.5,
                         borderRadius: 1,
+                        mx: 0.5,
                         mb: 0.5,
-                        bgcolor: 'background.paper',
+                        border: isSelected ? 2 : 1,
+                        borderColor: isSelected ? 'primary.main' : 'divider',
+                        bgcolor: isSelected ? 'primary.50' : 'background.paper',
                         '&:hover': {
-                          bgcolor: 'action.hover',
+                          bgcolor: isSelected ? 'primary.100' : 'action.hover',
+                          borderColor: 'primary.main',
                         },
-                        transition: 'background-color 0.2s',
+                        transition: 'all 0.2s ease-in-out',
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
-                        <Box sx={{ 
-                          width: 32, 
-                          height: 32, 
-                          borderRadius: '50%', 
-                          bgcolor: 'primary.main',
-                          color: 'white',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 600,
-                          fontSize: '0.875rem',
-                        }}>
-                          {(user.username || String(user.id))[0].toUpperCase()}
+                      <Box sx={{ width: '100%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography
+                            variant="subtitle1"
+                            fontWeight={isSelected ? 700 : 600}
+                            color={isSelected ? 'primary.main' : 'text.primary'}
+                          >
+                            {group.name}
+                          </Typography>
                         </Box>
-                        <Typography 
-                          variant="body2" 
-                          fontWeight={500}
-                          sx={{ flex: 1 }}
-                        >
-                          {user.username || String(user.id)}
+                        {group.description && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {group.description}
+                          </Typography>
+                        )}
+                      </Box>
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })
+            )}
+          </List>
+        </Paper>
+      )}
+
+      {/* 右: 選択グループの詳細 */}
+      {(!isMobile || selectedGroup) && (
+        <Box
+          sx={{
+            flexGrow: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            bgcolor: isDarkMode ? 'background.default' : 'grey.50',
+            width: isMobile ? '100%' : 'auto',
+          }}
+        >
+          {isMobile && selectedGroup && (
+            <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', display: 'flex', alignItems: 'center' }}>
+              <Button onClick={() => setSelectedGroup(null)} startIcon={<NavigateBeforeIcon />}>
+                戻る
+              </Button>
+            </Box>
+          )}
+          {selectedGroup ? (
+            <Card sx={{ m: 2, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 2 }}>
+              <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', pb: 2 }}>
+                <Box
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    borderRadius: 2,
+                    bgcolor: 'primary.50',
+                    border: 2,
+                    borderColor: 'primary.light',
+                    boxShadow: 1,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                        <GroupIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+                        <Typography variant="h4" fontWeight={700} color="primary.main">
+                          {selectedGroup.name}
                         </Typography>
                       </Box>
-                    </ListItem>
-                  ))}
-                </List>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <GroupIcon sx={{ fontSize: 48, color: 'action.disabled', mb: 1 }} />
-                  <Typography variant="body2" color="text.secondary">
-                    このグループにはまだメンバーがいません
-                  </Typography>
-                  <Button variant="outlined" size="small" startIcon={<PersonAddIcon />} sx={{ mt: 2 }} onClick={handleOpenAddUserModal}>
-                    メンバーを追加
-                  </Button>
+                    </Box>
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      <Tooltip title="編集">
+                        <IconButton
+                          size="small"
+                          onClick={handleOpenEditModal}
+                          color="primary"
+                          sx={{
+                            bgcolor: 'background.paper',
+                            '&:hover': { bgcolor: 'primary.light', color: 'white' }
+                          }}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        startIcon={<PersonAddIcon />}
+                        onClick={handleOpenAddUserModal}
+                      >
+                        メンバー追加
+                      </Button>
+                      <Tooltip title={usersInSelectedGroup.length === 0 ? 'メンバーを追加してから会議を作成できます' : 'グループのメンバーを参加者とする会議を作成'}>
+                        <span>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<MeetingRoomIcon />}
+                            onClick={handleOpenCreateMeetingModal}
+                            disabled={usersInSelectedGroup.length === 0}
+                          >
+                            会議を作成
+                          </Button>
+                        </span>
+                      </Tooltip>
+                      <Tooltip title="グループを削除">
+                        <IconButton
+                          size="small"
+                          onClick={handleDeleteGroup}
+                          color="error"
+                          sx={{
+                            bgcolor: 'background.paper',
+                            '&:hover': { bgcolor: 'error.light', color: 'white' }
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </Box>
                 </Box>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
-            <Box sx={{ textAlign: 'center' }}>
-              <GroupIcon sx={{ fontSize: 64, color: 'action.disabled', mb: 2 }} />
-              <Typography color="text.secondary">左のリストからグループを選択するか、新規作成してください</Typography>
+                {/* グループ情報サマリー */}
+                <Box
+                  sx={{
+                    mb: 2,
+                    p: 2,
+                    bgcolor: 'background.paper',
+                    borderRadius: 2,
+                    border: 2,
+                    borderColor: 'primary.light',
+                    boxShadow: 2,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Box sx={{
+                      width: 4,
+                      height: 24,
+                      bgcolor: 'primary.main',
+                      borderRadius: 1
+                    }} />
+                    <Typography variant="h6" color="primary.main" sx={{ fontWeight: 700 }}>
+                      グループ情報
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {/* 説明 */}
+                    <Box sx={(theme) => ({
+                      p: 1.5,
+                      bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.50',
+                      borderRadius: 1,
+                      border: 1,
+                      borderColor: 'divider',
+                    })}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                          説明
+                        </Typography>
+                      </Box>
+                      {selectedGroup.description ? (
+                        <Typography variant="body2" color="text.primary" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
+                          {selectedGroup.description}
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          説明が設定されていません
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {/* 期間情報 */}
+                    <Box sx={(theme) => ({
+                      p: 1.5,
+                      bgcolor: theme.palette.mode === 'dark' ? 'background.default' : 'grey.100',
+                      borderRadius: 1,
+                      border: 1,
+                      borderColor: theme.palette.mode === 'dark' ? 'divider' : 'grey.300',
+                    })}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block' }}>
+                          期間
+                        </Typography>
+                        {(selectedGroup.start_date || selectedGroup.end_date) ? (
+                          <Typography variant="body2" fontWeight={500} color="text.primary" sx={{ fontSize: '0.85rem' }}>
+                            {formatDateRange(selectedGroup.start_date, selectedGroup.end_date)}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" fontWeight={500} color="text.secondary">
+                            未設定
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <Box sx={{
+                    width: 4,
+                    height: 20,
+                    bgcolor: 'secondary.main',
+                    borderRadius: 1
+                  }} />
+                  <Typography variant="h6" color="text.primary" sx={{ fontWeight: 700 }}>
+                    所属メンバー
+                  </Typography>
+                  <Chip
+                    label={`${usersInSelectedGroup.length}人`}
+                    size="small"
+                    color="secondary"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Box>
+                {loadingMembers ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                    <CircularProgress size={28} />
+                  </Box>
+                ) : membersError ? (
+                  <Typography color="error">{membersError}</Typography>
+                ) : usersInSelectedGroup.length > 0 ? (
+                  <List dense disablePadding sx={{ overflowY: 'auto' }}>
+                    {usersInSelectedGroup.map((user, index) => (
+                      <ListItem
+                        key={user.id}
+                        secondaryAction={
+                          <Tooltip title="グループから外す">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveUser(user.id)}
+                              sx={{
+                                color: 'warning.main',
+                                '&:hover': { bgcolor: 'warning.light', color: 'warning.dark' }
+                              }}
+                            >
+                              <PersonRemoveIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        }
+                        sx={{
+                          borderBottom: index < usersInSelectedGroup.length - 1 ? 1 : 0,
+                          borderColor: 'divider',
+                          py: 1.5,
+                          borderRadius: 1,
+                          mb: 0.5,
+                          bgcolor: 'background.paper',
+                          '&:hover': {
+                            bgcolor: 'action.hover',
+                          },
+                          transition: 'background-color 0.2s',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                          <Box sx={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: '50%',
+                            bgcolor: 'primary.main',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 600,
+                            fontSize: '0.875rem',
+                          }}>
+                            {(user.username || String(user.id))[0].toUpperCase()}
+                          </Box>
+                          <Typography
+                            variant="body2"
+                            fontWeight={500}
+                            sx={{ flex: 1 }}
+                          >
+                            {user.username || String(user.id)}
+                          </Typography>
+                        </Box>
+                      </ListItem>
+                    ))}
+                  </List>
+                ) : (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <GroupIcon sx={{ fontSize: 48, color: 'action.disabled', mb: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      このグループにはまだメンバーがいません
+                    </Typography>
+                    <Button variant="outlined" size="small" startIcon={<PersonAddIcon />} sx={{ mt: 2 }} onClick={handleOpenAddUserModal}>
+                      メンバーを追加
+                    </Button>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <GroupIcon sx={{ fontSize: 64, color: 'action.disabled', mb: 2 }} />
+                <Typography color="text.secondary">左のリストからグループを選択するか、新規作成してください</Typography>
+              </Box>
             </Box>
-          </Box>
-        )}
-      </Box>
+          )}
+        </Box>
+      )}
 
       {/* 新規グループ作成ダイアログ */}
       <Dialog open={isCreateModalOpen} onClose={handleCloseCreateModal} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>

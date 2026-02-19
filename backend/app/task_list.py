@@ -534,3 +534,237 @@ def classify_task_for_dify(arg1) -> dict:
     ]
     body = "\n\n".join(out_lines)
     return {"result": "\n".join(header_lines) + "\n\n" + body}
+
+
+def build_events_list_for_chat(db: Session, user_id: int = None) -> str:
+    """
+    イベントリストをCSV形式で生成する。
+    user_id が指定された場合は、そのユーザーが関与するイベントを抽出（簡易実装）
+    直近のイベント（過去7日〜未来30日）をリストアップする。
+    """
+    try:
+        # 直近のイベントを取得
+        start_range = datetime.now() - timedelta(days=7)
+        end_range = datetime.now() + timedelta(days=30)
+        
+        events = db.query(models.Event).filter(
+            models.Event.start_time >= start_range,
+            models.Event.start_time <= end_range
+        ).all()
+        
+        if not events:
+            return ""
+            
+        filtered_events = []
+        if user_id:
+            # ユーザーフィルタリング（簡易実装）
+            # participantsカラムがJSONで、[{id: ...}, ...] のような構造を想定
+            # またはタイトルや説明にユーザー名が含まれるかなど
+            # 今回は「全員参加」と思われるタイプと、participantsに含まれる場合のみ抽出
+            
+            # ユーザー名取得
+            user = crud.get_user(db, user_id)
+            user_name = user.name if user else ""
+            
+            for ev in events:
+                # 重要なイベントタイプは全員に表示
+                if ev.type in [models.EventType.MILESTONE, models.EventType.DEADLINE, models.EventType.WORKSHOP]:
+                    filtered_events.append(ev)
+                    continue
+                
+                # 参加者チェック
+                is_participant = False
+                if ev.participants:
+                    # participants は List[dict] なのでループしてチェック
+                    for p in ev.participants:
+                        if isinstance(p, dict):
+                            # IDまたは名前で一致判定
+                            if str(p.get("id")) == str(user_id) or (user_name and p.get("name") == user_name):
+                                is_participant = True
+                                break
+                
+                if is_participant:
+                    filtered_events.append(ev)
+        else:
+            filtered_events = events
+
+        field_order = ["id", "title", "start_time", "end_time", "location", "type", "description"]
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, lineterminator="\n")
+        writer.writerow(field_order)
+        
+        for ev in filtered_events:
+            row = [
+                _cell_str(ev.id),
+                _cell_str(ev.title, normalize_text=True),
+                _cell_str(ev.start_time),
+                _cell_str(ev.end_time),
+                _cell_str(ev.location),
+                _cell_str(ev.type),
+                _cell_str(ev.description, normalize_text=True),
+            ]
+            writer.writerow(row)
+            
+        return buffer.getvalue()
+    except Exception as e:
+        logger.exception("build_events_list_for_chat failed: %s", e)
+        return ""
+
+
+def get_personal_context(db: Session, user_id: int) -> dict:
+    """
+    特定のユーザー向けのコンテキスト情報を生成する。
+    - 自分のタスク (Activeのみ)
+    - 関連プロジェクト
+    - 自分のスケジュール
+    """
+    inputs = {}
+    
+    # 1. 自分のタスク (Activeのみ)
+    all_tasks = crud.get_tasks(db, limit=10000)
+    
+    # 担当者一致チェック
+    my_tasks = []
+    for t in all_tasks:
+        assigned = t.get("assigned_to")
+        # assigned_to は int だったり str だったりする可能性があるので安全に比較
+        if assigned is not None and str(assigned) == str(user_id):
+            my_tasks.append(t)
+            
+    # 完了済みは除外するか、直近のみにする
+    # ここでは「未完了」または「完了して日が浅い」もののみにする
+    my_active_tasks = []
+    for t in my_tasks:
+        status = (t.get("status") or "").lower()
+        if status != "completed":
+            my_active_tasks.append(t)
+    
+    # プロジェクト名・ユーザー名解決用マップ
+    projects = crud.get_projects(db, skip=0, limit=10000)
+    id_to_project_name = {p.id: p.name for p in projects}
+    
+    users = crud.get_users(db, skip=0, limit=10000)
+    id_to_username = {u.id: (u.username or u.name or str(u.id)) for u in users}
+    
+    # タスクデータの加工（ID -> Name変換）
+    processed_tasks = []
+    for item in my_active_tasks:
+        t = item.copy() # dict copy
+        pid = t.get("project_id")
+        if pid in id_to_project_name:
+            t["project_id"] = id_to_project_name[pid]
+        uid = t.get("assigned_to")
+        if uid in id_to_username:
+            t["assigned_to"] = id_to_username[uid]
+        processed_tasks.append(t)
+        
+    inputs["csv"] = build_tasks_csv_text(processed_tasks)
+    
+    # 2. 関連プロジェクト (タスクが含まれるプロジェクト + 全体公開プロジェクト)
+    my_project_ids = {t.get("project_id") for t in my_tasks if t.get("project_id")}
+    
+    filtered_projects = []
+    for p in projects:
+        # 自分がタスクを持っている、または進行中のプロジェクト
+        status_val = _project_status_value(p)
+        if p.id in my_project_ids or status_val not in ["completed", "cancelled"]:
+            filtered_projects.append(p)
+            
+    # プロジェクトCSV生成（簡易実装：build_projects_list_for_chat の中身を展開）
+    p_buffer = io.StringIO()
+    p_writer = csv.writer(p_buffer, lineterminator="\n")
+    p_writer.writerow(["id", "name", "description", "start_date", "end_date", "status", "display_status"])
+    for p in filtered_projects:
+        p_writer.writerow([
+            _cell_str(p.id),
+            _cell_str(p.name, normalize_text=True),
+            _cell_str(p.description, normalize_text=True),
+            _date_only(p.start_date),
+            _date_only(p.end_date),
+            _cell_str(_project_status_value(p)),
+            _cell_str(p.display_status),
+        ])
+    inputs["proj"] = p_buffer.getvalue()
+    
+    # 3. カレンダーイベント
+    inputs["events"] = build_events_list_for_chat(db, user_id)
+    
+    return inputs
+
+
+def get_dashboard_context(db: Session, user_id: int = None) -> dict:
+    """
+    管理者ダッシュボード向けのコンテキスト情報を生成する。
+    - アジェンダ：遅延、期限切れ間近、高優先度
+    - プロジェクト一覧（全件）
+    - ユーザー一覧（全件）
+    """
+    inputs = {}
+    
+    # プロジェクトリスト（全件）
+    inputs["proj"] = build_projects_list_for_chat(db)
+    
+    # ユーザーリスト（全件）
+    inputs["user_list"] = build_users_list_for_chat(db)
+    
+    # タスク：全件ではなく、「要確認」なタスクを抽出してコンテキストに含める
+    # 管理者用なので、全タスクの中からフィルタリング
+    all_tasks = crud.get_tasks(db, limit=100000)
+    
+    projects = crud.get_projects(db, limit=10000)
+    id_to_project_name = {p.id: p.name for p in projects}
+    
+    users = crud.get_users(db, limit=10000)
+    id_to_username = {u.id: (u.username or u.name or str(u.id)) for u in users}
+
+    critical_tasks = []
+    today = date.today()
+    
+    # フィルタリング
+    for t in all_tasks:
+        status = (t.get("status") or "").lower()
+        if status == "completed":
+            continue
+            
+        due_date_val = t.get("due_date")
+        priority = str(t.get("priority") or "").upper()
+        
+        is_delayed = False
+        is_due_soon = False
+        is_high_priority = (priority == "HIGH" or priority == "CRITICAL")
+        
+        # 期日チェック
+        if due_date_val:
+            d = None
+            if isinstance(due_date_val, str):
+                try:
+                    d = datetime.fromisoformat(due_date_val).date()
+                except:
+                    pass
+            elif isinstance(due_date_val, (datetime, date)):
+                d = due_date_val if isinstance(due_date_val, date) else due_date_val.date()
+                
+            if d:
+                if d < today:
+                    is_delayed = True
+                elif d <= today + timedelta(days=7):
+                    is_due_soon = True
+        
+        if is_delayed or is_due_soon or is_high_priority:
+            # マッピング適用
+            ct = t.copy()
+            pid = ct.get("project_id")
+            if pid in id_to_project_name:
+                ct["project_id"] = id_to_project_name[pid]
+            uid = ct.get("assigned_to")
+            if uid in id_to_username:
+                ct["assigned_to"] = id_to_username[uid]
+            critical_tasks.append(ct)
+
+    inputs["csv"] = build_tasks_csv_text(critical_tasks)
+    
+    # 管理者自身のスケジュールも含める？
+    if user_id:
+        inputs["events"] = build_events_list_for_chat(db, user_id)
+    
+    return inputs

@@ -80,7 +80,7 @@ const UserActivityPage: React.FC = () => {
   // リアルタイム更新（30秒ごと）
   useEffect(() => {
     if (loading) return;
-    
+
     const intervalId = setInterval(() => {
       fetchActivities();
     }, 30000); // 30秒ごとに更新
@@ -112,13 +112,13 @@ const UserActivityPage: React.FC = () => {
 
       const response = await api.get<UserActivity[]>('/api/user-activities', { params });
       const activitiesData = response.data;
-      
+
       // ユーザー情報を結合
       const activitiesWithUsers: UserActivityWithUser[] = activitiesData.map(activity => {
         const user = users.find(u => u.id === activity.user_id);
         return { ...activity, user };
       });
-      
+
       setActivities(activitiesWithUsers);
     } catch (err: any) {
       console.error('Failed to fetch activities:', err);
@@ -146,21 +146,21 @@ const UserActivityPage: React.FC = () => {
     const now = currentTime;
     const hour = getHours(now);
     const minute = getMinutes(now);
-    
+
     // 5:00〜28:59の周期に変換
     let cycleHour = hour;
     if (hour < 5) {
       cycleHour = hour + 24; // 前日の5:00以降として扱う
     }
-    
+
     // 10分刻みに丸める（例：13:07 → 13:10, 13:23 → 13:20）
     const roundedMinute = Math.floor(minute / 10) * 10;
-    
+
     const displayHour = cycleHour >= 24 ? cycleHour - 24 : cycleHour;
     const dayLabel = cycleHour >= 24 ? '翌日' : '当日';
     // グラフのtimeLabel形式に合わせる（10分刻み）
     const timeLabel = `${dayLabel} ${displayHour.toString().padStart(2, '0')}:${roundedMinute.toString().padStart(2, '0')}`;
-    
+
     return {
       cycleHour,
       roundedMinute,
@@ -184,7 +184,7 @@ const UserActivityPage: React.FC = () => {
   const hourlyDataByUser = useMemo(() => {
     // ユーザーごとのアクティビティ時刻を記録（時系列でソート）
     const userActivitiesMap = new Map<number, Array<Date>>();
-    
+
     activities.forEach(activity => {
       const date = parseISO(activity.active_at);
       if (!userActivitiesMap.has(activity.user_id)) {
@@ -202,8 +202,8 @@ const UserActivityPage: React.FC = () => {
     const ACTIVE_THRESHOLD_MINUTES = 10;
     const now = currentTime;
 
-    const result: Array<{ time: string; timeLabel: string; [key: string]: string | number }> = [];
-    
+    const result: Array<{ time: string; timeLabel: string;[key: string]: string | number }> = [];
+
     // 5:00から28:59まで10分刻みで生成（5:00, 5:10, 5:20, ..., 28:50＝翌4:50。28:50〜29:00で4:50〜4:59をカバー）
     for (let h = 5; h < 29; h++) {
       for (let m = 0; m < 60; m += 10) {
@@ -211,7 +211,7 @@ const UserActivityPage: React.FC = () => {
         const displayHour = h >= 24 ? h - 24 : h;
         const timeLabel = `${displayHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
         const dayLabel = h >= 24 ? '翌日' : '当日';
-        
+
         // 時間帯の開始時刻を計算（表示対象の周期日を基準に：選択日 or 今日の周期）
         const cycleDate = new Date(chartCycleBase.getTime());
         const timeSlotStart = new Date(cycleDate);
@@ -219,32 +219,32 @@ const UserActivityPage: React.FC = () => {
         if (h >= 24) {
           timeSlotStart.setDate(timeSlotStart.getDate() + 1);
         }
-        
+
         const timeSlotEnd = new Date(timeSlotStart);
         timeSlotEnd.setMinutes(timeSlotEnd.getMinutes() + 10);
-        
-        const dataPoint: any = { 
+
+        const dataPoint: any = {
           time: `${cycleMinutes}`,
           timeLabel: `${dayLabel} ${timeLabel}`
         };
-        
+
         // 表示しているのが「現在の周期」かどうか（未来スロットを0にするかどうか）
         const todayCycleDay = now.getHours() < 5 ? now.getDate() - 1 : now.getDate();
         const isCurrentCycle =
           chartCycleBase.getFullYear() === now.getFullYear() &&
           chartCycleBase.getMonth() === now.getMonth() &&
           chartCycleBase.getDate() === todayCycleDay;
-        
+
         userActivitiesMap.forEach((activityDates, userId) => {
           const user = users.find(u => u.id === userId);
           const userName = user?.name || user?.username || `ユーザー${userId}`;
-          
+
           // 現在周期を表示しているときのみ：その時間帯が現在時刻より後なら非アクティブ
           if (isCurrentCycle && timeSlotStart > now) {
             dataPoint[userName] = 0;
             return;
           }
-          
+
           // その10分間（h:m ～ h:m+10）にアクティビティが1件以上あるときだけオンとする（1ログイン＝最大10分表示）
           let isActive = false;
           for (const activityDate of activityDates) {
@@ -265,11 +265,11 @@ const UserActivityPage: React.FC = () => {
           }
           dataPoint[userName] = isActive ? 1 : 0;
         });
-        
+
         result.push(dataPoint);
       }
     }
-    
+
     return result;
   }, [activities, users, currentTime, chartCycleBase, selectedCycleDate]);
 
@@ -277,7 +277,7 @@ const UserActivityPage: React.FC = () => {
   const userStats = useMemo(() => {
     // ユーザーごとのアクティビティを時系列でソート
     const userActivitiesMap = new Map<number, UserActivityWithUser[]>();
-    
+
     activities.forEach(activity => {
       if (!userActivitiesMap.has(activity.user_id)) {
         userActivitiesMap.set(activity.user_id, []);
@@ -287,10 +287,10 @@ const UserActivityPage: React.FC = () => {
 
     // 各ユーザーについて、セッションを計算
     const statsMap = new Map<number, { sessionCount: number; totalActiveMinutes: number; sessions: Array<{ start: Date; end: Date; minutes: number }> }>();
-    
+
     userActivitiesMap.forEach((userActivities, userId) => {
       // アクティビティを時系列でソート
-      const sortedActivities = userActivities.sort((a, b) => 
+      const sortedActivities = userActivities.sort((a, b) =>
         parseISO(a.active_at).getTime() - parseISO(b.active_at).getTime()
       );
 
@@ -302,14 +302,14 @@ const UserActivityPage: React.FC = () => {
 
       sortedActivities.forEach(activity => {
         const activityTime = parseISO(activity.active_at);
-        
+
         if (currentSessionStart === null) {
           // 最初のアクティビティでセッション開始
           currentSessionStart = activityTime;
           lastActivityTime = activityTime;
         } else if (lastActivityTime) {
           const minutesDiff = (activityTime.getTime() - lastActivityTime.getTime()) / (1000 * 60);
-          
+
           if (minutesDiff > SESSION_GAP_MINUTES) {
             // 15分以上空いたら前のセッションを終了
             const sessionMinutes = (lastActivityTime.getTime() - currentSessionStart.getTime()) / (1000 * 60);
@@ -365,7 +365,7 @@ const UserActivityPage: React.FC = () => {
       '#5d4037', '#455a64', '#e64a19', '#512da8',
       '#0097a7', '#c51162', '#303f9f', '#00796b'
     ];
-    
+
     const userList = Array.from(new Set(activities.map(a => a.user_id)))
       .map(userId => {
         const user = users.find(u => u.id === userId);
@@ -376,12 +376,12 @@ const UserActivityPage: React.FC = () => {
         };
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-    
+
     const colorMap = new Map<number, string>();
     userList.forEach((user, index) => {
       colorMap.set(user.userId, colors[index % colors.length]);
     });
-    
+
     return { userList, colorMap };
   }, [activities, users]);
 
@@ -407,8 +407,13 @@ const UserActivityPage: React.FC = () => {
         <Typography variant="h6" gutterBottom>
           フィルター
         </Typography>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-          <FormControl sx={{ minWidth: 200 }} size="small">
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={2}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+          flexWrap="wrap"
+        >
+          <FormControl sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
             <InputLabel>ユーザー</InputLabel>
             <Select
               value={selectedUserId}
@@ -417,10 +422,10 @@ const UserActivityPage: React.FC = () => {
             >
               <MenuItem value="">すべて</MenuItem>
               {users.map(user => (
-                  <MenuItem key={user.id} value={user.id}>
-                    {user.name || user.username || user.email}
-                  </MenuItem>
-                ))}
+                <MenuItem key={user.id} value={user.id}>
+                  {user.name || user.username || user.email}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
           <TextField
@@ -430,9 +435,9 @@ const UserActivityPage: React.FC = () => {
             onChange={(e) => setSelectedCycleDate(e.target.value)}
             InputLabelProps={{ shrink: true }}
             size="small"
-            sx={{ minWidth: 200 }}
+            sx={{ minWidth: { xs: '100%', sm: 200 } }}
           />
-          <Button variant="outlined" onClick={handleClearFilters}>
+          <Button variant="outlined" onClick={handleClearFilters} sx={{ width: { xs: '100%', sm: 'auto' } }}>
             フィルター解除
           </Button>
         </Stack>
@@ -459,7 +464,7 @@ const UserActivityPage: React.FC = () => {
               </Typography>
             </Paper>
           ) : (
-            <Card sx={{ height: 'calc(100vh - 280px)', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={{ height: { xs: '600px', md: 'calc(100vh - 280px)' }, display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, pb: 2 }}>
                 <Box sx={{ mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
@@ -467,9 +472,9 @@ const UserActivityPage: React.FC = () => {
                       <TimelineIcon color="primary" />
                       ユーザー別アクティブ状態（5:00〜翌4:59）
                     </Typography>
-                    <Chip 
-                      label="リアルタイム更新中" 
-                      color="success" 
+                    <Chip
+                      label="リアルタイム更新中"
+                      color="success"
                       size="small"
                       sx={{ fontSize: '0.7rem' }}
                     />
@@ -477,7 +482,7 @@ const UserActivityPage: React.FC = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
                     各時間帯におけるユーザーのアクティブ状態を表示しています。その10分間にアクティビティが1件以上記録された時間帯のみオン（1）になります。1回のログインは最大10分として表示されます。
                   </Typography>
-                  
+
                   {/* ユーザー統計情報（表示中の周期日＝その日のログイン回数・アクティブ時間） */}
                   <Paper sx={{ p: 1.5, mb: 1.5 }} elevation={0}>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
@@ -521,15 +526,15 @@ const UserActivityPage: React.FC = () => {
                           const color = userColors.colorMap.get(user.userId) || '#1976d2';
                           return (
                             <linearGradient key={user.userId} id={`color${user.userId}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={color} stopOpacity={0.4}/>
-                              <stop offset="95%" stopColor={color} stopOpacity={0.05}/>
+                              <stop offset="5%" stopColor={color} stopOpacity={0.4} />
+                              <stop offset="95%" stopColor={color} stopOpacity={0.05} />
                             </linearGradient>
                           );
                         })}
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                      <XAxis 
-                        dataKey="timeLabel" 
+                      <XAxis
+                        dataKey="timeLabel"
                         angle={-45}
                         textAnchor="end"
                         height={80}
@@ -537,16 +542,16 @@ const UserActivityPage: React.FC = () => {
                         tick={{ fontSize: 9 }}
                         label={{ value: '時間帯（10分刻み）', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fontSize: 12 } }}
                       />
-                      <YAxis 
+                      <YAxis
                         label={{ value: 'アクティブ状態', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 12 } }}
                         tick={{ fontSize: 11 }}
                         domain={[0, 1]}
                         ticks={[0, 1]}
                         tickFormatter={(value) => value === 1 ? 'オン' : 'オフ'}
                       />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'rgba(255, 255, 255, 0.98)', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.98)',
                           fontSize: '12px',
                           border: '1px solid #ccc',
                           borderRadius: '4px',
@@ -555,7 +560,7 @@ const UserActivityPage: React.FC = () => {
                         formatter={(value: any, name: string) => [value === 1 ? 'アクティブ' : '非アクティブ', name]}
                         labelFormatter={(label) => `時間帯: ${label}`}
                       />
-                      <Legend 
+                      <Legend
                         wrapperStyle={{ paddingTop: '10px', fontSize: '11px' }}
                         iconType="circle"
                         iconSize={8}
@@ -569,8 +574,8 @@ const UserActivityPage: React.FC = () => {
                           stroke="#ff0000"
                           strokeWidth={2.5}
                           strokeDasharray="5 5"
-                          label={{ 
-                            value: '現在', 
+                          label={{
+                            value: '現在',
                             position: 'top',
                             fill: '#ff0000',
                             fontSize: 11,

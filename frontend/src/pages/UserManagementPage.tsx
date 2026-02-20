@@ -807,7 +807,7 @@ const UserManagementPage: React.FC = () => {
                     <Table size="small" stickyHeader>
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>ユーザー</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 100, width: 100, bgcolor: 'background.paper', position: 'sticky', left: 0, zIndex: 10 }}>ユーザー</TableCell>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(198, 40, 40, 0.18)' : '#FFEBEE', color: isDarkMode ? '#EF9A9A' : '#C62828' }}><WarningIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />遅れている</TableCell>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(21, 101, 192, 0.18)' : '#E3F2FD', color: isDarkMode ? '#90CAF9' : '#1565C0' }}><TodayIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />今日中</TableCell>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.18)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100' }}><ScheduleIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />期限が近い</TableCell>
@@ -819,19 +819,32 @@ const UserManagementPage: React.FC = () => {
                           const info = userTaskInfo[user.id];
                           const part = info ? partitionTasksByCategory(info.tasks) : { today: [], delayed: [], dueSoon: [], other: [] as Task[] };
                           return (
-                            <TableRow key={user.id} hover sx={{ borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : undefined, ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
-                              <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                  <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
-                                  <Box>
-                                    <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
-                                    {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ mt: 0.25 }} />}
+                            <TableRow key={user.id} hover sx={{ ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
+                              <TableCell
+                                sx={{
+                                  verticalAlign: 'top',
+                                  minWidth: 100,
+                                  width: 100,
+                                  p: 1,
+                                  position: 'sticky',
+                                  left: 0,
+                                  zIndex: 9,
+                                  bgcolor: 'background.paper',
+                                  borderLeft: part.today.length > 0 ? '4px solid #1565C0' : part.delayed.length > 0 ? '4px solid #C62828' : '4px solid transparent',
+                                  backgroundImage: userIdsInBoth.has(user.id) ? (isDarkMode ? 'linear-gradient(rgba(156, 39, 176, 0.12), rgba(156, 39, 176, 0.12))' : 'linear-gradient(rgba(156, 39, 176, 0.07), rgba(156, 39, 176, 0.07))') : 'none'
+                                }}
+                              >
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Avatar src={user.iconUrl} sx={{ width: 28, height: 28, fontSize: '0.875rem' }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
+                                    <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.8rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name || user.username}</Typography>
                                   </Box>
-                                  {isAdmin && (
-                                    <Box sx={{ ml: 'auto' }}>
-                                      <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
-                                    </Box>
-                                  )}
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                    {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ height: 20, fontSize: '0.65rem' }} />}
+                                    {isAdmin && (
+                                      <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit" sx={{ p: 0.5, ml: 'auto' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                    )}
+                                  </Box>
                                 </Box>
                               </TableCell>
                               <TableCell sx={{ verticalAlign: 'top', bgcolor: isDarkMode ? 'rgba(244, 67, 54, 0.1)' : 'rgba(244, 67, 54, 0.04)' }}>

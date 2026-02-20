@@ -1319,7 +1319,16 @@ const CalendarPage: React.FC = () => {
             console.log("[CalendarPage] Mobile: Single tap on date to show events:", arg.date);
             const newSelectedDate = arg.date;
             setSelectedDate(newSelectedDate);
+            // モバイルでは、その日のイベント一覧を表示するために、
+            // 空のイベント詳細（またはその日の最初のイベント）ではなく、
+            // 単に「その日」が選択された状態としてボトムシートを開く
             setSelectedEventDetails({ event: null });
+
+            // その日のイベントがあるか確認し、あれば合計コストを計算（オプション）
+            // const dayEvents = rawEvents.filter(event => event.start && isSameDay(parseISO(event.start as string), newSelectedDate));
+            // const totalCost = calculateTotalCost(dayEvents);
+            // setSelectedEventDetails({ event: null, totalCost }); 
+
             setMobileEventDetailsOpen(true);
             return;
         }
@@ -2805,7 +2814,15 @@ const CalendarPage: React.FC = () => {
                     height: ${isSmallScreen ? '80px' : '120px'} !important;
                     min-height: ${isSmallScreen ? '80px' : '120px'} !important;
                     max-height: ${isSmallScreen ? '80px' : '120px'} !important;
+                    /* モバイル時はイベントのタップ判定を無効化（下のセルへのクリックを透過させる） */
+                    ${isMobile ? 'pointer-events: none !important;' : ''}
                 }
+                /* モバイル時は個別のイベントもタップ判定を無効化 */
+                ${isMobile ? `
+                    .fc-event {
+                        pointer-events: none !important;
+                    }
+                ` : ''}
                 /* 日付セルのトップ部分（日付番号）の高さを固定 */
                 .fc-daygrid-day-top {
                     height: ${isSmallScreen ? '16px' : '20px'} !important;
@@ -3413,6 +3430,8 @@ const CalendarPage: React.FC = () => {
                             maxHeight: '85vh',
                             display: 'flex',
                             flexDirection: 'column',
+                            // モバイルでの誤操作防止のため、ドロワー内はタップ有効
+                            pointerEvents: 'auto',
                         }
                     }}
                 >

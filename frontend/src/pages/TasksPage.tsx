@@ -3,9 +3,14 @@ import {
     Box, Typography, CircularProgress, Paper, TableContainer, Table,
     TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme, Drawer, useMediaQuery
+    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme, Drawer, useMediaQuery,
+    Card, CardContent, CardActionArea, Avatar
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon, FilterList as FilterListIcon, Close as CloseIcon } from '@mui/icons-material';
+import {
+    Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon,
+    FilterList as FilterListIcon, Close as CloseIcon,
+    CalendarToday as CalendarIcon, Folder as FolderIcon, Person as PersonIcon, PriorityHigh as PriorityIcon
+} from '@mui/icons-material';
 import { IconButton } from '@mui/material';
 import api from '../services/api';
 import { Task, Project, User } from '../types'; // Import User type as well
@@ -968,13 +973,13 @@ const TasksPage: React.FC = () => {
                 return (
                     <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                         <Tooltip title="履歴">
-                            <IconButton 
-                                size="small" 
+                            <IconButton
+                                size="small"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleViewHistory(row);
                                 }}
-                                sx={{ 
+                                sx={{
                                     color: 'primary.main',
                                     '&:hover': { backgroundColor: 'primary.light', color: 'white' }
                                 }}
@@ -983,13 +988,13 @@ const TasksPage: React.FC = () => {
                             </IconButton>
                         </Tooltip>
                         <Tooltip title="編集">
-                            <IconButton 
-                                size="small" 
+                            <IconButton
+                                size="small"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleEditTask(row);
                                 }}
-                                sx={{ 
+                                sx={{
                                     color: 'primary.main',
                                     '&:hover': { backgroundColor: 'primary.light', color: 'white' }
                                 }}
@@ -998,13 +1003,13 @@ const TasksPage: React.FC = () => {
                             </IconButton>
                         </Tooltip>
                         <Tooltip title="削除">
-                            <IconButton 
-                                size="small" 
+                            <IconButton
+                                size="small"
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteTask(row.id);
                                 }}
-                                sx={{ 
+                                sx={{
                                     color: 'error.main',
                                     '&:hover': { backgroundColor: 'error.light', color: 'white' }
                                 }}
@@ -1105,118 +1110,118 @@ const TasksPage: React.FC = () => {
                 {!isMobile && (
                     <Grid container spacing={2} alignItems="center">
                         <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                            <InputLabel id="status-filter-label" shrink>ステータス</InputLabel>
-                            <Select
-                                labelId="status-filter-label"
-                                label="ステータス"
-                                displayEmpty
-                                value={statusFilter || 'all'}
-                                onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value as string)}
-                                renderValue={(selected) => {
-                                    if (!selected || selected === 'all' || selected === '') {
-                                        return '全て';
-                                    }
-                                    return selected;
-                                }}
-                            >
-                                <MenuItem value="all">全て</MenuItem>
-                                {statusOptions.map(status => (
-                                    <MenuItem key={status} value={status}>{status}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                            <InputLabel id="project-filter-label" shrink>プロジェクト</InputLabel>
-                            <Select
-                                labelId="project-filter-label"
-                                label="プロジェクト"
-                                displayEmpty
-                                value={projectFilter === '' ? 'all' : projectFilter}
-                                onChange={(e) => {
-                                    const v = e.target.value as string;
-                                    setProjectFilter(v === 'all' ? '' : v);
-                                }}
-                                renderValue={(selected) => {
-                                    if (!selected || selected === 'all' || selected === '') {
-                                        return '全て';
-                                    }
-                                    if (selected === 'no-project') {
-                                        return 'プロジェクト未設定';
-                                    }
-                                    const project = projects.find(p => String(p.id) === selected);
-                                    if (!project) return selected;
-                                    return (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Box
-                                                sx={{
+                            <FormControl fullWidth variant="outlined" size="small">
+                                <InputLabel id="status-filter-label" shrink>ステータス</InputLabel>
+                                <Select
+                                    labelId="status-filter-label"
+                                    label="ステータス"
+                                    displayEmpty
+                                    value={statusFilter || 'all'}
+                                    onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                                    renderValue={(selected) => {
+                                        if (!selected || selected === 'all' || selected === '') {
+                                            return '全て';
+                                        }
+                                        return selected;
+                                    }}
+                                >
+                                    <MenuItem value="all">全て</MenuItem>
+                                    {statusOptions.map(status => (
+                                        <MenuItem key={status} value={status}>{status}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                            <FormControl fullWidth variant="outlined" size="small">
+                                <InputLabel id="project-filter-label" shrink>プロジェクト</InputLabel>
+                                <Select
+                                    labelId="project-filter-label"
+                                    label="プロジェクト"
+                                    displayEmpty
+                                    value={projectFilter === '' ? 'all' : projectFilter}
+                                    onChange={(e) => {
+                                        const v = e.target.value as string;
+                                        setProjectFilter(v === 'all' ? '' : v);
+                                    }}
+                                    renderValue={(selected) => {
+                                        if (!selected || selected === 'all' || selected === '') {
+                                            return '全て';
+                                        }
+                                        if (selected === 'no-project') {
+                                            return 'プロジェクト未設定';
+                                        }
+                                        const project = projects.find(p => String(p.id) === selected);
+                                        if (!project) return selected;
+                                        return (
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Box
+                                                    sx={{
+                                                        width: 8,
+                                                        height: 8,
+                                                        borderRadius: '50%',
+                                                        backgroundColor: '#4CAF50',
+                                                        flexShrink: 0,
+                                                    }}
+                                                />
+                                                <span>{project.name}</span>
+                                            </Box>
+                                        );
+                                    }}
+                                >
+                                    <MenuItem value="all">全て</MenuItem>
+                                    <MenuItem value="no-project">プロジェクト未設定</MenuItem>
+                                    {onlineProjects.map(project => (
+                                        <MenuItem
+                                            key={project.id}
+                                            value={String(project.id)}
+                                            sx={{
+                                                '&::before': {
+                                                    content: '""',
+                                                    display: 'inline-block',
                                                     width: 8,
                                                     height: 8,
                                                     borderRadius: '50%',
                                                     backgroundColor: '#4CAF50',
-                                                    flexShrink: 0,
-                                                }}
-                                            />
-                                            <span>{project.name}</span>
-                                        </Box>
-                                    );
-                                }}
-                            >
-                                <MenuItem value="all">全て</MenuItem>
-                                <MenuItem value="no-project">プロジェクト未設定</MenuItem>
-                                {onlineProjects.map(project => (
-                                    <MenuItem
-                                        key={project.id}
-                                        value={String(project.id)}
-                                        sx={{
-                                            '&::before': {
-                                                content: '""',
-                                                display: 'inline-block',
-                                                width: 8,
-                                                height: 8,
-                                                borderRadius: '50%',
-                                                backgroundColor: '#4CAF50',
-                                                marginRight: 1,
-                                                verticalAlign: 'middle',
-                                            },
-                                        }}
-                                    >
-                                        {project.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Grid>
-                    <Grid item xs={12} sm={4}>
-                        <FormControl fullWidth variant="outlined" size="small">
-                            <InputLabel id="assignee-filter-label" shrink>担当者</InputLabel>
-                            <Select
-                                labelId="assignee-filter-label"
-                                label="担当者"
-                                displayEmpty
-                                value={assigneeFilter || 'all'}
-                                onChange={(e) => setAssigneeFilter(e.target.value === 'all' ? '' : e.target.value as string)}
-                                renderValue={(selected) => {
-                                    if (!selected || selected === 'all' || selected === '') {
-                                        return '全て';
-                                    }
-                                    if (selected === 'unassigned') {
-                                        return '未割当';
-                                    }
-                                    const user = users.find(u => String(u.id) === selected);
-                                    return user ? (user.username || user.email) : selected;
-                                }}
-                            >
-                                <MenuItem value="all">全て</MenuItem>
-                                <MenuItem value="unassigned">未割当</MenuItem>
-                                {users.map(user => (
-                                    <MenuItem key={user.id} value={String(user.id)}>{user.username || user.email}</MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                    </Grid>
+                                                    marginRight: 1,
+                                                    verticalAlign: 'middle',
+                                                },
+                                            }}
+                                        >
+                                            {project.name}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                            <FormControl fullWidth variant="outlined" size="small">
+                                <InputLabel id="assignee-filter-label" shrink>担当者</InputLabel>
+                                <Select
+                                    labelId="assignee-filter-label"
+                                    label="担当者"
+                                    displayEmpty
+                                    value={assigneeFilter || 'all'}
+                                    onChange={(e) => setAssigneeFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                                    renderValue={(selected) => {
+                                        if (!selected || selected === 'all' || selected === '') {
+                                            return '全て';
+                                        }
+                                        if (selected === 'unassigned') {
+                                            return '未割当';
+                                        }
+                                        const user = users.find(u => String(u.id) === selected);
+                                        return user ? (user.username || user.email) : selected;
+                                    }}
+                                >
+                                    <MenuItem value="all">全て</MenuItem>
+                                    <MenuItem value="unassigned">未割当</MenuItem>
+                                    {users.map(user => (
+                                        <MenuItem key={user.id} value={String(user.id)}>{user.username || user.email}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        </Grid>
                     </Grid>
                 )}
             </Paper>
@@ -1232,126 +1237,225 @@ const TasksPage: React.FC = () => {
                     border: '1px solid',
                     borderColor: 'divider',
                     overflow: 'hidden',
+                    bgcolor: isMobile ? 'transparent' : 'background.paper', // モバイル時は背景透過（カードの影を活かすため）または背景色調整
+                    border: isMobile ? 'none' : '1px solid', // モバイル時は枠線を消す
                 }}
             >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', flexShrink: 0 }}>
-                    <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<BulkEditIcon />}
-                        onClick={() => setBulkEditOpen(true)}
-                        disabled={selectionModel.length === 0}
+                {!isMobile && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderBottom: 1, borderColor: 'divider', flexWrap: 'wrap', flexShrink: 0 }}>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<BulkEditIcon />}
+                            onClick={() => setBulkEditOpen(true)}
+                            disabled={selectionModel.length === 0}
+                        >
+                            一括編集
+                        </Button>
+                        {selectionModel.length > 0 && (
+                            <Typography variant="body2" color="text.secondary">
+                                {selectionModel.length}件を選択中
+                            </Typography>
+                        )}
+                        {/* Google カレンダー連携（タスクを個人のカレンダーに1件ずつ表示する機能） */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 1, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
+                            {!googleStatus.configured ? (
+                                <Tooltip title="Google連携はバックエンドで設定されていません（GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET が必要です）">
+                                    <Chip
+                                        size="small"
+                                        label="Google連携未設定"
+                                        variant="outlined"
+                                        sx={{ color: 'text.secondary', cursor: 'default' }}
+                                    />
+                                </Tooltip>
+                            ) : !googleStatus.connected ? (
+                                <Tooltip title="連携後、タスク一覧の「Google」列で各タスクを個人のGoogleカレンダーに表示するか選べます">
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        color="primary"
+                                        onClick={handleGoogleConnect}
+                                        sx={{ textTransform: 'none', fontWeight: 600 }}
+                                    >
+                                        Google カレンダーと連携
+                                    </Button>
+                                </Tooltip>
+                            ) : (
+                                <Tooltip title="タスク一覧の「Google」列のチェックで、各タスクを自分のGoogleカレンダーに表示・非表示できます">
+                                    <Chip
+                                        size="small"
+                                        label="Google 連携済み"
+                                        color="success"
+                                        sx={{ fontWeight: 600, cursor: 'default' }}
+                                    />
+                                </Tooltip>
+                            )}
+                        </Box>
+                    </Box>
+                )}
+
+                {isMobile ? (
+                    // モバイル用カードリスト表示
+                    <Box
+                        sx={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            p: 1,
+                            pb: 10, // FABや下部メニュー用スペース
+                            WebkitOverflowScrolling: 'touch',
+                        }}
                     >
-                        一括編集
-                    </Button>
-                    {selectionModel.length > 0 && (
-                        <Typography variant="body2" color="text.secondary">
-                            {selectionModel.length}件を選択中
-                        </Typography>
-                    )}
-                    {/* Google カレンダー連携（タスクを個人のカレンダーに1件ずつ表示する機能） */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 1, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
-                        {!googleStatus.configured ? (
-                            <Tooltip title="Google連携はバックエンドで設定されていません（GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET が必要です）">
-                                <Chip
-                                    size="small"
-                                    label="Google連携未設定"
-                                    variant="outlined"
-                                    sx={{ color: 'text.secondary', cursor: 'default' }}
-                                />
-                            </Tooltip>
-                        ) : !googleStatus.connected ? (
-                            <Tooltip title="連携後、タスク一覧の「Google」列で各タスクを個人のGoogleカレンダーに表示するか選べます">
-                                <Button
-                                    size="small"
-                                    variant="contained"
-                                    color="primary"
-                                    onClick={handleGoogleConnect}
-                                    sx={{ textTransform: 'none', fontWeight: 600 }}
-                                >
-                                    Google カレンダーと連携
-                                </Button>
-                            </Tooltip>
-                        ) : (
-                            <Tooltip title="タスク一覧の「Google」列のチェックで、各タスクを自分のGoogleカレンダーに表示・非表示できます">
-                                <Chip
-                                    size="small"
-                                    label="Google 連携済み"
-                                    color="success"
-                                    sx={{ fontWeight: 600, cursor: 'default' }}
-                                />
-                            </Tooltip>
+                        {rows.map((row) => (
+                            <Card key={row.id} variant="outlined" sx={{ mb: 1.5, borderRadius: 2, bgcolor: 'background.paper' }}>
+                                <CardActionArea onClick={() => handleEditTask(row as Task)}>
+                                    <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', lineHeight: 1.3, mr: 1, wordBreak: 'break-word' }}>
+                                                {row.name}
+                                            </Typography>
+                                            <Chip
+                                                label={row.status || '未設定'}
+                                                size="small"
+                                                sx={{
+                                                    backgroundColor: getTaskStatusColor(row.status),
+                                                    color: 'white',
+                                                    height: 20,
+                                                    fontSize: '0.7rem',
+                                                    fontWeight: 600,
+                                                    flexShrink: 0
+                                                }}
+                                            />
+                                        </Box>
+
+                                        <Box sx={{ display: 'flex', gap: 2, mb: 1, color: 'text.secondary', fontSize: '0.8rem', alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <FolderIcon sx={{ fontSize: '1rem' }} />
+                                                <Typography variant="caption" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                                                    {projectMap.get(row.project_id || 0) || '未設定'}
+                                                </Typography>
+                                            </Box>
+                                            {row.due_date && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                    <CalendarIcon sx={{ fontSize: '1rem' }} />
+                                                    <Typography variant="caption">
+                                                        {formatDate(row.due_date)}
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                        </Box>
+
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                {row.assigned_to ? (
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        <Avatar
+                                                            sx={{ width: 20, height: 20, fontSize: '0.7rem' }}
+                                                        >
+                                                            {(userMap.get(row.assigned_to) || '')[0]?.toUpperCase()}
+                                                        </Avatar>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {userMap.get(row.assigned_to)}
+                                                        </Typography>
+                                                    </Box>
+                                                ) : (
+                                                    <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                                        未割り当て
+                                                    </Typography>
+                                                )}
+                                            </Box>
+
+                                            {row.priority && row.priority !== 'low' && (
+                                                <Chip
+                                                    icon={<PriorityIcon sx={{ fontSize: '0.9rem !important' }} />}
+                                                    label={row.priority}
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color={row.priority === 'high' ? 'error' : 'warning'}
+                                                    sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-label': { px: 0.5 } }}
+                                                />
+                                            )}
+                                        </Box>
+                                    </CardContent>
+                                </CardActionArea>
+                            </Card>
+                        ))}
+                        {rows.length === 0 && (
+                            <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
+                                タスクがありません
+                            </Typography>
                         )}
                     </Box>
-                </Box>
-                <Box
-                    ref={dataGridContainerRef}
-                    sx={{
-                        flex: 1,
-                        minHeight: 0,
-                        width: '100%',
-                        WebkitOverflowScrolling: 'touch',
-                        '&::-webkit-scrollbar': { height: '8px' },
-                        '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '4px' },
-                        '&::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(0,0,0,0.3)' },
-                    }}
-                >
-                    <DataGrid
-                        rows={rows}
-                        columns={columns}
-                        getRowId={(row) => row.id}
-                        checkboxSelection
-                        rowSelectionModel={{ type: 'include' as const, ids: new Set(selectionModel) }}
-                        onRowSelectionModelChange={(newSelection) => {
-                            const ids = newSelection && typeof newSelection === 'object' && 'ids' in newSelection
-                                ? Array.from((newSelection as { ids: Set<unknown> }).ids).map((id): number => typeof id === 'number' ? id : Number(id))
-                                : [];
-                            setSelectionModel(ids);
-                        }}
-                        sortingMode="client"
-                        sortingOrder={['asc', 'desc']}
-                        sortModel={sortModel}
-                        onSortModelChange={setSortModel}
-                        paginationModel={paginationModel}
-                        onPaginationModelChange={setPaginationModel}
-                        pageSizeOptions={[5, 10, 15, 20, 50]}
-                        rowHeight={40}
-                        onRowDoubleClick={(params) => {
-                            handleEditTask(params.row as Task);
-                        }}
-                        disableColumnMenu={false}
-                        disableColumnSelector={false}
+                ) : (
+                    // PC用 DataGrid表示
+                    <Box
+                        ref={dataGridContainerRef}
                         sx={{
-                            height: '100%',
-                            '& .MuiDataGrid-columnHeaders': {
-                                background: isDark ? theme.palette.action.hover : '#f5f5f5',
-                                fontSize: '0.8rem'
-                            },
-                            '& .MuiDataGrid-cell': {
-                                alignItems: 'center',
-                                fontSize: '0.8rem',
-                                cursor: 'pointer'
-                            },
-                            '& .MuiDataGrid-row:hover': {
-                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
-                            },
-                            '& .MuiDataGrid-footerContainer': {
-                                fontSize: '0.8rem'
-                            },
-                            '& .MuiDataGrid-virtualScroller': {
-                                overflowX: 'auto !important',
-                                overflowY: 'auto',
-                                scrollbarWidth: 'none',
-                                msOverflowStyle: 'none',
-                                '&::-webkit-scrollbar': { width: 0, display: 'none' }
-                            },
-                            '& .MuiDataGrid-pinnedColumns': {
-                                backgroundColor: 'background.paper',
-                                boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
-                            }
+                            flex: 1,
+                            minHeight: 0,
+                            width: '100%',
+                            WebkitOverflowScrolling: 'touch',
+                            '&::-webkit-scrollbar': { height: '8px' },
+                            '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '4px' },
+                            '&::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(0,0,0,0.3)' },
                         }}
-                    />
-                </Box>
+                    >
+                        <DataGrid
+                            rows={rows}
+                            columns={columns}
+                            getRowId={(row) => row.id}
+                            checkboxSelection
+                            rowSelectionModel={{ type: 'include' as const, ids: new Set(selectionModel) }}
+                            onRowSelectionModelChange={(newSelection) => {
+                                const ids = newSelection && typeof newSelection === 'object' && 'ids' in newSelection
+                                    ? Array.from((newSelection as { ids: Set<unknown> }).ids).map((id): number => typeof id === 'number' ? id : Number(id))
+                                    : [];
+                                setSelectionModel(ids);
+                            }}
+                            sortingMode="client"
+                            sortingOrder={['asc', 'desc']}
+                            sortModel={sortModel}
+                            onSortModelChange={setSortModel}
+                            paginationModel={paginationModel}
+                            onPaginationModelChange={setPaginationModel}
+                            pageSizeOptions={[5, 10, 15, 20, 50]}
+                            rowHeight={40}
+                            onRowDoubleClick={(params) => {
+                                handleEditTask(params.row as Task);
+                            }}
+                            disableColumnMenu={false}
+                            disableColumnSelector={false}
+                            sx={{
+                                height: '100%',
+                                '& .MuiDataGrid-columnHeaders': {
+                                    background: isDark ? theme.palette.action.hover : '#f5f5f5',
+                                    fontSize: '0.8rem'
+                                },
+                                '& .MuiDataGrid-cell': {
+                                    alignItems: 'center',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer'
+                                },
+                                '& .MuiDataGrid-row:hover': {
+                                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
+                                },
+                                '& .MuiDataGrid-footerContainer': {
+                                    fontSize: '0.8rem'
+                                },
+                                '& .MuiDataGrid-virtualScroller': {
+                                    overflowX: 'auto !important',
+                                    overflowY: 'auto',
+                                    scrollbarWidth: 'none',
+                                    msOverflowStyle: 'none',
+                                    '&::-webkit-scrollbar': { width: 0, display: 'none' }
+                                },
+                                '& .MuiDataGrid-pinnedColumns': {
+                                    backgroundColor: 'background.paper',
+                                    boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
+                                }
+                            }}
+                        />
+                    </Box>
+                )}
             </Paper>
 
 
@@ -1786,116 +1890,116 @@ const TasksPage: React.FC = () => {
                 anchor="bottom"
                 open={mobileFilterOpen}
                 onClose={() => setMobileFilterOpen(false)}
-            PaperProps={{
-                sx: {
-                    borderTopLeftRadius: 16,
-                    borderTopRightRadius: 16,
-                    maxHeight: '80vh',
-                    p: 2,
-                }
-            }}
-        >
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
-                    フィルター
-                </Typography>
-                <IconButton onClick={() => setMobileFilterOpen(false)} sx={{ minWidth: 48, minHeight: 48 }}>
-                    <CloseIcon />
-                </IconButton>
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <FormControl size="medium" fullWidth>
-                    <InputLabel id="mobile-status-filter-label" shrink>ステータス</InputLabel>
-                    <Select
-                        labelId="mobile-status-filter-label"
-                        label="ステータス"
-                        displayEmpty
-                        value={statusFilter || 'all'}
-                        onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value as string)}
-                        renderValue={(selected) => {
-                            if (!selected || selected === 'all' || selected === '') {
-                                return '全て';
-                            }
-                            return selected;
+                PaperProps={{
+                    sx: {
+                        borderTopLeftRadius: 16,
+                        borderTopRightRadius: 16,
+                        maxHeight: '80vh',
+                        p: 2,
+                    }
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
+                        フィルター
+                    </Typography>
+                    <IconButton onClick={() => setMobileFilterOpen(false)} sx={{ minWidth: 48, minHeight: 48 }}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <FormControl size="medium" fullWidth>
+                        <InputLabel id="mobile-status-filter-label" shrink>ステータス</InputLabel>
+                        <Select
+                            labelId="mobile-status-filter-label"
+                            label="ステータス"
+                            displayEmpty
+                            value={statusFilter || 'all'}
+                            onChange={(e) => setStatusFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                            renderValue={(selected) => {
+                                if (!selected || selected === 'all' || selected === '') {
+                                    return '全て';
+                                }
+                                return selected;
+                            }}
+                        >
+                            <MenuItem value="all">全て</MenuItem>
+                            {statusOptions.map(status => (
+                                <MenuItem key={status} value={status}>{status}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    <FormControl size="medium" fullWidth>
+                        <InputLabel id="mobile-project-filter-label" shrink>プロジェクト</InputLabel>
+                        <Select
+                            labelId="mobile-project-filter-label"
+                            label="プロジェクト"
+                            displayEmpty
+                            value={projectFilter === '' ? 'all' : projectFilter}
+                            onChange={(e) => {
+                                const v = e.target.value as string;
+                                setProjectFilter(v === 'all' ? '' : v);
+                            }}
+                            renderValue={(selected) => {
+                                if (!selected || selected === 'all' || selected === '') {
+                                    return '全て';
+                                }
+                                if (selected === 'no-project') {
+                                    return 'プロジェクト未設定';
+                                }
+                                const project = projects.find(p => String(p.id) === selected);
+                                if (!project) return selected;
+                                return project.name;
+                            }}
+                        >
+                            <MenuItem value="all">全て</MenuItem>
+                            <MenuItem value="no-project">プロジェクト未設定</MenuItem>
+                            {onlineProjects.map(project => (
+                                <MenuItem key={project.id} value={String(project.id)}>
+                                    {project.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    <FormControl size="medium" fullWidth>
+                        <InputLabel id="mobile-assignee-filter-label" shrink>担当者</InputLabel>
+                        <Select
+                            labelId="mobile-assignee-filter-label"
+                            label="担当者"
+                            displayEmpty
+                            value={assigneeFilter || 'all'}
+                            onChange={(e) => setAssigneeFilter(e.target.value === 'all' ? '' : e.target.value as string)}
+                            renderValue={(selected) => {
+                                if (!selected || selected === 'all' || selected === '') {
+                                    return '全て';
+                                }
+                                if (selected === 'unassigned') {
+                                    return '未割当';
+                                }
+                                const user = users.find(u => String(u.id) === selected);
+                                return user ? (user.username || user.email) : selected;
+                            }}
+                        >
+                            <MenuItem value="all">全て</MenuItem>
+                            <MenuItem value="unassigned">未割当</MenuItem>
+                            {users.map(user => (
+                                <MenuItem key={user.id} value={String(user.id)}>{user.username || user.email}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    <Button
+                        variant="contained"
+                        onClick={() => {
+                            setStatusFilter('');
+                            setProjectFilter('');
+                            setAssigneeFilter('');
+                            setMobileFilterOpen(false);
                         }}
+                        sx={{ mt: 1, minHeight: 48 }}
                     >
-                        <MenuItem value="all">全て</MenuItem>
-                        {statusOptions.map(status => (
-                            <MenuItem key={status} value={status}>{status}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-                <FormControl size="medium" fullWidth>
-                    <InputLabel id="mobile-project-filter-label" shrink>プロジェクト</InputLabel>
-                    <Select
-                        labelId="mobile-project-filter-label"
-                        label="プロジェクト"
-                        displayEmpty
-                        value={projectFilter === '' ? 'all' : projectFilter}
-                        onChange={(e) => {
-                            const v = e.target.value as string;
-                            setProjectFilter(v === 'all' ? '' : v);
-                        }}
-                        renderValue={(selected) => {
-                            if (!selected || selected === 'all' || selected === '') {
-                                return '全て';
-                            }
-                            if (selected === 'no-project') {
-                                return 'プロジェクト未設定';
-                            }
-                            const project = projects.find(p => String(p.id) === selected);
-                            if (!project) return selected;
-                            return project.name;
-                        }}
-                    >
-                        <MenuItem value="all">全て</MenuItem>
-                        <MenuItem value="no-project">プロジェクト未設定</MenuItem>
-                        {onlineProjects.map(project => (
-                            <MenuItem key={project.id} value={String(project.id)}>
-                                {project.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-                <FormControl size="medium" fullWidth>
-                    <InputLabel id="mobile-assignee-filter-label" shrink>担当者</InputLabel>
-                    <Select
-                        labelId="mobile-assignee-filter-label"
-                        label="担当者"
-                        displayEmpty
-                        value={assigneeFilter || 'all'}
-                        onChange={(e) => setAssigneeFilter(e.target.value === 'all' ? '' : e.target.value as string)}
-                        renderValue={(selected) => {
-                            if (!selected || selected === 'all' || selected === '') {
-                                return '全て';
-                            }
-                            if (selected === 'unassigned') {
-                                return '未割当';
-                            }
-                            const user = users.find(u => String(u.id) === selected);
-                            return user ? (user.username || user.email) : selected;
-                        }}
-                    >
-                        <MenuItem value="all">全て</MenuItem>
-                        <MenuItem value="unassigned">未割当</MenuItem>
-                        {users.map(user => (
-                            <MenuItem key={user.id} value={String(user.id)}>{user.username || user.email}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-                <Button
-                    variant="contained"
-                    onClick={() => {
-                        setStatusFilter('');
-                        setProjectFilter('');
-                        setAssigneeFilter('');
-                        setMobileFilterOpen(false);
-                    }}
-                    sx={{ mt: 1, minHeight: 48 }}
-                >
-                    フィルターをクリア
-                </Button>
-            </Box>
+                        フィルターをクリア
+                    </Button>
+                </Box>
             </Drawer>
         </Box>
     );

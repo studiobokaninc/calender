@@ -138,6 +138,7 @@ export interface CalendarEvent {
     isPhase?: boolean; // Added
     isCompleted?: boolean; // Added for Phase status
     isDelayed?: boolean; // Added for Phase status
+    phases?: { name: string; date: string; is_completed?: boolean }[] | null; // Added
   };
 }
 

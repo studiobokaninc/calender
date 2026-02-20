@@ -300,7 +300,7 @@ const UserActivityPage: React.FC = () => {
       let currentSessionStart: Date | null = null;
       let lastActivityTime: Date | null = null;
 
-      sortedActivities.forEach(activity => {
+      for (const activity of sortedActivities) {
         const activityTime = parseISO(activity.active_at);
 
         if (currentSessionStart === null) {
@@ -323,7 +323,7 @@ const UserActivityPage: React.FC = () => {
           }
           lastActivityTime = activityTime;
         }
-      });
+      }
 
       // 最後のセッションを追加
       if (currentSessionStart && lastActivityTime) {

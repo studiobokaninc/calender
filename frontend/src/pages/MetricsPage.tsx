@@ -565,7 +565,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
     >
       <Box sx={{ flexShrink: 0, width: '100%', mb: { xs: 1, sm: 1.5 } }}>
         <Paper sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderRadius: { xs: 1, sm: 2 } }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: { xs: 1.5, sm: 1.5 }, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'center', sm: 'center' }, mb: { xs: 1, sm: 1.5 }, flexDirection: { xs: 'row', sm: 'row' }, gap: { xs: 1, sm: 0 } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
               <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1rem' }, fontWeight: 600 }}>プロジェクトメトリクス</Typography>
               {isMobile && (
@@ -578,7 +578,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
                 </IconButton>
               )}
             </Box>
-            <Button variant="outlined" size={isMobile ? "medium" : "small"} onClick={handleClearFilters} sx={{ alignSelf: { xs: 'stretch', sm: 'auto' }, minHeight: { xs: 44, sm: 36 }, fontSize: { xs: '0.875rem', sm: '0.875rem' } }}>フィルターをクリア</Button>
+            <Button variant="outlined" size="small" onClick={handleClearFilters} sx={{ alignSelf: 'auto', minHeight: { xs: 32, sm: 36 }, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: 0.5 }}>{isMobile ? "クリア" : "フィルターをクリア"}</Button>
           </Box>
           {/* PC用フィルター */}
           {!isMobile && (
@@ -620,7 +620,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
               </Box>
             </Box>
           )}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' }, gap: { xs: 2, sm: 3 }, width: '100%' }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' }, gap: { xs: 1, sm: 3 }, width: '100%' }}>
             {[
               { val: totalProjects, label: 'プロジェクト', color: '#1976d2' },
               { val: totalTasks, label: 'タスク総数', color: '#1976d2' },
@@ -630,8 +630,8 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
               { val: totalUsers, label: 'メンバー', color: '#9e9e9e' }
             ].map(({ val, label, color }) => (
               <Box key={label} sx={{ textAlign: 'center', minWidth: 0 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color, fontSize: { xs: '1.1rem', sm: '1.375rem' } }}>{val}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}>{label}</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color, fontSize: { xs: '1rem', sm: '1.375rem' }, lineHeight: 1.2 }}>{val}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, whiteSpace: 'nowrap', display: 'block' }}>{label}</Typography>
               </Box>
             ))}
           </Box>

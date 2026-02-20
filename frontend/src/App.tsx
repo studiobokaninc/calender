@@ -62,61 +62,61 @@ const App: React.FC = () => {
   return (
     <PageStateProvider>
       <Box sx={{ display: 'flex', height: '100vh', width: '100%' }}>
-        <CssBaseline /> {/* MUI base styles */} 
+        <CssBaseline /> {/* MUI base styles */}
         <Routes>
-        <Route path="/login" element={!isAuthenticated ? <Login /> : <DefaultRedirect />} />
+          <Route path="/login" element={!isAuthenticated ? <Login /> : <DefaultRedirect />} />
 
-        {/* ★★★ End of Restore Test Route ★★★ */}
+          {/* ★★★ End of Restore Test Route ★★★ */}
 
-        {/* Routes requiring authentication wrapped by PrivateRoute */}
-        <Route 
-          path="/" 
-          element={ // Wrap the element containing protected routes
-            <PrivateRoute>
-              <Layout>
-                <Outlet /> 
-              </Layout>
-            </PrivateRoute>
-          }
-        >
-          {/* デフォルト: 管理者はカレンダー、一般ユーザーはチャット */}
-          <Route index element={<DefaultRedirect />} />
-          {/* 一般ユーザーもアクセス可能: 専用チャットページのみ */}
-          <Route path="chat" element={<ChatPage />} />
-          {/* 以下は管理者のみ（一般ユーザーは /chat にリダイレクト） */}
-          <Route path="calendar" element={<AdminOnlyRoute><CalendarPage /></AdminOnlyRoute>} />
-          <Route path="dashboard" element={<AdminOnlyRoute><Dashboard /></AdminOnlyRoute>} />
-          <Route path="projects" element={<AdminOnlyRoute><ProjectsPage /></AdminOnlyRoute>} />
-          <Route path="tasks" element={<AdminOnlyRoute><TasksPage /></AdminOnlyRoute>} />
-          <Route path="notes" element={<AdminOnlyRoute><NotesPage /></AdminOnlyRoute>} />
-          <Route path="events" element={<AdminOnlyRoute><Navigate to="/metrics?tab=events" replace /></AdminOnlyRoute>} />
-          <Route path="projects/:projectId" element={<AdminOnlyRoute><ProjectDetailPage /></AdminOnlyRoute>} />
-          <Route path="admin/users" element={<AdminOnlyRoute><UserManagementPage /></AdminOnlyRoute>} />
-          <Route path="*" element={<DefaultRedirect />} />
-        </Route>
+          {/* Routes requiring authentication wrapped by PrivateRoute */}
+          <Route
+            path="/"
+            element={ // Wrap the element containing protected routes
+              <PrivateRoute>
+                <Layout>
+                  <Outlet />
+                </Layout>
+              </PrivateRoute>
+            }
+          >
+            {/* デフォルト: 管理者はカレンダー、一般ユーザーはチャット */}
+            <Route index element={<DefaultRedirect />} />
+            {/* 一般ユーザーもアクセス可能: 専用チャットページのみ */}
+            <Route path="chat" element={<ChatPage />} />
+            {/* 以下は管理者のみ（一般ユーザーは /chat にリダイレクト） */}
+            <Route path="calendar" element={<CalendarPage />} />
+            <Route path="dashboard" element={<AdminOnlyRoute><Dashboard /></AdminOnlyRoute>} />
+            <Route path="projects" element={<AdminOnlyRoute><ProjectsPage /></AdminOnlyRoute>} />
+            <Route path="tasks" element={<AdminOnlyRoute><TasksPage /></AdminOnlyRoute>} />
+            <Route path="notes" element={<NotesPage />} />
+            <Route path="events" element={<AdminOnlyRoute><Navigate to="/metrics?tab=events" replace /></AdminOnlyRoute>} />
+            <Route path="projects/:projectId" element={<AdminOnlyRoute><ProjectDetailPage /></AdminOnlyRoute>} />
+            <Route path="admin/users" element={<AdminOnlyRoute><UserManagementPage /></AdminOnlyRoute>} />
+            <Route path="*" element={<DefaultRedirect />} />
+          </Route>
 
-        {/* --- Admin Routes --- */}
-        <Route 
-          path="/" 
-          element={
-            <AdminRoute>
-              <Layout>
-                <Outlet /> 
-              </Layout>
-            </AdminRoute>
-          }
-        >
-          <Route path="event-management" element={<EventManagementPage />} />
-<Route path="metrics" element={<MetricsPage />} />
-          <Route path="admin/groups" element={<GroupManagementPage />} />
-          <Route path="admin/data" element={<MockDataConsole />} />
-          <Route path="admin/user-activities" element={<UserActivityPage />} />
-          {/* Optional: Catch-all for admin paths to redirect to metrics or dashboard */}
-          <Route path="admin/*" element={<Navigate to="/metrics" replace />} /> 
-        </Route>
+          {/* --- Admin Routes --- */}
+          <Route
+            path="/"
+            element={
+              <AdminRoute>
+                <Layout>
+                  <Outlet />
+                </Layout>
+              </AdminRoute>
+            }
+          >
+            <Route path="event-management" element={<EventManagementPage />} />
+            <Route path="metrics" element={<MetricsPage />} />
+            <Route path="admin/groups" element={<GroupManagementPage />} />
+            <Route path="admin/data" element={<MockDataConsole />} />
+            <Route path="admin/user-activities" element={<UserActivityPage />} />
+            {/* Optional: Catch-all for admin paths to redirect to metrics or dashboard */}
+            <Route path="admin/*" element={<Navigate to="/metrics" replace />} />
+          </Route>
 
-        {/* Optional Catch-all for non-authenticated routes (if needed) */}
-        {/* <Route path="*" element={<Navigate to="/login" replace />} /> */}
+          {/* Optional Catch-all for non-authenticated routes (if needed) */}
+          {/* <Route path="*" element={<Navigate to="/login" replace />} /> */}
         </Routes>
       </Box>
     </PageStateProvider>

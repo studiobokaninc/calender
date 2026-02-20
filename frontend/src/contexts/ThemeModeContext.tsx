@@ -83,11 +83,11 @@ export const ThemeModeProvider: React.FC<ThemeModeProviderProps> = ({ children }
           mode,
           ...(mode === 'dark'
             ? {
-                background: {
-                  default: '#121212',
-                  paper: '#1e1e1e',
-                },
-              }
+              background: {
+                default: '#121212',
+                paper: '#1e1e1e',
+              },
+            }
             : {}),
         },
         components: {
@@ -96,6 +96,12 @@ export const ThemeModeProvider: React.FC<ThemeModeProviderProps> = ({ children }
               root: {
                 borderRadius: 8,
               },
+            },
+          },
+          MuiTooltip: {
+            defaultProps: {
+              enterTouchDelay: 700,
+              leaveTouchDelay: 1500,
             },
           },
         },

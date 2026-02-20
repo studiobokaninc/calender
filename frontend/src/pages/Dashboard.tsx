@@ -36,6 +36,7 @@ import api from '../services/api'
 import { DashboardMetrics, BackendEvent } from '../types'
 import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
+import { TaskEditDialog, EventEditDialog } from '../components/SearchEditDialogs'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
@@ -65,6 +66,10 @@ const Dashboard: React.FC = () => {
   const [isExecutingAction, setIsExecutingAction] = useState(false);
   const [projectsForAction, setProjectsForAction] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedProjectIdForAction, setSelectedProjectIdForAction] = useState<number | ''>('');
+
+  // 編集ダイアログ用
+  const [editTaskId, setEditTaskId] = useState<number | null>(null);
+  const [editEventId, setEditEventId] = useState<number | null>(null);
 
 
   // ページ状態管理の使用
@@ -190,19 +195,20 @@ const Dashboard: React.FC = () => {
     }
   }, [isListening, speechSupport])
 
-  useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const res = await api.get<BackendEvent[]>('/calendar/events')
-        setBackendEvents(res.data ?? [])
-      } catch {
-        setBackendEvents([])
-      } finally {
-        setEventsLoaded(true)
-      }
+  const fetchEvents = React.useCallback(async () => {
+    try {
+      const res = await api.get<BackendEvent[]>('/calendar/events')
+      setBackendEvents(res.data ?? [])
+    } catch {
+      setBackendEvents([])
+    } finally {
+      setEventsLoaded(true)
     }
-    fetchEvents()
   }, [])
+
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
 
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
 
@@ -242,7 +248,7 @@ const Dashboard: React.FC = () => {
       return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0
     }
 
-    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; }
+    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; }
 
     const eventList: TodayItem[] = []
 
@@ -293,7 +299,8 @@ const Dashboard: React.FC = () => {
           timeLabel: ev.allDay ? '終日' : (ev.start_time ? new Date(ev.start_time).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''),
           kindLabel: eventTypeToLabel[evType] ?? evType,
           startTime: ev.start_time ?? '',
-          isPhase: false
+          isPhase: false,
+          rawId: ev.id,
         })
       }
     });
@@ -318,7 +325,8 @@ const Dashboard: React.FC = () => {
             timeLabel: '締切', // タスクは時間を持たないことが多いので「締切」等
             kindLabel: 'タスク',
             startTime: t.due_date, // ソート用
-            isPhase: false
+            isPhase: false,
+            rawId: t.id,
           });
         }
       }
@@ -342,7 +350,8 @@ const Dashboard: React.FC = () => {
               timeLabel: '目標日',
               kindLabel: '段階目標',
               startTime: p.date,
-              isPhase: true
+              isPhase: true,
+              rawId: t.id, // Phaseでも親タスクのIDを保持
             });
           }
         });
@@ -1361,7 +1370,6 @@ const Dashboard: React.FC = () => {
         {/* 今日の予定 */}
         <Paper
           elevation={2}
-          onClick={() => navigate('/calendar')}
           sx={{
             p: { xs: 1.5, sm: 2 },
             borderRadius: { xs: 1.5, sm: 2 },
@@ -1370,10 +1378,6 @@ const Dashboard: React.FC = () => {
             minHeight: { xs: 240, sm: 260 },
             display: 'flex',
             flexDirection: 'column',
-            transition: 'all 0.2s ease',
-            cursor: 'pointer',
-            '&:active': { transform: 'scale(0.98)' },
-            '&:hover': { boxShadow: 4 },
           }}
         >
           <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
@@ -1395,7 +1399,17 @@ const Dashboard: React.FC = () => {
                 </Box>
               ) : (
                 todayItems.map((item) => (
-                  <Box key={`${item.type}-${item.id}`} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 } }}>
+                  <Box
+                    key={`${item.type}-${item.id}`}
+                    onClick={() => {
+                      if (item.type === 'event') setEditEventId(item.rawId);
+                      else setEditTaskId(item.rawId);
+                    }}
+                    sx={{
+                      py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 },
+                      cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }
+                    }}
+                  >
                     <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : (item.isPhase ? 'secondary.light' : 'warning.light'), color: item.type === 'event' ? 'info.dark' : (item.isPhase ? 'secondary.dark' : 'warning.dark') }}>
                       {item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}
                     </Box>
@@ -1420,7 +1434,6 @@ const Dashboard: React.FC = () => {
         {/* 今週の締切 */}
         <Paper
           elevation={2}
-          onClick={() => navigate('/tasks')}
           sx={{
             p: { xs: 1.5, sm: 2 },
             borderRadius: { xs: 1.5, sm: 2 },
@@ -1429,10 +1442,6 @@ const Dashboard: React.FC = () => {
             minHeight: { xs: 240, sm: 260 },
             display: 'flex',
             flexDirection: 'column',
-            transition: 'all 0.2s ease',
-            cursor: 'pointer',
-            '&:active': { transform: 'scale(0.98)' },
-            '&:hover': { boxShadow: 4 },
           }}
         >
           <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
@@ -1459,6 +1468,7 @@ const Dashboard: React.FC = () => {
                 weekDeadlineTasks.map((t: any) => (
                   <Box
                     key={t.id}
+                    onClick={() => setEditTaskId(t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id))}
                     sx={{
                       py: 1,
                       px: 1.25,
@@ -1470,6 +1480,8 @@ const Dashboard: React.FC = () => {
                       borderLeft: '4px solid',
                       borderLeftColor: 'warning.main',
                       '&:last-of-type': { mb: 0 },
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'action.hover' }
                     }}
                   >
                     <Typography
@@ -1507,7 +1519,6 @@ const Dashboard: React.FC = () => {
         {/* 遅延タスク */}
         <Paper
           elevation={2}
-          onClick={() => navigate('/tasks')}
           sx={{
             p: { xs: 1.5, sm: 2 },
             borderRadius: { xs: 1.5, sm: 2 },
@@ -1516,10 +1527,6 @@ const Dashboard: React.FC = () => {
             minHeight: { xs: 240, sm: 260 },
             display: 'flex',
             flexDirection: 'column',
-            transition: 'all 0.2s ease',
-            cursor: 'pointer',
-            '&:active': { transform: 'scale(0.98)' },
-            '&:hover': { boxShadow: 4 },
           }}
         >
           <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
@@ -1546,6 +1553,7 @@ const Dashboard: React.FC = () => {
                 delayedTasks.map((t: any) => (
                   <Box
                     key={t.id}
+                    onClick={() => setEditTaskId(t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id))}
                     sx={{
                       py: 1,
                       px: 1.25,
@@ -1557,6 +1565,8 @@ const Dashboard: React.FC = () => {
                       borderLeft: '4px solid',
                       borderLeftColor: 'error.main',
                       '&:last-of-type': { mb: 0 },
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'action.hover' }
                     }}
                   >
                     <Typography
@@ -1943,7 +1953,27 @@ const Dashboard: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+
+
+      {/* 編集ダイアログ */}
+      <TaskEditDialog
+        open={editTaskId !== null}
+        taskId={editTaskId}
+        onClose={() => setEditTaskId(null)}
+        onSaved={() => {
+          refreshGlobalData?.();
+        }}
+      />
+
+      <EventEditDialog
+        open={editEventId !== null}
+        eventId={editEventId}
+        onClose={() => setEditEventId(null)}
+        onSaved={() => {
+          fetchEvents(); // イベントリスト再取得
+        }}
+      />
+    </Box >
   )
 }
 

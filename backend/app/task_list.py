@@ -611,12 +611,61 @@ def build_events_list_for_chat(db: Session, user_id: int = None) -> str:
         return ""
 
 
+def build_notes_list_for_chat(db: Session, user_id: int) -> str:
+    """
+    ユーザーのメモリストをテキスト形式で生成する。
+    チャットで「メモ」を送る際に使用。
+    """
+    try:
+        # ユーザーのメモを全件取得
+        notes = crud.get_notes(db, skip=0, limit=1000, created_by=user_id)
+        if not notes:
+            return ""
+
+        buffer = io.StringIO()
+        
+        for note in notes:
+            buffer.write(f"--- Note ID: {note.id} ---\n")
+            if note.title:
+                buffer.write(f"Title: {note.title}\n")
+            
+            # メインコンテンツ
+            if note.content:
+                buffer.write(f"Content: {note.content}\n")
+            
+            # テキストボックス (JSON)
+            if note.text_boxes:
+                # text_boxes は [{"id":..., "content":"...", ...}, ...] のリスト
+                try:
+                    for tb in note.text_boxes:
+                        if isinstance(tb, dict) and tb.get("content"):
+                            buffer.write(f"- {tb.get('content')}\n")
+                except Exception:
+                    pass
+            
+            # 画像・PDFの存在情報（内容は読めないがファイルがあることは伝える）
+            if note.image_urls:
+                img_count = len(note.image_urls)
+                buffer.write(f"(Images: {img_count})\n")
+            if note.pdf_urls:
+                pdf_count = len(note.pdf_urls)
+                buffer.write(f"(PDFs: {pdf_count})\n")
+                
+            buffer.write("\n")
+            
+        return buffer.getvalue()
+    except Exception as e:
+        logger.exception("build_notes_list_for_chat failed: %s", e)
+        return ""
+
+
 def get_personal_context(db: Session, user_id: int) -> dict:
     """
     特定のユーザー向けのコンテキスト情報を生成する。
     - 自分のタスク (Activeのみ)
     - 関連プロジェクト
     - 自分のスケジュール
+    - 自分のメモ
     """
     inputs = {}
     
@@ -688,6 +737,45 @@ def get_personal_context(db: Session, user_id: int) -> dict:
     
     # 3. カレンダーイベント
     inputs["events"] = build_events_list_for_chat(db, user_id)
+
+    # 4. メモ & ファイル (画像/PDF)
+    inputs["notes"] = build_notes_list_for_chat(db, user_id)
+    
+    # メモ添付ファイルを収集 (最大10件まで)
+    attachments = []
+    UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
+    
+    try:
+        notes = crud.get_notes(db, skip=0, limit=20, created_by=user_id) # 直近20件くらい
+        for n in notes:
+            # 画像
+            if n.image_urls:
+                for url in n.image_urls:
+                    if len(attachments) >= 10: break
+                    # url: "/static/uploads/uuid.jpg" -> convert to absolute path
+                    if url.startswith("/static/uploads/"):
+                        filename = url.replace("/static/uploads/", "")
+                        abs_path = os.path.join(UPLOAD_DIR, filename)
+                        if os.path.exists(abs_path):
+                            attachments.append(abs_path)
+            
+            if len(attachments) >= 10: break
+
+            # PDF
+            if n.pdf_urls:
+                for url in n.pdf_urls:
+                    if len(attachments) >= 10: break
+                    if url.startswith("/static/uploads/"):
+                        filename = url.replace("/static/uploads/", "")
+                        abs_path = os.path.join(UPLOAD_DIR, filename)
+                        if os.path.exists(abs_path):
+                            attachments.append(abs_path)
+                            
+            if len(attachments) >= 10: break
+    except Exception as e:
+        logger.warning(f"Error collecting attachments: {e}")
+        
+    inputs["attachments"] = attachments
     
     return inputs
 
@@ -707,8 +795,7 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
     # ユーザーリスト（全件）
     inputs["user_list"] = build_users_list_for_chat(db)
     
-    # タスク：全件ではなく、「要確認」なタスクを抽出してコンテキストに含める
-    # 管理者用なので、全タスクの中からフィルタリング
+    # タスク：全データ（完了済みも直近のものは含める）
     all_tasks = crud.get_tasks(db, limit=100000)
     
     projects = crud.get_projects(db, limit=10000)
@@ -717,54 +804,28 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
     users = crud.get_users(db, limit=10000)
     id_to_username = {u.id: (u.username or u.name or str(u.id)) for u in users}
 
-    critical_tasks = []
-    today = date.today()
+    target_tasks = []
     
-    # フィルタリング
     for t in all_tasks:
         status = (t.get("status") or "").lower()
+        
+        # 完了タスクの場合はスキップ
         if status == "completed":
             continue
-            
-        due_date_val = t.get("due_date")
-        priority = str(t.get("priority") or "").upper()
         
-        is_delayed = False
-        is_due_soon = False
-        is_high_priority = (priority == "HIGH" or priority == "CRITICAL")
-        
-        # 期日チェック
-        if due_date_val:
-            d = None
-            if isinstance(due_date_val, str):
-                try:
-                    d = datetime.fromisoformat(due_date_val).date()
-                except:
-                    pass
-            elif isinstance(due_date_val, (datetime, date)):
-                d = due_date_val if isinstance(due_date_val, date) else due_date_val.date()
-                
-            if d:
-                if d < today:
-                    is_delayed = True
-                elif d <= today + timedelta(days=7):
-                    is_due_soon = True
-        
-        if is_delayed or is_due_soon or is_high_priority:
-            # マッピング適用
-            ct = t.copy()
-            pid = ct.get("project_id")
-            if pid in id_to_project_name:
-                ct["project_id"] = id_to_project_name[pid]
-            uid = ct.get("assigned_to")
-            if uid in id_to_username:
-                ct["assigned_to"] = id_to_username[uid]
-            critical_tasks.append(ct)
+        # マッピング適用
+        ct = t.copy()
+        pid = ct.get("project_id")
+        if pid in id_to_project_name:
+            ct["project_id"] = id_to_project_name[pid]
+        uid = ct.get("assigned_to")
+        if uid in id_to_username:
+            ct["assigned_to"] = id_to_username[uid]
+        target_tasks.append(ct)
 
-    inputs["csv"] = build_tasks_csv_text(critical_tasks)
+    inputs["csv"] = build_tasks_csv_text(target_tasks)
     
-    # 管理者自身のスケジュールも含める？
-    if user_id:
-        inputs["events"] = build_events_list_for_chat(db, user_id)
+    # イベント：全ユーザー分を含める (user_id=None)
+    inputs["events"] = build_events_list_for_chat(db, None)
     
     return inputs

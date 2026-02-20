@@ -1,5 +1,5 @@
 import React, { useState, ReactNode, useEffect, useCallback } from 'react'
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar,
   Box,
@@ -25,8 +25,8 @@ import {
   Alert,
   CircularProgress,
   ListSubheader,
-  TextField,
   InputAdornment,
+  TextField,
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -40,12 +40,8 @@ import {
   Logout as LogoutIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
-  Settings as SettingsIcon,
-  Save as SaveIcon,
-  FileUpload as FileUploadIcon,
   FileDownload as FileDownloadIcon,
   Storage as StorageIcon,
-  People as PeopleIcon,
   EventNote as EventNoteIcon,
   Note as NoteIcon,
   Person as PersonIcon,
@@ -102,7 +98,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // グローバル検索
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<{ projects: Array<{ id: number; name: string }>; tasks: Array<{ id: number; name: string; project_id: number | null; project_name?: string | null }>; events: Array<{ id: number; title: string; start_time: string | null }> }>({ projects: [], tasks: [], events: [] })
+  const [searchResults, setSearchResults] = useState<{ projects: Array<{ id: number; name: string; description?: string }>; tasks: Array<{ id: number; name: string; project_id: number | null; project_name?: string | null }>; events: Array<{ id: number; title: string; start_time: string | null }> }>({ projects: [], tasks: [], events: [] })
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchEditTarget, setSearchEditTarget] = useState<{ type: 'project' | 'task' | 'event'; id: number } | null>(null)
   const fetchSearch = useCallback(
@@ -322,7 +318,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // 一般ユーザーはチャットのみ表示。管理者は管理者以外のメニューを表示
   const menuItems = user?.role === 'admin'
     ? allMenuItems.filter(item => !item.isAdmin)
-    : allMenuItems.filter(item => item.path === '/chat')
+    : allMenuItems.filter(item => item.path === '/chat' || item.path === '/notes' || item.path === '/calendar')
   const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
 
   // モックデータのエクスポート

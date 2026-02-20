@@ -299,11 +299,31 @@ const CalendarPage: React.FC = () => {
                 api.get<Group[]>('/api/groups')
             ]);
 
-            const projectsData = projectsResponse.data;
-            const tasksData = tasksResponse.data;
+            let projectsData = projectsResponse.data;
+            let tasksData = tasksResponse.data;
             const backendEventsData = eventsResponse.data; // 通常イベント用
             const usersData = usersResponse.data;
             const groupsData = groupsResponse.data;
+
+            // ★★★ 一般ユーザーの場合のフィルタリング ★★★
+            if (user && user.role !== 'admin') {
+                console.log(`[CalendarPage] Filtering data for non-admin user: ${user.id}`);
+
+                // 1. 自分の担当タスクのみ
+                const myTasks = tasksData.filter(t => String(t.assigned_to) === String(user.id));
+                const myProjectIds = new Set(myTasks.map(t => t.project_id).filter(pid => pid !== null));
+
+                // 2. 自分のタスクが含まれるプロジェクトのみ
+                const myProjects = projectsData.filter(p => myProjectIds.has(p.id));
+
+                // 3. 自分が参加している、または自分のプロジェクトに関連するイベントのみ
+                // (BackendEventsのフィルタリングは後続の map 処理内で行うか、ここで事前に行うか。ここではリスト自体はフィルタせず、表示時に弾くか...
+                //  いや、processedBackendEvents生成時にフィルタするのが良い)
+
+                // 上書き
+                tasksData = myTasks;
+                projectsData = myProjects;
+            }
 
             // ★★★ デバッグログ: /tasks APIからの生データを表示 ★★★
             console.log("[fetchData] Raw tasksData from /tasks API:", JSON.stringify(tasksData, null, 2));
@@ -327,6 +347,7 @@ const CalendarPage: React.FC = () => {
                     allDay: true,
                     backgroundColor: getProjectColor(project),
                     borderColor: getProjectColor(project),
+                    editable: user?.role === 'admin', // ★管理者のみ編集可能
                     extendedProps: {
                         type: 'project',
                         projectId: String(project.id),
@@ -367,6 +388,7 @@ const CalendarPage: React.FC = () => {
                         allDay: true,
                         backgroundColor: taskColor,
                         borderColor: taskColor,
+                        editable: user?.role === 'admin', // ★管理者のみ編集可能
                         extendedProps: {
                             type: 'task',
                             taskId: task.id,
@@ -391,6 +413,7 @@ const CalendarPage: React.FC = () => {
                 }
 
                 if (task.phases && Array.isArray(task.phases)) {
+                    // Phase processing... (omit logs for brevity in replacement if logically same)
                     if (task.phases.length > 0) console.log(`[CalendarPage:fetchData] Task ${task.id} (${task.name}) has phases:`, task.phases);
                     task.phases.forEach((phase: any, index: number) => {
                         if (phase.date) {
@@ -410,6 +433,7 @@ const CalendarPage: React.FC = () => {
                                 backgroundColor: phaseColor,
                                 borderColor: phaseColor,
                                 textColor: '#ffffff', // テキスト色: 白
+                                editable: user?.role === 'admin', // ★管理者のみ編集可能
                                 extendedProps: {
                                     type: 'task', // フィルターでタスクとして扱われるように 'task' に設定
                                     isPhase: true, // Phaseであることを識別するフラグ
@@ -435,6 +459,20 @@ const CalendarPage: React.FC = () => {
                     const eventType = be.type;
                     let originalStartTimeStr = be.start_time as string;
                     let originalEndTimeStr = be.end_time as string;
+
+                    // ★★★ 一般ユーザーのフィルタリング (イベント) ★★★
+                    if (user && user.role !== 'admin') {
+                        // 1. 参加者リストに含まれているか
+                        const isParticipant = be.participants && be.participants.some((p: any) => String(p.id) === String(user.id));
+
+                        // 2. 自分のタスクが含まれるプロジェクトのイベントか
+                        // projectsData は既にフィルタリング済みなので、そこに含まれる ID かどうかで判定
+                        const isMyProjectEvent = be.project_id && projectsData.some(p => p.id === be.project_id);
+
+                        if (!isParticipant && !isMyProjectEvent) {
+                            return null; // 非表示
+                        }
+                    }
 
                     if (!originalStartTimeStr) {
                         console.warn("Event without start_time skipped:", be);
@@ -513,6 +551,7 @@ const CalendarPage: React.FC = () => {
                             allDay: be.allDay ?? false,
                             backgroundColor: eventColor,
                             borderColor: eventColor,
+                            editable: user?.role === 'admin', // ★管理者のみ編集可能
                             extendedProps: {
                                 type: normalizedType,
                                 description: be.description ?? undefined,
@@ -567,6 +606,7 @@ const CalendarPage: React.FC = () => {
     // バックエンドイベントを取得する専用のuseEffect（タブ切り替え時も実行）
     useEffect(() => {
         const fetchBackendEventsOnMount = async () => {
+            // ... existing initialization ...
             try {
                 console.log('[CalendarPage] Fetching backend events...');
                 const eventsResponse = await api.get<BackendEvent[]>('/calendar/events');
@@ -574,11 +614,23 @@ const CalendarPage: React.FC = () => {
 
                 const processedBackendEvents: CalendarEvent[] = backendEventsData
                     .map((be): CalendarEvent | null => {
+                        // ... existing filtering ...
+                        // ★★★ 一般ユーザーのフィルタリング (イベント) ★★★
+                        if (user && user.role !== 'admin') {
+                            const isParticipant = be.participants && be.participants.some((p: any) => String(p.id) === String(user.id));
+                            const isMyProjectEvent = be.project_id && projects.some(p => p.id === be.project_id);
+
+                            if (!isParticipant && !isMyProjectEvent) {
+                                return null;
+                            }
+                        }
+
                         const eventType = be.type;
                         const originalStartTimeStr = be.start_time as string;
                         const originalEndTimeStr = be.end_time as string;
 
                         if (!originalStartTimeStr) {
+                            // ... existing warning ...
                             console.warn("Event without start_time skipped:", be);
                             return null;
                         }
@@ -590,6 +642,7 @@ const CalendarPage: React.FC = () => {
                             const normalizedType = (be.type && be.type.trim() !== '' && be.type.toLowerCase() !== 'event')
                                 ? be.type
                                 : 'Generic';
+
                             // 会議・ワークショップは実施日（start_time）で過去/色判定。終日はAPIが翌日00:00で返すため end の前日で判定
                             const eventDate = (normalizedType === 'Meeting' || normalizedType === 'Workshop')
                                 ? parseISO(originalStartTimeStr)
@@ -608,6 +661,7 @@ const CalendarPage: React.FC = () => {
                                 allDay: be.allDay ?? false,
                                 backgroundColor: eventColor,
                                 borderColor: eventColor,
+                                editable: user?.role === 'admin', // ★管理者のみ編集可能
                                 extendedProps: {
                                     type: normalizedType,
                                     description: be.description ?? undefined,
@@ -635,112 +689,101 @@ const CalendarPage: React.FC = () => {
         }
     }, [tasks.length, projects.length, loading, globalData.lastFetched]); // タスク・プロジェクトのデータ変更時にも実行
 
+    // ★★★ 一般ユーザー向けデータフィルタリング関数 ★★★
+    const filterDataForNonAdmin = useCallback((rawTasks: Task[], rawProjects: Project[]) => {
+        if (!user || user.role === 'admin') {
+            return { tasks: rawTasks, projects: rawProjects };
+        }
+        // 1. 自分の担当タスクのみ
+        const myTasks = rawTasks.filter(t => String(t.assigned_to) === String(user.id));
+        const myProjectIds = new Set(myTasks.map(t => t.project_id).filter(pid => pid !== null));
+        // 2. 自分のタスクが含まれるプロジェクトのみ
+        const myProjects = rawProjects.filter(p => myProjectIds.has(p.id));
+        return { tasks: myTasks, projects: myProjects };
+    }, [user]);
+
     // グローバルデータの変更を直接監視（より確実な方法）
     useEffect(() => {
-        if (globalData && globalData.tasks && globalData.tasks.length > 0) {
+        if (globalData) {
             console.log("[CalendarPage] Global data updated, refreshing local state...");
-            console.log("[CalendarPage] Tasks count:", globalData.tasks.length);
-            setTasks(globalData.tasks);
+
+            const rawTasks = globalData.tasks || [];
+            const rawProjects = globalData.projects || [];
+
+            // フィルタリング適用
+            const { tasks: filteredTasks, projects: filteredProjects } = filterDataForNonAdmin(rawTasks, rawProjects);
+
+            if (rawTasks.length > 0) {
+                console.log("[CalendarPage] Tasks count (filtered):", filteredTasks.length);
+                setTasks(filteredTasks);
+            }
+            if (rawProjects.length > 0) {
+                console.log("[CalendarPage] Projects count (filtered):", filteredProjects.length);
+                setProjects(filteredProjects);
+            }
+            if (globalData.users && globalData.users.length > 0) {
+                setUsers(globalData.users);
+            }
+            if (globalData.groups && globalData.groups.length > 0) {
+                setGroups(globalData.groups);
+            }
         }
-        if (globalData && globalData.projects && globalData.projects.length > 0) {
-            console.log("[CalendarPage] Projects count:", globalData.projects.length);
-            setProjects(globalData.projects);
-        }
-        if (globalData && globalData.users && globalData.users.length > 0) {
-            console.log("[CalendarPage] Users count:", globalData.users.length);
-            setUsers(globalData.users);
-        }
-        if (globalData && globalData.groups && globalData.groups.length > 0) {
-            console.log("[CalendarPage] Groups count:", globalData.groups.length);
-            setGroups(globalData.groups);
-        }
-        // イベントはtasksとprojectsから自動生成されるため、ここでは設定しない
-    }, [globalData.tasks, globalData.projects, globalData.users, globalData.groups, globalData.lastFetched]);
+    }, [globalData.tasks, globalData.projects, globalData.users, globalData.groups, globalData.lastFetched, filterDataForNonAdmin]);
 
     // globalDataRefreshedイベントをリッスンしてデータを強制更新
     useEffect(() => {
         const handleGlobalDataRefresh = (event: CustomEvent) => {
             console.log("[CalendarPage] Global data refreshed event received, updating local state...");
-            console.log("[CalendarPage] Received data:", {
-                tasks: event.detail.tasks?.length || 0,
-                projects: event.detail.projects?.length || 0,
-                users: event.detail.users?.length || 0,
-                groups: event.detail.groups?.length || 0
-            });
-            const { tasks, projects, users, groups } = event.detail;
-            setTasks(tasks || []);
-            setProjects(projects || []);
+            const { tasks: rawTasks, projects: rawProjects, users, groups } = event.detail;
+
+            // フィルタリング適用
+            const { tasks: filteredTasks, projects: filteredProjects } = filterDataForNonAdmin(rawTasks || [], rawProjects || []);
+
+            setTasks(filteredTasks);
+            setProjects(filteredProjects);
             setUsers(users || []);
             setGroups(groups || []);
-            // イベントはtasksとprojectsの更新時にuseEffectで自動的に再生成される
         };
+        // ... (rest of the listeners remain same, just referencing the updated handleGlobalDataRefresh)
 
         const handleCsvImportCompleted = async (event: CustomEvent) => {
             console.log("[CalendarPage] CSV import completed event received:", event.detail);
-            // CSVインポート完了時はグローバルデータの更新を待つ
             if (refreshGlobalData) {
-                console.log("[CalendarPage] Refreshing global data after CSV import...");
                 await refreshGlobalData();
             }
         };
 
-        console.log("[CalendarPage] Adding globalDataRefreshed and csvImportCompleted event listeners");
         window.addEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
         window.addEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
 
         return () => {
-            console.log("[CalendarPage] Removing globalDataRefreshed and csvImportCompleted event listeners");
             window.removeEventListener('globalDataRefreshed', handleGlobalDataRefresh as unknown as EventListener);
             window.removeEventListener('csvImportCompleted', handleCsvImportCompleted as unknown as EventListener);
         };
-    }, [refreshGlobalData]);
+    }, [refreshGlobalData, filterDataForNonAdmin]);
 
     // プロジェクト変更イベントをリッスンしてタスクデータを強制更新
     useEffect(() => {
-        const handleProjectDeleted = async (event: CustomEvent) => {
-            console.log("[CalendarPage] Project deleted event received:", event.detail);
-            // プロジェクト削除時はタスクも削除されるため、グローバルデータの更新を待つ
+        const handleProjectChange = async (event: CustomEvent) => {
+            console.log("[CalendarPage] Project change event received:", event.type, event.detail);
             if (refreshGlobalData) {
-                console.log("[CalendarPage] Refreshing global data after project deletion...");
                 await refreshGlobalData();
             }
         };
 
-        const handleProjectUpdated = async (event: CustomEvent) => {
-            console.log("[CalendarPage] Project updated event received:", event.detail);
-            // プロジェクト更新時はタスクデータも再取得
-            if (refreshGlobalData) {
-                console.log("[CalendarPage] Refreshing global data after project update...");
-                await refreshGlobalData();
-            }
-        };
-
-        const handleProjectStatusUpdated = async (event: CustomEvent) => {
-            console.log("[CalendarPage] Project status updated event received:", event.detail);
-            // プロジェクト表示ステータス更新時はタスクデータも再取得
-            if (refreshGlobalData) {
-                console.log("[CalendarPage] Refreshing global data after project status update...");
-                await refreshGlobalData();
-            }
-        };
-
-        console.log("[CalendarPage] Adding project change event listeners");
-        window.addEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
-        window.addEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
-        window.addEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
+        window.addEventListener('projectDeleted', handleProjectChange as unknown as EventListener);
+        window.addEventListener('projectUpdated', handleProjectChange as unknown as EventListener);
+        window.addEventListener('projectStatusUpdated', handleProjectChange as unknown as EventListener);
 
         return () => {
-            console.log("[CalendarPage] Removing project change event listeners");
-            window.removeEventListener('projectDeleted', handleProjectDeleted as unknown as EventListener);
-            window.removeEventListener('projectUpdated', handleProjectUpdated as unknown as EventListener);
-            window.removeEventListener('projectStatusUpdated', handleProjectStatusUpdated as unknown as EventListener);
+            window.removeEventListener('projectDeleted', handleProjectChange as unknown as EventListener);
+            window.removeEventListener('projectUpdated', handleProjectChange as unknown as EventListener);
+            window.removeEventListener('projectStatusUpdated', handleProjectChange as unknown as EventListener);
         };
     }, [refreshGlobalData]);
 
     // タスクとプロジェクトのデータが更新された時にイベントを再生成
-    // ★★★ ローカルのタスク・プロジェクトが変更された場合のみイベントを再生成 ★★★
     useEffect(() => {
-        // タスクとプロジェクトが存在し、かつローディング中でない場合のみ実行
         if ((tasks.length > 0 || projects.length > 0 || groups.length > 0) && !loading) {
             console.log("[CalendarPage] Regenerating events from tasks, projects, and groups");
 
@@ -762,6 +805,7 @@ const CalendarPage: React.FC = () => {
                         allDay: true,
                         backgroundColor: taskColor,
                         borderColor: taskColor,
+                        editable: user?.role === 'admin', // ★管理者のみ編集可能
                         extendedProps: {
                             type: 'task',
                             taskId: task.id,
@@ -805,6 +849,7 @@ const CalendarPage: React.FC = () => {
                                 backgroundColor: phaseColor,
                                 borderColor: phaseColor,
                                 textColor: '#ffffff', // テキスト色: 白
+                                editable: user?.role === 'admin', // ★管理者のみ編集可能
                                 extendedProps: {
                                     type: 'task', // フィルター用
                                     isPhase: true, // 識別用
@@ -834,6 +879,7 @@ const CalendarPage: React.FC = () => {
                     allDay: true,
                     backgroundColor: getProjectColor(project),
                     borderColor: getProjectColor(project),
+                    editable: user?.role === 'admin', // ★管理者のみ編集可能
                     extendedProps: {
                         type: 'project',
                         projectId: String(project.id),
@@ -866,6 +912,7 @@ const CalendarPage: React.FC = () => {
                     allDay: true,
                     backgroundColor: '#9C27B0', // グループ用の色（紫）
                     borderColor: '#9C27B0',
+                    editable: user?.role === 'admin', // ★管理者のみ編集可能
                     extendedProps: {
                         type: 'group',
                         groupId: String(group.id),
@@ -918,6 +965,7 @@ const CalendarPage: React.FC = () => {
                     ...event,
                     backgroundColor: eventColor,
                     borderColor: eventColor,
+                    editable: user?.role === 'admin', // ★管理者のみ編集可能
                 };
             });
 

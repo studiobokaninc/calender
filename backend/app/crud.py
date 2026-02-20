@@ -654,55 +654,82 @@ def get_events(
     return db_events
 
 
+from sqlalchemy import cast, String
+
 def search_projects(db: Session, q: str, limit: int = 10) -> List[models.Project]:
-    """検索文字列でプロジェクトを検索（name, description）"""
+    """検索文字列でプロジェクトを検索（name, description, 関連タスクの名称や担当者名）"""
     if not q or len(q.strip()) == 0:
         return []
     term = f"%{q.strip()}%"
     return (
         db.query(models.Project)
+        .outerjoin(models.Task, models.Project.id == models.Task.project_id)
+        .outerjoin(models.User, models.Task.assigned_to == models.User.id)
+        .filter(models.Project.display_status != 'offline')
         .filter(
             or_(
                 models.Project.name.ilike(term),
-                (models.Project.description or "").ilike(term),
+                models.Project.description.ilike(term),
+                models.Task.name.ilike(term),
+                models.Task.description.ilike(term),
+                models.User.name.ilike(term),
+                models.User.username.ilike(term),
+                models.User.full_name.ilike(term),
             )
         )
+        .distinct()
         .limit(limit)
         .all()
     )
 
 
 def search_tasks(db: Session, q: str, limit: int = 10) -> List[models.Task]:
-    """検索文字列でタスクを検索（name, description）"""
+    """検索文字列でタスクを検索（name, description, 担当者名, プロジェクト名/説明）"""
     if not q or len(q.strip()) == 0:
         return []
     term = f"%{q.strip()}%"
     return (
         db.query(models.Task)
+        .outerjoin(models.User, models.Task.assigned_to == models.User.id)
+        .outerjoin(models.Project, models.Task.project_id == models.Project.id)
+        .filter(or_(models.Task.project_id == None, models.Project.display_status != 'offline'))
         .filter(
             or_(
                 models.Task.name.ilike(term),
-                (models.Task.description or "").ilike(term),
+                models.Task.description.ilike(term),
+                models.User.name.ilike(term),
+                models.User.username.ilike(term),
+                models.User.full_name.ilike(term),
+                models.Project.name.ilike(term),
+                models.Project.description.ilike(term),
             )
         )
+        .distinct()
         .limit(limit)
         .all()
     )
 
 
 def search_events(db: Session, q: str, limit: int = 10) -> List[models.Event]:
-    """検索文字列でイベントを検索（title, description）"""
+    """検索文字列でイベントを検索（title, description, location, 参加者, 関連プロジェクト）"""
     if not q or len(q.strip()) == 0:
         return []
     term = f"%{q.strip()}%"
     return (
         db.query(models.Event)
+        .outerjoin(models.Project, models.Event.project_id == models.Project.id)
+        .filter(or_(models.Event.project_id == None, models.Project.display_status != 'offline'))
         .filter(
             or_(
                 models.Event.title.ilike(term),
-                (models.Event.description or "").ilike(term),
+                models.Event.description.ilike(term),
+                models.Event.location.ilike(term),
+                cast(models.Event.participants, String).ilike(term),
+                models.Project.name.ilike(term),
+                models.Project.description.ilike(term),
             )
         )
+        .distinct()
         .limit(limit)
         .all()
     )

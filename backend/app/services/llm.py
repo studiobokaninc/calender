@@ -1,4 +1,6 @@
 import os
+import mimetypes
+import pathlib
 from google import genai
 from google.genai import types
 import json
@@ -87,6 +89,7 @@ class LLMClient:
         project_list = inputs.get("proj", "")
         user_list = inputs.get("user_list", "")
         events_csv = inputs.get("events", "")
+        notes_text = inputs.get("notes", "")
 
         common_instructions = f"""
 現在日時: {now_str}
@@ -123,6 +126,8 @@ class LLMClient:
 - **スケジュール考慮**: カレンダーイベント情報がある場合、タスクの期限や作業時間と照らし合わせて無理のない計画を提案してください。
 - **他言無用**: ユーザーに関係のない他人のプライベートなタスク詳細には深入りしないでください（共有プロジェクトの文脈はOK）。
 - **推論と提案**: 「〇〇のタスクが遅れていますが、来週の会議（△△）までに間に合いますか？」のように、スケジュールとタスクを関連付けたアドバイスを行ってください。
+- **メモ活用**: ユーザーのメモ情報も参照し、質問に対するコンテキストとして活用してください。
+- **操作制限**: あなたは一般ユーザー向けのサポートモードのため、タスクの作成・更新・削除などの直接的な操作権限を持っていません。ユーザーから依頼があった場合は「申し訳ありませんが、タスクの直接操作はできません。必要であれば管理者に依頼するか、ダッシュボードから操作してください」と回答してください。
 
 **コンテキスト情報**
 【ユーザーのスケジュール (直近)】
@@ -134,6 +139,9 @@ id, name, project_id, assigned_to, due_date, status, priority
 
 【関連プロジェクト】
 {project_list}
+
+【ユーザーのメモ】
+{notes_text}
 """
         else: # admin / dashboard
             role_instruction = f"""
@@ -141,14 +149,17 @@ id, name, project_id, assigned_to, due_date, status, priority
 プロジェクトの健全性、リソース配分、進捗管理をサポートします。
 
 **あなたの行動指針**
-- **全体俯瞰**: プロジェクト全体の遅延、リスク、リソース不足を特定し報告してください。
+- **全体俯瞰**: 提供された全データを分析し、プロジェクト全体の遅延、リスク、リソース不足、または順調な進捗を報告してください。
+- **データに基づく回答**: タスクリストやイベント情報を網羅的に確認し、根拠のある回答を提示してください。
 - **管理支援**: 管理者が「何をすべきか」を判断するための明確なタスクリストやサマリを提供してください。
 - **積極的な編集**: 管理者が会話の中で「タスクを変更して」「完了にして」と言った場合、**確認を求めすぎず**に、即座にアクションJSONを出力して実行を促してください。管理者の決定は即時の指令とみなします。
 
 **コンテキスト情報**
-【注目すべきタスク (遅延・期限間近・高優先度)】
-id, name, project_id, assigned_to, due_date, status, priority
+【全タスク一覧 (未完了のみ)】
 {task_csv}
+
+【全プロジェクトのイベント・スケジュール】
+{events_csv}
 
 【プロジェクト一覧】
 {project_list}
@@ -182,10 +193,44 @@ id, name, project_id, assigned_to, due_date, status, priority
         # 履歴の取得
         history_contents = self._get_history(conversation_id)
         
-        # System Prompt Injection (Turn 0 injection or config injection)
-        # 2.0 Client uses config.system_instruction
+        # System Prompt Injection
+        # テキストパート作成
+        system_parts = [types.Part.from_text(text=system_prompt)]
+        
+        # 添付ファイル(PDF/画像)があればシステムプロンプトに追加 (最大10件程度)
+        attachments = inputs.get("attachments", [])
+        if attachments:
+            logger.info(f"Processing {len(attachments)} attachments for system context.")
+            for file_path in attachments:
+                try:
+                    p = pathlib.Path(file_path)
+                    if not p.exists():
+                        continue
+                        
+                    mime_type, _ = mimetypes.guess_type(file_path)
+                    if not mime_type:
+                        # 拡張子から推測
+                        if file_path.lower().endswith(".pdf"):
+                            mime_type = "application/pdf"
+                        elif file_path.lower().endswith(".jpg") or file_path.lower().endswith(".jpeg"):
+                            mime_type = "image/jpeg"
+                        elif file_path.lower().endswith(".png"):
+                            mime_type = "image/png"
+                        else:
+                            continue # 未知のタイプはスキップ
+                            
+                    with open(file_path, "rb") as f:
+                        file_data = f.read()
+                        
+                    # Gemini API (0.1+) Part format
+                    part = types.Part.from_bytes(data=file_data, mime_type=mime_type)
+                    system_parts.append(part)
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to load attachment {file_path}: {e}")
+
         current_config = self.config
-        current_config.system_instruction = [types.Part.from_text(text=system_prompt)]
+        current_config.system_instruction = system_parts
 
         try:
             # google-genai 1.0+ async chat structure

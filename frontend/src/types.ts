@@ -112,6 +112,7 @@ export interface CalendarEvent {
   textColor?: string;
   classNames?: string[];
   display?: 'auto' | 'block' | 'list-item' | 'background' | 'inverse-background' | 'none';
+  editable?: boolean;
   // Store original backend data and additional processed data
   extendedProps: {
     type: 'project' | 'task' | 'Meeting' | 'Workshop' | 'Deadline' | 'Milestone' | 'Generic' | string;

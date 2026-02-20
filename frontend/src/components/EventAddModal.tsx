@@ -1380,34 +1380,27 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
               <>
                 <Grid item xs={12}>
                   <FormControl fullWidth error={!!errors.phaseTargetTaskId} size="small" sx={{ mb: 1.5 }}>
-                    <Autocomplete
-                      options={tasksFromProps
-                        .filter(t => t.status !== 'completed' && t.status !== 'cancelled')
-                        .map(t => ({ id: String(t.id), label: t.name || `Task ${t.id}` }))}
-                      getOptionLabel={(option) => option.label || ''}
-                      value={formData.phaseTargetTaskId ? (
-                        tasksFromProps.find(t => String(t.id) === formData.phaseTargetTaskId)
-                          ? { id: formData.phaseTargetTaskId, label: tasksFromProps.find(t => String(t.id) === formData.phaseTargetTaskId)?.name || '' }
-                          : null
-                      ) : null}
-                      onChange={(_, newValue) => {
-                        setFormData({ ...formData, phaseTargetTaskId: newValue ? newValue.id : null });
-                        if (newValue && errors.phaseTargetTaskId) {
-                          setErrors({ ...errors, phaseTargetTaskId: undefined });
-                        }
+                    <InputLabel id="phase-target-task-label">対象タスク (未完了のみ) *</InputLabel>
+                    <Select
+                      labelId="phase-target-task-label"
+                      value={formData.phaseTargetTaskId || ''}
+                      label="対象タスク (未完了のみ) *"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({ ...formData, phaseTargetTaskId: val || null });
+                        if (errors.phaseTargetTaskId) setErrors({ ...errors, phaseTargetTaskId: undefined });
                       }}
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          label="対象タスク (未完了のみ) *"
-                          error={!!errors.phaseTargetTaskId}
-                          helperText={errors.phaseTargetTaskId}
-                          required
-                          size="small"
-                        />
-                      )}
-                      isOptionEqualToValue={(option, value) => option.id === value.id}
-                    />
+                      required
+                    >
+                      {tasksFromProps
+                        .filter(t => t.status !== 'completed' && t.status !== 'cancelled')
+                        .map(t => (
+                          <MenuItem key={t.id} value={String(t.id)}>
+                            {t.name || `Task ${t.id}`}
+                          </MenuItem>
+                        ))}
+                    </Select>
+                    {errors.phaseTargetTaskId && <FormHelperText>{errors.phaseTargetTaskId}</FormHelperText>}
                   </FormControl>
                 </Grid>
                 <Grid item xs={12}>
@@ -1558,44 +1551,44 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                 {/* Participants (for Meeting, Workshop, Generic) */}
                 {showParticipants && (
                   <Grid item xs={12}>
-                    <Autocomplete
-                      multiple
-                      id="participants-autocomplete"
-                      size="small"
-                      options={participantOptions}
-                      getOptionLabel={(option) => option.label}
-                      value={selectedParticipants}
-                      onChange={(_event, newValue) => {
-                        setSelectedParticipants(newValue);
-                      }}
-                      isOptionEqualToValue={(option, value) => option.id === value.id && option.type === value.type}
-                      renderTags={(value, getTagProps) =>
-                        value.map((option, index) => {
-                          const { key, ...tagProps } = getTagProps({ index });
-                          return (
-                            <Chip
-                              key={key}
-                              variant="outlined"
-                              size="small"
-                              label={option.label}
-                              {...tagProps}
-                            />
-                          );
-                        })
-                      }
-                      renderInput={(params) => (
-                        <TextField
-                          {...params}
-                          variant="outlined"
-                          label="参加者"
-                          placeholder="ユーザーを選択"
-                          size="small"
-                        />
-                      )}
-                      loading={participantsLoading}
-                      loadingText="読み込み中..."
-                      noOptionsText="該当なし"
-                    />
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="participants-select-label">参加者</InputLabel>
+                      <Select
+                        labelId="participants-select-label"
+                        multiple
+                        value={selectedParticipants.map(p => `${p.type}-${p.id}`)}
+                        label="参加者"
+                        onChange={(e) => {
+                          const values = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value as string[];
+                          const newSelected = values.map((val) => {
+                            const match = val.match(/^(user|group)-(\d+)$/);
+                            if (!match) return null;
+                            const type = match[1] as 'user' | 'group';
+                            const id = match[2];
+                            return participantOptions.find(opt => opt.type === type && opt.id === id);
+                          }).filter((p): p is ParticipantOption => p !== null && p !== undefined);
+                          setSelectedParticipants(newSelected);
+                        }}
+                        renderValue={(selected) => (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {selected.map((val) => {
+                              const match = val.match(/^(user|group)-(\d+)$/);
+                              if (!match) return null;
+                              const type = match[1];
+                              const id = match[2];
+                              const option = participantOptions.find(opt => opt.type === type && opt.id === id);
+                              return <Chip key={val} label={option?.label || val} size="small" />;
+                            })}
+                          </Box>
+                        )}
+                      >
+                        {participantOptions.map((option) => (
+                          <MenuItem key={`${option.type}-${option.id}`} value={`${option.type}-${option.id}`}>
+                            {option.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
                   </Grid>
                 )}
               </Grid>

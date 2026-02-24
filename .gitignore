@@ -2,6 +2,31 @@
 *.db
 *.db-journal
 *.pyc
+*.pyo
+*.pyi
+
+# Python Virtual Environment
+venv/
+env/
+.env
+
+# Cache directories
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+
+# Node.js
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs and IDEs
+*.log
+.vscode/
+.idea/
+
+# Custom application files
 backend/*.db
 backend/*.db-journal 
 backend/static/uploads/*

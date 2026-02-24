@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MockDataImport, TaskCreate, NoteCreate, NoteUpdate } from '../types';
+import { MockDataImport, NoteCreate, NoteUpdate } from '../types';
 
 // APIクライアントの設定
 const baseURL = '/api'; // 相対パスに変更
@@ -36,13 +36,13 @@ api.interceptors.request.use(
         }
       }
     }
-    
+
     // トークンが存在すれば、リクエストヘッダーに追加
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     return config;
   },
   (error) => {
@@ -72,7 +72,7 @@ api.interceptors.response.use(
           error.message = validationErrors;
         }
       }
-      
+
       // 401エラーの場合、ログアウト処理（トークン無効の場合）
       // チャットのタスクアクションの 401 はログアウトせず、Dashboard でメッセージ表示する
       const requestUrl = error.config?.url ?? '';
@@ -139,7 +139,7 @@ export const mockDataApi = {
     try {
       // 現在のデータを取得
       const currentData = await mockDataApi.exportMockData();
-      
+
       // 更新データを準備（結合）
       const combinedData = {
         ...currentData,
@@ -147,7 +147,7 @@ export const mockDataApi = {
         ...(userData.users ? { users: userData.users } : {}),
         ...(eventData.events ? { events: eventData.events } : {})
       };
-      
+
       // 結合したデータをインポート
       const response = await api.post('/admin/mock-data/import', combinedData);
       return response.data;
@@ -250,7 +250,7 @@ export async function fetchEvents() {
   return response.data;
 }
 
-export default api; 
+export default api;
 
 // --- Chat API ---
 export const chatApi = {
@@ -318,6 +318,17 @@ export const notesApi = {
     formData.append('file', file)
     const headers: any = {}
     const response = await api.post('/notes/upload-pdf', formData, {
+      headers,
+    })
+    return response.data
+  },
+
+  // 音声をアップロード
+  uploadAudio: async (file: File): Promise<{ url: string }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const headers: any = {}
+    const response = await api.post('/notes/upload-audio', formData, {
       headers,
     })
     return response.data

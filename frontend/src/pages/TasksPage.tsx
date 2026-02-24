@@ -9,7 +9,7 @@ import {
 import {
     Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon,
     FilterList as FilterListIcon, Close as CloseIcon,
-    CalendarToday as CalendarIcon, Folder as FolderIcon, Person as PersonIcon, PriorityHigh as PriorityIcon
+    CalendarToday as CalendarIcon, Folder as FolderIcon, PriorityHigh as PriorityIcon
 } from '@mui/icons-material';
 import { IconButton } from '@mui/material';
 import api from '../services/api';
@@ -1238,7 +1238,6 @@ const TasksPage: React.FC = () => {
                     borderColor: 'divider',
                     overflow: 'hidden',
                     bgcolor: isMobile ? 'transparent' : 'background.paper', // モバイル時は背景透過（カードの影を活かすため）または背景色調整
-                    border: isMobile ? 'none' : '1px solid', // モバイル時は枠線を消す
                 }}
             >
                 {!isMobile && (

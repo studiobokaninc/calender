@@ -271,6 +271,8 @@ export interface Note {
   image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
   pdf_urls?: string[] | null;
   pdf_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  audio_urls?: string[] | null;
+  audio_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
   content_position?: { x: number; y: number; width: number; height: number } | null; // 後方互換性のため残す
   text_boxes?: Array<{ id: string; content: string; x: number; y: number; width: number; height: number }> | null;
   project_id?: number | null;
@@ -286,6 +288,8 @@ export interface NoteCreate {
   image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
   pdf_urls?: string[] | null;
   pdf_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  audio_urls?: string[] | null;
+  audio_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
   content_position?: { x: number; y: number; width: number; height: number } | null; // 後方互換性のため残す
   text_boxes?: Array<{ id: string; content: string; x: number; y: number; width: number; height: number }> | null;
   project_id?: number | null;
@@ -298,6 +302,8 @@ export interface NoteUpdate {
   image_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
   pdf_urls?: string[] | null;
   pdf_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
+  audio_urls?: string[] | null;
+  audio_positions?: { [url: string]: { x: number; y: number; width: number; height: number } } | null;
   content_position?: { x: number; y: number; width: number; height: number } | null; // 後方互換性のため残す
   text_boxes?: Array<{ id: string; content: string; x: number; y: number; width: number; height: number }> | null;
   project_id?: number | null;

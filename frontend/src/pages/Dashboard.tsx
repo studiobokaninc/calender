@@ -234,19 +234,7 @@ const Dashboard: React.FC = () => {
       const p = projects.find((x: any) => x.id === projectId)
       return p?.name ?? `ID:${projectId}`
     }
-    // ISO文字列をローカル日付の YYYY-MM-DD に変換（タイムゾーンずれを防ぐ）
-    const toLocalDateStr = (s: string | null | undefined): string => {
-      if (!s) return ''
-      const d = new Date(s)
-      if (isNaN(d.getTime())) return ''
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    }
-    // 終了時刻がローカルで 00:00:00 か（「翌日 00:00」で保存された終日イベント＝実質その日で終了）
-    const isMidnight = (s: string | null | undefined): boolean => {
-      if (!s) return true
-      const d = new Date(s)
-      return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0
-    }
+
 
     type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; }
 

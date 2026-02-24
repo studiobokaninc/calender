@@ -271,6 +271,8 @@ class NoteBase(BaseModel):
     image_positions: Optional[Dict[str, Dict[str, float]]] = Field(default_factory=dict)  # {url: {x, y, width, height}}
     pdf_urls: Optional[List[str]] = Field(default_factory=list)
     pdf_positions: Optional[Dict[str, Dict[str, float]]] = Field(default_factory=dict)  # {url: {x, y, width, height}}
+    audio_urls: Optional[List[str]] = Field(default_factory=list)
+    audio_positions: Optional[Dict[str, Dict[str, float]]] = Field(default_factory=dict)  # {url: {x, y, width, height}}
     content_position: Optional[Dict[str, float]] = None  # {x, y, width, height}（後方互換性のため残す）
     text_boxes: Optional[List[Dict[str, Any]]] = None  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Optional[int] = None
@@ -285,6 +287,8 @@ class NoteUpdate(BaseModel):
     image_positions: Optional[Dict[str, Dict[str, float]]] = None  # {url: {x, y, width, height}}
     pdf_urls: Optional[List[str]] = None
     pdf_positions: Optional[Dict[str, Dict[str, float]]] = None  # {url: {x, y, width, height}}
+    audio_urls: Optional[List[str]] = None
+    audio_positions: Optional[Dict[str, Dict[str, float]]] = None  # {url: {x, y, width, height}}
     content_position: Optional[Dict[str, float]] = None  # {x, y, width, height}（後方互換性のため残す）
     text_boxes: Optional[List[Dict[str, Any]]] = None  # テキストボックス配列 [{id, content, x, y, width, height}]
     project_id: Optional[int] = None

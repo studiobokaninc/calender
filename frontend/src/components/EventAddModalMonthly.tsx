@@ -5,8 +5,7 @@ import {
   FormHelperText, RadioGroup, Radio, Divider, Typography,
   Autocomplete, Chip
 } from '@mui/material';
-import { format, parseISO, isValid as isDateValid, addDays, addHours, startOfDay, setHours, setMinutes, parse } from 'date-fns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { format, parseISO, isValid as isDateValid, addHours, startOfDay, setHours, setMinutes } from 'date-fns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { Project, User, Group, CalendarEvent, Task } from '../types';

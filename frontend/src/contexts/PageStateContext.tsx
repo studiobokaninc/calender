@@ -125,7 +125,6 @@ const PageStateContext = createContext<PageStateContextType | undefined>(undefin
 // ブラウザ更新を検知するためのフラグ
 const SESSION_STORAGE_KEY = 'page_state_initialized';
 const REFRESH_FLAG_KEY = 'page_state_refresh_flag';
-const NAVIGATION_ENTRY_KEY = 'page_state_navigation_entry';
 
 interface PageStateProviderProps {
   children: ReactNode;
@@ -166,7 +165,7 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
 
   // ブラウザ更新を検知するためのイベントリスナー
   useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (_event: BeforeUnloadEvent) => {
       // ページが更新される前にフラグを設定
       console.log('Before unload - setting refresh flag');
       sessionStorage.setItem(REFRESH_FLAG_KEY, 'true');

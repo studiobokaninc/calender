@@ -24,7 +24,7 @@ const ProjectDetailPage: React.FC = () => {
   // ★ グループ作成ダイアログ用の state を追加
   const [isGroupCreateDialogOpen, setIsGroupCreateDialogOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
-  
+
   // ★ Snackbar 用の state を追加 (フィードバック用)
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' | 'warning' }>({
     open: false,
@@ -79,7 +79,7 @@ const ProjectDetailPage: React.FC = () => {
     const weightedCompletedCost = tasks.reduce((sum, task) => {
       const cost = Number(task.cost) || 0;
       // status が null や undefined の場合のデフォルト値を 'todo' とする
-      const statusKey = task.status || 'todo'; 
+      const statusKey = task.status || 'todo';
       const progress = progressMap[statusKey] || 0; // ステータスに対応する進捗率を取得 (存在しないキーの場合は0)
       return sum + cost * (progress / 100); // コストに進捗率を掛けて加算
     }, 0);
@@ -92,7 +92,7 @@ const ProjectDetailPage: React.FC = () => {
     const assigneeIds = new Set<number>();
     tasks.forEach(task => {
       // ★ null と undefined をチェック
-      if (task.assigned_to !== null && task.assigned_to !== undefined) { 
+      if (task.assigned_to !== null && task.assigned_to !== undefined) {
         assigneeIds.add(Number(task.assigned_to)); // Number に変換
       }
     });
@@ -116,56 +116,56 @@ const ProjectDetailPage: React.FC = () => {
   const handleNewGroupNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setNewGroupName(event.target.value);
   };
-  
+
   // ★★★ Snackbar クローズハンドラ ★★★
-   const handleCloseSnackbar = (event?: React.SyntheticEvent | Event, reason?: string) => {
+  const handleCloseSnackbar = (_event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') {
       return;
     }
     setSnackbar({ ...snackbar, open: false });
   };
-  
+
   // ★★★ グループ作成処理 API ロジック実装 ★★★
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
-        setSnackbar({ open: true, message: 'グループ名を入力してください', severity: 'warning' });
-        return;
+      setSnackbar({ open: true, message: 'グループ名を入力してください', severity: 'warning' });
+      return;
     }
     if (involvedUsers.length === 0) {
-        setSnackbar({ open: true, message: 'グループに追加するメンバーがいません', severity: 'warning' });
-        return;
+      setSnackbar({ open: true, message: 'グループに追加するメンバーがいません', severity: 'warning' });
+      return;
     }
-    
+
     console.log(`Creating group "${newGroupName}" with users:`, involvedUsers.map(u => u.id));
-    
+
     try {
-        setLoading(true); 
+      setLoading(true);
 
-        // 1. グループ作成 API 呼び出し
-        const groupCreateData = { name: newGroupName.trim() };
-        const groupResponse = await api.post<Group>('/api/groups', groupCreateData);
-        const newGroupId = groupResponse.data.id;
-        console.log("Group created successfully, ID:", newGroupId);
+      // 1. グループ作成 API 呼び出し
+      const groupCreateData = { name: newGroupName.trim() };
+      const groupResponse = await api.post<Group>('/api/groups', groupCreateData);
+      const newGroupId = groupResponse.data.id;
+      console.log("Group created successfully, ID:", newGroupId);
 
-        // 2. ユーザーをグループに追加 API 呼び出し (Promise.all で並行処理)
-        const addUserPromises = involvedUsers.map(user => {
-             // ★ 文字列変換 String() を削除し、整数で送信 ★
-            const userGroupData = { user_id: user.id, group_id: newGroupId }; 
-            return api.post('/api/user_groups', userGroupData); 
-        });
-        
-        await Promise.all(addUserPromises);
-        console.log("Users added to group successfully.");
+      // 2. ユーザーをグループに追加 API 呼び出し (Promise.all で並行処理)
+      const addUserPromises = involvedUsers.map(user => {
+        // ★ 文字列変換 String() を削除し、整数で送信 ★
+        const userGroupData = { user_id: user.id, group_id: newGroupId };
+        return api.post('/api/user_groups', userGroupData);
+      });
 
-        setSnackbar({ open: true, message: `グループ「${newGroupName}」が作成されました`, severity: 'success' });
-        handleCloseGroupCreateDialog();
+      await Promise.all(addUserPromises);
+      console.log("Users added to group successfully.");
+
+      setSnackbar({ open: true, message: `グループ「${newGroupName}」が作成されました`, severity: 'success' });
+      handleCloseGroupCreateDialog();
 
     } catch (err: any) {
-        console.error("Failed to create group or add users:", err);
-        const errorDetail = err.response?.data?.detail || err.message || '不明なエラーが発生しました';
-        setSnackbar({ open: true, message: `グループ作成に失敗しました: ${errorDetail}`, severity: 'error' });
+      console.error("Failed to create group or add users:", err);
+      const errorDetail = err.response?.data?.detail || err.message || '不明なエラーが発生しました';
+      setSnackbar({ open: true, message: `グループ作成に失敗しました: ${errorDetail}`, severity: 'error' });
     } finally {
-         setLoading(false); 
+      setLoading(false);
     }
   };
 
@@ -218,7 +218,7 @@ const ProjectDetailPage: React.FC = () => {
               {project.description}
             </Typography>
           </Grid>
-          
+
           {/* プロジェクトの日付情報を追加 */}
           <Grid item xs={12} sm={6}>
             <Typography variant="subtitle2" color="text.secondary">
@@ -274,17 +274,17 @@ const ProjectDetailPage: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* ★★★ 詳細情報エリア (タスクリストとユーザーリスト) ★★★ */}      
+      {/* ★★★ 詳細情報エリア (タスクリストとユーザーリスト) ★★★ */}
       <Grid container spacing={3}>
         {/* 左側: タスクリスト (将来) */}
-        <Grid item xs={12} md={8}> 
+        <Grid item xs={12} md={8}>
           <Paper sx={{ p: 2, height: '100%' }}>
             <Typography variant="h6" gutterBottom>タスク詳細 (実装予定)</Typography>
-            {/* <TaskList tasks={tasks} /> など */} 
+            {/* <TaskList tasks={tasks} /> など */}
           </Paper>
         </Grid>
-        
-        {/* 右側: 関連メンバーリスト */} 
+
+        {/* 右側: 関連メンバーリスト */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, height: '100%' }}>
             <Typography variant="h6" gutterBottom>
@@ -299,7 +299,7 @@ const ProjectDetailPage: React.FC = () => {
                       {/* ★ user.name が存在するかチェック */}
                       {user.name ? user.name.charAt(0).toUpperCase() : '-'}
                     </Avatar>
-                    <ListItemText 
+                    <ListItemText
                       // ★ user.name がなければ email を表示
                       primary={user.name || user.email}
                       primaryTypographyProps={{ variant: 'body2' }}
@@ -312,64 +312,64 @@ const ProjectDetailPage: React.FC = () => {
                 関連するメンバーはいません。
               </Typography>
             )}
-             {/* ★ グループ作成ボタンを追加 (メンバーがいる場合のみ表示) ★ */} 
-             {involvedUsers.length > 0 && (
-                <Button 
-                    variant="outlined" 
-                    size="small" 
-                    sx={{ mt: 2 }}
-                    onClick={handleOpenGroupCreateDialog} // ★ ハンドラを設定
-                >
-                    このメンバーでグループ作成
-                </Button>
-             )}
+            {/* ★ グループ作成ボタンを追加 (メンバーがいる場合のみ表示) ★ */}
+            {involvedUsers.length > 0 && (
+              <Button
+                variant="outlined"
+                size="small"
+                sx={{ mt: 2 }}
+                onClick={handleOpenGroupCreateDialog} // ★ ハンドラを設定
+              >
+                このメンバーでグループ作成
+              </Button>
+            )}
           </Paper>
         </Grid>
       </Grid>
-      
-      {/* ★★★ グループ作成ダイアログ ★★★ */} 
+
+      {/* ★★★ グループ作成ダイアログ ★★★ */}
       <Dialog open={isGroupCreateDialogOpen} onClose={handleCloseGroupCreateDialog} maxWidth="xs" fullWidth>
-          <DialogTitle>新規グループ作成</DialogTitle>
-          <DialogContent>
-              <TextField
-                  autoFocus
-                  margin="dense"
-                  id="group-name"
-                  label="グループ名"
-                  type="text"
-                  fullWidth
-                  variant="standard"
-                  value={newGroupName}
-                  onChange={handleNewGroupNameChange}
-                  sx={{ mb: 2 }}
-              />
-               <Typography variant="body2" gutterBottom>
-                   以下のメンバーが含まれます ({involvedUsers.length}名):
-               </Typography>
-               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {involvedUsers.map(user => (
-                        <Chip key={user.id} label={user.name || user.email} size="small" />
-                    ))}
-               </Box>
-          </DialogContent>
-          <DialogActions>
-              <Button onClick={handleCloseGroupCreateDialog}>キャンセル</Button>
-              {/* ★ 作成処理ハンドラを設定 */} 
-              <Button onClick={handleCreateGroup} variant="contained">作成</Button>
-          </DialogActions>
+        <DialogTitle>新規グループ作成</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="group-name"
+            label="グループ名"
+            type="text"
+            fullWidth
+            variant="standard"
+            value={newGroupName}
+            onChange={handleNewGroupNameChange}
+            sx={{ mb: 2 }}
+          />
+          <Typography variant="body2" gutterBottom>
+            以下のメンバーが含まれます ({involvedUsers.length}名):
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {involvedUsers.map(user => (
+              <Chip key={user.id} label={user.name || user.email} size="small" />
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseGroupCreateDialog}>キャンセル</Button>
+          {/* ★ 作成処理ハンドラを設定 */}
+          <Button onClick={handleCreateGroup} variant="contained">作成</Button>
+        </DialogActions>
       </Dialog>
-      
-      {/* ★★★ Snackbar (フィードバック用) ★★★ */} 
-       <Snackbar 
-           open={snackbar.open} 
-           autoHideDuration={6000} 
-           onClose={handleCloseSnackbar}
-           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-       >
-           <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-               {snackbar.message}
-           </Alert>
-       </Snackbar>
+
+      {/* ★★★ Snackbar (フィードバック用) ★★★ */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
 
     </Box>
   );

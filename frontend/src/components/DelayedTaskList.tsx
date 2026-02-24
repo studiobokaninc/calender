@@ -9,11 +9,11 @@ import { format, differenceInDays, isValid, startOfDay, parseISO, isBefore } fro
 
 // 遅延タスク情報の型定義
 interface DelayedTaskInfo {
-    id: string;
+    id: number;
     title: string;
-    assigneeId: string;
+    assigneeId: number;
     assigneeName: string;
-    projectId: string;
+    projectId: number | null;
     projectName: string;
     dueDate: Date | null;
     delayDays: number | null;
@@ -36,12 +36,12 @@ const calculateDelayedTaskData = (
     projects: Project[]
 ): DelayedTaskInfo[] => {
     const today = startOfDay(new Date()); // 今日の開始時刻
-    
+
     // ★★★ フィルター条件を変更 ★★★
     const delayedTasks = tasks.filter(task => {
         // 1. 期限日があるか？
         if (!task.due_date) return false;
-        
+
         const dueDate = startOfDay(parseISO(task.due_date));
         // 2. 期限日が有効で、かつ過去か？
         if (!isValid(dueDate) || !isBefore(dueDate, today)) return false;
@@ -55,14 +55,14 @@ const calculateDelayedTaskData = (
         const assignee = users.find(u => u.id === task.assigned_to);
         const project = projects.find(p => p.id === task.project_id);
         const dueDate = startOfDay(parseISO(task.due_date!)); // 上でチェック済みなので Non-null assertion
-        const delayDays = differenceInDays(today, dueDate); 
+        const delayDays = differenceInDays(today, dueDate);
 
         return {
             id: task.id,
             title: task.name,
-            assigneeId: assignee?.id || 'unknown',
+            assigneeId: assignee?.id || -1,
             assigneeName: assignee?.full_name || assignee?.username || '不明',
-            projectId: project?.id || 'unknown',
+            projectId: project?.id || null,
             projectName: project?.name || '不明',
             dueDate: dueDate,
             // 遅延日数は1日以上のはずだが念のため max(1, ...) or max(0, ...) 
@@ -85,9 +85,9 @@ function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
 
     // Dateオブジェクトの場合、getTime()で比較
     if (aValue instanceof Date && bValue instanceof Date) {
-         if (bValue.getTime() < aValue.getTime()) return -1;
-         if (bValue.getTime() > aValue.getTime()) return 1;
-         return 0;
+        if (bValue.getTime() < aValue.getTime()) return -1;
+        if (bValue.getTime() > aValue.getTime()) return 1;
+        return 0;
     }
 
     // 通常の比較
@@ -126,7 +126,7 @@ function stableSort(array: readonly DelayedTaskInfo[], comparator: (a: DelayedTa
 const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, projects }) => {
     const [order, setOrder] = useState<Order>('desc'); // デフォルトは遅延日数の降順
     const [orderBy, setOrderBy] = useState<OrderBy>('delayDays');
-    const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
+    const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]);
 
     // 遅延タスクデータの計算 (初回のみ)
     const allDelayedTasks = useMemo(
@@ -139,7 +139,7 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
         users
             .filter(u => u.role !== 'admin' && allDelayedTasks.some(task => task.assigneeId === u.id)) // 遅延タスクを持つ担当者のみ
             .map(u => ({ id: u.id, name: u.full_name || u.username }))
-    , [users, allDelayedTasks]);
+        , [users, allDelayedTasks]);
     const allAssigneeIds = useMemo(() => assigneeOptions.map(opt => opt.id), [assigneeOptions]);
 
     // フィルター適用後のデータ
@@ -176,11 +176,11 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
 
     return (
         <Paper sx={{ p: 2, mt: 3 }}> {/* 上にマージンを追加 */}
-             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
                     遅延タスクリスト
                 </Typography>
-                 <MuiTooltip
+                <MuiTooltip
                     title={
                         <Box sx={{ fontSize: '0.75rem' }}>
                             期限日が過ぎており、かつステータスが完了('Done')でないタスクの一覧です。
@@ -196,45 +196,45 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
 
             {/* フィルター */}
             <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                 <FormControl size="small" sx={{ minWidth: 200 }}>
-                    <InputLabel sx={{fontSize: '0.8rem'}}>担当者</InputLabel>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel sx={{ fontSize: '0.8rem' }}>担当者</InputLabel>
                     <Select
                         multiple
                         value={selectedAssigneeIds}
                         onChange={(e) => {
                             const value = e.target.value;
-                            const newValue = typeof value === 'string' ? value.split(',') : (Array.isArray(value) ? value : []);
-                            setSelectedAssigneeIds(newValue.filter(id => id !== 'select-all'));
+                            const newValue = typeof value === 'string' ? value.split(',').map(Number) : (Array.isArray(value) ? value : []);
+                            setSelectedAssigneeIds(newValue.filter(id => id !== -1));
                         }}
                         input={<OutlinedInput label="担当者" />}
                         renderValue={(selected) =>
                             selected.length === 0 || selected.length === allAssigneeIds.length
-                              ? 'すべて'
-                              : selected.map(id => assigneeOptions.find(opt => opt.id === id)?.name).join(', ')
+                                ? 'すべて'
+                                : selected.map(id => assigneeOptions.find(opt => opt.id === id)?.name).join(', ')
                         }
                         MenuProps={{ PaperProps: { style: { maxHeight: 224 } } }}
-                         sx={{fontSize: '0.8rem'}}
+                        sx={{ fontSize: '0.8rem' }}
                     >
-                         <MenuItem>
+                        <MenuItem>
                             <Checkbox
                                 checked={selectedAssigneeIds.length === allAssigneeIds.length && allAssigneeIds.length > 0} // 全件数が0の場合を除く
                                 indeterminate={selectedAssigneeIds.length > 0 && selectedAssigneeIds.length < allAssigneeIds.length}
                                 onChange={handleSelectAllAssignees}
                                 size="small"
                                 disabled={allAssigneeIds.length === 0} // 選択肢がない場合は無効
-                             />
+                            />
                             <ListItemText primary="すべて選択/解除" primaryTypographyProps={{ fontSize: '0.85rem' }} />
-                         </MenuItem>
+                        </MenuItem>
                         {assigneeOptions.map((assignee) => (
                             <MenuItem key={assignee.id} value={assignee.id}>
                                 <Checkbox checked={selectedAssigneeIds.includes(assignee.id)} size="small" />
                                 <ListItemText primary={assignee.name} primaryTypographyProps={{ fontSize: '0.85rem' }} />
                             </MenuItem>
                         ))}
-                         {assigneeOptions.length === 0 && <MenuItem disabled sx={{fontSize: '0.8rem', color: 'text.secondary'}}>遅延タスクを持つ担当者がいません</MenuItem>}
+                        {assigneeOptions.length === 0 && <MenuItem disabled sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>遅延タスクを持つ担当者がいません</MenuItem>}
                     </Select>
                 </FormControl>
-             </Box>
+            </Box>
 
             {/* タスクリストテーブル */}
             <TableContainer>
@@ -242,7 +242,7 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
                     <TableHead>
                         <TableRow>
                             {/* ソート可能なヘッダーセル */}
-                             {([ 'title', 'projectName', 'assigneeName', 'dueDate', 'delayDays'] as const).map((headCell) => (
+                            {(['title', 'projectName', 'assigneeName', 'dueDate', 'delayDays'] as const).map((headCell) => (
                                 <TableCell
                                     key={headCell}
                                     sortDirection={orderBy === headCell ? order : false}
@@ -252,14 +252,14 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
                                         active={orderBy === headCell}
                                         direction={orderBy === headCell ? order : 'asc'}
                                         onClick={() => handleRequestSort(headCell)}
-                                        sx={{fontSize: 'inherit'}} // Inherit font size
+                                        sx={{ fontSize: 'inherit' }} // Inherit font size
                                     >
                                         {/* 列名の表示 */}
-                                        {headCell === 'title' ? 'タスク名' : 
-                                         headCell === 'projectName' ? 'プロジェクト' :
-                                         headCell === 'assigneeName' ? '担当者' :
-                                         headCell === 'dueDate' ? '期限日' :
-                                         headCell === 'delayDays' ? '遅延日数' : headCell}
+                                        {headCell === 'title' ? 'タスク名' :
+                                            headCell === 'projectName' ? 'プロジェクト' :
+                                                headCell === 'assigneeName' ? '担当者' :
+                                                    headCell === 'dueDate' ? '期限日' :
+                                                        headCell === 'delayDays' ? '遅延日数' : headCell}
                                     </TableSortLabel>
                                 </TableCell>
                             ))}
@@ -275,18 +275,18 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
                                     <TableCell sx={{ fontSize: '0.75rem' }}>
                                         {task.dueDate ? format(task.dueDate, 'yyyy/MM/dd') : '日付なし'}
                                     </TableCell>
-                                    <TableCell sx={{ fontSize: '0.75rem', color: task.delayDays !== null ? 'error.main' : 'text.disabled', fontWeight: task.delayDays !== null ? 'bold': 'normal' }}>
+                                    <TableCell sx={{ fontSize: '0.75rem', color: task.delayDays !== null ? 'error.main' : 'text.disabled', fontWeight: task.delayDays !== null ? 'bold' : 'normal' }}>
                                         {task.delayDays !== null ? `${task.delayDays} 日` : '-'}
                                     </TableCell>
                                 </TableRow>
                             ))
-                         ) : (
-                             <TableRow>
-                                 <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
                                     遅延しているタスクはありません。
                                 </TableCell>
-                             </TableRow>
-                         )}
+                            </TableRow>
+                        )}
                     </TableBody>
                 </Table>
             </TableContainer>

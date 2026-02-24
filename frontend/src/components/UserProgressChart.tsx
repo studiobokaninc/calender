@@ -1,22 +1,21 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Task, User, Project, StatusHistoryEntry } from '../types';
 import {
-    Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem, Tooltip as MuiTooltip, IconButton, CircularProgress, Grid,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, List, ListItem, ListItemIcon, ListItemText, LinearProgress
+    Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem, Tooltip as MuiTooltip, IconButton, Grid,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
-import { 
-    parseISO, 
-    format, 
-    eachDayOfInterval, 
-    min, 
-    max, 
-    isValid, 
-    startOfDay, 
-    differenceInDays, 
-    isBefore, 
-    isEqual 
+import {
+    parseISO,
+    format,
+    eachDayOfInterval,
+    min,
+    max,
+    isValid,
+    startOfDay,
+    isBefore,
+    isEqual
 } from 'date-fns';
 
 // Propsの型定義
@@ -50,14 +49,14 @@ const calculateUserProgressData = (
 ): ProgressDataPoint[] => {
     console.log(`Calculating single user progress data for user: ${selectedUserId}`);
     console.log('All tasks:', tasks.map(t => ({ id: t.id, name: t.name, assigned_to: t.assigned_to })));
-    
+
     const userTasks = tasks.filter(task => {
         const taskUserId = task.assigned_to?.toString();
         const selectedId = selectedUserId.toString();
         console.log(`Task ${task.id} assigned_to: ${taskUserId}, selectedUserId: ${selectedId}, match: ${taskUserId === selectedId}`);
         return taskUserId === selectedId;
     });
-    
+
     console.log(`Found ${userTasks.length} tasks for user ${selectedUserId}`);
     console.log('User tasks:', userTasks.map(t => ({ id: t.id, name: t.name, status: t.status })));
 
@@ -163,7 +162,7 @@ const calculateUserProgressData = (
             actualValue = ((doneCount * 1.0) + (inProgressCount * 0.5)) / totalUserTasksCount * 100;
             actualValue = Math.max(0, Math.min(100, Math.round(actualValue)));
         }
-        
+
         if (formattedDate > todayDateStr) {
             actualValue = null;
         }
@@ -182,7 +181,7 @@ const calculateUserProgressData = (
             plan: planValue,
             actual: actualValue,
         };
-    }); 
+    });
 
     console.log("Calculated progress data points:", progressData.length);
     return progressData;
@@ -204,14 +203,14 @@ const calculateAllUsersProgressData = (
                 const date = parseISO(history.changed_at);
                 if (isValid(date)) allDates.push(startOfDay(date));
             });
-             if (task.start_date) {
-                 const startDate = parseISO(task.start_date);
-                 if (isValid(startDate)) allDates.push(startOfDay(startDate));
-             }
-             if (task.due_date) {
-                 const dueDate = parseISO(task.due_date);
-                 if (isValid(dueDate)) allDates.push(startOfDay(dueDate));
-             }
+            if (task.start_date) {
+                const startDate = parseISO(task.start_date);
+                if (isValid(startDate)) allDates.push(startOfDay(startDate));
+            }
+            if (task.due_date) {
+                const dueDate = parseISO(task.due_date);
+                if (isValid(dueDate)) allDates.push(startOfDay(dueDate));
+            }
         }
     });
 
@@ -238,8 +237,8 @@ const calculateAllUsersProgressData = (
 
         relevantUsers.forEach(user => {
             const userId = user.id;
-            const userTasks = tasks.filter(task => 
-                task.assigned_to === userId && 
+            const userTasks = tasks.filter(task =>
+                task.assigned_to === userId &&
                 task.status_history &&
                 task.status_history.length > 0
             );
@@ -268,8 +267,8 @@ const calculateAllUsersProgressData = (
                     if (normalizedStatus === 'done') doneCount++;
                     else if (normalizedStatus === 'in-progress') inProgressCount++;
                 });
-                 const actualValue = ((doneCount * 1.0) + (inProgressCount * 0.5)) / totalUserTasksCount * 100;
-                 dataPoint[userId] = Math.max(0, Math.min(100, Math.round(actualValue))); 
+                const actualValue = ((doneCount * 1.0) + (inProgressCount * 0.5)) / totalUserTasksCount * 100;
+                dataPoint[userId] = Math.max(0, Math.min(100, Math.round(actualValue)));
             } else {
                 dataPoint[userId] = null;
             }
@@ -302,7 +301,7 @@ const getStatusCountsOnDate = (
     const targetUsers = selectedUserId === 'all'
         ? users.filter(u => u.role !== 'admin')
         : users.filter(u => u.id.toString() === selectedUserId.toString());
-    
+
     if (targetUsers.length === 0) return initialCounts;
 
     const targetTasks = selectedUserId === 'all'
@@ -340,7 +339,7 @@ const getStatusCountsOnDate = (
         if (task.due_date) {
             const dueDate = startOfDay(parseISO(task.due_date));
             if (isValid(dueDate) && isBefore(dueDate, targetDate) && finalStatus !== 'done') {
-                 finalStatus = 'delayed';
+                finalStatus = 'delayed';
             }
         }
 
@@ -355,7 +354,7 @@ const getStatusCountsOnDate = (
 
 // ★★★ ユーザーごとの色を定義 (適宜追加・変更) ★★★
 const USER_COLORS = [
-    '#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00C49F', 
+    '#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00C49F',
     '#FFBB28', '#FF8042', '#0088FE', '#A4DE6C', '#D0ED57'
 ];
 
@@ -382,7 +381,7 @@ const getTasksByStatusOnDate = (
     const targetUsers = selectedUserId === 'all'
         ? users.filter(u => u.role !== 'admin')
         : users.filter(u => u.id.toString() === selectedUserId.toString());
-    
+
     if (targetUsers.length === 0) return [];
 
     const targetUserIds = new Set(targetUsers.map(u => u.id.toString()));
@@ -412,15 +411,15 @@ const getTasksByStatusOnDate = (
                 }
             });
         }
-        
+
         // ★★★ types.ts に合わせて taskStartDate ★★★
         if (!statusOnDate && task.start_date) {
             const startDate = startOfDay(parseISO(task.start_date));
             if (isValid(startDate) && (isBefore(startDate, targetDate) || isEqual(startDate, targetDate))) {
-                statusOnDate = 'todo'; 
+                statusOnDate = 'todo';
             }
         }
-        
+
         if (!statusOnDate) return;
 
         let finalStatus: string | undefined = statusOnDate;
@@ -431,10 +430,10 @@ const getTasksByStatusOnDate = (
         if (task.due_date) {
             const dueDate = startOfDay(parseISO(task.due_date));
             if (isValid(dueDate) && isBefore(dueDate, targetDate) && finalStatus !== 'done') {
-                 finalStatus = 'delayed';
+                finalStatus = 'delayed';
             }
         }
-        
+
         if (finalStatus === targetStatus) {
             filteredTasks.push(task);
         }
@@ -479,7 +478,7 @@ const calculateMetrics = (tasks: Task[]) => {
     };
 };
 
-const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, projects }) => {
+const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, projects: _projects }) => {
     const [selectedUserId, setSelectedUserId] = useState<string | 'all'>('all');
     const [hoveredDate, setHoveredDate] = useState<string | null>(null);
     const [statusCountsAtHoveredDate, setStatusCountsAtHoveredDate] = useState<StatusCounts>({ todo: 0, inProgress: 0, delayed: 0, done: 0 });
@@ -502,14 +501,14 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
     useEffect(() => {
         console.log('Selected user ID:', selectedUserId);
         console.log('Available tasks:', tasks.map(t => ({ id: t.id, assigned_to: t.assigned_to })));
-        
-        if (selectedUserId) { 
+
+        if (selectedUserId) {
             const counts = getStatusCountsOnDate(tasks, selectedUserId, users, todayDateStr);
             setTodayStatusCounts(counts);
-            setHoveredDate(null); 
+            setHoveredDate(null);
             setStatusCountsAtHoveredDate({ todo: 0, inProgress: 0, delayed: 0, done: 0 });
-            setSelectedStatusForList(null); 
-            setFilteredTasksForList([]); 
+            setSelectedStatusForList(null);
+            setFilteredTasksForList([]);
         } else {
             setTodayStatusCounts({ todo: 0, inProgress: 0, delayed: 0, done: 0 });
         }
@@ -534,14 +533,14 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                 const counts = getStatusCountsOnDate(tasks, selectedUserId, users, currentHoveredDate);
                 setStatusCountsAtHoveredDate(counts);
             }
-        } 
+        }
     }, [hoveredDate, tasks, selectedUserId, users]);
 
     const handleLineChartMouseLeave = useCallback(() => {
         setHoveredDate(null);
     }, []);
 
-    const displayDate = hoveredDate ?? todayDateStr; 
+    const displayDate = hoveredDate ?? todayDateStr;
     const displayStatusCounts = hoveredDate ? statusCountsAtHoveredDate : todayStatusCounts;
     const pieChartData = useMemo(() => {
         return Object.entries(displayStatusCounts)
@@ -555,14 +554,14 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
     const CustomTooltip = ({ active, payload, label, users, selectedUserId }: any) => {
         if (active && payload && payload.length) {
             return (
-                <> 
-                    <Typography variant="caption" display="block" sx={{ fontWeight: 'bold', mb: 0.5, color: 'text.primary' }}> 
+                <>
+                    <Typography variant="caption" display="block" sx={{ fontWeight: 'bold', mb: 0.5, color: 'text.primary' }}>
                         {label}
                     </Typography>
                     {payload.map((pld: any) => {
                         let name = pld.name;
                         let valueText = pld.value !== null ? yAxisFormatter(pld.value) : '-';
-                        
+
                         if (selectedUserId === 'all') {
                             if (pld.dataKey === 'plan' || pld.dataKey === 'actual' || pld.value === null) {
                                 return null;
@@ -575,10 +574,10 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                             } else if (pld.dataKey === 'plan') {
                                 name = '計画';
                             } else {
-                                 return null;
+                                return null;
                             }
                         }
-                        
+
                         return (
                             <Typography key={pld.dataKey} variant="caption" display="block" sx={{ color: pld.color || 'text.primary' }}>
                                 {`${name}: ${valueText}`}
@@ -587,9 +586,9 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                     })}
                 </>
             );
-          }
-          return null;
-        };
+        }
+        return null;
+    };
 
     const PieCustomTooltip = ({ active, payload }: any) => {
         if (active && payload && payload.length) {
@@ -624,7 +623,7 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
     // メトリクスの表示部分
     const renderMetrics = () => {
         const metrics = calculateMetrics(tasks);
-        
+
         return (
             <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" gutterBottom>
@@ -676,9 +675,9 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                         プロジェクト進捗
                     </Typography>
-                    <LinearProgress 
-                        variant="determinate" 
-                        value={metrics.progress} 
+                    <LinearProgress
+                        variant="determinate"
+                        value={metrics.progress}
                         sx={{ height: 10, borderRadius: 5 }}
                     />
                     <Typography variant="body2" color="text.secondary" align="right" sx={{ mt: 1 }}>
@@ -692,20 +691,20 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
     return (
         <Paper sx={{ p: 2, height: '450px' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                 <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
                     ユーザー進捗グラフ
-                 </Typography>
-                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     <FormControl size="small" sx={{ minWidth: 180, mr: 1 }}>
-                        <InputLabel sx={{fontSize: '0.8rem'}}>ユーザー</InputLabel>
+                        <InputLabel sx={{ fontSize: '0.8rem' }}>ユーザー</InputLabel>
                         <Select
-                            value={selectedUserId} 
+                            value={selectedUserId}
                             label="ユーザー"
                             onChange={(e) => setSelectedUserId(e.target.value as string)}
-                            sx={{fontSize: '0.8rem'}}
+                            sx={{ fontSize: '0.8rem' }}
                             disabled={userOptions.length === 0}
                         >
-                             <MenuItem value="all"><em>すべてのユーザー</em></MenuItem> 
+                            <MenuItem value="all"><em>すべてのユーザー</em></MenuItem>
                             {userOptions.map((user) => (
                                 <MenuItem key={user.id} value={user.id}>
                                     {user.full_name || user.username}
@@ -717,8 +716,8 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                     <MuiTooltip
                         title={
                             <Box sx={{ fontSize: '0.75rem' }}>
-                                選択したユーザーの担当タスク進捗を表示します。<br/>
-                                実績は完了(100%)と進行中(50%)を合算して評価します。<br/>
+                                選択したユーザーの担当タスク進捗を表示します。<br />
+                                実績は完了(100%)と進行中(50%)を合算して評価します。<br />
                                 計画は担当タスクが期間内に均等に進む場合の理想線です。
                             </Box>
                         }
@@ -728,26 +727,26 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                             <HelpOutlineIcon fontSize="small" />
                         </IconButton>
                     </MuiTooltip>
-                 </Box>
+                </Box>
             </Box>
 
             <Grid container spacing={2} sx={{ height: 'calc(100% - 48px)', minHeight: '280px' }}>
                 <Grid item xs={6} sx={{ height: '100%' }}>
-                     {!selectedUserId && (
-                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'text.secondary' }}>
-                             <Typography variant="body2">{userOptions.length > 0 ? 'ユーザーを選択してください' : '表示可能なユーザーがいません'}</Typography>
-                         </Box>
+                    {!selectedUserId && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'text.secondary' }}>
+                            <Typography variant="body2">{userOptions.length > 0 ? 'ユーザーを選択してください' : '表示可能なユーザーがいません'}</Typography>
+                        </Box>
                     )}
-                     {selectedUserId && chartData.length === 0 && (
-                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'text.secondary' }}>
-                             <Typography variant="body2">{selectedUserId === 'all' ? '全ユーザーの' : '選択されたユーザーの'}進捗データがありません</Typography>
-                         </Box>
+                    {selectedUserId && chartData.length === 0 && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'text.secondary' }}>
+                            <Typography variant="body2">{selectedUserId === 'all' ? '全ユーザーの' : '選択されたユーザーの'}進捗データがありません</Typography>
+                        </Box>
                     )}
-                     {selectedUserId && chartData.length > 0 && (
+                    {selectedUserId && chartData.length > 0 && (
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart 
-                                data={chartData} 
-                                margin={{ top: 5, right: 10, left: -20, bottom: 0 }} 
+                            <LineChart
+                                data={chartData}
+                                margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
                                 onMouseMove={handleLineChartMouseMove}
                                 onMouseLeave={handleLineChartMouseLeave}
                             >
@@ -755,19 +754,19 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                                 <XAxis dataKey="date" fontSize={10} tick={{ dy: 5 }} />
                                 <YAxis fontSize={10} tickFormatter={yAxisFormatter} domain={[0, 100]} />
                                 <Tooltip content={<CustomTooltip users={users} selectedUserId={selectedUserId} />} />
-                                <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '5px' }} verticalAlign="top" align="right"/>
-                                
+                                <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '5px' }} verticalAlign="top" align="right" />
+
                                 {selectedUserId === 'all' ? (
-                                     userOptions.map((user, index) => (
-                                         <Line 
-                                             key={user.id} 
-                                             type="monotone" 
-                                             dataKey={user.id} 
-                                             stroke={USER_COLORS[index % USER_COLORS.length]} 
-                                             strokeWidth={1.5} 
-                                             dot={false} 
-                                             name={user.full_name || user.username} 
-                                             connectNulls 
+                                    userOptions.map((user, index) => (
+                                        <Line
+                                            key={user.id}
+                                            type="monotone"
+                                            dataKey={user.id}
+                                            stroke={USER_COLORS[index % USER_COLORS.length]}
+                                            strokeWidth={1.5}
+                                            dot={false}
+                                            name={user.full_name || user.username}
+                                            connectNulls
                                         />
                                     ))
                                 ) : (
@@ -778,51 +777,51 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                                 )}
                             </LineChart>
                         </ResponsiveContainer>
-                     )}
+                    )}
                 </Grid>
                 <Grid item xs={6} sx={{ height: '100%' }}>
                     <Box sx={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', gap: 1 }}>
-                        
+
                         <Box sx={{ width: '40%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
                             {selectedUserId && (
-                               <Box sx={{ mb: 0, textAlign: 'center', flexShrink: 0 }}>
-                                   <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
+                                <Box sx={{ mb: 0, textAlign: 'center', flexShrink: 0 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
                                         {displayDate}
-                                   </Typography>
-                                   <Typography variant="caption" display="block" sx={{ fontSize: '0.7rem' }}>
-                                       {selectedUserId === 'all' ? '全ユーザー' : users.find(u => u.id.toString() === selectedUserId)?.full_name || users.find(u => u.id.toString() === selectedUserId)?.username || ''}
-                                   </Typography>
-                               </Box>
-                           )}
+                                    </Typography>
+                                    <Typography variant="caption" display="block" sx={{ fontSize: '0.7rem' }}>
+                                        {selectedUserId === 'all' ? '全ユーザー' : users.find(u => u.id.toString() === selectedUserId)?.full_name || users.find(u => u.id.toString() === selectedUserId)?.username || ''}
+                                    </Typography>
+                                </Box>
+                            )}
                             {selectedUserId && pieChartData.length > 0 ? (
-                                 <Box sx={{ width: '100%', flexGrow: 1, position: 'relative' }}> 
+                                <Box sx={{ width: '100%', flexGrow: 1, position: 'relative' }}>
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart> 
+                                        <PieChart>
                                             <Pie
                                                 data={pieChartData}
                                                 cx="50%"
                                                 cy="45%"
                                                 innerRadius="35%"
-                                                outerRadius="65%" 
+                                                outerRadius="65%"
                                                 paddingAngle={3}
                                                 dataKey="value"
                                                 labelLine={false}
                                                 onClick={(data) => setSelectedStatusForList(data.name)}
                                             >
                                                 {pieChartData.map((entry, index) => (
-                                                    <Cell 
-                                                        key={`cell-${index}`} 
-                                                        fill={STATUS_COLORS[entry.name] || '#CCCCCC'} 
+                                                    <Cell
+                                                        key={`cell-${index}`}
+                                                        fill={STATUS_COLORS[entry.name] || '#CCCCCC'}
                                                         stroke={selectedStatusForList === entry.name ? '#333' : 'none'}
                                                         strokeWidth={2}
-                                                        style={{ cursor: 'pointer', outline: 'none' }} 
+                                                        style={{ cursor: 'pointer', outline: 'none' }}
                                                     />
                                                 ))}
                                             </Pie>
                                             <Tooltip content={<PieCustomTooltip />} />
                                         </PieChart>
                                     </ResponsiveContainer>
-                                    <Typography 
+                                    <Typography
                                         variant="h6"
                                         sx={{
                                             position: 'absolute',
@@ -837,39 +836,39 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                                     </Typography>
                                 </Box>
                             ) : (
-                                <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'text.secondary' }}> 
+                                <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'text.secondary' }}>
                                     <Typography variant="caption">
                                         {selectedUserId ? '該当データなし' : 'ユーザー未選択'}
-                                   </Typography>
+                                    </Typography>
                                 </Box>
-                           )}
-                           {selectedUserId && pieChartData.length > 0 && (
+                            )}
+                            {selectedUserId && pieChartData.length > 0 && (
                                 <Box sx={{ flexShrink: 0, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '4px 8px', mt: 'auto', pb: 1, width: '100%' }}>
                                     {Object.entries(STATUS_COLORS).map(([status, color]) => {
-                                         const count = displayStatusCounts[status as keyof StatusCounts] ?? 0;
-                                         if (count === 0 && !pieChartData.some(d => d.name === status)) return null;
-                                         return (
-                                             <Box 
-                                                 key={status} 
-                                                 onClick={() => setSelectedStatusForList(status)} 
-                                                 sx={{
-                                                     display: 'flex', 
-                                                     alignItems: 'center', 
-                                                     cursor: 'pointer',
-                                                     p: '2px 5px',
-                                                     borderRadius: '4px',
-                                                     backgroundColor: selectedStatusForList === status ? 'action.hover' : 'transparent',
-                                                     '&:hover': {
-                                                         backgroundColor: 'action.hover',
-                                                     },
-                                                     outline: 'none',
-                                                 }}
-                                                 tabIndex={0} 
-                                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedStatusForList(status); }}
-                                             >
-                                                 <Box sx={{ width: 10, height: 10, bgcolor: color, mr: 0.5 }} />
-                                                 <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>
-                                                     {`${status} (${count})`}
+                                        const count = displayStatusCounts[status as keyof StatusCounts] ?? 0;
+                                        if (count === 0 && !pieChartData.some(d => d.name === status)) return null;
+                                        return (
+                                            <Box
+                                                key={status}
+                                                onClick={() => setSelectedStatusForList(status)}
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    cursor: 'pointer',
+                                                    p: '2px 5px',
+                                                    borderRadius: '4px',
+                                                    backgroundColor: selectedStatusForList === status ? 'action.hover' : 'transparent',
+                                                    '&:hover': {
+                                                        backgroundColor: 'action.hover',
+                                                    },
+                                                    outline: 'none',
+                                                }}
+                                                tabIndex={0}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedStatusForList(status); }}
+                                            >
+                                                <Box sx={{ width: 10, height: 10, bgcolor: color, mr: 0.5 }} />
+                                                <Typography variant="caption" sx={{ fontSize: '0.65rem' }}>
+                                                    {`${status} (${count})`}
                                                 </Typography>
                                             </Box>
                                         )
@@ -879,51 +878,51 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                         </Box>
 
                         <Box sx={{ width: '60%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-                             <Typography variant="caption" sx={{ fontWeight: 'bold', mb: 0.5, flexShrink: 0 }}>
-                                 {selectedStatusForList ? `タスクリスト (${selectedStatusForList})` : 'タスクリスト'}
-                             </Typography>
-                             {selectedStatusForList ? (
-                                 filteredTasksForList.length > 0 ? (
-                                     <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'auto' }}>
-                                         <Table stickyHeader size="small">
-                                             <TableHead>
-                                                 <TableRow>
-                                                     <TableCell sx={{ fontSize: '0.75rem' }}>タスク名</TableCell>
-                                                     {selectedUserId === 'all' && <TableCell sx={{ fontSize: '0.75rem' }}>担当</TableCell>}
-                                                     <TableCell sx={{ fontSize: '0.75rem' }}>期日</TableCell>
-                                                 </TableRow>
-                                             </TableHead>
-                                             <TableBody>
-                                                 {filteredTasksForList.map((task) => (
-                                                     <TableRow key={task.id}>
-                                                         <TableCell sx={{ fontSize: '0.75rem' }}>{task.name}</TableCell>
-                                                         {selectedUserId === 'all' && (
-                                                             <TableCell sx={{ fontSize: '0.75rem' }}>
-                                                                 {users.find(u => u.id === task.assigned_to)?.username || '-'}
-                                                             </TableCell>
-                                                         )}
-                                                         <TableCell sx={{ fontSize: '0.75rem' }}>
-                                                             {task.due_date ? format(parseISO(task.due_date), 'yyyy/MM/dd') : '-'}
-                                                         </TableCell>
-                                                     </TableRow>
-                                                 ))}
-                                             </TableBody>
-                                         </Table>
-                                     </TableContainer>
-                                 ) : (
-                                     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, color: 'text.secondary' }}>
-                                         <Typography variant="caption">
-                                             該当するタスクはありません。
-                                         </Typography>
-                                     </Box>
-                                 )
-                             ) : (
-                                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, color: 'text.secondary' }}>
-                                     <Typography variant="caption" sx={{ textAlign: 'center' }}>
-                                         円グラフまたは凡例をクリックすると<br/>該当タスクリストを表示します。
-                                     </Typography>
-                                 </Box>
-                             )}
+                            <Typography variant="caption" sx={{ fontWeight: 'bold', mb: 0.5, flexShrink: 0 }}>
+                                {selectedStatusForList ? `タスクリスト (${selectedStatusForList})` : 'タスクリスト'}
+                            </Typography>
+                            {selectedStatusForList ? (
+                                filteredTasksForList.length > 0 ? (
+                                    <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'auto' }}>
+                                        <Table stickyHeader size="small">
+                                            <TableHead>
+                                                <TableRow>
+                                                    <TableCell sx={{ fontSize: '0.75rem' }}>タスク名</TableCell>
+                                                    {selectedUserId === 'all' && <TableCell sx={{ fontSize: '0.75rem' }}>担当</TableCell>}
+                                                    <TableCell sx={{ fontSize: '0.75rem' }}>期日</TableCell>
+                                                </TableRow>
+                                            </TableHead>
+                                            <TableBody>
+                                                {filteredTasksForList.map((task) => (
+                                                    <TableRow key={task.id}>
+                                                        <TableCell sx={{ fontSize: '0.75rem' }}>{task.name}</TableCell>
+                                                        {selectedUserId === 'all' && (
+                                                            <TableCell sx={{ fontSize: '0.75rem' }}>
+                                                                {users.find(u => u.id === task.assigned_to)?.username || '-'}
+                                                            </TableCell>
+                                                        )}
+                                                        <TableCell sx={{ fontSize: '0.75rem' }}>
+                                                            {task.due_date ? format(parseISO(task.due_date), 'yyyy/MM/dd') : '-'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </TableContainer>
+                                ) : (
+                                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, color: 'text.secondary' }}>
+                                        <Typography variant="caption">
+                                            該当するタスクはありません。
+                                        </Typography>
+                                    </Box>
+                                )
+                            ) : (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, color: 'text.secondary' }}>
+                                    <Typography variant="caption" sx={{ textAlign: 'center' }}>
+                                        円グラフまたは凡例をクリックすると<br />該当タスクリストを表示します。
+                                    </Typography>
+                                </Box>
+                            )}
                         </Box>
                     </Box>
                 </Grid>

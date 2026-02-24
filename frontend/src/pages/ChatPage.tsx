@@ -30,7 +30,6 @@ import {
   Warning as WarningIcon,
   Schedule as ScheduleIcon,
   CheckCircle as CheckCircleIcon,
-  EmojiEvents as EmojiEventsIcon,
   Mic as MicIcon,
   Stop as StopIcon,
 } from '@mui/icons-material'
@@ -90,7 +89,6 @@ const ChatPage: React.FC = () => {
   const { token: authToken, user: currentUser } = useAuth()
   const { refreshGlobalData, globalData } = usePageState()
   const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([CHAT_WELCOME_MESSAGE])
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [chatInput, setChatInput] = useState('')

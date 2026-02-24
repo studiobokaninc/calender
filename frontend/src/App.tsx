@@ -1,6 +1,6 @@
 import React from 'react';
-import { Routes, Route, BrowserRouter, Navigate, Outlet } from 'react-router-dom';
-import { Box, CssBaseline, CircularProgress, Typography } from '@mui/material';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Box, CssBaseline, CircularProgress } from '@mui/material';
 import { useAuth } from './contexts/AuthContext'; // Import useAuth
 import { PageStateProvider } from './contexts/PageStateContext'; // Import PageStateProvider
 import Layout from './components/Layout'; // ★ Layout をインポート

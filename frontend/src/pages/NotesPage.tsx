@@ -26,6 +26,7 @@ import {
   Image as ImageIcon,
   PictureAsPdf as PdfIcon,
   Visibility as VisibilityIcon,
+  Audiotrack as AudioIcon,
 } from '@mui/icons-material';
 import { notesApi } from '../services/api';
 import api from '../services/api';
@@ -59,6 +60,15 @@ interface PdfItem {
   fileName?: string; // 表示用ファイル名
 }
 
+interface AudioItem {
+  url: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  fileName?: string;
+}
+
 const NotesPage: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -84,7 +94,7 @@ const NotesPage: React.FC = () => {
   const resizeMouseUpRef = useRef<((e?: MouseEvent) => void) | null>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [maxZIndex, setMaxZIndex] = useState(10); // z-indexの最大値を管理
+  const [, setMaxZIndex] = useState(10); // z-indexの最大値を管理
   const [elementZIndices, setElementZIndices] = useState<{ [key: string]: number }>({}); // 各要素のz-indexを管理
   // PDF用
   const [pdfs, setPdfs] = useState<PdfItem[]>([]);
@@ -94,6 +104,13 @@ const NotesPage: React.FC = () => {
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+
+  // Audio用
+  const [audios, setAudios] = useState<AudioItem[]>([]);
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number | null>(null);
+  const [draggingAudioIndex, setDraggingAudioIndex] = useState<number | null>(null);
+  const [audioDragOffset, setAudioDragOffset] = useState<{ x: number; y: number } | null>(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
 
   // コンテナの最小高さを計算（テキストボックスと画像とPDFの最大のbottom位置を計算）
   const minHeight = useMemo(() => {
@@ -123,9 +140,17 @@ const NotesPage: React.FC = () => {
       }
     });
 
+    // Audioの最大bottom位置を計算
+    audios.forEach(a => {
+      const bottom = a.y + a.height;
+      if (bottom > maxBottom) {
+        maxBottom = bottom;
+      }
+    });
+
     // 最小高さは、最大bottom位置 + 余白（100px）と、画面高さの大きい方
     return Math.max(maxBottom + 100, window.innerHeight - 200);
-  }, [textBoxes, images, pdfs]);
+  }, [textBoxes, images, pdfs, audios]);
 
   // 要素を前面に表示する関数
   const bringToFront = useCallback((key: string) => {
@@ -297,6 +322,21 @@ const NotesPage: React.FC = () => {
           };
         });
         setPdfs(pdfItems);
+        // Audioを読み込み
+        const audioItems: AudioItem[] = (note.audio_urls || []).map((url: string, index: number) => {
+          const position = note.audio_positions?.[url];
+          const defaultW = 320;
+          const defaultH = 80;
+          return {
+            url,
+            width: position?.width ?? defaultW,
+            height: position?.height ?? defaultH,
+            x: position?.x ?? (50 + (index % 2) * 340),
+            y: position?.y ?? (50 + Math.floor(index / 2) * 100),
+            fileName: url.split('/').pop() || `Audio ${index + 1}`,
+          };
+        });
+        setAudios(audioItems);
         // projectIdがnullの場合は「その他」として表示
         setSelectedProjectId(projectId === undefined ? 'other' : (projectId === null ? 'other' : projectId));
       } else {
@@ -313,6 +353,7 @@ const NotesPage: React.FC = () => {
         }]);
         setImages([]);
         setPdfs([]);
+        setAudios([]);
         setSelectedProjectId(projectId === undefined ? null : projectId);
       }
     } catch (err: any) {
@@ -385,11 +426,15 @@ const NotesPage: React.FC = () => {
     const files = Array.from(e.dataTransfer.files);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     const pdfFiles = files.filter(file => file.type === 'application/pdf');
+    const audioFiles = files.filter(file => file.type.startsWith('audio/'));
     for (const file of imageFiles) {
       await handleImageUpload(file);
     }
     for (const file of pdfFiles) {
       await handlePdfUpload(file);
+    }
+    for (const file of audioFiles) {
+      await handleAudioUpload(file);
     }
   };
 
@@ -598,6 +643,138 @@ const NotesPage: React.FC = () => {
     setPdfDragOffset(null);
   };
 
+  // 音声アップロード
+  const handleAudioUpload = async (file: File) => {
+    try {
+      setUploadingAudio(true);
+      setError(null);
+      const result = await notesApi.uploadAudio(file);
+      if (result?.url) {
+        setAudios((prev: AudioItem[]) => {
+          const currentCount = prev.length;
+          const cols = 2;
+          const xSpacing = 340;
+          const ySpacing = 120;
+          const x = 50 + (currentCount % cols) * xSpacing;
+          const y = 50 + Math.floor(currentCount / cols) * ySpacing;
+          return [...prev, {
+            url: result.url,
+            width: 320,
+            height: 80,
+            x,
+            y,
+            fileName: file.name || result.url.split('/').pop() || `Audio ${currentCount + 1}`,
+          }];
+        });
+      }
+    } catch (err: any) {
+      console.error('音声のアップロードに失敗しました:', err);
+      if (err.response?.status === 401) {
+        setError('認証エラーが発生しました。ページをリロードしてください。');
+      } else {
+        setError(err.response?.data?.detail || '音声のアップロードに失敗しました');
+      }
+    } finally {
+      setUploadingAudio(false);
+    }
+  };
+
+  // 音声削除
+  const handleRemoveAudio = async (index: number) => {
+    const newAudios = audios.filter((_, i) => i !== index);
+    setAudios(newAudios);
+    if (selectedAudioIndex === index) {
+      setSelectedAudioIndex(null);
+    } else if (selectedAudioIndex !== null && selectedAudioIndex > index) {
+      setSelectedAudioIndex(selectedAudioIndex - 1);
+    }
+    if (currentNote) {
+      try {
+        const audioUrls = newAudios.map(a => a.url);
+        const audioPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        newAudios.forEach(a => {
+          audioPositions[a.url] = { x: a.x, y: a.y, width: a.width, height: a.height };
+        });
+        const pdfUrls = pdfs.map(p => p.url);
+        const pdfPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        pdfs.forEach(p => {
+          pdfPositions[p.url] = { x: p.x, y: p.y, width: p.width, height: p.height };
+        });
+        const textBoxesData = textBoxes.map(tb => ({
+          id: tb.id, content: tb.content, x: tb.x, y: tb.y, width: tb.width, height: tb.height,
+        }));
+        const imageUrls = images.map(img => img.url);
+        const imagePositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        images.forEach(img => {
+          imagePositions[img.url] = { x: img.x, y: img.y, width: img.width, height: img.height };
+        });
+        const noteData: NoteUpdate = {
+          title: null,
+          content: null,
+          image_urls: imageUrls.length > 0 ? imageUrls : null,
+          image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
+          pdf_urls: pdfUrls.length > 0 ? pdfUrls : null,
+          pdf_positions: Object.keys(pdfPositions).length > 0 ? pdfPositions : null,
+          audio_urls: audioUrls.length > 0 ? audioUrls : null,
+          audio_positions: Object.keys(audioPositions).length > 0 ? audioPositions : null,
+          text_boxes: textBoxesData.length > 0 ? textBoxesData : null,
+          project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
+        };
+        await notesApi.updateNote(currentNote.id, noteData);
+        await fetchNote(selectedProjectId);
+      } catch (err: any) {
+        console.error('音声の削除に失敗しました:', err);
+        setAudios(audios);
+      }
+    }
+  };
+
+  // 音声ドラッグ開始
+  const handleAudioDragStart = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (selectedAudioIndex !== index) {
+      setSelectedAudioIndex(index);
+      setSelectedImageIndex(null);
+      setSelectedTextBoxId(null);
+      setSelectedPdfIndex(null);
+      bringToFront(`audio-${index}`);
+    }
+    setDraggingAudioIndex(index);
+    const container = dropZoneRef.current;
+    if (!container) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setAudioDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const handleAudioDrag = useCallback((e: React.MouseEvent) => {
+    if (draggingAudioIndex === null || audioDragOffset === null) return;
+    e.preventDefault();
+    const container = dropZoneRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const newX = e.clientX - rect.left - audioDragOffset.x;
+    const newY = e.clientY - rect.top - audioDragOffset.y;
+
+    requestAnimationFrame(() => {
+      setAudios((prev: AudioItem[]) => {
+        const audio = prev[draggingAudioIndex];
+        if (!audio) return prev;
+        return prev.map((a, i) =>
+          i === draggingAudioIndex
+            ? { ...a, x: Math.max(0, Math.min(newX, rect.width - a.width)), y: Math.max(0, Math.min(newY, rect.height - a.height)) }
+            : a
+        );
+      });
+    });
+  }, [draggingAudioIndex, audioDragOffset]);
+
+  const handleAudioDragEnd = () => {
+    setDraggingAudioIndex(null);
+    setAudioDragOffset(null);
+  };
+
+
   // 画像削除（データベースからも削除）
   const handleRemoveImage = async (index: number) => {
     const newImages = images.filter((_, i) => i !== index);
@@ -639,6 +816,11 @@ const NotesPage: React.FC = () => {
         pdfs.forEach(p => {
           pdfPositions[p.url] = { x: p.x, y: p.y, width: p.width, height: p.height };
         });
+        const audioUrls = audios.map(a => a.url);
+        const audioPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+        audios.forEach(a => {
+          audioPositions[a.url] = { x: a.x, y: a.y, width: a.width, height: a.height };
+        });
         const noteData: NoteUpdate = {
           title: null,
           content: null,
@@ -646,6 +828,8 @@ const NotesPage: React.FC = () => {
           image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
           pdf_urls: pdfUrls.length > 0 ? pdfUrls : null,
           pdf_positions: Object.keys(pdfPositions).length > 0 ? pdfPositions : null,
+          audio_urls: audioUrls.length > 0 ? audioUrls : null,
+          audio_positions: Object.keys(audioPositions).length > 0 ? audioPositions : null,
           text_boxes: textBoxesData.length > 0 ? textBoxesData : null,
           project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
         };
@@ -865,6 +1049,11 @@ const NotesPage: React.FC = () => {
           pdfs.forEach(p => {
             pdfPositions[p.url] = { x: p.x, y: p.y, width: p.width, height: p.height };
           });
+          const audioUrls = audios.map(a => a.url);
+          const audioPositions: { [url: string]: { x: number; y: number; width: number; height: number } } = {};
+          audios.forEach(a => {
+            audioPositions[a.url] = { x: a.x, y: a.y, width: a.width, height: a.height };
+          });
           const noteData = {
             title: null,
             content: null,
@@ -872,6 +1061,8 @@ const NotesPage: React.FC = () => {
             image_positions: Object.keys(imagePositions).length > 0 ? imagePositions : null,
             pdf_urls: pdfUrls.length > 0 ? pdfUrls : null,
             pdf_positions: Object.keys(pdfPositions).length > 0 ? pdfPositions : null,
+            audio_urls: audioUrls.length > 0 ? audioUrls : null,
+            audio_positions: Object.keys(audioPositions).length > 0 ? audioPositions : null,
             text_boxes: textBoxesData.length > 0 ? textBoxesData : null,
             project_id: selectedProjectId === 'other' ? null : (selectedProjectId === null ? null : selectedProjectId),
           } as NoteCreate | NoteUpdate;
@@ -1004,6 +1195,30 @@ const NotesPage: React.FC = () => {
               <PdfIcon />
             </IconButton>
           </label>
+          <input
+            accept="audio/*"
+            style={{ display: 'none' }}
+            id="audio-upload-button"
+            type="file"
+            multiple
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []).filter(file => file.type.startsWith('audio/'));
+              if (files.length > 0) {
+                files.forEach(file => handleAudioUpload(file));
+              }
+              e.target.value = '';
+            }}
+          />
+          <label htmlFor="audio-upload-button">
+            <IconButton
+              component="span"
+              color="primary"
+              size="small"
+              title="音声を追加"
+            >
+              <AudioIcon />
+            </IconButton>
+          </label>
           {currentNote && (
             <IconButton
               onClick={() => setDeleteDialogOpen(true)}
@@ -1033,13 +1248,14 @@ const NotesPage: React.FC = () => {
           onDrop={handleDrop}
           onClick={(e) => {
             const target = e.target as HTMLElement;
-            if (target.closest('[data-image-box]') || target.closest('[data-text-box]') || target.closest('[data-pdf-box]')) {
+            if (target.closest('[data-image-box]') || target.closest('[data-text-box]') || target.closest('[data-pdf-box]') || target.closest('[data-audio-box]')) {
               return;
             }
             if (e.target === e.currentTarget) {
               setSelectedImageIndex(null);
               setSelectedTextBoxId(null);
               setSelectedPdfIndex(null);
+              setSelectedAudioIndex(null);
             }
           }}
           sx={{
@@ -1055,9 +1271,9 @@ const NotesPage: React.FC = () => {
             display: isMobile ? 'flex' : 'block',
             flexDirection: isMobile ? 'column' : 'row',
             gap: isMobile ? 2 : 0,
-            cursor: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'grabbing' : 'text',
-            userSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
-            WebkitUserSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) ? 'none' : 'auto',
+            cursor: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null || draggingAudioIndex !== null) ? 'grabbing' : 'text',
+            userSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null || draggingAudioIndex !== null) ? 'none' : 'auto',
+            WebkitUserSelect: (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null || draggingAudioIndex !== null) ? 'none' : 'auto',
           }}
           onMouseMove={(e) => {
             if (draggingImageIndex !== null) {
@@ -1066,20 +1282,24 @@ const NotesPage: React.FC = () => {
               handleTextBoxDrag(e);
             } else if (draggingPdfIndex !== null) {
               handlePdfDrag(e);
+            } else if (draggingAudioIndex !== null) {
+              handleAudioDrag(e);
             }
           }}
           onMouseUp={(e) => {
-            if (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null) {
+            if (draggingImageIndex !== null || draggingTextBoxId || draggingPdfIndex !== null || draggingAudioIndex !== null) {
               e.stopPropagation();
             }
             handleImageDragEnd();
             handleTextBoxDragEnd();
             handlePdfDragEnd();
+            handleAudioDragEnd();
           }}
           onMouseLeave={() => {
             handleImageDragEnd();
             handleTextBoxDragEnd();
             handlePdfDragEnd();
+            handleAudioDragEnd();
           }}
         >
           {/* テキストボックス（自由配置可能・複数配置対応） */}
@@ -1522,7 +1742,98 @@ const NotesPage: React.FC = () => {
             );
           })}
 
-          {(uploadingImage || uploadingPdf) && (
+          {/* 音声表示エリア */}
+          {audios.map((audio, index) => {
+            const audioFullUrl = audio.url.startsWith('http') ? audio.url : `${window.location.origin}${audio.url}`;
+            const isSelected = selectedAudioIndex === index;
+            return (
+              <Box
+                key={index}
+                data-audio-box
+                sx={(theme) => ({
+                  position: isMobile ? 'static' : 'absolute',
+                  left: isMobile ? 'auto' : `${audio.x}px`,
+                  top: isMobile ? 'auto' : `${audio.y}px`,
+                  width: isMobile ? '100%' : `${audio.width}px`,
+                  height: isMobile ? 'auto' : `${audio.height}px`,
+                  marginBottom: isMobile ? 2 : 0,
+                  border: isSelected
+                    ? `3px solid ${theme.palette.secondary.main}`
+                    : `2px solid ${theme.palette.divider}`,
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  backgroundColor:
+                    theme.palette.mode === 'dark'
+                      ? theme.palette.background.paper
+                      : '#fff',
+                  boxShadow: isSelected ? 4 : 2,
+                  zIndex: isMobile ? 'auto' : getZIndex(`audio-${index}`, 2, isSelected),
+                  display: 'flex',
+                  flexDirection: 'column',
+                  '&:hover': {
+                    boxShadow: 4,
+                    borderColor: isSelected ? theme.palette.secondary.main : theme.palette.divider,
+                  },
+                })}
+              >
+                <Box
+                  onMouseDown={(e) => handleAudioDragStart(index, e)}
+                  onMouseUp={(e) => { e.stopPropagation(); handleAudioDragEnd(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedAudioIndex(index);
+                    setSelectedImageIndex(null);
+                    setSelectedTextBoxId(null);
+                    setSelectedPdfIndex(null);
+                    bringToFront(`audio-${index}`);
+                  }}
+                  sx={(theme) => ({
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    px: 1,
+                    py: 0.5,
+                    backgroundColor:
+                      theme.palette.mode === 'dark'
+                        ? theme.palette.background.default
+                        : '#f5f5f5',
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    cursor: draggingAudioIndex === index ? 'grabbing' : 'move',
+                    flexShrink: 0,
+                  })}
+                >
+                  <AudioIcon sx={{ fontSize: 20, color: '#9c27b0' }} />
+                  <Typography variant="caption" noWrap sx={{ flex: 1, fontWeight: 500 }}>
+                    {audio.fileName || `Audio ${index + 1}`}
+                  </Typography>
+                  {isSelected && (
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveAudio(index);
+                      }}
+                      sx={{
+                        backgroundColor: 'error.main',
+                        color: 'common.white',
+                        width: 24,
+                        height: 24,
+                        p: 0,
+                        '&:hover': { backgroundColor: 'error.dark' },
+                      }}
+                    >
+                      <CloseIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  )}
+                </Box>
+                <Box sx={{ p: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <audio controls src={audioFullUrl} style={{ width: '100%', height: '40px' }} />
+                </Box>
+              </Box>
+            );
+          })}
+
+          {(uploadingImage || uploadingPdf || uploadingAudio) && (
             <Box
               sx={{
                 position: 'absolute',
@@ -1534,7 +1845,7 @@ const NotesPage: React.FC = () => {
             >
               <CircularProgress />
               <Typography variant="body2" sx={{ mt: 2 }}>
-                {uploadingPdf ? 'PDFをアップロード中...' : 'アップロード中...'}
+                {uploadingAudio ? '音声をアップロード中...' : uploadingPdf ? 'PDFをアップロード中...' : 'アップロード中...'}
               </Typography>
             </Box>
           )}

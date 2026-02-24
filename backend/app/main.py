@@ -11,6 +11,7 @@ from pydantic import BaseModel, EmailStr, Field
 from . import models, database, crud, schemas
 from . import mock_data
 from .database import engine, get_db, DATABASE_FILE_PATH
+from .services.rag import rag_service
 import uuid
 import os
 import tempfile
@@ -2774,10 +2775,50 @@ async def upload_note_pdf(
         with open(file_path, "wb") as buffer:
             buffer.write(content)
         pdf_url = f"/static/uploads/{unique_filename}"
+        
+        # Add to RAG Knowledge Base
+        rag_service.add_document(
+            file_path, 
+            metadata={
+                "user_id": current_user.id, 
+                "uploader_name": current_user.name or current_user.username,
+                "file_name": file.filename
+            }
+        )
+        
         return {"url": pdf_url}
     except Exception:
         logger.exception("PDFのアップロードに失敗しました")
         raise HTTPException(status_code=500, detail="PDFのアップロードに失敗しました。")
+
+MAX_AUDIO_UPLOAD_BYTES = int(os.getenv("MAX_AUDIO_UPLOAD_MB", "50")) * 1024 * 1024
+
+@app.post("/notes/upload-audio", tags=["Notes"])
+async def upload_note_audio(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(get_current_user)
+):
+    """メモ用の音声をアップロード（サイズ制限: デフォルト50MB）"""
+    if not file.content_type or not (file.content_type.startswith('audio/') or file.content_type.startswith('video/')):
+        logger.warning("音声以外のファイルがアップロードされました: %s", file.content_type)
+        raise HTTPException(status_code=400, detail="音声ファイルのみアップロード可能です")
+    content = await file.read()
+    if len(content) > MAX_AUDIO_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"音声サイズは {MAX_AUDIO_UPLOAD_BYTES // (1024*1024)}MB 以内にしてください"
+        )
+    file_ext = os.path.splitext(file.filename or "")[1] or '.mp3'
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
+    try:
+        with open(file_path, "wb") as buffer:
+            buffer.write(content)
+        audio_url = f"/static/uploads/{unique_filename}"
+        return {"url": audio_url}
+    except Exception:
+        logger.exception("音声のアップロードに失敗しました")
+        raise HTTPException(status_code=500, detail="音声のアップロードに失敗しました。")
 
 # --- UserActivity Endpoints ---
 

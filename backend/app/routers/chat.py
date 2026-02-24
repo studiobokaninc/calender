@@ -20,6 +20,7 @@ from jose import JWTError, jwt
 from ..security import get_current_user, SECRET_KEY, ALGORITHM
 from sqlalchemy.orm import Session
 import logging
+from ..services.rag import rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ async def stream_chat(
     request: ChatRequest,
     fastapi_request: Request = None,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """
     ストリーミングチャットエンドポイント (POST版)
@@ -108,12 +110,21 @@ async def stream_chat(
     # inputs にタスクリストCSV、プロジェクトリスト、ユーザーリストを含める
     inputs: dict = {}
     try:
-        inputs = task_list_module.get_dashboard_context(db)
+        inputs = task_list_module.get_dashboard_context(db, current_user.id)
         inputs["mode"] = "admin"
+        inputs["user_name"] = current_user.name or current_user.username or "Admin"
     except Exception as e:
         logger.warning("[chat/stream] get_dashboard_context failed: %s", e)
         # Fallback to empty context
-        inputs = {"csv": "", "proj": "", "user_list": "", "mode": "admin"}
+        inputs = {"csv": "", "proj": "", "user_list": "", "mode": "admin", "notes": ""}
+        
+    # Retrieve RAG context based on query
+    try:
+        rag_context = rag_service.query_context(query)
+        if rag_context:
+            inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
+    except Exception as e:
+        logger.warning("[chat/stream] RAG query failed: %s", e)
         
     if conversation_id is None:
         import uuid
@@ -236,7 +247,15 @@ async def stream_chat_user(
         inputs["user_name"] = current_user.name or current_user.username or "User"
     except Exception as e:
         logger.warning("[chat/user/stream] get_personal_context failed: %s", e)
-        inputs = {"csv": "", "proj": "", "events": "", "mode": "personal"}
+        inputs = {"csv": "", "proj": "", "events": "", "mode": "personal", "notes": ""}
+
+    # Retrieve RAG context based on query
+    try:
+        rag_context = rag_service.query_context(query)
+        if rag_context:
+            inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
+    except Exception as e:
+        logger.warning("[chat/user/stream] RAG query failed: %s", e)
 
     if conversation_id is None:
         import uuid

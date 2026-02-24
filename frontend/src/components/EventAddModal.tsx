@@ -171,7 +171,6 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   const [formData, setFormData] = useState<EventFormData>(getInitialState());
   const [projectSelectionMode, setProjectSelectionMode] = useState<'existing' | 'new'>('existing');
   const [errors, setErrors] = useState<Partial<Record<keyof EventFormData | 'newProjectName' | 'taskDueDate' | 'taskAssigneeId' | 'phaseTargetTaskId', string>>>({});
-  const [participantsLoading, setParticipantsLoading] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [selectedParticipants, setSelectedParticipants] = useState<ParticipantOption[]>([]);
   const [selectedDependencies, setSelectedDependencies] = useState<TaskOption[]>([]);
@@ -180,7 +179,6 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   useEffect(() => {
     if (open) {
       setProjectsLoading(false);
-      setParticipantsLoading(false);
     }
   }, [open]);
 

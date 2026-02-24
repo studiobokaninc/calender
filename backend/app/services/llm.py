@@ -216,8 +216,18 @@ id, name, project_id, assigned_to, due_date, status, priority
                             mime_type = "image/jpeg"
                         elif file_path.lower().endswith(".png"):
                             mime_type = "image/png"
+                        elif file_path.lower().endswith(".mp3"):
+                            mime_type = "audio/mp3"
+                        elif file_path.lower().endswith(".m4a"):
+                            mime_type = "audio/mp4"  # For Gemini, m4a is audio/mp4 or audio/x-m4a
+                        elif file_path.lower().endswith(".mp4"):
+                            mime_type = "video/mp4"
                         else:
                             continue # 未知のタイプはスキップ
+                            
+                    # Some systems incorrectly guess m4a audio types, force to audio/mp4
+                    if mime_type == "audio/x-m4a" or file_path.lower().endswith(".m4a"):
+                         mime_type = "audio/mp4"
                             
                     with open(file_path, "rb") as f:
                         file_data = f.read()

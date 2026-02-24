@@ -17,14 +17,30 @@ def check_and_migrate_db():
         
         # tasksテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(tasks)")
-        columns = [row[1] for row in cursor.fetchall()]
+        task_columns = [row[1] for row in cursor.fetchall()]
         
         # phasesカラムが存在しない場合のみ追加
-        if 'phases' not in columns:
+        if 'phases' not in task_columns:
             print("phasesカラムが見つかりません。追加しています...")
             cursor.execute("ALTER TABLE tasks ADD COLUMN phases JSON")
             conn.commit()
             print("phasesカラムを追加しました。")
+            
+        # notesテーブルの既存のカラムを確認
+        cursor.execute("PRAGMA table_info(notes)")
+        note_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'audio_urls' not in note_columns:
+            print("audio_urlsカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE notes ADD COLUMN audio_urls JSON")
+            conn.commit()
+            print("audio_urlsカラムを追加しました。")
+            
+        if 'audio_positions' not in note_columns:
+            print("audio_positionsカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE notes ADD COLUMN audio_positions JSON")
+            conn.commit()
+            print("audio_positionsカラムを追加しました。")
         
         conn.close()
         

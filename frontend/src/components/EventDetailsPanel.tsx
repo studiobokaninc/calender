@@ -1,22 +1,19 @@
 // src/components/EventDetailsPanel.tsx
 import React, { useMemo } from 'react';
-import { Box, Typography, List, ListItem, ListItemButton, ListItemText, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox, useTheme, useMediaQuery } from '@mui/material';
-import { CalendarEvent, Project, Task, User, Group, Participant } from '../types';
+import { Box, Typography, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox, useTheme, useMediaQuery } from '@mui/material';
+import { CalendarEvent, Project, User, Group, Participant } from '../types';
 import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay, addDays } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import GroupIcon from '@mui/icons-material/Group';
-import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import FolderIcon from '@mui/icons-material/Folder';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import EventIcon from '@mui/icons-material/Event';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import { EventApi } from '@fullcalendar/core';
 
 // ★★★ Define color functions here (copy from Calendar.tsx or implement) ★★★
 const getProjectColor = (project: Project | { status?: string, color?: string } | undefined): string => {
@@ -163,8 +160,6 @@ interface EventDetailsPanelProps {
   onEventSelect: (event: CalendarEvent) => void;
   isMinimized: boolean;
   onToggleMinimize: () => void;
-  onOpenAddModal: () => void;
-  totalCost?: number;
   users: User[];
   groups: Group[];
   onEdit: (event: CalendarEvent) => void;
@@ -183,8 +178,6 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   onEventSelect,
   isMinimized,
   onToggleMinimize,
-  onOpenAddModal,
-  totalCost,
   users,
   groups,
   onEdit,
@@ -281,35 +274,6 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
     console.log(`[EventDetailsPanel] dailyEvents: selectedDate=${selectedDate?.toISOString?.()} 件数=${filtered.length}`);
     return filtered;
   }, [events, selectedDate]);
-
-  // ★★★ Split dailyEvents by type for separate rendering ★★★
-  const projectBarEventsForDate = useMemo(() => dailyEvents.filter(e => e.extendedProps?.type === 'project'), [dailyEvents]);
-  const tasksForDate = useMemo(() => dailyEvents.filter(e => e.extendedProps?.type === 'Task'), [dailyEvents]);
-
-  const timedEventsForDate = useMemo(() => {
-    const filtered = dailyEvents.filter(e => !['project', 'task'].includes(e.extendedProps?.type || ''));
-    // ★★★ デバッグログ追加 ★★★
-    console.log("[EventDetailsPanel] timedEventsForDate calculation, input dailyEvents:", JSON.parse(JSON.stringify(dailyEvents)));
-    console.log("[EventDetailsPanel] timedEventsForDate calculation, output filtered (these should NOT be project/task):", JSON.parse(JSON.stringify(filtered)));
-    return filtered;
-  }, [dailyEvents]);
-
-  // ★★★ timedEventsForDate を allDay とそれ以外に分割 ★★★
-  const allDayTimedEvents = useMemo(() => {
-    const filtered = timedEventsForDate.filter(e => e.allDay);
-    // ★★★ デバッグログ追加 ★★★
-    console.log("[EventDetailsPanel] allDayTimedEvents calculation, input timedEventsForDate:", JSON.parse(JSON.stringify(timedEventsForDate)));
-    console.log("[EventDetailsPanel] allDayTimedEvents calculation, output filtered (these should be allDay):", JSON.parse(JSON.stringify(filtered)));
-    return filtered;
-  }, [timedEventsForDate]);
-
-  const nonAllDayTimedEvents = useMemo(() => {
-    const filtered = timedEventsForDate.filter(e => !e.allDay);
-    // ★★★ デバッグログ追加 ★★★
-    console.log("[EventDetailsPanel] nonAllDayTimedEvents calculation, input timedEventsForDate:", JSON.parse(JSON.stringify(timedEventsForDate)));
-    console.log("[EventDetailsPanel] nonAllDayTimedEvents calculation, output filtered (these should NOT be allDay):", JSON.parse(JSON.stringify(filtered)));
-    return filtered;
-  }, [timedEventsForDate]);
 
   // ★★★ Create maps for user and group lookup ★★★
   const userMap = useMemo(() => {
@@ -729,25 +693,25 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     {(selectedEvent.extendedProps?.isPhase
                       ? true
                       : selectedEvent.extendedProps?.taskStatus) && (
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500 }}>
-                          ステータス:
-                        </Typography>
-                        <Chip
-                          label={selectedEvent.extendedProps?.isPhase
-                            ? (selectedEvent.extendedProps?.isCompleted ? '完了' : selectedEvent.extendedProps?.isDelayed ? '遅延' : '未完了')
-                            : selectedEvent.extendedProps?.taskStatus}
-                          size="small"
-                          sx={{
-                            backgroundColor: selectedEvent.extendedProps?.isPhase
-                              ? (selectedEvent.extendedProps?.isCompleted ? '#9e9e9e' : selectedEvent.extendedProps?.isDelayed ? '#F44336' : '#2196F3')
-                              : getTaskColor(selectedEvent.extendedProps?.taskStatus ?? 'todo'),
-                            color: '#fff',
-                            fontWeight: 500
-                          }}
-                        />
-                      </Box>
-                    )}
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="caption" sx={{ minWidth: 70, color: 'text.secondary', fontWeight: 500 }}>
+                            ステータス:
+                          </Typography>
+                          <Chip
+                            label={selectedEvent.extendedProps?.isPhase
+                              ? (selectedEvent.extendedProps?.isCompleted ? '完了' : selectedEvent.extendedProps?.isDelayed ? '遅延' : '未完了')
+                              : selectedEvent.extendedProps?.taskStatus}
+                            size="small"
+                            sx={{
+                              backgroundColor: selectedEvent.extendedProps?.isPhase
+                                ? (selectedEvent.extendedProps?.isCompleted ? '#9e9e9e' : selectedEvent.extendedProps?.isDelayed ? '#F44336' : '#2196F3')
+                                : getTaskColor(selectedEvent.extendedProps?.taskStatus ?? 'todo'),
+                              color: '#fff',
+                              fontWeight: 500
+                            }}
+                          />
+                        </Box>
+                      )}
 
                     {/* 担当者（ユーザーIDで表示） */}
                     {selectedEvent.extendedProps?.taskAssigneeId != null && (() => {
@@ -1256,36 +1220,36 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       {/* ステータス（段階目標の場合は未完了/完了/遅延、その他は特定タイプ以外で表示） */}
                       {(ev.extendedProps?.type?.toLowerCase() === 'task' && ev.extendedProps?.isPhase
                         ? (
-                            <Chip
-                              label={ev.extendedProps?.isCompleted ? '完了' : ev.extendedProps?.isDelayed ? '遅延' : '未完了'}
-                              size="small"
-                              sx={{
-                                height: 18,
-                                fontSize: '0.65rem',
-                                mt: 0.2,
-                                backgroundColor: ev.extendedProps?.isCompleted ? '#9e9e9e' : ev.extendedProps?.isDelayed ? '#F44336' : '#2196F3',
-                                color: '#fff',
-                                fontWeight: 500,
-                                '& .MuiChip-label': { px: 0.8, py: 0 }
-                              }}
-                            />
-                          )
+                          <Chip
+                            label={ev.extendedProps?.isCompleted ? '完了' : ev.extendedProps?.isDelayed ? '遅延' : '未完了'}
+                            size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: '0.65rem',
+                              mt: 0.2,
+                              backgroundColor: ev.extendedProps?.isCompleted ? '#9e9e9e' : ev.extendedProps?.isDelayed ? '#F44336' : '#2196F3',
+                              color: '#fff',
+                              fontWeight: 500,
+                              '& .MuiChip-label': { px: 0.8, py: 0 }
+                            }}
+                          />
+                        )
                         : ev.extendedProps?.status &&
-                          !['task', 'project', 'meeting', 'milestone', 'deadline', 'workshop', 'generic', 'event'].includes(ev.extendedProps?.type?.toLowerCase() || '') && (
-                            <Chip
-                              label={ev.extendedProps.status}
-                              size="small"
-                              sx={{
-                                height: 18,
-                                fontSize: '0.65rem',
-                                mt: 0.2,
-                                backgroundColor: getStatusColor(ev.extendedProps.status),
-                                color: '#fff',
-                                fontWeight: 500,
-                                '& .MuiChip-label': { px: 0.8, py: 0 }
-                              }}
-                            />
-                          ))}
+                        !['task', 'project', 'meeting', 'milestone', 'deadline', 'workshop', 'generic', 'event'].includes(ev.extendedProps?.type?.toLowerCase() || '') && (
+                          <Chip
+                            label={ev.extendedProps.status}
+                            size="small"
+                            sx={{
+                              height: 18,
+                              fontSize: '0.65rem',
+                              mt: 0.2,
+                              backgroundColor: getStatusColor(ev.extendedProps.status),
+                              color: '#fff',
+                              fontWeight: 500,
+                              '& .MuiChip-label': { px: 0.8, py: 0 }
+                            }}
+                          />
+                        ))}
 
                       {/* 関連プロジェクト（未設定の場合は「未設定」と表示） */}
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>

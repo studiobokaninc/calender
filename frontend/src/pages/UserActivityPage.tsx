@@ -194,7 +194,7 @@ const UserActivityPage: React.FC = () => {
     });
 
     // 各ユーザーのアクティビティを時系列でソート
-    userActivitiesMap.forEach((dates, userId) => {
+    userActivitiesMap.forEach((dates, _userId) => {
       dates.sort((a, b) => a.getTime() - b.getTime());
     });
 

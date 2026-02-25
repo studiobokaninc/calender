@@ -156,11 +156,7 @@ def build_projects_list_for_chat(db: Session) -> str:
         field_order = [
             "id",
             "name",
-            "description",
-            "start_date",
-            "end_date",
             "status",
-            "display_status",
         ]
         buffer = io.StringIO()
         writer = csv.writer(buffer, lineterminator="\n")
@@ -170,11 +166,7 @@ def build_projects_list_for_chat(db: Session) -> str:
             row = [
                 _cell_str(p.id),
                 _cell_str(p.name, normalize_text=True),
-                _cell_str(p.description, normalize_text=True),
-                _date_only(p.start_date),
-                _date_only(p.end_date),
                 _cell_str(_project_status_value(p)),
-                _cell_str(p.display_status),
             ]
             writer.writerow(row)
         return buffer.getvalue()
@@ -197,8 +189,6 @@ def build_users_list_for_chat(db: Session) -> str:
             "id",
             "username",
             "name",
-            "email",
-            "role",
         ]
         buffer = io.StringIO()
         writer = csv.writer(buffer, lineterminator="\n")
@@ -209,8 +199,6 @@ def build_users_list_for_chat(db: Session) -> str:
                 _cell_str(u.id),
                 _cell_str(u.username),
                 _cell_str(u.name),
-                _cell_str(u.email),
-                _cell_str(u.role),
             ]
             writer.writerow(row)
         return buffer.getvalue()

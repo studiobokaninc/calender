@@ -25,8 +25,8 @@ class LLMClient:
         self.client = genai.Client(api_key=api_key)
         
         # モデル設定
-        # ユーザー指定により gemini-2.5-pro を使用
-        self.model_name = "gemini-2.5-pro"
+        # チャットの高速化（ラグ解消）のため一時的に flash に変更
+        self.model_name = "gemini-2.5-flash"
         self.config = types.GenerateContentConfig(
             temperature=0.7,
             top_p=0.95,
@@ -175,6 +175,8 @@ id, name, project_id, assigned_to, due_date, status, priority
 - フレンドリーかつプロフェッショナルな日本語で答えてください。
 - タスクIDやステータスコードではなく、人間が読める名前や状態名を使ってください。
 """
+        logger.info(f"[LLM] task_csv len: {len(task_csv)}, notes len: {len(notes_text)}")
+        logger.info(f"[LLM] System Prompt Length: {len(system_prompt)}")
         return system_prompt
 
     async def stream_chat(
@@ -194,10 +196,13 @@ id, name, project_id, assigned_to, due_date, status, priority
         # テキストパート作成
         system_parts = [types.Part.from_text(text=system_prompt)]
         
-        # 添付ファイル(PDF/画像)があればシステムプロンプトに追加 (最大10件程度)
+        # ユーザープロンプト用のパートを作成
+        query_parts = [query]
+
+        # 添付ファイル(PDF/画像)があればシステムプロンプトではなく、ユーザーのメッセージパートに追加
         attachments = inputs.get("attachments", [])
         if attachments:
-            logger.info(f"Processing {len(attachments)} attachments for system context.")
+            logger.info(f"Processing {len(attachments)} attachments for query context.")
             for file_path in attachments:
                 try:
                     p = pathlib.Path(file_path)
@@ -231,7 +236,7 @@ id, name, project_id, assigned_to, due_date, status, priority
                         
                     # Gemini API (0.1+) Part format
                     part = types.Part.from_bytes(data=file_data, mime_type=mime_type)
-                    system_parts.append(part)
+                    query_parts.append(part)
                     
                 except Exception as e:
                     logger.warning(f"Failed to load attachment {file_path}: {e}")
@@ -241,50 +246,19 @@ id, name, project_id, assigned_to, due_date, status, priority
 
         try:
             # google-genai 1.0+ async chat structure
-            chat = self.client.chats.create(
+            chat = self.client.aio.chats.create(
                 model=self.model_name,
                 config=current_config,
                 history=history_contents
             )
             
-            # google-genai library streaming (synchronous iterator)
-            # To avoid blocking the event loop, run the blocking iteration in a separate thread
-            # and push chunks to an asyncio Queue.
-            
-            import asyncio
-            queue = asyncio.Queue()
-            loop = asyncio.get_running_loop()
-            
-            def blocking_iteration():
-                try:
-                    # Sync call
-                    response_stream = chat.send_message_stream(query)
-                    for chunk in response_stream:
-                        loop.call_soon_threadsafe(queue.put_nowait, chunk)
-                    # Sentinel for end
-                    loop.call_soon_threadsafe(queue.put_nowait, None)
-                except Exception as e:
-                    loop.call_soon_threadsafe(queue.put_nowait, e)
-
-            # Start thread
-            import threading
-            threading.Thread(target=blocking_iteration, daemon=True).start()
-            
             accumulated_text = ""
             
-            while True:
-                item = await queue.get()
-                if item is None:
-                    break
-                if isinstance(item, Exception):
-                    raise item
-                
-                chunk = item
-                
-                # new chunk object structure
+            # 完全に非同期な通信を行う (スレッドプールの枯渇やゾンビ接続を防ぐ)
+            response_stream = await chat.send_message_stream(query_parts)
+            async for chunk in response_stream:
                 text_chunk = chunk.text
                 if text_chunk:
-                    # logger.info(f"[LLM] Received chunk: {text_chunk[:20]}...") # Log start of chunk (INFO)
                     accumulated_text += text_chunk
                     
                     yield {
@@ -293,22 +267,28 @@ id, name, project_id, assigned_to, due_date, status, priority
                         "conversation_id": conversation_id,
                         "message_id": "gemini-msg-" + conversation_id
                     }
-                else:
-                    # logger.info("[LLM] Received empty text chunk")
-                    pass
                 
                 # Check for finish reason
                 if hasattr(chunk, 'candidates') and chunk.candidates:
                     for cand in chunk.candidates:
                         if cand.finish_reason:
-                            # logger.info(f"Gemini Finish Reason: {cand.finish_reason}")
-                            if cand.finish_reason != "STOP":
-                                logger.warning(f"Stream ended with non-STOP reason: {cand.finish_reason}")
-            
-            # logger.info(f"[LLM] Full accumulated text length: {len(accumulated_text)}")
-            # logger.info(f"[LLM] Full text: {accumulated_text}") # INFO level for full text
+                            pass # can log finish reason here
 
-            # Workaround: manually update history
+            # --- アクション検出 (ストリーミング完了時) ---
+            # サーバー側でもフォールバックとしてパースするが、
+            # 基本はフロントエンドで全結合後にパースするのを推奨
+            detected_action = self.detect_action_from_text(accumulated_text)
+            
+            if detected_action:
+                logger.info(f"[LLM] Detected task action: {detected_action.get('action_type')}")
+                yield {
+                    "event": "task_action",
+                    "type": "task_action_candidate",
+                    "action": detected_action,
+                    "conversation_id": conversation_id
+                }
+                
+            # 会話履歴の保存
             self._update_history(conversation_id, "user", query)
             self._update_history(conversation_id, "model", accumulated_text)
             

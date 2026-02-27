@@ -16,7 +16,7 @@ import { useCalendarPageState, usePageState } from '../contexts/PageStateContext
 import { useLocation, useNavigate } from 'react-router-dom';
 import { format as formatDateFnsOriginal, parseISO, isSameDay, isValid as isValidDateFns, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { Box, CircularProgress, Typography, useMediaQuery, useTheme, Theme, SelectChangeEvent, Button, Snackbar, Alert, Fab, Drawer, IconButton, FormControl, InputLabel, Select, MenuItem, Checkbox, FormControlLabel, FormGroup } from '@mui/material';
+import { Box, CircularProgress, Typography, useMediaQuery, useTheme, Theme, SelectChangeEvent, Button, Snackbar, Alert, Fab, Drawer, IconButton, FormControl, InputLabel, Select, MenuItem, Checkbox, FormControlLabel, FormGroup, Tooltip, Chip } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
@@ -221,6 +221,8 @@ const CalendarPage: React.FC = () => {
     const [eventTypeFilter, setEventTypeFilter] = useState<Record<string, boolean>>(DEFAULT_EVENT_TYPE_FILTER);
     const [stateRestored, setStateRestored] = useState(false);
     const [googleSnackbar, setGoogleSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+    const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>({ configured: false, connected: false, synced_task_ids: [] });
+
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -251,7 +253,11 @@ const CalendarPage: React.FC = () => {
         const google = params.get('google');
         if (google === 'connected' || google === 'error') {
             if (google === 'connected') {
-                setGoogleSnackbar({ open: true, message: 'Google カレンダーと連携しました。タスクページで「Googleに表示」をONにすると、タスクが個人のカレンダーに追加されます。', severity: 'success' });
+                const isSyncDisabled = user?.role === 'admin';
+                const msg = isSyncDisabled
+                    ? 'Google カレンダーと連携しました。管理者はタスク一覧から個別に同期対象を選択できます。'
+                    : 'Google カレンダーと連携しました。あなたに関連するタスク・プロジェクト・イベントが自動で同期されました！';
+                setGoogleSnackbar({ open: true, message: msg, severity: 'success' });
             } else {
                 const reason = params.get('reason');
                 let errorMessage = 'Google カレンダーとの連携に失敗しました。';
@@ -270,7 +276,52 @@ const CalendarPage: React.FC = () => {
             // クエリパラメータを削除してクリーンなURLにリダイレクト
             navigate('/calendar', { replace: true });
         }
-    }, [location.search, navigate]);
+    }, [location.search, navigate, user]);
+
+    // Google カレンダー連携状態の取得
+    const fetchGoogleStatus = useCallback(async () => {
+        try {
+            const res = await api.get<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>('/google/status');
+            setGoogleStatus({
+                configured: res.data.configured,
+                connected: res.data.connected,
+                synced_task_ids: res.data.synced_task_ids ?? [],
+            });
+        } catch {
+            setGoogleStatus({ configured: false, connected: false, synced_task_ids: [] });
+        }
+    }, []);
+    useEffect(() => {
+        fetchGoogleStatus();
+    }, [fetchGoogleStatus]);
+
+    const handleGoogleConnect = useCallback(async () => {
+        try {
+            const res = await api.get<{ url: string }>('/google/authorize');
+            if (res.data?.url) {
+                window.location.href = res.data.url;
+            } else {
+                console.error('Google authorize URL not found in response:', res.data);
+                setGoogleSnackbar({ open: true, message: 'Google認証URLの取得に失敗しました', severity: 'error' });
+            }
+        } catch (err: any) {
+            console.error('Google connect error:', err);
+            const errorMessage = err?.response?.data?.detail || err?.message || 'Google 連携の開始に失敗しました';
+            setGoogleSnackbar({ open: true, message: `Google連携エラー: ${errorMessage}`, severity: 'error' });
+        }
+    }, []);
+
+    const handleGoogleDisconnect = useCallback(async () => {
+        try {
+            await api.delete('/google/disconnect');
+            await fetchGoogleStatus();
+            setGoogleSnackbar({ open: true, message: 'Google 連携を解除しました', severity: 'success' });
+        } catch (err: any) {
+            console.error('Google disconnect error:', err);
+            const errorMessage = err?.response?.data?.detail || err?.message || 'Google 連携の解除に失敗しました';
+            setGoogleSnackbar({ open: true, message: `Google連携解除エラー: ${errorMessage}`, severity: 'error' });
+        }
+    }, [fetchGoogleStatus]);
 
     // ★★★ パネルのミニマイズ状態が変わったらカレンダーをリサイズ ★★★
     useEffect(() => {
@@ -2552,9 +2603,40 @@ const CalendarPage: React.FC = () => {
                         >
                             作成
                         </Button>
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', sm: '0.875rem' }, display: { xs: 'none', md: 'block' } }}>
-                            予定はドラッグ&ドロップで移動できます。タスクは期日が更新されます。ダブルクリックで編集できます。
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 1, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
+                            {!googleStatus.configured ? (
+                                <Tooltip title="Google連携はバックエンドで設定されていません">
+                                    <Chip size="small" label="Google連携未設定" variant="outlined" sx={{ color: 'text.secondary', cursor: 'default' }} />
+                                </Tooltip>
+                            ) : !googleStatus.connected ? (
+                                <Tooltip title="Google連携するとタスク・イベントなどが自動でカレンダーに同期されます">
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        color="primary"
+                                        onClick={handleGoogleConnect}
+                                        sx={{ textTransform: 'none', fontWeight: 600 }}
+                                    >
+                                        Google カレンダー連携
+                                    </Button>
+                                </Tooltip>
+                            ) : (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Tooltip title="Google連携済み（タスク・イベントなどは自動同期されます）">
+                                        <Chip size="small" label="Google 連携済み" color="success" sx={{ fontWeight: 600, cursor: 'default' }} />
+                                    </Tooltip>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        color="error"
+                                        onClick={handleGoogleDisconnect}
+                                        sx={{ textTransform: 'none', minWidth: 'auto', px: 1 }}
+                                    >
+                                        解除
+                                    </Button>
+                                </Box>
+                            )}
+                        </Box>
                     </Box>
                 </Box>
             )}

@@ -340,33 +340,90 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
             now = now_jst_naive()
             now_date_only = now.replace(hour=0, minute=0, second=0, microsecond=0)
             
-            for db_task in overdue_tasks:
-                # 既に自動遅延が適用されているかチェック（適用済みなら何もしない）
-                if _was_already_auto_delayed(db, db_task.id, db_task.due_date):
-                    continue
-
-                due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                if due_date_only < now_date_only:
-                    original_status = db_task.status
-                    db_task.status = models.TaskStatus.DELAYED
-                    db_task.updated_at = now
-                    
-                    # ステータス履歴を記録
-                    status_history_entry = models.TaskStatusHistory(
-                        task_id=db_task.id,
-                        status=models.TaskStatus.DELAYED,
-                        changed_at=now,
-                        changed_by=None  # システムによる変更として記録
-                    )
-                    db.add(status_history_entry)
-                    logger.info(f"タスク {db_task.id} のステータスを {original_status} から DELAYED に自動更新しました（期日超過）")
-            
             if overdue_tasks:
+                # バッチで _was_already_auto_delayed を検証する
+                overdue_task_ids = [t.id for t in overdue_tasks]
+                
+                # 自動遅延済みのタスクIDリストを取得
+                already_delayed_task_ids = set()
+                try:
+                    chunk_size = 900
+                    for i in range(0, len(overdue_task_ids), chunk_size):
+                        chunk_ids = overdue_task_ids[i:i + chunk_size]
+                        
+                        history_records = db.query(
+                            models.TaskStatusHistory.task_id,
+                            models.TaskStatusHistory.changed_at
+                        ).filter(
+                            models.TaskStatusHistory.task_id.in_(chunk_ids),
+                            models.TaskStatusHistory.status == models.TaskStatus.DELAYED,
+                            models.TaskStatusHistory.changed_by == None
+                        ).all()
+                        
+                        # 期限以降に変更された履歴があるかメモリ上でフィルタリング
+                        task_due_map = {t.id: t.due_date for t in overdue_tasks if t.id in chunk_ids and t.due_date}
+                        for hist_task_id, changed_at in history_records:
+                            due_date = task_due_map.get(hist_task_id)
+                            if due_date and changed_at:
+                                if isinstance(due_date, datetime):
+                                    due_date_start = due_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                                else:
+                                    due_date_start = datetime.combine(due_date, datetime.min.time())
+                                    
+                                if changed_at >= due_date_start:
+                                    already_delayed_task_ids.add(hist_task_id)
+                except Exception as e:
+                    logger.warning(f"オーバーデュー履歴の一括取得に失敗: {str(e)}")
+
+                for db_task in overdue_tasks:
+                    # 既に自動遅延が適用されているかチェック
+                    if db_task.id in already_delayed_task_ids:
+                        continue
+
+                    due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                    if due_date_only < now_date_only:
+                        original_status = db_task.status
+                        db_task.status = models.TaskStatus.DELAYED
+                        db_task.updated_at = now
+                        
+                        # ステータス履歴を記録
+                        status_history_entry = models.TaskStatusHistory(
+                            task_id=db_task.id,
+                            status=models.TaskStatus.DELAYED,
+                            changed_at=now,
+                            changed_by=None  # システムによる変更として記録
+                        )
+                        db.add(status_history_entry)
+                        logger.info(f"タスク {db_task.id} のステータスを {original_status} から DELAYED に自動更新しました（期日超過）")
+                
                 db.commit()
                 # 更新されたタスクのステータスを反映するため、再度取得
                 for db_task in overdue_tasks:
                     db.refresh(db_task)
         
+            # ステータス履歴をバッチで取得
+            history_map = {row.id: [] for row in rows}
+            if task_ids:
+                try:
+                    chunk_size = 900
+                    for i in range(0, len(task_ids), chunk_size):
+                        chunk_ids = task_ids[i:i + chunk_size]
+                        history_entries = db.query(models.TaskStatusHistory).filter(
+                            models.TaskStatusHistory.task_id.in_(chunk_ids)
+                        ).order_by(models.TaskStatusHistory.changed_at).all()
+                        
+                        for entry in history_entries:
+                            history_map[entry.task_id].append({
+                                'id': entry.id,
+                                'task_id': entry.task_id,
+                                'status': getattr(entry.status, "value", str(entry.status)) if entry.status else None,
+                                'timestamp': entry.changed_at.isoformat() if entry.changed_at else None,
+                                'changed_at': entry.changed_at.isoformat() if entry.changed_at else None,
+                                'changed_by': entry.changed_by
+                            })
+                except Exception as e:
+                    logger.warning(f"ステータス履歴の一括取得に失敗: {str(e)}")
+                    
         # タスクを辞書に変換
         task_dicts = []
         for row in rows:
@@ -429,19 +486,15 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
             # phasesの安全な処理
             try:
                 phases = row.phases if hasattr(row, 'phases') and row.phases else []
-                # logger.info(f"[get_tasks] Task {row.id} raw phases: {row.phases} (type: {type(row.phases)})")
                 if not isinstance(phases, list):
                     if isinstance(phases, str):
                         try:
                             phases = json.loads(phases)
-                            # logger.info(f"[get_tasks] Task {row.id} parsed phases from string: {phases}")
                         except:
-                            logger.warning(f"[get_tasks] Failed to parse phases JSON for task {row.id}: {row.phases}")
                             phases = []
                     else:
                         phases = []
             except Exception as e:
-                logger.error(f"[get_tasks] Error processing phases for task {row.id}: {e}")
                 phases = []
             
             task_dict = {
@@ -453,7 +506,7 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                 'due_date': safe_date_format(row.due_date),
                 'status': task_status,
                 'priority': priority_value,
-                'type': task_type,  # 無効な値もそのまま保持
+                'type': task_type,
                 'start_date': safe_date_format(row.start_date),
                 'progress': row.progress if hasattr(row, 'progress') else 0,
                 'cost': row.cost if hasattr(row, 'cost') else 0,
@@ -462,36 +515,10 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                 'seqID': row.seqID if hasattr(row, 'seqID') else None,
                 'created_at': safe_date_format(row.created_at),
                 'display_status': row.display_status if hasattr(row, 'display_status') else 'offline',
-                'display_status': row.display_status if hasattr(row, 'display_status') else 'offline',
                 'updated_at': safe_date_format(row.updated_at),
                 'phases': phases,
-                'status_history': []
+                'status_history': history_map.get(row.id, [])
             }
-            
-            if phases:
-                logger.info(f"[get_tasks] Task {row.id} ('{row.name}') has {len(phases)} phases: {phases}")
-
-            
-            # ステータス履歴を取得して辞書に変換
-            try:
-                history_entries = db.query(models.TaskStatusHistory).filter(
-                    models.TaskStatusHistory.task_id == row.id
-                ).order_by(models.TaskStatusHistory.changed_at).all()
-                
-                task_dict['status_history'] = [
-                    {
-                        'id': entry.id,
-                        'task_id': entry.task_id,
-                        'status': entry.status,
-                        'timestamp': entry.changed_at.isoformat() if entry.changed_at else None,
-                        'changed_at': entry.changed_at.isoformat() if entry.changed_at else None,
-                        'changed_by': entry.changed_by
-                    }
-                    for entry in history_entries
-                ]
-            except Exception as e:
-                logger.warning(f"タスク ID {row.id} のステータス履歴取得に失敗: {str(e)}")
-                task_dict['status_history'] = []
             
             task_dicts.append(task_dict)
         
@@ -1687,6 +1714,7 @@ def upsert_user_google_token(
     access_token: str,
     refresh_token: Optional[str] = None,
     expires_at: Optional[datetime] = None,
+    calendar_id: Optional[str] = None,
 ) -> models.UserGoogleToken:
     """Google トークンを保存（存在すれば更新）"""
     now = now_jst_naive()
@@ -1695,6 +1723,8 @@ def upsert_user_google_token(
         row.access_token = access_token
         row.refresh_token = refresh_token or row.refresh_token
         row.expires_at = expires_at
+        if calendar_id:
+            row.calendar_id = calendar_id
         row.updated_at = now
         db.commit()
         db.refresh(row)
@@ -1704,6 +1734,7 @@ def upsert_user_google_token(
         access_token=access_token,
         refresh_token=refresh_token,
         expires_at=expires_at,
+        calendar_id=calendar_id,
         created_at=now,
         updated_at=now,
     )
@@ -1711,6 +1742,15 @@ def upsert_user_google_token(
     db.commit()
     db.refresh(row)
     return row
+
+def delete_user_google_token(db: Session, user_id: int) -> bool:
+    """ユーザーの Google トークンを削除"""
+    row = get_user_google_token(db, user_id)
+    if not row:
+        return False
+    db.delete(row)
+    db.commit()
+    return True
 
 
 def get_task_google_sync(db: Session, user_id: int, task_id: int) -> Optional[models.TaskGoogleSync]:
@@ -1766,3 +1806,69 @@ def delete_task_google_sync(db: Session, user_id: int, task_id: int) -> bool:
 def get_task_google_syncs_for_task(db: Session, task_id: int) -> List[models.TaskGoogleSync]:
     """あるタスクを同期している全ユーザーのレコード"""
     return db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.task_id == task_id).all()
+
+
+def get_project_google_sync(db: Session, user_id: int, project_id: int) -> Optional[models.ProjectGoogleSync]:
+    return db.query(models.ProjectGoogleSync).filter(
+        models.ProjectGoogleSync.user_id == user_id, models.ProjectGoogleSync.project_id == project_id
+    ).first()
+
+def set_project_google_sync(db: Session, user_id: int, project_id: int, google_event_id: str) -> models.ProjectGoogleSync:
+    now = now_jst_naive()
+    row = get_project_google_sync(db, user_id, project_id)
+    if row:
+        row.google_event_id = google_event_id
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.ProjectGoogleSync(
+        user_id=user_id, project_id=project_id, google_event_id=google_event_id, created_at=now, updated_at=now
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def delete_project_google_sync(db: Session, user_id: int, project_id: int) -> bool:
+    row = get_project_google_sync(db, user_id, project_id)
+    if not row: return False
+    db.delete(row)
+    db.commit()
+    return True
+
+def get_project_google_syncs_for_project(db: Session, project_id: int) -> List[models.ProjectGoogleSync]:
+    return db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.project_id == project_id).all()
+
+
+def get_event_google_sync(db: Session, user_id: int, event_id: int) -> Optional[models.EventGoogleSync]:
+    return db.query(models.EventGoogleSync).filter(
+        models.EventGoogleSync.user_id == user_id, models.EventGoogleSync.event_id == event_id
+    ).first()
+
+def set_event_google_sync(db: Session, user_id: int, event_id: int, google_event_id: str) -> models.EventGoogleSync:
+    now = now_jst_naive()
+    row = get_event_google_sync(db, user_id, event_id)
+    if row:
+        row.google_event_id = google_event_id
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.EventGoogleSync(
+        user_id=user_id, event_id=event_id, google_event_id=google_event_id, created_at=now, updated_at=now
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def delete_event_google_sync(db: Session, user_id: int, event_id: int) -> bool:
+    row = get_event_google_sync(db, user_id, event_id)
+    if not row: return False
+    db.delete(row)
+    db.commit()
+    return True
+
+def get_event_google_syncs_for_event(db: Session, event_id: int) -> List[models.EventGoogleSync]:
+    return db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == event_id).all()

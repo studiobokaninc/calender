@@ -27,7 +27,7 @@ class RAGService:
         # Configure Gemini as the LLM and Embedding Model
         try:
             llm = Gemini(model="models/gemini-2.5-pro", api_key=self.api_key)
-            embed_model = GeminiEmbedding(model_name="models/text-embedding-004", api_key=self.api_key)
+            embed_model = GeminiEmbedding(model_name="models/embedding-001", api_key=self.api_key)
             Settings.llm = llm
             Settings.embed_model = embed_model
         except Exception as e:

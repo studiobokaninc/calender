@@ -41,6 +41,16 @@ def check_and_migrate_db():
             cursor.execute("ALTER TABLE notes ADD COLUMN audio_positions JSON")
             conn.commit()
             print("audio_positionsカラムを追加しました。")
+            
+        # user_google_tokensテーブルの既存のカラムを確認
+        cursor.execute("PRAGMA table_info(user_google_tokens)")
+        token_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'calendar_id' not in token_columns:
+            print("calendar_idカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE user_google_tokens ADD COLUMN calendar_id VARCHAR(255)")
+            conn.commit()
+            print("calendar_idカラムを追加しました。")
         
         conn.close()
         

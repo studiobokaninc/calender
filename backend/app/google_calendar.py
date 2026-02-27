@@ -12,8 +12,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# スコープ: カレンダーの読み書き
-SCOPE = "https://www.googleapis.com/auth/calendar.events"
+# スコープ: カレンダー全体の読み書き（専用カレンダー作成や取得に必要）
+SCOPE = "https://www.googleapis.com/auth/calendar"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
@@ -102,6 +102,46 @@ def _ensure_valid_token(access_token: str, refresh_token: Optional[str], expires
         return refresh_access_token(refresh_token)
     return access_token
 
+def get_or_create_app_calendar(
+    access_token: str,
+    refresh_token: Optional[str],
+    expires_at: Optional[datetime],
+) -> Optional[str]:
+    """アプリ用のカレンダーを取得するか作成して、その ID を返す"""
+    token = _ensure_valid_token(access_token, refresh_token, expires_at)
+    if not token:
+        return None
+    
+    calendar_name = "Calendar App Tasks"
+    try:
+        with httpx.Client() as client:
+            r = client.get(
+                f"{CALENDAR_API}/users/me/calendarList",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=15.0,
+            )
+            r.raise_for_status()
+            calendars = r.json().get("items", [])
+            for cal in calendars:
+                if cal.get("summary") == calendar_name:
+                    return cal.get("id")
+            
+            body = {
+                "summary": calendar_name,
+                "description": "カレンダーアプリからのタスク・プロジェクト・イベント"
+            }
+            res = client.post(
+                f"{CALENDAR_API}/calendars",
+                json=body,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                timeout=15.0,
+            )
+            res.raise_for_status()
+            return res.json().get("id")
+    except Exception as e:
+        logger.exception("Google Calendar get/create app calendar failed: %s", e)
+        return None
+
 
 def create_calendar_event(
     access_token: str,
@@ -111,29 +151,54 @@ def create_calendar_event(
     start_date: Optional[datetime],
     end_date: Optional[datetime],
     description: Optional[str] = None,
+    calendar_id: Optional[str] = None,
+    is_all_day: bool = False,
+    sync_id: Optional[str] = None,
 ) -> Optional[str]:
     """
-    ユーザーの primary カレンダーにイベントを作成。
+    ユーザーのカレンダーにイベントを作成。
     成功時は Google のイベント ID を返す。失敗時は None。
     """
     token = _ensure_valid_token(access_token, refresh_token, expires_at)
     if not token:
         return None
-    # 日付がない場合は今日 9:00–10:00 で作成
     if not start_date:
         start_date = datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0)
     if not end_date:
         end_date = start_date + timedelta(hours=1)
-    body = {
-        "summary": task_name[:1024],
-        "description": (description or "")[:8192],
-        "start": {"dateTime": start_date.isoformat() + "Z", "timeZone": "UTC"},
-        "end": {"dateTime": end_date.isoformat() + "Z", "timeZone": "UTC"},
-    }
+        
+    if is_all_day:
+        # Google Calendar all-day events have exclusive end dates.
+        # Normalize to date objects to avoid timezone-shift spanning issues.
+        start_date_obj = start_date.date()
+        end_date_obj = end_date.date()
+        # Google inclusive end date -> Google exclusive end date (+1 day)
+        adjusted_end_date = end_date_obj + timedelta(days=1)
+            
+        body = {
+            "summary": task_name[:1024],
+            "description": (description or "")[:8192],
+            "start": {"date": start_date_obj.strftime("%Y-%m-%d")},
+            "end": {"date": adjusted_end_date.strftime("%Y-%m-%d")},
+        }
+    else:
+        # start_date are JST naive. We will format them as JST.
+        body = {
+            "summary": task_name[:1024],
+            "description": (description or "")[:8192],
+            "start": {"dateTime": start_date.isoformat(), "timeZone": "Asia/Tokyo"},
+            "end": {"dateTime": end_date.isoformat(), "timeZone": "Asia/Tokyo"},
+        }
+    
+    if sync_id:
+        body["extendedProperties"] = {"private": {"app_sync_id": sync_id}}
+        
+    target_calendar = calendar_id or "primary"
+    
     try:
         with httpx.Client() as client:
             r = client.post(
-                f"{CALENDAR_API}/calendars/primary/events",
+                f"{CALENDAR_API}/calendars/{target_calendar}/events",
                 json=body,
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                 timeout=15.0,
@@ -154,6 +219,9 @@ def update_calendar_event(
     start_date: Optional[datetime],
     end_date: Optional[datetime],
     description: Optional[str] = None,
+    calendar_id: Optional[str] = None,
+    is_all_day: bool = False,
+    sync_id: Optional[str] = None,
 ) -> bool:
     """既存イベントを更新。"""
     token = _ensure_valid_token(access_token, refresh_token, expires_at)
@@ -163,16 +231,36 @@ def update_calendar_event(
         start_date = datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0)
     if not end_date:
         end_date = start_date + timedelta(hours=1)
-    body = {
-        "summary": task_name[:1024],
-        "description": (description or "")[:8192],
-        "start": {"dateTime": start_date.isoformat() + "Z", "timeZone": "UTC"},
-        "end": {"dateTime": end_date.isoformat() + "Z", "timeZone": "UTC"},
-    }
+        
+    if is_all_day:
+        # Google Calendar all-day events have exclusive end dates.
+        start_date_obj = start_date.date()
+        end_date_obj = end_date.date()
+        adjusted_end_date = end_date_obj + timedelta(days=1)
+            
+        body = {
+            "summary": task_name[:1024],
+            "description": (description or "")[:8192],
+            "start": {"date": start_date_obj.strftime("%Y-%m-%d")},
+            "end": {"date": adjusted_end_date.strftime("%Y-%m-%d")},
+        }
+    else:
+        body = {
+            "summary": task_name[:1024],
+            "description": (description or "")[:8192],
+            "start": {"dateTime": start_date.isoformat(), "timeZone": "Asia/Tokyo"},
+            "end": {"dateTime": end_date.isoformat(), "timeZone": "Asia/Tokyo"},
+        }
+    
+    if sync_id:
+        body["extendedProperties"] = {"private": {"app_sync_id": sync_id}}
+        
+    target_calendar = calendar_id or "primary"
+    
     try:
         with httpx.Client() as client:
             r = client.patch(
-                f"{CALENDAR_API}/calendars/primary/events/{event_id}",
+                f"{CALENDAR_API}/calendars/{target_calendar}/events/{event_id}",
                 json=body,
                 headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                 timeout=15.0,
@@ -189,15 +277,19 @@ def delete_calendar_event(
     refresh_token: Optional[str],
     expires_at: Optional[datetime],
     event_id: str,
+    calendar_id: Optional[str] = None,
 ) -> bool:
     """カレンダーからイベントを削除。"""
     token = _ensure_valid_token(access_token, refresh_token, expires_at)
     if not token:
         return False
+        
+    target_calendar = calendar_id or "primary"
+    
     try:
         with httpx.Client() as client:
             r = client.delete(
-                f"{CALENDAR_API}/calendars/primary/events/{event_id}",
+                f"{CALENDAR_API}/calendars/{target_calendar}/events/{event_id}",
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=15.0,
             )
@@ -209,3 +301,32 @@ def delete_calendar_event(
     except Exception as e:
         logger.exception("Google Calendar delete event failed: %s", e)
         return False
+
+def find_event_by_sync_id(
+    access_token: str,
+    refresh_token: Optional[str],
+    expires_at: Optional[datetime],
+    sync_id: str,
+    calendar_id: Optional[str] = None,
+) -> Optional[str]:
+    """sync_id (extendedProperties) を使って既存のイベントを検索し、最初に見つかった ID を返す。"""
+    token = _ensure_valid_token(access_token, refresh_token, expires_at)
+    if not token:
+        return None
+    
+    target_calendar = calendar_id or "primary"
+    try:
+        with httpx.Client() as client:
+            r = client.get(
+                f"{CALENDAR_API}/calendars/{target_calendar}/events",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"privateExtendedProperty": f"app_sync_id={sync_id}"},
+                timeout=15.0,
+            )
+            r.raise_for_status()
+            items = r.json().get("items", [])
+            if items:
+                return items[0].get("id")
+    except Exception as e:
+        logger.exception("Google Calendar find event by sync_id failed: %s", e)
+    return None

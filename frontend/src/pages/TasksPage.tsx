@@ -327,6 +327,18 @@ const TasksPage: React.FC = () => {
         }
     }, []);
 
+    const handleGoogleDisconnect = useCallback(async () => {
+        try {
+            await api.delete('/google/disconnect');
+            await fetchGoogleStatus();
+            setSnackbar({ open: true, message: 'Google 連携を解除しました', severity: 'success' });
+        } catch (err: any) {
+            console.error('Google disconnect error:', err);
+            const errorMessage = err?.response?.data?.detail || err?.message || 'Google 連携の解除に失敗しました';
+            setSnackbar({ open: true, message: `Google連携解除エラー: ${errorMessage}`, severity: 'error' });
+        }
+    }, [fetchGoogleStatus]);
+
     const handleGoogleSyncToggle = useCallback(async (taskId: number, currentSynced: boolean) => {
         setGoogleSyncingTaskId(taskId);
         try {
@@ -1280,14 +1292,25 @@ const TasksPage: React.FC = () => {
                                     </Button>
                                 </Tooltip>
                             ) : (
-                                <Tooltip title="タスク一覧の「Google」列のチェックで、各タスクを自分のGoogleカレンダーに表示・非表示できます">
-                                    <Chip
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Tooltip title="タスク一覧の「Google」列のチェックで、各タスクを自分のGoogleカレンダーに表示・非表示できます">
+                                        <Chip
+                                            size="small"
+                                            label="Google 連携済み"
+                                            color="success"
+                                            sx={{ fontWeight: 600, cursor: 'default' }}
+                                        />
+                                    </Tooltip>
+                                    <Button
                                         size="small"
-                                        label="Google 連携済み"
-                                        color="success"
-                                        sx={{ fontWeight: 600, cursor: 'default' }}
-                                    />
-                                </Tooltip>
+                                        variant="outlined"
+                                        color="error"
+                                        onClick={handleGoogleDisconnect}
+                                        sx={{ textTransform: 'none', minWidth: 'auto', px: 1 }}
+                                    >
+                                        解除
+                                    </Button>
+                                </Box>
                             )}
                         </Box>
                     </Box>

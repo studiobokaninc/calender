@@ -214,6 +214,7 @@ class UserGoogleToken(Base):
     access_token: Mapped[str] = mapped_column(Text)
     refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    calendar_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
@@ -225,5 +226,27 @@ class TaskGoogleSync(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id"), primary_key=True)
     google_event_id: Mapped[str] = mapped_column(String(512), index=True)  # Google Calendar のイベント ID
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+
+class ProjectGoogleSync(Base):
+    """プロジェクトをユーザーの Google カレンダーに表示する紐付け"""
+    __tablename__ = "project_google_sync"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), primary_key=True)
+    google_event_id: Mapped[str] = mapped_column(String(512), index=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+
+class EventGoogleSync(Base):
+    """イベントをユーザーの Google カレンダーに表示する紐付け"""
+    __tablename__ = "event_google_sync"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), primary_key=True)
+    google_event_id: Mapped[str] = mapped_column(String(512), index=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)

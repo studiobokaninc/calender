@@ -62,7 +62,7 @@ python -m venv venv
 
 # 依存パッケージのインストール
 # requirements.txt は backend ディレクトリにあります
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # データベースの初期化
 python backend/scripts/init_db.py

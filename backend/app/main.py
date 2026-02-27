@@ -11,7 +11,6 @@ from pydantic import BaseModel, EmailStr, Field
 from . import models, database, crud, schemas
 from . import mock_data
 from .database import engine, get_db, DATABASE_FILE_PATH
-from .services.rag import rag_service
 import uuid
 import os
 import tempfile
@@ -171,7 +170,7 @@ async def get_current_active_admin(current_user: Annotated[models.User, Depends(
     return current_user
 
 @app.post("/api/auth/token", tags=["Auth"])
-async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):
+def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):
     """ユーザー名とパスワードで認証し、アクセストークンを返す"""
     user = authenticate_user(db, username=form_data.username, password=form_data.password)
     if not user:
@@ -198,7 +197,7 @@ async def root():
 
 # メトリクスエンドポイント
 @app.get("/metrics/dashboard")
-async def get_dashboard_metrics(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_dashboard_metrics(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
     num_tasks = 0
     try:
         # get_tasks に渡すパラメータを調整する必要があるかもしれません。
@@ -260,7 +259,7 @@ async def get_dashboard_metrics(current_user: models.User = Depends(get_current_
 
 
 @app.get("/metrics/labor-report", tags=["Metrics"])
-async def get_labor_report_endpoint(
+def get_labor_report_endpoint(
     group_by: str = Query("user", description="集計単位: user または project"),
     from_date: Optional[str] = Query(None, description="集計開始日 YYYY-MM-DD"),
     to_date: Optional[str] = Query(None, description="集計終了日 YYYY-MM-DD"),
@@ -288,7 +287,7 @@ async def get_labor_report_endpoint(
 
 
 @app.get("/metrics/weekly-availability", tags=["Metrics"])
-async def get_weekly_availability_endpoint(
+def get_weekly_availability_endpoint(
     week_start: Optional[str] = Query(None, description="週の開始日（月曜）YYYY-MM-DD。未指定時は今週の月曜"),
     only_free: bool = Query(False, description="True の場合、その週に余裕があるユーザーのみ返す"),
     include_offline: bool = Query(False, description="オフラインのプロジェクトのタスクを含めるか"),
@@ -333,7 +332,7 @@ async def get_weekly_availability_endpoint(
 
 
 @app.get("/metrics/daily-availability", tags=["Metrics"])
-async def get_daily_availability_endpoint(
+def get_daily_availability_endpoint(
     target_date: Optional[str] = Query(None, description="対象日 YYYY-MM-DD。未指定時は今日"),
     only_free: bool = Query(False, description="True の場合、その日に余裕があるユーザーのみ返す"),
     include_offline: bool = Query(False, description="オフラインのプロジェクトのタスクを含めるか"),
@@ -405,7 +404,7 @@ def _do_global_search(db: Session, q_trimmed: str, limit: int):
 
 @app.get("/search", tags=["Search"])
 @app.get("/api/search", tags=["Search"])
-async def global_search(
+def global_search(
     q: str = Query("", min_length=0, description="検索キーワード"),
     limit: int = Query(10000, ge=1, le=10000, description="各カテゴリ（プロジェクト・タスク・イベント）の最大取得件数。ヒットしたものは全て返すため大きめの値"),
     db: Session = Depends(get_db),
@@ -442,7 +441,7 @@ def _google_state_verify(state: str) -> Optional[int]:
 
 
 @app.get("/api/google/status", tags=["Google Calendar"])
-async def google_calendar_status(
+def google_calendar_status(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -459,7 +458,7 @@ async def google_calendar_status(
 
 
 @app.get("/api/google/authorize", tags=["Google Calendar"])
-async def google_calendar_authorize(
+def google_calendar_authorize(
     current_user: models.User = Depends(get_current_user),
 ):
     """Google 認証ページの URL を返す。フロントはこの URL に window.location で遷移させる（JWT は送れないためリダイレクトは API 側で行わない）"""
@@ -479,13 +478,15 @@ async def google_calendar_authorize(
 
 
 @app.get("/api/google/callback", tags=["Google Calendar"])
-async def google_calendar_callback(
+def google_calendar_callback(
+    background_tasks: BackgroundTasks,
     code: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
     error: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """OAuth コールバック。コードをトークンに交換し、ユーザーに紐付けて保存。その後フロントへリダイレクト。"""
+
     frontend_base = os.getenv("FRONTEND_URL", "http://localhost:5175")
     
     # Google OAuth エラーがある場合
@@ -526,6 +527,15 @@ async def google_calendar_callback(
             db, user_id=user_id, access_token=access_token, refresh_token=refresh_token, expires_at=expires_at
         )
         logger.info(f"Google token saved for user {user_id}")
+        
+        # トークンの保存完了後、一般ユーザーのみ自動同期を実行
+        user_record = crud.get_user(db, user_id=user_id)
+        if user_record and user_record.role != "admin":
+            from app.services.google_sync import initial_sync_for_user_bg
+            background_tasks.add_task(initial_sync_for_user_bg, user_id)
+        else:
+            logger.info(f"Skipping auto-sync for admin user {user_id}")
+        
     except Exception as e:
         logger.exception(f"Failed to save Google token: {e}")
         return RedirectResponse(url=f"{frontend_base}/calendar?google=error&reason=save_failed")
@@ -534,12 +544,29 @@ async def google_calendar_callback(
     return RedirectResponse(url=f"{frontend_base}/calendar?google=connected")
 
 
+@app.delete("/api/google/disconnect", tags=["Google Calendar"])
+def google_calendar_disconnect(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Google連携を解除する"""
+    if not crud.delete_user_google_token(db, current_user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google 連携が見つかりません")
+    
+    # 既存の同期レコードをすべて削除（必要に応じてGoogleカレンダー上の予定も削除できますが、ここでは単純に連携解除のみとします）
+    db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.user_id == current_user.id).delete()
+    db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.user_id == current_user.id).delete()
+    db.query(models.EventGoogleSync).filter(models.EventGoogleSync.user_id == current_user.id).delete()
+    db.commit()
+    
+    return {"message": "Google 連携を解除しました"}
+
 class TaskGoogleSyncRequest(BaseModel):
     sync: bool  # True=表示する, False=表示しない
 
 
 @app.post("/api/google/sync/task/{task_id}", tags=["Google Calendar"])
-async def google_calendar_sync_task(
+def google_calendar_sync_task(
     task_id: int,
     body: TaskGoogleSyncRequest,
     db: Session = Depends(get_db),
@@ -556,46 +583,26 @@ async def google_calendar_sync_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="タスクが見つかりません")
 
     if body.sync:
-        # イベント作成（DB の日時は JST naive 想定 → UTC に変換して API に渡す）
-        def _to_utc(dt):
-            if dt is None:
-                return None
-            # naive を JST とみなして UTC に
-            jst = timezone(timedelta(hours=9))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=jst)
-            return dt.astimezone(timezone.utc).replace(tzinfo=None)
-        start_dt = db_task.start_date if db_task.start_date else (db_task.due_date or now_jst_naive())
-        end_dt = db_task.due_date if db_task.due_date else (start_dt + timedelta(hours=1) if start_dt else now_jst_naive())
-        if start_dt and not end_dt:
-            end_dt = start_dt + timedelta(hours=1)
-        start_utc, end_utc = _to_utc(start_dt), _to_utc(end_dt)
-        event_id = google_cal.create_calendar_event(
-            access_token=token_row.access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            task_name=db_task.name,
-            start_date=start_utc,
-            end_date=end_utc,
-            description=db_task.description,
-        )
-        if not event_id:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google カレンダーにイベントを作成できませんでした")
-        crud.set_task_google_sync(db, current_user.id, task_id, event_id)
-        return {"synced": True, "message": "タスクを Google カレンダーに追加しました"}
+        from app.services.google_sync import sync_task_to_google
+        try:
+            sync_task_to_google(db, db_task, token_row, current_user.id)
+            return {"synced": True, "message": "タスクを Google カレンダーに追加しました"}
+        except Exception as e:
+            logger.exception(f"Manual sync failed: {e}")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google カレンダーへの同期に失敗しました")
     else:
         # 同期解除・イベント削除
         sync_row = crud.get_task_google_sync(db, current_user.id, task_id)
         if sync_row:
             google_cal.delete_calendar_event(
-                token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id
+                token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
             )
             crud.delete_task_google_sync(db, current_user.id, task_id)
         return {"synced": False, "message": "Google カレンダーからの表示を解除しました"}
 
 
 @app.get("/api/google/sync/tasks", tags=["Google Calendar"])
-async def google_calendar_synced_tasks(
+def google_calendar_synced_tasks(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -605,7 +612,7 @@ async def google_calendar_synced_tasks(
 
 
 @app.get("/projects", response_model=List[schemas.ProjectResponse], tags=["Projects"])
-async def get_projects_endpoint(
+def get_projects_endpoint(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
     skip: int = 0,
@@ -632,7 +639,7 @@ async def get_projects_endpoint(
     return projects
 
 @app.get("/projects/{project_id}", response_model=schemas.ProjectResponse, tags=["Projects"])
-async def get_project_endpoint(
+def get_project_endpoint(
     project_id: int, # パスパラメータから project_id を受け取る
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user) # 認証
@@ -648,19 +655,23 @@ async def get_project_endpoint(
     return db_project
 
 @app.post("/projects", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED, tags=["Projects"])
-async def create_project_endpoint(
+def create_project_endpoint(
     project_data: schemas.ProjectCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_admin),
 ):
     """新規プロジェクトを作成（管理者のみ）"""
     created_project = crud.create_project(db=db, project=project_data)
+    from app.services.google_sync import auto_sync_project_bg
+    background_tasks.add_task(auto_sync_project_bg, created_project.id)
     return created_project
 
 @app.put("/projects/{project_id}", response_model=schemas.ProjectResponse, tags=["Projects"])
-async def update_project_endpoint(
+def update_project_endpoint(
     project_id: int,
     project_data: schemas.ProjectUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_admin),
 ):
@@ -675,10 +686,14 @@ async def update_project_endpoint(
     # プロジェクトが完了またはキャンセルになった場合、そのプロジェクトに属する未完了タスクをすべて完了にする
     if updated_project.status == models.ProjectStatus.COMPLETED or updated_project.status == models.ProjectStatus.CANCELLED:
         crud.complete_tasks_for_project(db=db, project_id=project_id)
+        
+    from app.services.google_sync import auto_sync_project_bg
+    background_tasks.add_task(auto_sync_project_bg, updated_project.id)
+    
     return updated_project
 
 @app.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Projects"])
-async def delete_project_endpoint(
+def delete_project_endpoint(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_admin),
@@ -896,17 +911,21 @@ async def get_event_endpoint(
 @app.post("/calendar/events", response_model=schemas.EventResponse, status_code=status.HTTP_201_CREATED, tags=["Events"])
 async def create_event_endpoint(
     event_data: schemas.EventCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     """新規イベントを作成 (認証済みユーザーのみ、デフォルトステータスは 'offline')"""
     created_event = crud.create_event(db=db, event=event_data)
+    from app.services.google_sync import auto_sync_event_bg
+    background_tasks.add_task(auto_sync_event_bg, created_event.id)
     return created_event
 
 @app.put("/calendar/events/{event_id}", response_model=schemas.EventResponse, tags=["Events"])
 async def update_event_endpoint(
     event_id: int,
     event_data: schemas.EventUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -923,6 +942,10 @@ async def update_event_endpoint(
                 detail="イベントステータスを変更する権限がありません"
             )
     updated_event = crud.update_event(db=db, db_event=db_event, event_in=event_data)
+    
+    from app.services.google_sync import auto_sync_event_bg
+    background_tasks.add_task(auto_sync_event_bg, updated_event.id)
+    
     return updated_event
 
 @app.delete("/calendar/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Events"])
@@ -1158,6 +1181,7 @@ async def delete_user_endpoint(
 @app.post("/tasks", response_model=schemas.TaskResponse, status_code=status.HTTP_201_CREATED, tags=["Tasks"])
 async def create_task_endpoint(
     task_data: schemas.TaskCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -1170,12 +1194,15 @@ async def create_task_endpoint(
                 detail="指定されたプロジェクトが見つかりません"
             )
     created_task = crud.create_task(db=db, task=task_data)
+    from app.services.google_sync import auto_sync_task_bg
+    background_tasks.add_task(auto_sync_task_bg, created_task.id)
     return created_task
     
 @app.put("/tasks/{task_id}", response_model=schemas.TaskResponse, tags=["Tasks"])
 async def update_task_endpoint(
     task_id: int,
     task_data: schemas.TaskUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -1196,36 +1223,9 @@ async def update_task_endpoint(
 
     updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data)
 
-    # Google カレンダーに同期済みのユーザーがいれば、該当イベントを更新
-    if google_cal.is_google_configured():
-        syncs = crud.get_task_google_syncs_for_task(db, task_id=task_id)
-        for sync_row in syncs:
-            token_row = crud.get_user_google_token(db, sync_row.user_id)
-            if not token_row:
-                continue
-            start_dt = updated_task.start_date or updated_task.due_date or now_jst_naive()
-            end_dt = updated_task.due_date or (start_dt + timedelta(hours=1) if start_dt else now_jst_naive())
-            if start_dt and not end_dt:
-                end_dt = start_dt + timedelta(hours=1)
-
-            def _to_utc(dt):
-                if dt is None:
-                    return None
-                jst = timezone(timedelta(hours=9))
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=jst)
-                return dt.astimezone(timezone.utc).replace(tzinfo=None)
-            start_utc, end_utc = _to_utc(start_dt), _to_utc(end_dt)
-            google_cal.update_calendar_event(
-                token_row.access_token,
-                token_row.refresh_token,
-                token_row.expires_at,
-                sync_row.google_event_id,
-                task_name=updated_task.name,
-                start_date=start_utc,
-                end_date=end_utc,
-                description=updated_task.description,
-            )
+    # Google カレンダーへの同期は auto_sync_task_bg（バックグラウンド処理）にて行われます
+    from app.services.google_sync import auto_sync_task_bg
+    background_tasks.add_task(auto_sync_task_bg, updated_task.id)
 
     return updated_task
 
@@ -1233,6 +1233,7 @@ async def update_task_endpoint(
 @app.post("/tasks/bulk-update", tags=["Tasks"])
 async def bulk_update_tasks_endpoint(
     payload: schemas.TaskBulkUpdateRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -1251,6 +1252,11 @@ async def bulk_update_tasks_endpoint(
     if not updates:
         return {"updated": 0, "message": "更新項目が指定されていません"}
     updated = crud.bulk_update_tasks(db=db, task_ids=payload.task_ids, updates=updates)
+    
+    from app.services.google_sync import auto_sync_task_bg
+    for tid in payload.task_ids:
+        background_tasks.add_task(auto_sync_task_bg, tid)
+        
     return {"updated": updated, "message": f"{updated}件のタスクを更新しました"}
 
 
@@ -1274,7 +1280,7 @@ async def delete_task_endpoint(
             token_row = crud.get_user_google_token(db, sync_row.user_id)
             if token_row:
                 google_cal.delete_calendar_event(
-                    token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id
+                    token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
                 )
             crud.delete_task_google_sync(db, sync_row.user_id, task_id)
 
@@ -2651,7 +2657,7 @@ async def create_note(
     return crud.create_note(db=db, note=note, created_by=current_user.id)
 
 @app.get("/notes", response_model=List[schemas.NoteResponse], tags=["Notes"])
-async def get_notes(
+def get_notes(
     skip: int = 0,
     limit: int = 100,
     project_id: Optional[int] = Query(None, description="プロジェクトIDでフィルタ"),
@@ -2678,7 +2684,7 @@ async def get_notes(
         raise HTTPException(status_code=500, detail="メモの取得に失敗しました。")
 
 @app.get("/notes/{note_id}", response_model=schemas.NoteResponse, tags=["Notes"])
-async def get_note(
+def get_note(
     note_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -2693,7 +2699,7 @@ async def get_note(
     return db_note
 
 @app.put("/notes/{note_id}", response_model=schemas.NoteResponse, tags=["Notes"])
-async def update_note(
+def update_note(
     note_id: int,
     note: schemas.NoteUpdate,
     db: Session = Depends(get_db),
@@ -2823,7 +2829,7 @@ async def upload_note_audio(
 # --- UserActivity Endpoints ---
 
 @app.post("/api/user-activities", response_model=schemas.UserActivityResponse, status_code=status.HTTP_201_CREATED, tags=["UserActivities"])
-async def create_user_activity(
+def create_user_activity(
     activity_data: schemas.UserActivityCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -2850,7 +2856,7 @@ async def create_user_activity(
     return crud.create_user_activity(db=db, user_id=user_id)
 
 @app.get("/api/user-activities", response_model=List[schemas.UserActivityResponse], tags=["UserActivities"])
-async def get_user_activities_endpoint(
+def get_user_activities_endpoint(
     user_id: Optional[int] = Query(None, description="ユーザーIDでフィルタリング"),
     cycle_date: Optional[str] = Query(None, description="周期日（YYYY-MM-DD形式）"),
     skip: int = 0,

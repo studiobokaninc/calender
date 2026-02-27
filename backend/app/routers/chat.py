@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from pathlib import Path
 from dotenv import load_dotenv
 import json
+import time
 
 from ..services.llm import LLMClient
 from ..database import get_db
@@ -20,7 +21,6 @@ from jose import JWTError, jwt
 from ..security import get_current_user, SECRET_KEY, ALGORITHM
 from sqlalchemy.orm import Session
 import logging
-from ..services.rag import rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,7 @@ async def stream_chat(
     # ユーザー名は管理者/デフォルトとして扱う
     user = request.user if request.user else "admin_user"
 
+    t0 = time.time()
     # inputs にタスクリストCSV、プロジェクトリスト、ユーザーリストを含める
     inputs: dict = {}
     try:
@@ -118,13 +119,15 @@ async def stream_chat(
         # Fallback to empty context
         inputs = {"csv": "", "proj": "", "user_list": "", "mode": "admin", "notes": ""}
         
-    # Retrieve RAG context based on query
-    try:
-        rag_context = rag_service.query_context(query)
-        if rag_context:
-            inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
-    except Exception as e:
-        logger.warning("[chat/stream] RAG query failed: %s", e)
+    logger.info(f"[PROFILER] get_dashboard_context took {time.time() - t0:.2f}s")
+        
+    # RAG Context Retrieval (Temporarily Disabled)
+    # try:
+    #     rag_context = rag_service.query_context(query)
+    #     if rag_context:
+    #         inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
+    # except Exception as e:
+    #     logger.warning("[chat/stream] RAG query failed: %s", e)
         
     if conversation_id is None:
         import uuid
@@ -152,7 +155,14 @@ async def stream_chat(
             message_buffer = ""
 
             # LLMストリーミング
+            logger.info(f"[PROFILER] Calling client.stream_chat now... (Elapsed from start: {time.time() - t0:.2f}s)")
+            
+            t_first_chunk = None
             async for event_data in client.stream_chat(query, conversation_id, inputs, user):
+                if t_first_chunk is None:
+                    t_first_chunk = time.time()
+                    logger.info(f"[PROFILER] First yield from stream_chat arrived. TTFT: {t_first_chunk - t0:.2f}s")
+                    
                 # event_data は {"event": "...", "answer": "...", ...}
                 
                 # SSE形式にエンコードして送信
@@ -249,13 +259,13 @@ async def stream_chat_user(
         logger.warning("[chat/user/stream] get_personal_context failed: %s", e)
         inputs = {"csv": "", "proj": "", "events": "", "mode": "personal", "notes": ""}
 
-    # Retrieve RAG context based on query
-    try:
-        rag_context = rag_service.query_context(query)
-        if rag_context:
-            inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
-    except Exception as e:
-        logger.warning("[chat/user/stream] RAG query failed: %s", e)
+    # RAG Context Retrieval (Temporarily Disabled)
+    # try:
+    #     rag_context = rag_service.query_context(query)
+    #     if rag_context:
+    #         inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
+    # except Exception as e:
+    #     logger.warning("[chat/user/stream] RAG query failed: %s", e)
 
     if conversation_id is None:
         import uuid

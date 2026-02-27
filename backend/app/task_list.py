@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone, timedelta, date
 from sqlalchemy.orm import Session
@@ -729,74 +730,9 @@ def get_personal_context(db: Session, user_id: int) -> dict:
     # 4. メモ & ファイル (画像/PDF/Audio)
     inputs["notes"] = build_notes_list_for_chat(db, user_id)
     
-    # メモ添付ファイルを収集 (最大10件まで)
-    attachments = []
-    UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
-    
-    try:
-        notes = crud.get_notes(db, skip=0, limit=20, created_by=user_id) # 直近20件くらい
-        for n in notes:
-            # 画像
-            if n.image_urls:
-                for url in n.image_urls:
-                    if len(attachments) >= 10: break
-                    if url.startswith("/static/uploads/"):
-                        filename = url.replace("/static/uploads/", "")
-                        abs_path = os.path.join(UPLOAD_DIR, filename)
-                        if os.path.exists(abs_path) and abs_path not in attachments:
-                            attachments.append(abs_path)
-            
-            # PDF
-            if n.pdf_urls:
-                for url in n.pdf_urls:
-                    if len(attachments) >= 10: break
-                    if url.startswith("/static/uploads/"):
-                        filename = url.replace("/static/uploads/", "")
-                        abs_path = os.path.join(UPLOAD_DIR, filename)
-                        if os.path.exists(abs_path) and abs_path not in attachments:
-                            attachments.append(abs_path)
-                            
-            # Audio
-            if hasattr(n, 'audio_urls') and n.audio_urls:
-                for url in n.audio_urls:
-                    if len(attachments) >= 10: break
-                    if url.startswith("/static/uploads/"):
-                        filename = url.replace("/static/uploads/", "")
-                        abs_path = os.path.join(UPLOAD_DIR, filename)
-                        if os.path.exists(abs_path) and abs_path not in attachments:
-                            attachments.append(abs_path)
-
-    except Exception as e:
-        logger.warning(f"Error collecting attachments: {e}")
-        
-    # --- LlamaIndex RAG Integration for Context ---
-    # PDF等のドキュメントは LlamaIndex の SimpleDirectoryReader でテキストコンテキスト化。
-    # 画像・音声についてはそのままLLMへ直接パーツとして渡す。
-    text_files = []
-    multimodal_attachments = []
-    for f in attachments:
-        ext = os.path.splitext(f)[1].lower()
-        if ext in ['.pdf', '.txt', '.csv']:
-            text_files.append(f)
-        else: # .mp4, .m4a, .mp3, .jpg, .png etc..
-            multimodal_attachments.append(f)
-            
-    rag_text = ""
-    if text_files:
-        try:
-            from llama_index.core import SimpleDirectoryReader
-            reader = SimpleDirectoryReader(input_files=text_files)
-            docs = reader.load_data()
-            for doc in docs:
-                 rag_text += f"\n--- RAG Document: {doc.metadata.get('file_name', 'Unknown')} ---\n{doc.text}\n"
-        except Exception as e:
-            logger.error(f"LlamaIndex Reader failed: {e}")
-            
-    # メモ情報に LlamaIndex で抽出した内容を追加
-    if rag_text:
-        inputs["notes"] += "\n" + rag_text
-
-    inputs["attachments"] = multimodal_attachments
+    # RAG Integration removed to prevent blocking the event loop on every chat request.
+    # We also do not attach massive PDFs/images directly to every request to prevent huge TTFT lag.
+    inputs["attachments"] = []
     
     return inputs
 
@@ -852,67 +788,8 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
     # メモ & ファイル (画像/PDF/Audio) - admin も自身のメモを参照可能に
     if user_id:
         inputs["notes"] = build_notes_list_for_chat(db, user_id)
-        
-        attachments = []
-        UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
-        
-        try:
-            notes = crud.get_notes(db, skip=0, limit=20, created_by=user_id)
-            for n in notes:
-                if n.image_urls:
-                    for url in n.image_urls:
-                        if len(attachments) >= 10: break
-                        if url.startswith("/static/uploads/"):
-                            filename = url.replace("/static/uploads/", "")
-                            abs_path = os.path.join(UPLOAD_DIR, filename)
-                            if os.path.exists(abs_path) and abs_path not in attachments:
-                                attachments.append(abs_path)
-                
-                if n.pdf_urls:
-                    for url in n.pdf_urls:
-                        if len(attachments) >= 10: break
-                        if url.startswith("/static/uploads/"):
-                            filename = url.replace("/static/uploads/", "")
-                            abs_path = os.path.join(UPLOAD_DIR, filename)
-                            if os.path.exists(abs_path) and abs_path not in attachments:
-                                attachments.append(abs_path)
-                                
-                if hasattr(n, 'audio_urls') and n.audio_urls:
-                    for url in n.audio_urls:
-                        if len(attachments) >= 10: break
-                        if url.startswith("/static/uploads/"):
-                            filename = url.replace("/static/uploads/", "")
-                            abs_path = os.path.join(UPLOAD_DIR, filename)
-                            if os.path.exists(abs_path) and abs_path not in attachments:
-                                attachments.append(abs_path)
-
-        except Exception as e:
-            logger.warning(f"Error collecting attachments in admin context: {e}")
-            
-        text_files = []
-        multimodal_attachments = []
-        for f in attachments:
-            ext = os.path.splitext(f)[1].lower()
-            if ext in ['.pdf', '.txt', '.csv']:
-                text_files.append(f)
-            else:
-                multimodal_attachments.append(f)
-                
-        rag_text = ""
-        if text_files:
-            try:
-                from llama_index.core import SimpleDirectoryReader
-                reader = SimpleDirectoryReader(input_files=text_files)
-                docs = reader.load_data()
-                for doc in docs:
-                     rag_text += f"\n--- RAG Document: {doc.metadata.get('file_name', 'Unknown')} ---\n{doc.text}\n"
-            except Exception as e:
-                logger.error(f"LlamaIndex Reader failed: {e}")
-                
-        if rag_text:
-            inputs["notes"] += "\n" + rag_text
-
-        inputs["attachments"] = multimodal_attachments
+        # We do not attach massive PDFs/images directly to every request to prevent huge TTFT lag.
+        inputs["attachments"] = []
     else:
         inputs["notes"] = ""
         inputs["attachments"] = []

@@ -1763,8 +1763,19 @@ def get_task_google_sync(db: Session, user_id: int, task_id: int) -> Optional[mo
 
 
 def get_synced_task_ids_for_user(db: Session, user_id: int) -> List[int]:
-    """ユーザーが「Googleに表示」をONにしているタスクIDのリスト"""
-    rows = db.query(models.TaskGoogleSync.task_id).filter(models.TaskGoogleSync.user_id == user_id).all()
+    """ユーザーが「Googleに表示」をONにしているタスクIDのリスト（実際にGoogle側にイベントがあるもののみ）"""
+    rows = db.query(models.TaskGoogleSync.task_id).filter(
+        models.TaskGoogleSync.user_id == user_id,
+        models.TaskGoogleSync.google_event_id != ""
+    ).all()
+    return [r[0] for r in rows]
+
+def get_synced_event_ids_for_user(db: Session, user_id: int) -> List[int]:
+    """ユーザーが「Googleに表示」をONにしているイベントIDのリスト"""
+    rows = db.query(models.EventGoogleSync.event_id).filter(
+        models.EventGoogleSync.user_id == user_id,
+        models.EventGoogleSync.google_event_id != ""
+    ).all()
     return [r[0] for r in rows]
 
 

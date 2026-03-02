@@ -168,18 +168,20 @@ def create_calendar_event(
         end_date = start_date + timedelta(hours=1)
         
     if is_all_day:
-        # Google Calendar all-day events have exclusive end dates.
-        # Normalize to date objects to avoid timezone-shift spanning issues.
-        start_date_obj = start_date.date()
-        end_date_obj = end_date.date()
-        # Google inclusive end date -> Google exclusive end date (+1 day)
-        adjusted_end_date = end_date_obj + timedelta(days=1)
+        from pytz import timezone
+        jst = timezone("Asia/Tokyo")
+        # Ensure we are in JST before taking the date component to avoid UTC day shifts
+        start_date_jst = start_date.astimezone(jst) if start_date.tzinfo else start_date
+        end_date_jst = end_date.astimezone(jst) if end_date.tzinfo else end_date
+        
+        start_date_obj = start_date_jst.date()
+        end_date_obj = end_date_jst.date()
             
         body = {
             "summary": task_name[:1024],
             "description": (description or "")[:8192],
             "start": {"date": start_date_obj.strftime("%Y-%m-%d")},
-            "end": {"date": adjusted_end_date.strftime("%Y-%m-%d")},
+            "end": {"date": end_date_obj.strftime("%Y-%m-%d")},
         }
     else:
         # start_date are JST naive. We will format them as JST.
@@ -233,16 +235,20 @@ def update_calendar_event(
         end_date = start_date + timedelta(hours=1)
         
     if is_all_day:
-        # Google Calendar all-day events have exclusive end dates.
-        start_date_obj = start_date.date()
-        end_date_obj = end_date.date()
-        adjusted_end_date = end_date_obj + timedelta(days=1)
+        from pytz import timezone
+        jst = timezone("Asia/Tokyo")
+        # Ensure we are in JST before taking the date component to avoid UTC day shifts
+        start_date_jst = start_date.astimezone(jst) if start_date.tzinfo else start_date
+        end_date_jst = end_date.astimezone(jst) if end_date.tzinfo else end_date
+        
+        start_date_obj = start_date_jst.date()
+        end_date_obj = end_date_jst.date()
             
         body = {
             "summary": task_name[:1024],
             "description": (description or "")[:8192],
             "start": {"date": start_date_obj.strftime("%Y-%m-%d")},
-            "end": {"date": adjusted_end_date.strftime("%Y-%m-%d")},
+            "end": {"date": end_date_obj.strftime("%Y-%m-%d")},
         }
     else:
         body = {

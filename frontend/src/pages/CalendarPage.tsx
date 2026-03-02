@@ -221,7 +221,12 @@ const CalendarPage: React.FC = () => {
     const [eventTypeFilter, setEventTypeFilter] = useState<Record<string, boolean>>(DEFAULT_EVENT_TYPE_FILTER);
     const [stateRestored, setStateRestored] = useState(false);
     const [googleSnackbar, setGoogleSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
-    const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>({ configured: false, connected: false, synced_task_ids: [] });
+    const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] }>({
+        configured: false,
+        connected: false,
+        synced_task_ids: [],
+        synced_event_ids: []
+    });
 
 
     const location = useLocation();
@@ -281,14 +286,15 @@ const CalendarPage: React.FC = () => {
     // Google カレンダー連携状態の取得
     const fetchGoogleStatus = useCallback(async () => {
         try {
-            const res = await api.get<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>('/google/status');
+            const res = await api.get<{ configured: boolean; connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] }>('/google/status');
             setGoogleStatus({
                 configured: res.data.configured,
                 connected: res.data.connected,
                 synced_task_ids: res.data.synced_task_ids ?? [],
+                synced_event_ids: res.data.synced_event_ids ?? [],
             });
         } catch {
-            setGoogleStatus({ configured: false, connected: false, synced_task_ids: [] });
+            setGoogleStatus({ configured: false, connected: false, synced_task_ids: [], synced_event_ids: [] });
         }
     }, []);
     useEffect(() => {
@@ -310,6 +316,22 @@ const CalendarPage: React.FC = () => {
             setGoogleSnackbar({ open: true, message: `Google連携エラー: ${errorMessage}`, severity: 'error' });
         }
     }, []);
+
+    const handleGoogleSyncEventToggle = useCallback(async (eventId: number, currentSynced: boolean) => {
+        try {
+            await api.post(`/google/sync/event/${eventId}`, { sync: !currentSynced });
+            await fetchGoogleStatus();
+            setGoogleSnackbar({
+                open: true,
+                message: currentSynced ? 'Google カレンダーから解除しました' : 'Google カレンダーに追加しました',
+                severity: 'success',
+            });
+        } catch (err: any) {
+            console.error('Google sync toggle error:', err);
+            const errorMessage = err?.response?.data?.detail || err?.message || '同期の更新に失敗しました';
+            setGoogleSnackbar({ open: true, message: `Google同期エラー: ${errorMessage}`, severity: 'error' });
+        }
+    }, [fetchGoogleStatus]);
 
     const handleGoogleDisconnect = useCallback(async () => {
         try {
@@ -1436,7 +1458,7 @@ const CalendarPage: React.FC = () => {
         const now = new Date().getTime();
         const clickTime = now;
 
-        if (clickTime - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) {
+        if (user?.role === 'admin' && clickTime - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) {
             console.log("[CalendarPage] Double clicked on date:", arg.date);
             handleOpenAddModal({ start: arg.date, allDay: arg.allDay } as DateSelectArg);
         } else {
@@ -1480,8 +1502,8 @@ const CalendarPage: React.FC = () => {
         lastClickTimeRef.current = now;
         lastClickedEventIdRef.current = clickInfo.event.id;
 
-        // ダブルクリックと判定した場合は編集モーダルを開く
-        if (isDoubleClick) {
+        // ダブルクリックと判定した場合は編集モーダルを開く（管理者のみ）
+        if (isDoubleClick && user?.role === 'admin') {
             handleOpenEditModal(clickedEvent);
             return;
         }
@@ -2587,22 +2609,24 @@ const CalendarPage: React.FC = () => {
                     }}
                 >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
-                        <Button
-                            variant="contained"
-                            startIcon={<AddIcon />}
-                            onClick={() => handleOpenAddModal()}
-                            size={isSmallScreen ? "small" : "medium"}
-                            sx={{
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                borderRadius: 2,
-                                boxShadow: 0,
-                                fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                                '&:hover': { boxShadow: 1 },
-                            }}
-                        >
-                            作成
-                        </Button>
+                        {user?.role === 'admin' && (
+                            <Button
+                                variant="contained"
+                                startIcon={<AddIcon />}
+                                onClick={() => handleOpenAddModal()}
+                                size={isSmallScreen ? "small" : "medium"}
+                                sx={{
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    borderRadius: 2,
+                                    boxShadow: 0,
+                                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                                    '&:hover': { boxShadow: 1 },
+                                }}
+                            >
+                                作成
+                            </Button>
+                        )}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 1, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
                             {!googleStatus.configured ? (
                                 <Tooltip title="Google連携はバックエンドで設定されていません">
@@ -2665,22 +2689,24 @@ const CalendarPage: React.FC = () => {
                     >
                         <FilterListIcon />
                     </IconButton>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => handleOpenAddModal()}
-                        size="medium"
-                        sx={{
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            borderRadius: 2,
-                            fontSize: '0.875rem',
-                            minHeight: 48,
-                            px: 2,
-                        }}
-                    >
-                        作成
-                    </Button>
+                    {user?.role === 'admin' && (
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={() => handleOpenAddModal()}
+                            size="medium"
+                            sx={{
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                borderRadius: 2,
+                                fontSize: '0.875rem',
+                                minHeight: 48,
+                                px: 2,
+                            }}
+                        >
+                            作成
+                        </Button>
+                    )}
 
                 </Box>
             )}
@@ -3418,11 +3444,11 @@ const CalendarPage: React.FC = () => {
                         } : "popover"}
                         moreLinkContent={(arg) => `+${arg.num}件`}
                         dayCellDidMount={handleDayCellMount}
-                        selectable={false}
-                        editable={true}
-                        eventStartEditable={true}
-                        eventDurationEditable={true}
-                        selectMirror={true}
+                        selectable={user?.role === 'admin'}
+                        editable={user?.role === 'admin'}
+                        eventStartEditable={user?.role === 'admin'}
+                        eventDurationEditable={user?.role === 'admin'}
+                        selectMirror={user?.role === 'admin'}
                         unselectAuto={false}
                         nowIndicator={true}
                         datesSet={handleDatesSet}
@@ -3464,6 +3490,8 @@ const CalendarPage: React.FC = () => {
                             eventTypeFilter={eventTypeFilter}
                             onEventTypeFilterChange={handleEventTypeFilterChange}
                             projects={projects}
+                            googleStatus={googleStatus}
+                            onGoogleSyncToggle={handleGoogleSyncEventToggle}
                         />
                     </Box>
                 )}
@@ -3619,7 +3647,7 @@ const CalendarPage: React.FC = () => {
             )}
 
             {/* モバイル用: フローティングアクションボタン */}
-            {isMobile && (
+            {isMobile && user?.role === 'admin' && (
                 <Fab
                     color="primary"
                     aria-label="add"

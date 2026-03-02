@@ -193,10 +193,11 @@ const TasksPage: React.FC = () => {
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
     // Google カレンダー連携（ユーザー個人のカレンダーにタスクを1件ずつ表示ON/OFF）
-    const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>({
+    const [googleStatus, setGoogleStatus] = useState<{ configured: boolean; connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] }>({
         configured: false,
         connected: false,
         synced_task_ids: [],
+        synced_event_ids: [],
     });
     const [googleSyncingTaskId, setGoogleSyncingTaskId] = useState<number | null>(null);
 
@@ -297,14 +298,15 @@ const TasksPage: React.FC = () => {
     // Google カレンダー連携状態の取得
     const fetchGoogleStatus = useCallback(async () => {
         try {
-            const res = await api.get<{ configured: boolean; connected: boolean; synced_task_ids: number[] }>('/google/status');
+            const res = await api.get<{ configured: boolean; connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] }>('/google/status');
             setGoogleStatus({
                 configured: res.data.configured,
                 connected: res.data.connected,
                 synced_task_ids: res.data.synced_task_ids ?? [],
+                synced_event_ids: res.data.synced_event_ids ?? [],
             });
         } catch {
-            setGoogleStatus({ configured: false, connected: false, synced_task_ids: [] });
+            setGoogleStatus({ configured: false, connected: false, synced_task_ids: [], synced_event_ids: [] });
         }
     }, []);
     useEffect(() => {
@@ -327,11 +329,34 @@ const TasksPage: React.FC = () => {
         }
     }, []);
 
+    // Google カレンダー連携 (一括 ON/OFF)
+    const handleBulkGoogleSync = async (sync: boolean) => {
+        if (selectionModel.length === 0) return;
+        try {
+            await api.post('/google/sync/tasks/bulk', {
+                task_ids: selectionModel,
+                sync: sync
+            });
+            await fetchGoogleStatus();
+            setSnackbar({
+                open: true,
+                message: sync ? `${selectionModel.length}件をGoogleカレンダーに追加しました` : `${selectionModel.length}件のGoogleカレンダー連携を解除しました`,
+                severity: 'success'
+            });
+            // 選択を解除するかどうかはケースバイケース（ここでは解除する）
+            setSelectionModel([]);
+        } catch (err: any) {
+            setSnackbar({ open: true, message: err?.response?.data?.detail || '一括更新に失敗しました', severity: 'error' });
+        }
+    };
+
+    // Google カレンダー連携の解除 (一括ではなく全体切断用)
     const handleGoogleDisconnect = useCallback(async () => {
+        if (!window.confirm('Google カレンダー連携を解除しますか？（すべてのイベント同期が停止します）')) return;
         try {
             await api.delete('/google/disconnect');
             await fetchGoogleStatus();
-            setSnackbar({ open: true, message: 'Google 連携を解除しました', severity: 'success' });
+            setSnackbar({ open: true, message: 'Google カレンダー連携を解除しました', severity: 'info' });
         } catch (err: any) {
             console.error('Google disconnect error:', err);
             const errorMessage = err?.response?.data?.detail || err?.message || 'Google 連携の解除に失敗しました';
@@ -1314,6 +1339,73 @@ const TasksPage: React.FC = () => {
                             )}
                         </Box>
                     </Box>
+                )}
+
+                {selectionModel.length > 0 && (
+                    <Paper
+                        elevation={6}
+                        sx={{
+                            position: 'sticky',
+                            top: 0,
+                            zIndex: 10,
+                            p: 2,
+                            mb: 2,
+                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 45, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                            backdropFilter: 'blur(8px)',
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            borderRadius: 2
+                        }}
+                    >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                {selectionModel.length}件 選択中
+                            </Typography>
+                            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                            <Stack direction="row" spacing={1}>
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    startIcon={<BulkEditIcon />}
+                                    onClick={() => setBulkEditOpen(true)}
+                                    sx={{ textTransform: 'none', borderRadius: 2 }}
+                                >
+                                    一括編集
+                                </Button>
+                                {googleStatus.connected && (
+                                    <>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="primary"
+                                            onClick={() => handleBulkGoogleSync(true)}
+                                            sx={{ textTransform: 'none', borderRadius: 2 }}
+                                        >
+                                            Googleカレンダーに追加
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            color="error"
+                                            onClick={() => handleBulkGoogleSync(false)}
+                                            sx={{ textTransform: 'none', borderRadius: 2 }}
+                                        >
+                                            Google連携解除
+                                        </Button>
+                                    </>
+                                )}
+                            </Stack>
+                        </Box>
+                        <IconButton
+                            size="small"
+                            onClick={() => setSelectionModel([])}
+                        >
+                            <CloseIcon />
+                        </IconButton>
+                    </Paper>
                 )}
 
                 {isMobile ? (

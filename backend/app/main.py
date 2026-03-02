@@ -445,15 +445,17 @@ def google_calendar_status(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Google カレンダー連携の設定状況と、連携済みタスクIDリストを返す"""
+    """Google カレンダー連携の設定状況と、連携済みタスク/イベントIDリストを返す"""
     configured = google_cal.is_google_configured()
     token = crud.get_user_google_token(db, current_user.id) if configured else None
     connected = token is not None
     synced_task_ids = crud.get_synced_task_ids_for_user(db, current_user.id) if connected else []
+    synced_event_ids = crud.get_synced_event_ids_for_user(db, current_user.id) if connected else []
     return {
         "configured": configured,
         "connected": connected,
         "synced_task_ids": synced_task_ids,
+        "synced_event_ids": synced_event_ids,
     }
 
 
@@ -564,6 +566,11 @@ def google_calendar_disconnect(
 class TaskGoogleSyncRequest(BaseModel):
     sync: bool  # True=表示する, False=表示しない
 
+class BulkTaskGoogleSyncRequest(BaseModel):
+    task_ids: List[int]
+    sync: bool
+
+
 
 @app.post("/api/google/sync/task/{task_id}", tags=["Google Calendar"])
 def google_calendar_sync_task(
@@ -598,6 +605,75 @@ def google_calendar_sync_task(
                 token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
             )
             crud.delete_task_google_sync(db, current_user.id, task_id)
+        return {"synced": False, "message": "Google カレンダーからの表示を解除しました"}
+
+@app.post("/api/google/sync/tasks/bulk", tags=["Google Calendar"])
+def google_calendar_sync_tasks_bulk(
+    body: BulkTaskGoogleSyncRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """複数タスクを一括で同期ON/OFFする"""
+    if not google_cal.is_google_configured():
+        raise HTTPException(status_code=503, detail="Google 連携が設定されていません")
+    token_row = crud.get_user_google_token(db, current_user.id)
+    if not token_row:
+        raise HTTPException(status_code=400, detail="先に Google カレンダーと連携してください")
+    
+    from app.services.google_sync import sync_task_to_google
+    count = 0
+    for tid in body.task_ids:
+        db_task = crud.get_task(db, task_id=tid)
+        if not db_task: continue
+        
+        if body.sync:
+            try:
+                sync_task_to_google(db, db_task, token_row, current_user.id)
+                count += 1
+            except: pass
+        else:
+            sync_row = crud.get_task_google_sync(db, current_user.id, tid)
+            if sync_row:
+                google_cal.delete_calendar_event(
+                    token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
+                )
+                crud.delete_task_google_sync(db, current_user.id, tid)
+                count += 1
+    
+    return {"message": f"{count} 件のタスクを更新しました"}
+
+@app.post("/api/google/sync/event/{event_id}", tags=["Google Calendar"])
+def google_calendar_sync_event(
+    event_id: int,
+    body: TaskGoogleSyncRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """会議やワークショップなどのイベントを「自分の Google カレンダーに表示する」を ON/OFF する"""
+    if not google_cal.is_google_configured():
+         raise HTTPException(status_code=503, detail="Google 連携が設定されていません")
+    token_row = crud.get_user_google_token(db, current_user.id)
+    if not token_row:
+        raise HTTPException(status_code=400, detail="先に Google カレンダーと連携してください")
+    db_event = crud.get_event(db, event_id=event_id)
+    if not db_event:
+        raise HTTPException(status_code=404, detail="イベントが見つかりません")
+
+    from app.services.google_sync import sync_event_to_google
+    if body.sync:
+        try:
+            sync_event_to_google(db, db_event, token_row, current_user.id)
+            return {"synced": True, "message": "イベントを Google カレンダーに追加しました"}
+        except Exception as e:
+            logger.exception(f"Manual event sync failed: {e}")
+            raise HTTPException(status_code=502, detail="Google カレンダーへの同期に失敗しました")
+    else:
+        sync_row = crud.get_event_google_sync(db, current_user.id, event_id)
+        if sync_row:
+            google_cal.delete_calendar_event(
+                token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
+            )
+            crud.delete_event_google_sync(db, current_user.id, event_id)
         return {"synced": False, "message": "Google カレンダーからの表示を解除しました"}
 
 
@@ -719,37 +795,69 @@ def delete_project_endpoint(
             text("SELECT id FROM tasks WHERE project_id = :project_id"),
             {"project_id": project_id}
         ).fetchall()
-        
         task_ids = [row.id for row in task_ids_result]
+
+        # 1b. 関連するイベントのIDを取得
+        event_ids_result = db.execute(
+            text("SELECT id FROM events WHERE project_id = :project_id"),
+            {"project_id": project_id}
+        ).fetchall()
+        event_ids = [row.id for row in event_ids_result]
         
         # 2. タスクのステータス履歴を削除
         if task_ids:
-            # IN句用のプレースホルダーを作成
             placeholders = ','.join([f":tid{i}" for i in range(len(task_ids))])
             params = {f"tid{i}": tid for i, tid in enumerate(task_ids)}
-            
             db.execute(
                 text(f"DELETE FROM task_status_history WHERE task_id IN ({placeholders})"),
                 params
             )
         
-        # 3. タスクを削除（生SQLで）
+        # 3. タスクを削除
         db.execute(
             text("DELETE FROM tasks WHERE project_id = :project_id"),
             {"project_id": project_id}
         )
         
-        # 4. 関連するイベントを削除（生SQLで）
+        # 4. 関連するイベントを削除
         db.execute(
             text("DELETE FROM events WHERE project_id = :project_id"),
             {"project_id": project_id}
         )
         
-        # 5. プロジェクトを削除（生SQLで）
+        # 5. プロジェクトを削除
         db.execute(
             text("DELETE FROM projects WHERE id = :project_id"),
             {"project_id": project_id}
         )
+        
+        # --- Google Calendar 同期削除 ---
+        if google_cal.is_google_configured():
+            # プロジェクト自体の同期削除
+            p_syncs = db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.project_id == project_id).all()
+            for ps in p_syncs:
+                t_row = crud.get_user_google_token(db, ps.user_id)
+                if t_row:
+                    google_cal.delete_calendar_event(t_row.access_token, t_row.refresh_token, t_row.expires_at, ps.google_event_id, t_row.calendar_id)
+                db.delete(ps)
+            
+            # タスクの同期削除 (収集した task_ids を利用)
+            for tid in task_ids:
+                t_syncs = db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.task_id == tid).all()
+                for ts in t_syncs:
+                    t_row = crud.get_user_google_token(db, ts.user_id)
+                    if t_row:
+                        google_cal.delete_calendar_event(t_row.access_token, t_row.refresh_token, t_row.expires_at, ts.google_event_id, t_row.calendar_id)
+                    db.delete(ts)
+            
+            # イベントの同期削除 (収集した event_ids を利用)
+            for eid in event_ids:
+                e_syncs = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == eid).all()
+                for es in e_syncs:
+                    t_row = crud.get_user_google_token(db, es.user_id)
+                    if t_row:
+                        google_cal.delete_calendar_event(t_row.access_token, t_row.refresh_token, t_row.expires_at, es.google_event_id, t_row.calendar_id)
+                    db.delete(es)
         
         db.commit()
         
@@ -965,6 +1073,15 @@ async def delete_event_endpoint(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="イベントを削除する権限がありません"
         )
+    # Google カレンダー同期削除
+    if google_cal.is_google_configured():
+        e_syncs = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == event_id).all()
+        for es in e_syncs:
+            t_row = crud.get_user_google_token(db, es.user_id)
+            if t_row:
+                google_cal.delete_calendar_event(t_row.access_token, t_row.refresh_token, t_row.expires_at, es.google_event_id, t_row.calendar_id)
+            db.delete(es)
+
     crud.delete_event(db=db, db_event=db_event)
     return None # 204 No Content
 

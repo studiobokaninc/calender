@@ -439,14 +439,17 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       else if (value === 'M') cost = 8;
       else if (value === 'L') cost = 24;
       else if (value) cost = Number(value) || 0;
+
       const days = Math.ceil(cost / 8); // 1日8時間として計算
       const dueDate = parseDateString(formData.taskDueDate);
       if (dueDate) {
-        const startDate = addDays(dueDate, -days);
+        // コストが8時間(1日)なら開始日は期日と同じ。16時間(2日)なら期日の前日。
+        const daysToSubtract = days > 0 ? days - 1 : 0;
+        const startDate = addDays(dueDate, -daysToSubtract);
         setFormData(prev => ({
           ...prev,
           [name]: valueToSet,
-          startDate: format(startDate, 'yyyy-MM-dd') // タスクの開始日も更新
+          startDate: format(startDate, 'yyyy-MM-dd')
         }));
       } else {
         setFormData(prev => ({ ...prev, [name]: valueToSet }));
@@ -464,18 +467,20 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
     if (name === 'taskDueDate' && newValue && isDateValid(newValue) && formData.type === 'task') {
       const newDueDateStr = format(newValue, 'yyyy-MM-dd');
       // S/M/L形式の場合は変換
-      let cost = 0;
-      if (formData.taskCost === 'S') cost = 2;
-      else if (formData.taskCost === 'M') cost = 8;
-      else if (formData.taskCost === 'L') cost = 24;
-      else if (formData.taskCost) cost = Number(formData.taskCost) || 0;
-      const days = Math.ceil(cost / 8);
-      const startDate = addDays(newValue, -days);
+      let costNum = 0;
+      if (formData.taskCost === 'S') costNum = 2;
+      else if (formData.taskCost === 'M') costNum = 8;
+      else if (formData.taskCost === 'L') costNum = 24;
+      else if (formData.taskCost) costNum = Number(formData.taskCost) || 0;
+
+      const daysComputed = Math.ceil(costNum / 8);
+      const daysToSubtract = daysComputed > 0 ? daysComputed - 1 : 0;
+      const startDate = addDays(newValue, -daysToSubtract);
 
       setFormData(prev => ({
         ...prev,
         taskDueDate: newDueDateStr,
-        startDate: format(startDate, 'yyyy-MM-dd'), // タスクの開始日も更新（start_time フォールバック用）
+        startDate: format(startDate, 'yyyy-MM-dd'),
       }));
     } else {
       setFormData(prev => ({
@@ -856,7 +861,9 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
               // 締切・マイルストーンは常に終日。日付をそのまま使用（タイムゾーン問題を回避）
               const dateStr = format(startDateObj, 'yyyy-MM-dd');
               dataToSave.start_time = `${dateStr}T00:00:00+09:00`;
-              dataToSave.end_time = `${dateStr}T00:00:00+09:00`;
+              // Googleカレンダー等の終日仕様（翌日00:00が終了）に合わせる
+              const nextDayStr = format(addDays(startDateObj, 1), 'yyyy-MM-dd');
+              dataToSave.end_time = `${nextDayStr}T00:00:00+09:00`;
             } else if (formData.startTime) {
               const startDateTime = parseTimeString(formData.startTime, startDateObj);
               if (startDateTime) dataToSave.start_time = format(startDateTime, "yyyy-MM-dd'T'HH:mm:ssxxx");

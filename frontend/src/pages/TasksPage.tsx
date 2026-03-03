@@ -333,15 +333,17 @@ const TasksPage: React.FC = () => {
     const handleBulkGoogleSync = async (sync: boolean) => {
         if (selectionModel.length === 0) return;
         try {
-            await api.post('/google/sync/tasks/bulk', {
+            const res = await api.post('/google/sync/tasks/bulk', {
                 task_ids: selectionModel,
                 sync: sync
             });
             await fetchGoogleStatus();
+
+            const message = res.data.message || (sync ? `${selectionModel.length}件を同期リクエストしました` : `${selectionModel.length}件の連携を解除しました`);
             setSnackbar({
                 open: true,
-                message: sync ? `${selectionModel.length}件をGoogleカレンダーに追加しました` : `${selectionModel.length}件のGoogleカレンダー連携を解除しました`,
-                severity: 'success'
+                message: message,
+                severity: sync && res.data.count < selectionModel.length ? 'warning' : 'success'
             });
             // 選択を解除するかどうかはケースバイケース（ここでは解除する）
             setSelectionModel([]);
@@ -367,12 +369,12 @@ const TasksPage: React.FC = () => {
     const handleGoogleSyncToggle = useCallback(async (taskId: number, currentSynced: boolean) => {
         setGoogleSyncingTaskId(taskId);
         try {
-            await api.post(`/google/sync/task/${taskId}`, { sync: !currentSynced });
+            const res = await api.post(`/google/sync/task/${taskId}`, { sync: !currentSynced });
             await fetchGoogleStatus();
             setSnackbar({
                 open: true,
-                message: currentSynced ? 'Google カレンダーから解除しました' : 'Google カレンダーに追加しました',
-                severity: 'success',
+                message: res.data.message || (currentSynced ? 'Google カレンダーから解除しました' : 'Google カレンダーに追加しました'),
+                severity: res.data.synced === false && !currentSynced ? 'warning' : 'success',
             });
         } catch (err: any) {
             setSnackbar({ open: true, message: err?.response?.data?.detail || '更新に失敗しました', severity: 'error' });
@@ -973,22 +975,33 @@ const TasksPage: React.FC = () => {
             ? [{
                 field: 'google_sync',
                 headerName: 'Google',
-                width: 90,
+                width: 70,
                 headerAlign: 'center',
                 align: 'center',
                 sortable: false,
                 renderCell: (params: GridRenderCellParams) => {
                     const row = params.row as Task;
-                    const synced = googleStatus.synced_task_ids.includes(row.id);
-                    const loading = googleSyncingTaskId === row.id;
+                    const taskId = Number(row.id);
+                    const synced = (googleStatus.synced_task_ids || []).some(id => String(id) === String(taskId));
+                    const loading = googleSyncingTaskId === taskId;
+
                     return (
-                        <Tooltip title={synced ? 'Googleカレンダーに表示中（クリックで解除）' : 'Googleカレンダーに表示する'}>
+                        <Tooltip title={synced ? 'Googleカレンダー反映済み（解除する）' : 'Googleカレンダーに追加する'}>
                             <Checkbox
                                 size="small"
                                 checked={synced}
                                 disabled={loading}
-                                onChange={() => handleGoogleSyncToggle(row.id, synced)}
-                                onClick={(e) => e.stopPropagation()}
+                                color={synced ? "success" : "default"}
+                                onChange={() => handleGoogleSyncToggle(taskId, synced)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                }}
+                                sx={{
+                                    p: 0.5,
+                                    '&.Mui-checked': {
+                                        color: theme.palette.success.main,
+                                    }
+                                }}
                             />
                         </Tooltip>
                     );
@@ -1384,7 +1397,7 @@ const TasksPage: React.FC = () => {
                                             onClick={() => handleBulkGoogleSync(true)}
                                             sx={{ textTransform: 'none', borderRadius: 2 }}
                                         >
-                                            Googleカレンダーに追加
+                                            Googleに追加
                                         </Button>
                                         <Button
                                             size="small"
@@ -1393,7 +1406,7 @@ const TasksPage: React.FC = () => {
                                             onClick={() => handleBulkGoogleSync(false)}
                                             sx={{ textTransform: 'none', borderRadius: 2 }}
                                         >
-                                            Google連携解除
+                                            反映を解除
                                         </Button>
                                     </>
                                 )}
@@ -1520,9 +1533,18 @@ const TasksPage: React.FC = () => {
                             checkboxSelection
                             rowSelectionModel={{ type: 'include' as const, ids: new Set(selectionModel) }}
                             onRowSelectionModelChange={(newSelection) => {
-                                const ids = newSelection && typeof newSelection === 'object' && 'ids' in newSelection
-                                    ? Array.from((newSelection as { ids: Set<unknown> }).ids).map((id): number => typeof id === 'number' ? id : Number(id))
-                                    : [];
+                                // MUI DataGrid のバージョンや設定により、配列またはオブジェクトで返ってくる可能性があるため柔軟に処理
+                                let ids: number[] = [];
+                                if (Array.isArray(newSelection)) {
+                                    ids = newSelection
+                                        .map(id => typeof id === 'number' ? id : Number(id))
+                                        .filter(id => !isNaN(id));
+                                } else if (newSelection && typeof newSelection === 'object' && 'ids' in newSelection) {
+                                    // 独自拡張や特定のモデル定義（Setなど）の場合
+                                    ids = Array.from((newSelection as any).ids)
+                                        .map((id: any) => typeof id === 'number' ? id : Number(id))
+                                        .filter(id => !isNaN(id));
+                                }
                                 setSelectionModel(ids);
                             }}
                             sortingMode="client"

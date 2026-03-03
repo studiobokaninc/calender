@@ -590,13 +590,22 @@ def google_calendar_sync_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="タスクが見つかりません")
 
     if body.sync:
+        # 手動同期がリクエストされた場合は、タスクを強制的にオンライン状態にする
+        if db_task.display_status == 'offline':
+            db_task.display_status = 'online'
+            db.commit()
+            logger.info(f"Forced task {task_id} to online for synchronization")
+            
         from app.services.google_sync import sync_task_to_google
         try:
-            sync_task_to_google(db, db_task, token_row, current_user.id)
-            return {"synced": True, "message": "タスクを Google カレンダーに追加しました"}
+            success = sync_task_to_google(db, db_task, token_row, current_user.id)
+            if success:
+                return {"synced": True, "message": "タスクを Google カレンダーに追加しました"}
+            else:
+                return {"synced": False, "message": "タスクはオフライン設定のため同期されませんでした"}
         except Exception as e:
             logger.exception(f"Manual sync failed: {e}")
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google カレンダーへの同期に失敗しました")
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Google カレンダーへの同期に失敗しました: {str(e)}")
     else:
         # 同期解除・イベント削除
         sync_row = crud.get_task_google_sync(db, current_user.id, task_id)
@@ -622,25 +631,57 @@ def google_calendar_sync_tasks_bulk(
     
     from app.services.google_sync import sync_task_to_google
     count = 0
+    skipped = 0
+    errors = 0
+    
+    logger.info(f"[Bulk Sync] Processing {len(body.task_ids)} tasks for user {current_user.id}")
+    
+    print(f"[Bulk Sync] Starting bulk sync for {len(body.task_ids)} tasks: {body.task_ids}")
     for tid in body.task_ids:
         db_task = crud.get_task(db, task_id=tid)
-        if not db_task: continue
+        if not db_task:
+            msg = f"[Bulk Sync] Task not found in DB: {tid}"
+            logger.warning(msg)
+            print(msg)
+            skipped += 1
+            continue
         
         if body.sync:
             try:
-                sync_task_to_google(db, db_task, token_row, current_user.id)
-                count += 1
-            except: pass
+                # 一括同期時も、オフラインのタスクがあればオンラインにする
+                if db_task.display_status == 'offline':
+                    db_task.display_status = 'online'
+                    db.commit()
+                    logger.info(f"Forced task {tid} to online for bulk synchronization")
+                    
+                success = sync_task_to_google(db, db_task, token_row, current_user.id)
+                if success:
+                    count += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                logger.error(f"Bulk sync failed for task {tid}: {e}")
+                errors += 1
         else:
-            sync_row = crud.get_task_google_sync(db, current_user.id, tid)
-            if sync_row:
-                google_cal.delete_calendar_event(
-                    token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
-                )
-                crud.delete_task_google_sync(db, current_user.id, tid)
-                count += 1
+            try:
+                sync_row = crud.get_task_google_sync(db, current_user.id, tid)
+                if sync_row:
+                    google_cal.delete_calendar_event(
+                        token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
+                    )
+                    crud.delete_task_google_sync(db, current_user.id, tid)
+                    count += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                logger.error(f"Bulk disconnect failed for task {tid}: {e}")
+                errors += 1
     
-    return {"message": f"{count} 件のタスクを更新しました"}
+    msg = f"{count} 件のタスクを更新しました"
+    if skipped > 0: msg += f" ({skipped} 件スキップ)"
+    if errors > 0: msg += f" ({errors} 件エラー)"
+    
+    return {"message": msg, "count": count, "skipped": skipped, "errors": errors}
 
 @app.post("/api/google/sync/event/{event_id}", tags=["Google Calendar"])
 def google_calendar_sync_event(

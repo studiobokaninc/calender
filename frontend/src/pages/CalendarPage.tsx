@@ -2178,12 +2178,28 @@ const CalendarPage: React.FC = () => {
         }, 0);
     }, []);
 
-    // ドラッグ時はそのまま範囲をhandleSelectに渡す
+    // ドラッグ時はそのまま範囲をhandleSelectに渡すが、単一クリック（1日分）の場合はモーダルを開かない
     const handleSelect = (selectInfo: DateSelectArg) => {
-        setSelectedDate(selectInfo.start instanceof Date ? selectInfo.start : parseISO(selectInfo.start as string));
+        const start = selectInfo.start;
+        const end = selectInfo.end;
+
+        setSelectedDate(start instanceof Date ? start : parseISO(start as string));
         setSelectedEventDetails({ event: null });
         setDateClickArg(null); // 選択時はdateClickArgをnullに
-        handleOpenAddModal(selectInfo);
+
+        // ユーザーが管理者であり、かつドラッグ（1日より長い範囲）の場合はモーダルを開く
+        // 単一クリックの場合は handleDateClick のダブルクリック判定に任せる
+        if (user?.role === 'admin') {
+            const startMs = start.getTime();
+            const endMs = end.getTime();
+            const isRange = selectInfo.allDay
+                ? (endMs - startMs > 24 * 60 * 60 * 1000) // 1日より長い
+                : (endMs - startMs > 0); // timeGridの場合は選択があればドラッグとみなす（スロット単位）
+
+            if (isRange) {
+                handleOpenAddModal(selectInfo);
+            }
+        }
     };
 
 
@@ -2396,12 +2412,87 @@ const CalendarPage: React.FC = () => {
         const { type } = eventInfo.event.extendedProps;
         const title = eventInfo.event.title || '';
         const typeLabel = getEventTypeLabel(type);
+        const viewType = eventInfo.view.type;
+        const isTimeGrid = viewType.includes('timeGrid');
+        const isListView = viewType.includes('list');
 
         // 複数日にまたがるイベント判定
         const isMultiDay = eventInfo.event.allDay &&
             eventInfo.event.start &&
             eventInfo.event.end &&
             eventInfo.event.start.getTime() !== eventInfo.event.end.getTime();
+
+        // リストビュー（listWeek, listMonth）用のレンダリング
+        if (isListView) {
+            // プロジェクト（背景イベント）はリストでは極力シンプルに
+            if (type === 'project') {
+                return (
+                    <div className="calendar-list-project-content" style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.7 }}>
+                        <span className="calendar-event-type-badge calendar-event-type-project" style={{ fontSize: '0.6rem', padding: '1px 3px' }}>
+                            P
+                        </span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{title}</span>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="calendar-list-event-content" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '1px 0' }}>
+                    <span className={`calendar-event-type-badge calendar-event-type-${(type || 'generic').toLowerCase()}`} style={{
+                        fontSize: '0.65rem',
+                        padding: '1px 5px',
+                        minWidth: '50px',
+                        textAlign: 'center'
+                    }}>
+                        {typeLabel}
+                    </span>
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{title}</span>
+                </div>
+            );
+        }
+
+        // TimeGrid（Week/Day）ビュー用の詳細レンダリング
+        if (isTimeGrid && !eventInfo.event.allDay) {
+            const timeText = eventInfo.timeText;
+            const description = eventInfo.event.extendedProps.description;
+            const location = eventInfo.event.extendedProps.location;
+
+            return (
+                <div className="calendar-timegrid-event-content" style={{
+                    padding: '2px 4px',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    gap: '2px',
+                    overflow: 'hidden'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                        <span className={`calendar-event-type-badge calendar-event-type-${(type || 'generic').toLowerCase()}`} style={{
+                            fontSize: '0.6rem',
+                            padding: '1px 3px',
+                            flexShrink: 0
+                        }}>
+                            {typeLabel}
+                        </span>
+                        <span style={{
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            lineHeight: '1.2',
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }} title={title}>
+                            {title}
+                        </span>
+                        <span style={{ fontSize: '0.6rem', fontWeight: 600, opacity: 0.8, flexShrink: 0 }}>
+                            {timeText}
+                        </span>
+                    </div>
+                </div>
+            );
+        }
 
         // プロジェクトまたは複数日にまたがる通常イベント
         if (type === 'project' || isMultiDay) {
@@ -2869,87 +2960,7 @@ const CalendarPage: React.FC = () => {
                 .fc-list-event-time {
                     color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
                 }
-                /* モバイル用: リストビューのスタイル改善 */
-                ${isMobile ? `
-                    .fc-list-event {
-                        padding: ${isMobile ? '12px 8px' : '16px'} !important;
-                        margin-bottom: 8px !important;
-                        border-radius: 8px !important;
-                        cursor: pointer !important;
-                        transition: background-color 0.2s ease !important;
-                        overflow: hidden !important;
-                    }
-                    .fc-list-event:hover {
-                        background-color: ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'} !important;
-                    }
-                    .fc-list-event-title {
-                        font-size: 0.9rem !important;
-                        font-weight: 500 !important;
-                        margin-bottom: 4px !important;
-                        overflow: hidden !important;
-                        text-overflow: ellipsis !important;
-                        white-space: nowrap !important;
-                        max-width: 100% !important;
-                        display: block !important;
-                    }
-                    .fc-list-event-title-wrapper {
-                        overflow: hidden !important;
-                        text-overflow: ellipsis !important;
-                        white-space: nowrap !important;
-                        max-width: 100% !important;
-                        min-width: 0 !important;
-                    }
-                    .fc-list-event-time {
-                        font-size: 0.8rem !important;
-                        color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
-                        margin-bottom: 4px !important;
-                        overflow: hidden !important;
-                        text-overflow: ellipsis !important;
-                        white-space: nowrap !important;
-                    }
-                    .fc-list-event-dot {
-                        width: 12px !important;
-                        height: 12px !important;
-                        margin-right: 12px !important;
-                        margin-top: 4px !important;
-                        flex-shrink: 0 !important;
-                    }
-                    .fc-list-day-cushion {
-                        padding: 12px 8px !important;
-                        font-weight: 600 !important;
-                        font-size: 0.85rem !important;
-                        background-color: ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'} !important;
-                        color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
-                        border-bottom: 1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'} !important;
-                        margin-bottom: 4px !important;
-                    }
-                    .fc-list-day-cushion a {
-                        color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
-                    }
-                    .fc-list-table {
-                        width: 100% !important;
-                        table-layout: fixed !important;
-                    }
-                    .fc-list-table td {
-                        overflow: hidden !important;
-                        text-overflow: ellipsis !important;
-                        white-space: nowrap !important;
-                    }
-                    .fc-list-event-frame {
-                        display: flex !important;
-                        align-items: center !important;
-                        min-width: 0 !important;
-                        overflow: hidden !important;
-                    }
-                    .fc-list-event-graphic {
-                        flex-shrink: 0 !important;
-                    }
-                    .fc-list-event-content {
-                        flex: 1 !important;
-                        min-width: 0 !important;
-                        overflow: hidden !important;
-                    }
-                ` : ''}
+                /* モバイル用リストビュー改善（削除済み: 他のスタイルと競合するため） */
                 .fc-daygrid-event:not(.fc-event-bg) {
                     cursor: pointer;
                 }
@@ -3269,6 +3280,101 @@ const CalendarPage: React.FC = () => {
                 .fc-theme-standard td, .fc-theme-standard th {
                     border-color: ${theme.palette.divider} !important;
                 }
+
+                /* リストビューのプレミアムスタイル */
+                .fc-list {
+                    border: none !important;
+                }
+                .fc-list-day-cushion {
+                    padding: 6px 12px !important;
+                    background-color: ${isDark ? '#2c2c2e' : '#f8f9fa'} !important;
+                    border-bottom: 1px solid ${isDark ? '#3c4043' : '#e8eaed'} !important;
+                }
+                .fc-list-day-text {
+                    font-weight: 700 !important;
+                    font-size: 0.9rem !important;
+                    color: ${theme.palette.primary.main} !important;
+                }
+                .fc-list-day-side-text {
+                    font-weight: 500 !important;
+                    font-size: 0.85rem !important;
+                    opacity: 0.7;
+                }
+                .fc-list-event:hover td {
+                    background-color: ${isDark ? '#3a3a3c' : '#f1f3f4'} !important;
+                    cursor: pointer;
+                }
+                .fc-list-event-title {
+                    padding: 4px 10px !important;
+                }
+                .fc-list-event-time {
+                    padding-left: 12px !important;
+                    font-size: 0.8rem !important;
+                    font-weight: 500 !important;
+                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                }
+                .fc-list-event-dot {
+                    border-width: 4px !important;
+                }
+                /* リストビューではプロジェクトを非表示にしてスッキリさせる */
+                .fc-list .project-event {
+                    display: none !important;
+                }
+                
+                /* TimeGrid（週・日）ビューのスタイル */
+                .fc-timegrid-event {
+                    border-radius: 4px !important;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+                    border: none !important;
+                    border-left: 3px solid rgba(0,0,0,0.2) !important;
+                    transition: none !important;
+                    padding: 0 !important;
+                }
+                .fc-timegrid-event:hover {
+                    z-index: 5 !important;
+                    filter: brightness(1.05);
+                }
+                .fc-timegrid-slot {
+                    height: 28px !important; /* スロットを28pxに増やして名前が見えるように調整 */
+                }
+                .fc-timegrid-slot-label {
+                    font-size: 0.75rem !important;
+                    font-weight: 500 !important;
+                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                    vertical-align: middle !important;
+                    padding-right: 4px !important;
+                }
+                .fc-timegrid-axis-cushion {
+                    padding: 8px 4px !important;
+                }
+                
+                /* 今日の時間インジケーター */
+                .fc-timegrid-now-indicator-line {
+                    border-color: #ea4335 !important;
+                    border-width: 2px !important;
+                    z-index: 4 !important;
+                }
+                .fc-timegrid-now-indicator-arrow {
+                    border-top-color: #ea4335 !important;
+                    border-bottom-color: #ea4335 !important;
+                    margin-top: -6px !important;
+                    border-width: 6px !important;
+                }
+
+                /* 全日イベントセクション（TimeGrid） */
+                .fc-timegrid-allday {
+                    background-color: ${isDark ? '#1a1a1a' : '#fcfcfc'} !important;
+                    border-bottom: 2px solid ${theme.palette.divider} !important;
+                }
+                .fc-timegrid-allday-label {
+                    font-size: 0.75rem !important;
+                    font-weight: 800 !important;
+                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                    text-transform: uppercase;
+                }
+                .fc-timegrid-col.fc-day-today {
+                    background-color: ${isDark ? 'rgba(25, 118, 210, 0.05)' : 'rgba(25, 118, 210, 0.02)'} !important;
+                }
             `}</style>
 
                     {error && <Typography color="error" sx={{ px: 1 }}>{error}</Typography>}
@@ -3305,7 +3411,10 @@ const CalendarPage: React.FC = () => {
                         locale={'ja'}
                         timeZone={'Asia/Tokyo'}
                         slotMinTime="05:00:00"
-                        slotMaxTime="29:00:00"
+                        slotMaxTime="28:00:00"
+                        slotDuration="01:00:00"
+                        slotLabelInterval="01:00"
+                        scrollTime="08:00:00"
                         eventTimeFormat={{
                             hour: '2-digit',
                             minute: '2-digit',
@@ -3315,6 +3424,7 @@ const CalendarPage: React.FC = () => {
                         contentHeight={isMobile ? "auto" : "auto"}
                         fixedWeekCount={true}
                         showNonCurrentDates={true}
+                        dayMaxEvents={5}
                         dateClick={handleDateClick}
                         select={handleSelect}
                         eventClick={handleEventClick}
@@ -3435,14 +3545,6 @@ const CalendarPage: React.FC = () => {
                             // バックエンドイベント（会議、マイルストーン、締切、ワークショップなど）の色は
                             // CSSクラス（grey-event）で制御されるため、eventDidMountでの処理は不要
                         }}
-                        dayMaxEventRows={5}
-                        dayMaxEvents={5}
-                        moreLinkClick={isMobile ? (arg) => {
-                            setSelectedDate(arg.date);
-                            setSelectedEventDetails({ event: null });
-                            setMobileEventDetailsOpen(true);
-                        } : "popover"}
-                        moreLinkContent={(arg) => `+${arg.num}件`}
                         dayCellDidMount={handleDayCellMount}
                         selectable={user?.role === 'admin'}
                         editable={user?.role === 'admin'}

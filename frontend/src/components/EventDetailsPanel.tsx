@@ -281,6 +281,30 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     <Typography variant="body2">{selectedEvent.extendedProps.location}</Typography>
                   </Box>
                 )}
+
+                {/* タスク固有の情報表示 */}
+                {selectedEvent.extendedProps?.type?.toLowerCase() === 'task' && (
+                  <>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <FolderIcon fontSize="small" color="action" />
+                      <Typography variant="body2">
+                        プロジェクト: {selectedEvent.extendedProps.projectId ? (projectMap.get(String(selectedEvent.extendedProps.projectId))?.name || '不明') : 'なし'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CalendarTodayIcon fontSize="small" color="action" />
+                      <Typography variant="body2">
+                        開始日: {formatDate(selectedEvent.extendedProps.taskStartDate) || '未設定'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <GroupIcon fontSize="small" color="action" />
+                      <Typography variant="body2">
+                        担当者: {selectedEvent.extendedProps.taskAssigneeId ? (userMap.get(String(selectedEvent.extendedProps.taskAssigneeId)) || 'なし') : 'なし'}
+                      </Typography>
+                    </Box>
+                  </>
+                )}
                 {selectedEvent.extendedProps?.participants && (selectedEvent.extendedProps.participants as Participant[]).length > 0 && (
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>参加者:</Typography>
@@ -300,11 +324,11 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                     control={
                       <Checkbox
                         size="small"
-                        checked={googleStatus.synced_event_ids.includes(Number(selectedEvent.id.replace('event-', '')))}
+                        checked={googleStatus.synced_event_ids.some(id => String(id) === String(selectedEvent.id.replace('event-', '')))}
                         onChange={() => {
-                          const eventId = Number(selectedEvent.id.replace('event-', ''));
-                          const synced = googleStatus.synced_event_ids.includes(eventId);
-                          onGoogleSyncToggle?.(eventId, synced);
+                          const eventIdStr = selectedEvent.id.replace('event-', '');
+                          const synced = googleStatus.synced_event_ids.some(id => String(id) === String(eventIdStr));
+                          onGoogleSyncToggle?.(Number(eventIdStr), synced);
                         }}
                       />
                     }

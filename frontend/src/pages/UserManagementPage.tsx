@@ -64,7 +64,6 @@ function partitionTasksByCategory(tasks: Task[]): Record<TaskDisplayCategory, Ta
 interface EditUserData {
   id: string;
   username: string;
-  full_name: string;
   email: string;
   role: string;
 }
@@ -342,7 +341,6 @@ const UserManagementPage: React.FC = () => {
     setCurrentEditUser({
       id: String(user.id),
       username: user.username || '',
-      full_name: user.full_name || '',
       email: user.email || '',
       role: user.role || 'user'
     });
@@ -388,7 +386,6 @@ const UserManagementPage: React.FC = () => {
     try {
       const payload: Record<string, string> = {
         username: currentEditUser.username,
-        full_name: currentEditUser.full_name,
         email: currentEditUser.email,
         role: currentEditUser.role
       };
@@ -744,7 +741,7 @@ const UserManagementPage: React.FC = () => {
                               {part.dueSoon.length > 0 && (
                                 <Box>
                                   <Typography variant="caption" sx={{ color: '#E65100', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                                    <ScheduleIcon fontSize="small" /> 期限が近い
+                                    <ScheduleIcon fontSize="small" /> 期限が1週間以内
                                   </Typography>
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {part.dueSoon.map((t) => {
@@ -810,7 +807,7 @@ const UserManagementPage: React.FC = () => {
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 100, width: 100, bgcolor: 'background.paper', position: 'sticky', left: 0, zIndex: 10 }}>ユーザー</TableCell>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(198, 40, 40, 0.18)' : '#FFEBEE', color: isDarkMode ? '#EF9A9A' : '#C62828' }}><WarningIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />遅れている</TableCell>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(21, 101, 192, 0.18)' : '#E3F2FD', color: isDarkMode ? '#90CAF9' : '#1565C0' }}><TodayIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />今日中</TableCell>
-                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.18)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100' }}><ScheduleIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />期限が近い</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 180, bgcolor: isDarkMode ? 'rgba(230, 81, 0, 0.18)' : '#FFF3E0', color: isDarkMode ? '#FFB74D' : '#E65100' }}><ScheduleIcon sx={{ fontSize: 18, verticalAlign: 'middle', mr: 0.5 }} />期限が1週間以内</TableCell>
                           <TableCell sx={{ fontWeight: 'bold', minWidth: 160, bgcolor: 'background.paper' }}>余裕をもって進める</TableCell>
                         </TableRow>
                       </TableHead>
@@ -1192,13 +1189,6 @@ const UserManagementPage: React.FC = () => {
                 label="ユーザー名"
                 name="username"
                 value={currentEditUser?.username || ''}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="氏名"
-                name="full_name"
-                value={currentEditUser?.full_name || ''}
                 onChange={handleEditChange}
                 fullWidth
               />

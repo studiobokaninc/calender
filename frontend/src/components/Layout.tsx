@@ -48,6 +48,7 @@ import {
   QuestionAnswer as ChatIcon,
   AccessTime as AccessTimeIcon,
   Search as SearchIcon,
+  Description as DescriptionIcon,
 } from '@mui/icons-material'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
@@ -157,9 +158,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'カレンダー', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
+    { text: '議事録', icon: <DescriptionIcon />, path: '/meetings' },
     { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
     { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
-    { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users' },
+    { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users', isAdmin: true },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
@@ -315,10 +317,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [user?.id, user?.role])
 
-  // 一般ユーザーはチャットのみ表示。管理者は管理者以外のメニューを表示
+  // 一般ユーザーはチャット、メモ、議事録、カレンダー、プロジェクト、タスクを表示。
   const menuItems = user?.role === 'admin'
     ? allMenuItems.filter(item => !item.isAdmin)
-    : allMenuItems.filter(item => item.path === '/chat' || item.path === '/notes' || item.path === '/calendar')
+    : allMenuItems.filter(item => ['/chat', '/notes', '/meetings', '/calendar', '/projects', '/tasks', '/dashboard'].includes(item.path))
   const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
 
   // モックデータのエクスポート

@@ -124,6 +124,8 @@ class Task(Base):
     shotID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     seqID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     phases: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
+    auto_started: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_delayed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[Optional[datetime]] = mapped_column()
     display_status: Mapped[str] = mapped_column(String, default='online', index=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column()
@@ -250,3 +252,22 @@ class EventGoogleSync(Base):
     google_event_id: Mapped[str] = mapped_column(String(512), index=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+
+class Meeting(Base):
+    __tablename__ = "meetings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
+    title: Mapped[str] = mapped_column(index=True)
+    date: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    audio_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 保存先パス
+    transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    decisions: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    tasks: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    discussion_points: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    deadlines: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+    project: Mapped["Project"] = relationship("Project")

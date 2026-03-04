@@ -77,7 +77,7 @@ const defaultStates: PageStates = {
     filterProject: '',
     filterAssignee: '',
     eventTypeFilter: {
-      project: true,
+      project: false,
       task: true,
       milestone: true,
       deadline: true,

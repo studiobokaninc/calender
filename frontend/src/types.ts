@@ -295,6 +295,21 @@ export interface NoteCreate {
   project_id?: number | null;
 }
 
+export interface Meeting {
+  id: number;
+  project_id: number;
+  title: string;
+  date: string;
+  audio_url?: string | null;
+  transcript?: string | null;
+  decisions?: string[] | null;
+  tasks?: string[] | null;
+  discussion_points?: string[] | null;
+  deadlines?: string[] | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 export interface NoteUpdate {
   title?: string | null;
   content?: string | null; // 後方互換性のため残す

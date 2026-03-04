@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox, useTheme, useMediaQuery } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { CalendarEvent, Project, User, Group, Participant } from '../types';
-import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay, addDays } from 'date-fns';
+import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -14,32 +14,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import FolderIcon from '@mui/icons-material/Folder';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import EventIcon from '@mui/icons-material/Event';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 
-// ★★★ Define color functions here ★★★
-const getProjectColor = (project: Project | { status?: string, color?: string } | undefined): string => {
-  if (!project) return '#757575';
-  if ('color' in project && project.color) return project.color;
-  switch (project.status) {
-    case 'planning': return '#FF9800';
-    case 'in-progress': return '#4CAF50';
-    case 'completed': return '#9E9E9E';
-    default: return '#757575';
-  }
-}
-const getTaskColor = (status?: string, projectStatus?: string): string => {
-  const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
-  if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') return '#9E9E9E';
-  switch (status) {
-    case 'todo': return '#2196F3';
-    case 'in-progress': return '#FF9800';
-    case 'review': return '#9C27B0';
-    case 'delayed': return '#F44336';
-    case 'completed': return '#9E9E9E';
-    default: return '#BDBDBD';
-  }
-}
 const formatDate = (dateInput: string | Date | null | undefined): string => {
   if (!dateInput) return '';
   try {
@@ -55,15 +31,6 @@ const formatTime = (dateInput: string | Date | null | undefined): string => {
     if (isValid(dateObj)) return format(dateObj, 'HH:mm', { locale: ja });
     return '';
   } catch { return ''; }
-};
-const getStatusColor = (status?: string): string => {
-  switch (status) {
-    case '未着手': return '#f44336';
-    case '進行中': return '#2196f3';
-    case '完了': return '#9e9e9e';
-    case '保留': return '#ff9800';
-    default: return '#9e9e9e';
-  }
 };
 const isDatePast = (dateStr: string | Date | null | undefined): boolean => {
   if (!dateStr) return false;
@@ -86,7 +53,7 @@ const getEventColor = (type?: string, projectStatus?: string, eventDate?: string
     case 'meeting': return '#1976d2';
     case 'review': case 'workshop': return '#00897b';
     case 'deadline': return '#d32f2f';
-    case 'milestone': return '#9C27B0';
+    case 'milestone': return '#d32f2f';
     default: return '#2196f3';
   }
 };
@@ -116,7 +83,6 @@ interface EventDetailsPanelProps {
 const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   selectedDate,
   selectedEvent,
-  totalCost,
   events,
   onEventSelect,
   isMinimized,
@@ -136,7 +102,6 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
 }) => {
   const { user } = useAuth();
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const dailyEvents = useMemo(() => {
@@ -183,7 +148,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
 
   const getCardColor = (ev: CalendarEvent) => {
     const type = ev.extendedProps?.type;
-    const projectStatus = ev.extendedProps?.projectId ? projectMap.get(String(ev.extendedProps.projectId))?.status : undefined;
+    const projectStatus = ev.extendedProps?.projectId ? projectMap.get(String(ev.extendedProps.projectId))?.status || undefined : undefined;
     return getEventColor(type, projectStatus, ev.start);
   };
 
@@ -226,7 +191,13 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               {formatDate(selectedDate)}
             </Typography>
           )}
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>表示イベント</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>表示イベント</Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button size="small" variant="text" onClick={() => Object.keys(eventTypeFilter).forEach(k => onEventTypeFilterChange(k, true))}>全オン</Button>
+              <Button size="small" variant="text" onClick={() => Object.keys(eventTypeFilter).forEach(k => onEventTypeFilterChange(k, false))}>全オフ</Button>
+            </Box>
+          </Box>
           <FormControl size="small" sx={{ minWidth: 140, mb: 1 }}>
             <Select value={eventStatusFilter} onChange={onEventStatusFilterChange} displayEmpty>
               <MenuItem value="all">すべてのプロジェクト</MenuItem>
@@ -240,7 +211,19 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               <FormControlLabel
                 key={k}
                 control={<Checkbox size="small" checked={eventTypeFilter[k] !== false} onChange={(_, c) => onEventTypeFilterChange(k, c)} />}
-                label={<Typography variant="body2">{k}</Typography>}
+                label={
+                  <Typography variant="body2">
+                    {k === 'task' ? 'タスク' :
+                      k === 'meeting' ? '会議' :
+                        k === 'deadline' ? '締切' :
+                          k === 'milestone' ? 'マイルストーン' :
+                            k === 'workshop' ? 'ワークショップ' :
+                              k === 'generic' || k === 'event' ? '通常' :
+                                k === 'project' ? 'プロジェクト' :
+                                  k === 'group' ? 'グループ' :
+                                    k}
+                  </Typography>
+                }
               />
             ))}
           </FormGroup>

@@ -25,8 +25,8 @@ class LLMClient:
         self.client = genai.Client(api_key=api_key)
         
         # モデル設定
-        # チャットの高速化（ラグ解消）のため一時的に flash に変更
-        self.model_name = "gemini-2.5-flash"
+        # 安定版の gemini-1.5-flash を優先的に使用
+        self.model_name = "gemini-1.5-flash"
         self.config = types.GenerateContentConfig(
             temperature=0.7,
             top_p=0.95,
@@ -231,11 +231,15 @@ id, name, project_id, assigned_to, due_date, status, priority
                     if mime_type == "audio/x-m4a" or file_path.lower().endswith(".m4a"):
                          mime_type = "audio/mp4"
                             
-                    with open(file_path, "rb") as f:
-                        file_data = f.read()
+                    # For large files like audio/video/pdf, use the File API
+                    if mime_type.startswith("audio/") or mime_type == "application/pdf":
+                        file_obj = self.client.files.upload(file=file_path, config={"mime_type": mime_type})
+                        part = types.Part.from_uri(file_uri=file_obj.uri, mime_type=mime_type)
+                    else:
+                        with open(file_path, "rb") as f:
+                            file_data = f.read()
+                        part = types.Part.from_bytes(data=file_data, mime_type=mime_type)
                         
-                    # Gemini API (0.1+) Part format
-                    part = types.Part.from_bytes(data=file_data, mime_type=mime_type)
                     query_parts.append(part)
                     
                 except Exception as e:

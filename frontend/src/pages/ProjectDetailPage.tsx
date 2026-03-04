@@ -47,7 +47,7 @@ const ProjectDetailPage: React.FC = () => {
         const [projectRes, tasksRes, usersRes] = await Promise.all([
           api.get<Project>(`/projects/${projectId}`),
           api.get<Task[]>(`/tasks?project_id=${projectId}`),
-          api.get<User[]>(`/api/users`), // ★ 全ユーザー取得 API
+          api.get<User[]>('/users'), // Fix: /api/users -> /users (baseURL is /api)
         ]);
         console.log("Fetched Project:", projectRes.data);
         console.log("Fetched Tasks:", tasksRes.data);
@@ -56,7 +56,7 @@ const ProjectDetailPage: React.FC = () => {
         setTasks(tasksRes.data);
         setAllUsers(usersRes.data); // ★ state を更新
       } catch (err: any) {
-        console.error(`Failed to fetch data for project ${projectId}:`, err);
+        console.error(`Failed to fetch data for project ${projectId}: `, err);
         setError('プロジェクトデータの取得に失敗しました。' + (err.response?.data?.detail || err.message || ''));
       } finally {
         setLoading(false);
@@ -136,14 +136,14 @@ const ProjectDetailPage: React.FC = () => {
       return;
     }
 
-    console.log(`Creating group "${newGroupName}" with users:`, involvedUsers.map(u => u.id));
+    console.log(`Creating group "${newGroupName}" with users: `, involvedUsers.map(u => u.id));
 
     try {
       setLoading(true);
 
       // 1. グループ作成 API 呼び出し
       const groupCreateData = { name: newGroupName.trim() };
-      const groupResponse = await api.post<Group>('/api/groups', groupCreateData);
+      const groupResponse = await api.post<Group>('/groups', groupCreateData); // Fix: /api/groups -> /groups
       const newGroupId = groupResponse.data.id;
       console.log("Group created successfully, ID:", newGroupId);
 
@@ -151,7 +151,7 @@ const ProjectDetailPage: React.FC = () => {
       const addUserPromises = involvedUsers.map(user => {
         // ★ 文字列変換 String() を削除し、整数で送信 ★
         const userGroupData = { user_id: user.id, group_id: newGroupId };
-        return api.post('/api/user_groups', userGroupData);
+        return api.post('/user_groups', userGroupData); // Fix: /api/user_groups -> /user_groups
       });
 
       await Promise.all(addUserPromises);
@@ -163,7 +163,7 @@ const ProjectDetailPage: React.FC = () => {
     } catch (err: any) {
       console.error("Failed to create group or add users:", err);
       const errorDetail = err.response?.data?.detail || err.message || '不明なエラーが発生しました';
-      setSnackbar({ open: true, message: `グループ作成に失敗しました: ${errorDetail}`, severity: 'error' });
+      setSnackbar({ open: true, message: `グループ作成に失敗しました: ${errorDetail} `, severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -240,11 +240,11 @@ const ProjectDetailPage: React.FC = () => {
           <Grid item xs={12}>
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <Chip
-                label={`進捗: ${progressPercentage}%`}
+                label={`進捗: ${progressPercentage}% `}
                 color={progressPercentage === 100 ? 'success' : 'primary'}
               />
-              <Chip label={`タスク数: ${totalTasks}`} />
-              <Chip label={`総コスト: ${totalCost.toLocaleString()}円`} />
+              <Chip label={`タスク数: ${totalTasks} `} />
+              <Chip label={`総コスト: ${totalCost.toLocaleString()} 円`} />
             </Box>
           </Grid>
         </Grid>
@@ -358,6 +358,8 @@ const ProjectDetailPage: React.FC = () => {
           <Button onClick={handleCreateGroup} variant="contained">作成</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 議事録管理ページへのリンク（オプション）を入れても良いが、一旦削除 */}
 
       {/* ★★★ Snackbar (フィードバック用) ★★★ */}
       <Snackbar

@@ -324,4 +324,32 @@ class UserActivityResponse(UserActivityBase):
         from_attributes = True
         json_encoders = {
             datetime: lambda v: v.isoformat()
-        } 
+        }
+
+
+# --- Meeting Schemas ---
+
+class MeetingBase(BaseModel):
+    title: str
+    project_id: int
+    date: Optional[datetime] = None
+
+class MeetingCreate(MeetingBase):
+    pass
+
+class MeetingResponse(MeetingBase):
+    id: int
+    audio_url: Optional[str] = None
+    transcript: Optional[str] = None
+    decisions: Optional[List[str]] = None
+    tasks: Optional[List[str]] = None
+    discussion_points: Optional[List[str]] = None
+    deadlines: Optional[List[str]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }

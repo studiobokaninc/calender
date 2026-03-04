@@ -1883,3 +1883,39 @@ def delete_event_google_sync(db: Session, user_id: int, event_id: int) -> bool:
 
 def get_event_google_syncs_for_event(db: Session, event_id: int) -> List[models.EventGoogleSync]:
     return db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == event_id).all()
+
+
+# --- Meeting CRUD ---
+
+def get_meeting(db: Session, meeting_id: int) -> models.Meeting | None:
+    return db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+
+def get_meetings_by_project(db: Session, project_id: int, skip: int = 0, limit: int = 100) -> List[models.Meeting]:
+    return db.query(models.Meeting).filter(models.Meeting.project_id == project_id).order_by(models.Meeting.date.desc()).offset(skip).limit(limit).all()
+
+def create_meeting(db: Session, meeting: schemas.MeetingCreate) -> models.Meeting:
+    db_meeting = models.Meeting(
+        title=meeting.title,
+        project_id=meeting.project_id,
+        date=meeting.date or now_jst_naive(),
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_meeting)
+    db.commit()
+    db.refresh(db_meeting)
+    return db_meeting
+
+def update_meeting(db: Session, db_meeting: models.Meeting, updates: dict) -> models.Meeting:
+    for key, value in updates.items():
+        if hasattr(db_meeting, key):
+            setattr(db_meeting, key, value)
+    db_meeting.updated_at = now_jst_naive()
+    db.commit()
+    db.refresh(db_meeting)
+    return db_meeting
+
+def delete_meeting(db: Session, db_meeting: models.Meeting) -> models.Meeting:
+    db.delete(db_meeting)
+    db.commit()
+    return db_meeting

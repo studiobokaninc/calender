@@ -1,4 +1,5 @@
-import os
+import asyncio
+import time
 import mimetypes
 import pathlib
 from google import genai
@@ -25,13 +26,13 @@ class LLMClient:
         self.client = genai.Client(api_key=api_key)
         
         # モデル設定
-        # 安定版の gemini-1.5-flash を優先的に使用
-        self.model_name = "gemini-1.5-flash"
+        # 確実に存在する models/gemini-2.0-flash を使用
+        self.model_name = "models/gemini-2.0-flash"
         self.config = types.GenerateContentConfig(
             temperature=0.7,
             top_p=0.95,
             top_k=64,
-            max_output_tokens=8192,
+            max_output_tokens=16384, # 出力上限を引き上げて途切れを防ぐ
             response_mime_type="text/plain",
             safety_settings=[
                 types.SafetySetting(
@@ -188,6 +189,7 @@ id, name, project_id, assigned_to, due_date, status, priority
     ) -> AsyncGenerator[Dict[str, Any], None]:
         
         system_prompt = self.generate_system_prompt(inputs)
+        attachments_to_clean = []
         
         # 履歴の取得
         history_contents = self._get_history(conversation_id)
@@ -233,14 +235,36 @@ id, name, project_id, assigned_to, due_date, status, priority
                             
                     # For large files like audio/video/pdf, use the File API
                     if mime_type.startswith("audio/") or mime_type == "application/pdf":
-                        file_obj = self.client.files.upload(file=file_path, config={"mime_type": mime_type})
+                        logger.info(f"Uploading large file to Gemini File API: {file_path}")
+                        # 正しいキーワード引数 'file' を使用
+                        file_obj = self.client.files.upload(file=str(file_path), config={"mime_type": mime_type})
+
+                        # Wait for the file to be processed (Required for large audio files)
+                        # Processing 1 hour of audio can take 30-90 seconds.
+                        max_retries = 30 # Up to 5 minutes
+                        retry_count = 0
+                        while file_obj.state == "PROCESSING" and retry_count < max_retries:
+                            logger.info(f"File {file_obj.name} is still processing... ({retry_count}/{max_retries})")
+                            await asyncio.sleep(10)
+                            file_obj = self.client.files.get(name=file_obj.name)
+                            retry_count += 1
+                        
+                        if file_obj.state != "ACTIVE":
+                            logger.warning(f"File {file_obj.name} is not ACTIVE (state: {file_obj.state}). This might lead to analysis failure.")
+                        else:
+                            logger.info(f"File {file_obj.name} is ACTIVE and ready for analysis.")
+                            # 準備完了直後はAPIが不安定な場合があるため、少し待機
+                            await asyncio.sleep(5)
+
                         part = types.Part.from_uri(file_uri=file_obj.uri, mime_type=mime_type)
+                        query_parts.append(part)
+                        attachments_to_clean.append(file_obj.name)
                     else:
                         with open(file_path, "rb") as f:
                             file_data = f.read()
                         part = types.Part.from_bytes(data=file_data, mime_type=mime_type)
                         
-                    query_parts.append(part)
+                        query_parts.append(part)
                     
                 except Exception as e:
                     logger.warning(f"Failed to load attachment {file_path}: {e}")
@@ -311,3 +335,28 @@ id, name, project_id, assigned_to, due_date, status, priority
                 "code": "gemini_error",
                 "message": str(e)
             }
+        finally:
+            # クリーンアップ: アップロードしたファイルを削除してクォータを節約
+            for file_name in attachments_to_clean:
+                try:
+                    self.client.files.delete(name=file_name)
+                    logger.info(f"Deleted file from Gemini: {file_name}")
+                except:
+                    pass
+
+    def detect_action_from_text(self, text: str) -> Optional[Dict[str, Any]]:
+        """回答テキストからJSONアクションを抽出"""
+        try:
+            import json
+            import re
+            # ```json ... ``` または 単純な { ... } を探す
+            match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+            if not match:
+                match = re.search(r"(\{.*?\})", text, re.DOTALL)
+            
+            if match:
+                json_str = match.group(1).strip()
+                return json.loads(json_str)
+        except Exception as e:
+            logger.debug(f"Failed to parse action JSON: {e}")
+        return None

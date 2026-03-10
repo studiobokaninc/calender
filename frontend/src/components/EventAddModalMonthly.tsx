@@ -584,8 +584,9 @@ const EventAddModalMonthly: React.FC<EventAddModalMonthlyProps> = ({ open, onClo
                     >
                       <MenuItem value="todo">未着手</MenuItem>
                       <MenuItem value="in-progress">進行中</MenuItem>
+                      <MenuItem value="review">レビュー中</MenuItem>
                       <MenuItem value="completed">完了</MenuItem>
-                      <MenuItem value="pending">保留</MenuItem>
+                      <MenuItem value="delayed">遅延</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>

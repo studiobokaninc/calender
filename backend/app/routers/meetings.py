@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -131,6 +132,42 @@ async def delete_meeting(
 
     crud.delete_meeting(db, db_meeting)
     return None
+
+@router.get("/{meeting_id}/audio")
+async def get_meeting_audio_stream(
+    project_id: int,
+    meeting_id: int,
+    db: Session = Depends(get_db)
+):
+    """音声ファイルを直接ストリーミング配信する (外部プレイヤー対応のため認証なし)"""
+    db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+    if not db_meeting or not db_meeting.audio_url:
+        raise HTTPException(status_code=404, detail="音声データが見つかりません")
+    
+    filename = os.path.basename(db_meeting.audio_url)
+    file_path = AUDIO_DIR / filename
+    
+    if not file_path.exists():
+        logger.error(f"Audio file not found on disk: {file_path}")
+        raise HTTPException(status_code=404, detail="ファイルが物理的に見つかりません")
+        
+    # 大きなファイルの場合、ブラウザのRangeリクエストを確実に処理するためのヘッダー調整
+    file_size = os.path.getsize(file_path)
+    
+    # 完全に手動でのRange処理は複雑なので、一旦標準のFileResponseに任せつつ、
+    # 巨大なファイル向けにブラウザが要求しやすいようヘッダーを補助する
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(file_size),
+        "Cache-Control": "max-age=3600",
+        "Content-Type": "audio/mpeg"  # m4aであっても一度mpeg(mp3互換)として試す
+    }
+
+    return FileResponse(
+        path=str(file_path),
+        media_type="audio/mpeg",
+        headers=headers
+    )
 
 async def analyze_meeting_background(meeting_id: int, audio_path: str, api_key: str):
     """バックグラウンド解析タスク"""

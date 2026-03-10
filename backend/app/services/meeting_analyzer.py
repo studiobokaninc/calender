@@ -37,6 +37,10 @@ class MeetingAnalyzer:
 
         logger.info(f"Starting analysis for meeting {meeting_id} using {audio_path}")
         
+        # ステータスを「解析中」に更新
+        crud.update_meeting(db, db_meeting, {"status": "processing"})
+        db.commit()
+
         # 1. Geminiで直接解析 (文字起こし+要約)
         self.llm_client.model_name = "models/gemini-2.0-flash"
         
@@ -50,7 +54,7 @@ class MeetingAnalyzer:
 2. **decisions**: 会議で決定された事項のリスト
 3. **tasks**: 会議から発生した課題やネクストアクションのリスト
 4. **discussion_points**: 会議で議論された論点や主な話題のリスト
-5. **deadlines**: 期限やマイルストーンとして言及された日程候補のリスト
+5. **deadlines**: 期限やマイルストーンとして言言された日程候補のリスト
 
 【JSONフォーマット】
 {
@@ -106,21 +110,38 @@ class MeetingAnalyzer:
             try:
                 self.llm_client.config.response_mime_type = original_mime_type
                 
-                # JSONの抽出（Markdownタグの除去など）
+                # JSONの抽出（Markdownタグや余計なテキストの除去）
                 clean_json = accumulated_response.strip()
                 if "```json" in clean_json:
                     clean_json = clean_json.split("```json")[1].split("```")[0].strip()
                 elif "```" in clean_json:
                     clean_json = clean_json.split("```")[1].split("```")[0].strip()
-                
-                analysis = json.loads(clean_json)
+                else:
+                    # markdownタグがない場合、最初の { から 最後の } までを抽出
+                    first_brace = clean_json.find('{')
+                    last_brace = clean_json.rfind('}')
+                    if first_brace != -1 and last_brace != -1:
+                        clean_json = clean_json[first_brace:last_brace+1]
+
+                # 非常に長い回答などでJSONの後にゴミが付きやすいので、確実に最後の } で切り落とす
+                last_brace = clean_json.rfind('}')
+                if last_brace != -1:
+                    clean_json = clean_json[:last_brace+1]
+
+                try:
+                    analysis = json.loads(clean_json)
+                except json.JSONDecodeError as je:
+                    logger.error(f"JSON decode failed at char {je.pos}: {je.msg}")
+                    logger.debug(f"Target string was: {clean_json}")
+                    raise je
                 
                 updates = {
                     "transcript": analysis.get("transcript", ""),
                     "decisions": analysis.get("decisions", []),
                     "tasks": analysis.get("tasks", []),
                     "discussion_points": analysis.get("discussion_points", []),
-                    "deadlines": analysis.get("deadlines", [])
+                    "deadlines": analysis.get("deadlines", []),
+                    "status": "completed"
                 }
                 
                 crud.update_meeting(db, db_meeting, updates)
@@ -132,4 +153,5 @@ class MeetingAnalyzer:
 
         # 失敗時のクリーンアップ
         self.llm_client.config.response_mime_type = original_mime_type
+        crud.update_meeting(db, db_meeting, {"status": "failed"})
         logger.error("Meeting analysis process finished with failure.")

@@ -25,10 +25,16 @@ from dotenv import load_dotenv
 import json
 import logging
 import math
-import csv
+import mimetypes
 import base64
 import hmac
 import hashlib
+
+# .m4a などのオーディオファイルのMIMEタイプを追加
+mimetypes.add_type('audio/mp4', '.m4a')
+mimetypes.add_type('audio/mp4', '.mp4')
+mimetypes.add_type('audio/mpeg', '.mp3')
+mimetypes.add_type('video/mp4', '.mp4')
 
 # ログの設定
 logging.basicConfig(
@@ -84,7 +90,7 @@ app.add_middleware(
     allow_credentials=True if not _cors_allow_all else False,  # allow_origins=["*"]の場合はFalseにする必要がある
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["*"]
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "Content-Type"]
 )
 
 # --- Routers ---

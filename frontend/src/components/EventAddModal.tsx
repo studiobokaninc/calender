@@ -155,7 +155,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       taskStartDate: isTaskType ? format(initialStartDateTime, 'yyyy-MM-dd') : undefined,
       taskAssigneeId: null,
       taskCost: '',
-      taskStatus: 'todo',
+      taskStatus: (initialType === 'Project' || initialType === 'project') ? 'planning' : 'todo',
       taskPriority: 'low',
       taskType: '',
       taskSeqID: '',
@@ -541,6 +541,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
 
         next.startDate = undefined;
         next.endDate = undefined;
+        next.taskStatus = 'todo';
 
       } else if (newType === 'Project' || newType === 'project') {
         // プロジェクトは終日・時間不要。開始日と終了日が必要。
@@ -551,6 +552,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         // 開始日・終了日は既存値を優先
         next.startDate = prev.startDate || prev.taskDueDate || '';
         next.endDate = prev.endDate || '';
+        next.taskStatus = 'planning';
 
       } else if (newType === 'Deadline' || newType === 'Milestone') {
         // これらは終日・時間不要。必要なのは期日に相当する startDate。
@@ -1457,6 +1459,9 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       <MenuItem value="planning">計画中</MenuItem>
                       <MenuItem value="in-progress">進行中</MenuItem>
                       <MenuItem value="completed">完了</MenuItem>
+                      <MenuItem value="on-hold">保留中</MenuItem>
+                      <MenuItem value="cancelled">キャンセル</MenuItem>
+                      <MenuItem value="delayed">遅延</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>

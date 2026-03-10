@@ -52,6 +52,26 @@ def check_and_migrate_db():
             conn.commit()
             print("calendar_idカラムを追加しました。")
         
+        # meetingsテーブルの既存のカラムを確認
+        cursor.execute("PRAGMA table_info(meetings)")
+        meeting_columns = [row[1] for row in cursor.fetchall()]
+
+        if 'status' not in meeting_columns:
+            print("statusカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE meetings ADD COLUMN status VARCHAR(50) DEFAULT 'pending'")
+            conn.commit()
+            print("statusカラムを追加しました。")
+            
+            # 既に内容があるものは「完了」に更新（マイグレーション時のみ）
+            print("既存のデータのステータスを更新しています...")
+            cursor.execute("UPDATE meetings SET status = 'completed' WHERE transcript IS NOT NULL AND (status IS NULL OR status = 'pending')")
+            conn.commit()
+            print("既存のデータのステータスを更新しました。")
+        # 既存データのステータス不整合を修正（transcriptがあるのにpendingになっているもの、
+        # またはマイグレーションの順序で更新が漏れたものへの対応）
+        cursor.execute("UPDATE meetings SET status = 'completed' WHERE transcript IS NOT NULL AND status = 'pending'")
+        conn.commit()
+
         conn.close()
         
     except sqlite3.Error as e:

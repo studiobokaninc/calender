@@ -339,6 +339,7 @@ class MeetingCreate(MeetingBase):
 
 class MeetingResponse(MeetingBase):
     id: int
+    status: str
     audio_url: Optional[str] = None
     transcript: Optional[str] = None
     decisions: Optional[List[str]] = None

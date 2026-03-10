@@ -261,6 +261,7 @@ class Meeting(Base):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
     title: Mapped[str] = mapped_column(index=True)
     date: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    status: Mapped[str] = mapped_column(String(50), default="pending", index=True) # pending, processing, completed, failed
     audio_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 保存先パス
     transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     decisions: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)

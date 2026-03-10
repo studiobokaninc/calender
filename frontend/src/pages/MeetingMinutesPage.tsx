@@ -93,7 +93,9 @@ const MeetingMinutesPage: React.FC = () => {
                                         variant="outlined"
                                         sx={{
                                             borderColor: selectedProjectId === project.id ? 'primary.main' : 'divider',
-                                            bgcolor: selectedProjectId === project.id ? 'primary.50' : 'inherit',
+                                            bgcolor: selectedProjectId === project.id
+                                                ? (theme) => theme.palette.mode === 'dark' ? 'rgba(33, 150, 243, 0.2)' : 'primary.50'
+                                                : 'inherit',
                                             transition: '0.2s'
                                         }}
                                     >

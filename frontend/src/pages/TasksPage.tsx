@@ -1531,6 +1531,7 @@ const TasksPage: React.FC = () => {
                             columns={columns}
                             getRowId={(row) => row.id}
                             checkboxSelection
+                            disableRowSelectionOnClick
                             rowSelectionModel={{ type: 'include' as const, ids: new Set(selectionModel) }}
                             onRowSelectionModelChange={(newSelection) => {
                                 // MUI DataGrid のバージョンや設定により、配列またはオブジェクトで返ってくる可能性があるため柔軟に処理

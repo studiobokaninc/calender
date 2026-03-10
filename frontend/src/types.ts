@@ -300,6 +300,7 @@ export interface Meeting {
   project_id: number;
   title: string;
   date: string;
+  status: string; // pending, processing, completed, failed
   audio_url?: string | null;
   transcript?: string | null;
   decisions?: string[] | null;

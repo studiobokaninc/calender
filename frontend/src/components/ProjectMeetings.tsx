@@ -4,7 +4,7 @@ import {
     IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
     TextField, CircularProgress,
     Accordion, AccordionSummary, AccordionDetails,
-    Alert, Snackbar, Grid, Chip
+    Alert, Snackbar, Grid, Chip, Link
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -35,21 +35,34 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
     const [uploading, setUploading] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
-    const fetchMeetings = async () => {
-        setLoading(true);
+    useEffect(() => {
+        fetchMeetings();
+
+        // 10秒ごとに自動更新（解析中のものがある場合）
+        const interval = setInterval(() => {
+            setMeetings(prev => {
+                const hasProcessing = prev.some(m => !m.transcript || m.status === 'processing' || m.status === 'pending');
+                if (hasProcessing) {
+                    fetchMeetings(false); // サイレント更新
+                }
+                return prev;
+            });
+        }, 10000);
+
+        return () => clearInterval(interval);
+    }, [projectId]);
+
+    const fetchMeetings = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
             const res = await api.get<Meeting[]>(`/projects/${projectId}/meetings`);
             setMeetings(res.data);
         } catch (err) {
             console.error('Failed to fetch meetings:', err);
         } finally {
-            setLoading(false);
+            if (showLoading) setLoading(false);
         }
     };
-
-    useEffect(() => {
-        fetchMeetings();
-    }, [projectId]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -133,8 +146,17 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                             実施日: {new Date(meeting.date).toLocaleDateString('ja-JP')}
                                         </Typography>
                                     </Box>
-                                    {!meeting.transcript && (
-                                        <Chip size="small" label="AI解析中..." color="info" variant="outlined" sx={{ mr: 2 }} />
+                                    {meeting.status === 'failed' ? (
+                                        <Chip size="small" label="解析失敗" color="error" variant="outlined" sx={{ mr: 2 }} />
+                                    ) : (!meeting.transcript && (meeting.status === 'processing' || meeting.status === 'pending')) && (
+                                        <Chip
+                                            size="small"
+                                            label={meeting.status === 'processing' ? 'AI解析中...' : '解析待ち...'}
+                                            color="info"
+                                            variant="outlined"
+                                            sx={{ mr: 2 }}
+                                            icon={meeting.status === 'processing' ? <CircularProgress size={12} /> : undefined}
+                                        />
                                     )}
                                     <IconButton
                                         size="small"
@@ -149,8 +171,24 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                 <Grid container spacing={3}>
                                     <Grid item xs={12}>
                                         {meeting.audio_url && (
-                                            <Box sx={{ mb: 2, p: 1, bgcolor: 'action.hover', borderRadius: 2 }}>
-                                                <audio controls src={`${api.defaults.baseURL}${meeting.audio_url}`} style={{ width: '100%' }} />
+                                            <Box sx={{ mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                    <MicIcon sx={{ mr: 1, color: 'text.secondary' }} />
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        会議音声ファイル
+                                                    </Typography>
+                                                </Box>
+                                                <Button
+                                                    component={Link}
+                                                    href={meeting.audio_url ? `http://${window.location.hostname}:8001/api/projects/${projectId}/meetings/${meeting.id}/audio` : ''}
+                                                    download
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={<CloudUploadIcon sx={{ transform: 'rotate(180deg)' }} />}
+                                                    sx={{ borderRadius: 2 }}
+                                                >
+                                                    音声をダウンロードして再生
+                                                </Button>
                                             </Box>
                                         )}
                                     </Grid>
@@ -161,7 +199,14 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                 <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
                                                     <DescriptionIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> 内容要約・文字起こし
                                                 </Typography>
-                                                <Paper sx={{ p: 2, maxHeight: 400, overflow: 'auto', bgcolor: 'grey.50', border: '1px solid', borderColor: 'divider' }}>
+                                                <Paper sx={{
+                                                    p: 2,
+                                                    maxHeight: 400,
+                                                    overflow: 'auto',
+                                                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.default' : 'grey.50',
+                                                    border: '1px solid',
+                                                    borderColor: 'divider'
+                                                }}>
                                                     <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                                                         {meeting.transcript}
                                                     </Typography>
@@ -172,7 +217,12 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                     <Typography variant="subtitle2" color="success.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
                                                         <CheckCircleIcon fontSize="small" sx={{ mr: 1 }} /> 決定事項
                                                     </Typography>
-                                                    <Paper sx={{ p: 1.5, bgcolor: 'success.50', border: '1px solid', borderColor: 'success.100' }}>
+                                                    <Paper sx={{
+                                                        p: 1.5,
+                                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(76, 175, 80, 0.1)' : 'success.50',
+                                                        border: '1px solid',
+                                                        borderColor: (theme) => theme.palette.mode === 'dark' ? 'success.dark' : 'success.100'
+                                                    }}>
                                                         {meeting.decisions && meeting.decisions.length > 0 ? (
                                                             <List dense disablePadding>
                                                                 {meeting.decisions.map((d, i) => (
@@ -189,7 +239,12 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                     <Typography variant="subtitle2" color="primary.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
                                                         <AssignmentIcon fontSize="small" sx={{ mr: 1 }} /> 課題・タスク
                                                     </Typography>
-                                                    <Paper sx={{ p: 1.5, bgcolor: 'primary.50', border: '1px solid', borderColor: 'primary.100' }}>
+                                                    <Paper sx={{
+                                                        p: 1.5,
+                                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(33, 150, 243, 0.1)' : 'primary.50',
+                                                        border: '1px solid',
+                                                        borderColor: (theme) => theme.palette.mode === 'dark' ? 'primary.dark' : 'primary.100'
+                                                    }}>
                                                         {meeting.tasks && meeting.tasks.length > 0 ? (
                                                             <List dense disablePadding>
                                                                 {meeting.tasks.map((t, i) => (
@@ -206,7 +261,12 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                     <Typography variant="subtitle2" color="warning.dark" gutterBottom sx={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
                                                         <HelpIcon fontSize="small" sx={{ mr: 1 }} /> 主要な論点
                                                     </Typography>
-                                                    <Paper sx={{ p: 1.5, bgcolor: 'orange.50', border: '1px solid', borderColor: 'warning.100' }}>
+                                                    <Paper sx={{
+                                                        p: 1.5,
+                                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 152, 0, 0.1)' : '#fff3e0',
+                                                        border: '1px solid',
+                                                        borderColor: (theme) => theme.palette.mode === 'dark' ? 'warning.dark' : '#ffe0b2'
+                                                    }}>
                                                         {meeting.discussion_points && meeting.discussion_points.length > 0 ? (
                                                             <List dense disablePadding>
                                                                 {meeting.discussion_points.map((p, i) => (
@@ -223,7 +283,12 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                     <Typography variant="subtitle2" color="secondary.main" gutterBottom sx={{ display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
                                                         <ScheduleIcon fontSize="small" sx={{ mr: 1 }} /> 期限・日程候補
                                                     </Typography>
-                                                    <Paper sx={{ p: 1.5, bgcolor: 'secondary.50', border: '1px solid', borderColor: 'secondary.100' }}>
+                                                    <Paper sx={{
+                                                        p: 1.5,
+                                                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(156, 39, 176, 0.1)' : 'secondary.50',
+                                                        border: '1px solid',
+                                                        borderColor: (theme) => theme.palette.mode === 'dark' ? 'secondary.dark' : 'secondary.100'
+                                                    }}>
                                                         {meeting.deadlines && meeting.deadlines.length > 0 ? (
                                                             <List dense disablePadding>
                                                                 {meeting.deadlines.map((d, i) => (
@@ -237,15 +302,23 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                 </Box>
                                             </Grid>
                                         </>
-                                    ) : (
+                                    ) : meeting.status === 'failed' ? (
+                                        <Grid item xs={12}>
+                                            <Alert severity="error" sx={{ my: 2 }}>
+                                                AI解析に失敗しました。AIが解答を返さなかったか、形式が不適切だった可能性があります。
+                                            </Alert>
+                                        </Grid>
+                                    ) : (meeting.status === 'processing' || meeting.status === 'pending' || !meeting.transcript) ? (
                                         <Grid item xs={12}>
                                             <Box sx={{ p: 4, textAlign: 'center' }}>
                                                 <CircularProgress size={32} sx={{ mb: 2 }} />
-                                                <Typography variant="body1" sx={{ fontWeight: 500 }}>AIが音声を解析中です...</Typography>
+                                                <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                                                    {meeting.status === 'processing' ? 'AIが音声を解析中です...' : '解析の順番待ちです...'}
+                                                </Typography>
                                                 <Typography variant="body2" color="text.secondary">文字起こし、決定事項、課題の抽出を行っています。完了まで数分かかる場合があります。</Typography>
                                             </Box>
                                         </Grid>
-                                    )}
+                                    ) : null}
                                 </Grid>
                             </AccordionDetails>
                         </Accordion>

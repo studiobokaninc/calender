@@ -73,8 +73,8 @@ def exchange_code_for_tokens(code: str) -> Optional[dict]:
         return None
 
 
-def refresh_access_token(refresh_token: str) -> Optional[str]:
-    """refresh_token で新しい access_token を取得。"""
+def refresh_access_token(refresh_token: str) -> Optional[dict]:
+    """refresh_token で新しい access_token を取得。成功時はレスポンス全体を返す。"""
     client_id, client_secret, _ = get_google_config()
     if not all([client_id, client_secret]):
         return None
@@ -88,7 +88,7 @@ def refresh_access_token(refresh_token: str) -> Optional[str]:
         with httpx.Client() as client:
             r = client.post(TOKEN_URL, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=15.0)
             r.raise_for_status()
-            return r.json().get("access_token")
+            return r.json()
     except Exception as e:
         logger.exception("Google token refresh failed: %s", e)
         return None
@@ -99,7 +99,8 @@ def _ensure_valid_token(access_token: str, refresh_token: Optional[str], expires
     if expires_at and datetime.utcnow() < expires_at - timedelta(minutes=5):
         return access_token
     if refresh_token:
-        return refresh_access_token(refresh_token)
+        tokens = refresh_access_token(refresh_token)
+        return tokens.get("access_token") if tokens else None
     return access_token
 
 def get_or_create_app_calendar(

@@ -900,13 +900,12 @@ def delete_project_endpoint(
                     db.delete(ts)
             
             # イベントの同期削除 (収集した event_ids を利用)
+            from app.services.google_sync import delete_event_syncs, delete_project_syncs
             for eid in event_ids:
-                e_syncs = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == eid).all()
-                for es in e_syncs:
-                    t_row = crud.get_user_google_token(db, es.user_id)
-                    if t_row:
-                        google_cal.delete_calendar_event(t_row.access_token, t_row.refresh_token, t_row.expires_at, es.google_event_id, t_row.calendar_id)
-                    db.delete(es)
+                delete_event_syncs(db, eid)
+            
+            # プロジェクトの同期削除
+            delete_project_syncs(db, project_id)
         
         db.commit()
         
@@ -1124,12 +1123,8 @@ async def delete_event_endpoint(
         )
     # Google カレンダー同期削除
     if google_cal.is_google_configured():
-        e_syncs = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == event_id).all()
-        for es in e_syncs:
-            t_row = crud.get_user_google_token(db, es.user_id)
-            if t_row:
-                google_cal.delete_calendar_event(t_row.access_token, t_row.refresh_token, t_row.expires_at, es.google_event_id, t_row.calendar_id)
-            db.delete(es)
+        from app.services.google_sync import delete_event_syncs
+        delete_event_syncs(db, event_id)
 
     crud.delete_event(db=db, db_event=db_event)
     return None # 204 No Content
@@ -1441,14 +1436,8 @@ async def delete_task_endpoint(
         )
     # Google カレンダー同期済みのイベントを削除し、同期レコードを削除
     if google_cal.is_google_configured():
-        syncs = crud.get_task_google_syncs_for_task(db, task_id=task_id)
-        for sync_row in syncs:
-            token_row = crud.get_user_google_token(db, sync_row.user_id)
-            if token_row:
-                google_cal.delete_calendar_event(
-                    token_row.access_token, token_row.refresh_token, token_row.expires_at, sync_row.google_event_id, calendar_id=token_row.calendar_id
-                )
-            crud.delete_task_google_sync(db, sync_row.user_id, task_id)
+        from app.services.google_sync import delete_task_syncs
+        delete_task_syncs(db, task_id)
 
     # タスクは認証済みユーザー全員で管理可能
     crud.delete_task(db=db, db_task=db_task)

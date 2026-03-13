@@ -58,6 +58,28 @@ const getEventColor = (type?: string, projectStatus?: string, eventDate?: string
   }
 };
 
+const getTaskStatusLabel = (status?: string | null): string => {
+  switch (status?.toLowerCase()) {
+    case 'todo': return '未着手';
+    case 'in-progress': return '進行中';
+    case 'review': return 'レビュー中';
+    case 'delayed': return '遅延';
+    case 'completed': return '完了';
+    default: return status || '未設定';
+  }
+};
+
+const getTaskStatusColor = (status?: string | null): string => {
+  switch (status?.toLowerCase()) {
+    case 'todo': return '#2196F3';
+    case 'in-progress': return '#FF9800';
+    case 'review': return '#9C27B0';
+    case 'delayed': return '#F44336';
+    case 'completed': return '#9E9E9E';
+    default: return '#BDBDBD';
+  }
+};
+
 interface EventDetailsPanelProps {
   selectedDate: Date | null;
   selectedEvent: CalendarEvent | null;
@@ -147,6 +169,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   };
 
   const getCardColor = (ev: CalendarEvent) => {
+    if (ev.backgroundColor) return ev.backgroundColor;
     const type = ev.extendedProps?.type;
     const projectStatus = ev.extendedProps?.projectId ? projectMap.get(String(ev.extendedProps.projectId))?.status || undefined : undefined;
     return getEventColor(type, projectStatus, ev.start);
@@ -285,6 +308,21 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                       <Typography variant="body2">
                         担当者: {selectedEvent.extendedProps.taskAssigneeId ? (userMap.get(String(selectedEvent.extendedProps.taskAssigneeId)) || 'なし') : 'なし'}
                       </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <TaskAltIcon fontSize="small" color="action" />
+                      <Typography variant="body2" sx={{ mr: 0.5 }}>ステータス:</Typography>
+                      <Chip
+                        label={getTaskStatusLabel(selectedEvent.extendedProps.taskStatus as string | undefined)}
+                        size="small"
+                        sx={{
+                          backgroundColor: getTaskStatusColor(selectedEvent.extendedProps.taskStatus as string | undefined),
+                          color: 'white',
+                          height: 20,
+                          fontSize: '0.75rem',
+                          fontWeight: 600
+                        }}
+                      />
                     </Box>
                   </>
                 )}

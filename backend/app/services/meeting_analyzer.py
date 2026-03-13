@@ -46,24 +46,24 @@ class MeetingAnalyzer:
         
         # JSONが壊れないよう、内容を整理して出力させる
         query = """
-あなたは、会議音声を詳細に分析し、内容をまとめる専門のAIアシスタントです。
+あなたは、会議音声を詳細に分析し、内容を書き起こす専門のAIアシスタントです。
 提供された音声ファイルを分析し、以下の情報を正確に抽出してください。
-回答は必ず日本語で、指定されたJSONフォーマットに従ってください。
+出力文字数の上限によるエラーを防ぐため、必ず以下の指定された順序と区切り文字（===セクション名===）を用いて出力してください。JSONは使用しないでください。
 
-1. **transcript**: 会議の主要な流れと重要な発言をまとめた詳細な要約（全編一語一句ではなく、内容が把握できる詳細な記述）
-2. **decisions**: 会議で決定された事項のリスト
-3. **tasks**: 会議から発生した課題やネクストアクションのリスト
-4. **discussion_points**: 会議で議論された論点や主な話題のリスト
-5. **deadlines**: 期限やマイルストーンとして言言された日程候補のリスト
+===DECISIONS===
+(会議で決定された事項を箇条書きで記載。ない場合は「なし」)
 
-【JSONフォーマット】
-{
-  "transcript": "...",
-  "decisions": ["...", "..."],
-  "tasks": ["...", "..."],
-  "discussion_points": ["...", "..."],
-  "deadlines": ["...", "..."]
-}
+===TASKS===
+(会議から発生した課題やネクストアクションを箇条書きで記載。ない場合は「なし」)
+
+===DISCUSSION_POINTS===
+(会議で議論された主要な論点や話題を箇条書きで記載。ない場合は「なし」)
+
+===DEADLINES===
+(期限や日程候補として言及されたスケジュールのリストを箇条書きで記載。ない場合は「なし」)
+
+===TRANSCRIPT===
+(ここから最後に、音声の全文文字起こしを記載してください。要約ではなく、誰が何を話したか、詳細に一語一句書き起こしてください。長文になっても構いませんが、途中で途切れても問題ありません。)
 """
         inputs = {
             "mode": "admin",
@@ -71,7 +71,7 @@ class MeetingAnalyzer:
         }
         
         original_mime_type = self.llm_client.config.response_mime_type
-        self.llm_client.config.response_mime_type = "application/json"
+        self.llm_client.config.response_mime_type = "text/plain"  # JSONからテキストに変更
         
         accumulated_response = ""
         analysis_success = False
@@ -110,37 +110,53 @@ class MeetingAnalyzer:
             try:
                 self.llm_client.config.response_mime_type = original_mime_type
                 
-                # JSONの抽出（Markdownタグや余計なテキストの除去）
-                clean_json = accumulated_response.strip()
-                if "```json" in clean_json:
-                    clean_json = clean_json.split("```json")[1].split("```")[0].strip()
-                elif "```" in clean_json:
-                    clean_json = clean_json.split("```")[1].split("```")[0].strip()
-                else:
-                    # markdownタグがない場合、最初の { から 最後の } までを抽出
-                    first_brace = clean_json.find('{')
-                    last_brace = clean_json.rfind('}')
-                    if first_brace != -1 and last_brace != -1:
-                        clean_json = clean_json[first_brace:last_brace+1]
-
-                # 非常に長い回答などでJSONの後にゴミが付きやすいので、確実に最後の } で切り落とす
-                last_brace = clean_json.rfind('}')
-                if last_brace != -1:
-                    clean_json = clean_json[:last_brace+1]
-
-                try:
-                    analysis = json.loads(clean_json)
-                except json.JSONDecodeError as je:
-                    logger.error(f"JSON decode failed at char {je.pos}: {je.msg}")
-                    logger.debug(f"Target string was: {clean_json}")
-                    raise je
+                content = accumulated_response.strip()
+                
+                analysis = {
+                    "decisions": [],
+                    "tasks": [],
+                    "discussion_points": [],
+                    "deadlines": [],
+                    "transcript": ""
+                }
+                
+                current_section = None
+                transcript_lines = []
+                
+                for line in content.split('\n'):
+                    line_stripped = line.strip()
+                    if line_stripped.startswith('===DECISIONS==='):
+                        current_section = 'decisions'
+                        continue
+                    elif line_stripped.startswith('===TASKS==='):
+                        current_section = 'tasks'
+                        continue
+                    elif line_stripped.startswith('===DISCUSSION_POINTS==='):
+                        current_section = 'discussion_points'
+                        continue
+                    elif line_stripped.startswith('===DEADLINES==='):
+                        current_section = 'deadlines'
+                        continue
+                    elif line_stripped.startswith('===TRANSCRIPT==='):
+                        current_section = 'transcript'
+                        continue
+                        
+                    if current_section == 'transcript':
+                        transcript_lines.append(line)
+                    elif current_section and line_stripped:
+                        # "- 項目" や "* 項目" の形式から抽出、またはそのまま追加
+                        item = line_stripped.lstrip('-*• ').strip()
+                        if item and item != 'なし':
+                            analysis[current_section].append(item)
+                            
+                analysis['transcript'] = '\n'.join(transcript_lines).strip()
                 
                 updates = {
-                    "transcript": analysis.get("transcript", ""),
-                    "decisions": analysis.get("decisions", []),
-                    "tasks": analysis.get("tasks", []),
-                    "discussion_points": analysis.get("discussion_points", []),
-                    "deadlines": analysis.get("deadlines", []),
+                    "transcript": analysis["transcript"],
+                    "decisions": analysis["decisions"],
+                    "tasks": analysis["tasks"],
+                    "discussion_points": analysis["discussion_points"],
+                    "deadlines": analysis["deadlines"],
                     "status": "completed"
                 }
                 

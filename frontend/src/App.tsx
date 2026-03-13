@@ -49,6 +49,12 @@ const DefaultRedirect: React.FC = () => {
   return <Navigate to={user?.role === 'admin' ? '/calendar' : '/chat'} replace />;
 };
 
+/** 一般ユーザーのみアクセス可能なルート（管理者はカレンダーへ） */
+const UserOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  return user?.role === 'admin' ? <Navigate to="/calendar" replace /> : <>{children}</>;
+};
+
 const App: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -82,15 +88,15 @@ const App: React.FC = () => {
           >
             {/* デフォルト: 管理者はカレンダー、一般ユーザーはチャット */}
             <Route index element={<DefaultRedirect />} />
-            {/* 一般ユーザーもアクセス可能: 専用チャットページのみ */}
-            <Route path="chat" element={<ChatPage />} />
+            {/* 一般ユーザーのみアクセス可能: 管理者はカレンダーへリダイレクト */}
+            <Route path="chat" element={<UserOnlyRoute><ChatPage /></UserOnlyRoute>} />
             {/* 以下は管理者のみ（一般ユーザーは /chat にリダイレクト） */}
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="dashboard" element={<AdminOnlyRoute><Dashboard /></AdminOnlyRoute>} />
             <Route path="projects" element={<AdminOnlyRoute><ProjectsPage /></AdminOnlyRoute>} />
             <Route path="tasks" element={<AdminOnlyRoute><TasksPage /></AdminOnlyRoute>} />
             <Route path="notes" element={<NotesPage />} />
-            <Route path="meetings" element={<MeetingMinutesPage />} />
+            <Route path="meetings" element={<AdminOnlyRoute><MeetingMinutesPage /></AdminOnlyRoute>} />
             <Route path="events" element={<AdminOnlyRoute><Navigate to="/metrics?tab=events" replace /></AdminOnlyRoute>} />
             <Route path="projects/:projectId" element={<AdminOnlyRoute><ProjectDetailPage /></AdminOnlyRoute>} />
             <Route path="admin/users" element={<AdminOnlyRoute><UserManagementPage /></AdminOnlyRoute>} />

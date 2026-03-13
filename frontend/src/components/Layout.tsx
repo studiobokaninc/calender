@@ -317,10 +317,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [user?.id, user?.role])
 
-  // 一般ユーザーはチャット、メモ、議事録、カレンダー、プロジェクト、タスクを表示。
+  // 一般ユーザーはカレンダー、チャット、メモのみ表示。管理者はチャット以外を表示。
   const menuItems = user?.role === 'admin'
-    ? allMenuItems.filter(item => !item.isAdmin)
-    : allMenuItems.filter(item => ['/chat', '/notes', '/meetings', '/calendar', '/projects', '/tasks', '/dashboard'].includes(item.path))
+    ? allMenuItems.filter(item => !item.isAdmin && item.path !== '/chat')
+    : allMenuItems.filter(item => ['/calendar', '/chat', '/notes'].includes(item.path))
   const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
 
   // モックデータのエクスポート

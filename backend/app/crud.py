@@ -295,82 +295,17 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
         result = db.execute(text(query_str), params)
         rows = result.fetchall()
         
-        # 期日を過ぎたタスクをチェックして更新（一括処理）
         task_ids = [row.id for row in rows]
-        if task_ids:
-            # 期日が設定されていて、completed以外のタスクを取得
-            overdue_tasks = db.query(models.Task).filter(
-                models.Task.id.in_(task_ids),
-                models.Task.due_date.isnot(None),
-                models.Task.status != models.TaskStatus.COMPLETED,
-                models.Task.status != models.TaskStatus.DELAYED
-            ).all()
-            
-            now = now_jst_naive()
-            now_date_only = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            
-            if overdue_tasks:
-                # バッチで _was_already_auto_delayed を検証する
-                overdue_task_ids = [t.id for t in overdue_tasks]
-                
-                # 自動遅延済みのタスクIDリストを取得
-                already_delayed_task_ids = set()
-                try:
-                    chunk_size = 900
-                    for i in range(0, len(overdue_task_ids), chunk_size):
-                        chunk_ids = overdue_task_ids[i:i + chunk_size]
-                        
-                        history_records = db.query(
-                            models.TaskStatusHistory.task_id,
-                            models.TaskStatusHistory.changed_at
-                        ).filter(
-                            models.TaskStatusHistory.task_id.in_(chunk_ids),
-                            models.TaskStatusHistory.status == models.TaskStatus.DELAYED,
-                            models.TaskStatusHistory.changed_by == None
-                        ).all()
-                        
-                        # 期限以降に変更された履歴があるかメモリ上でフィルタリング
-                        task_due_map = {t.id: t.due_date for t in overdue_tasks if t.id in chunk_ids and t.due_date}
-                        for hist_task_id, changed_at in history_records:
-                            due_date = task_due_map.get(hist_task_id)
-                            if due_date and changed_at:
-                                if isinstance(due_date, datetime):
-                                    due_date_start = due_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                                else:
-                                    due_date_start = datetime.combine(due_date, datetime.min.time())
-                                    
-                                if changed_at >= due_date_start:
-                                    already_delayed_task_ids.add(hist_task_id)
-                except Exception as e:
-                    logger.warning(f"オーバーデュー履歴の一括取得に失敗: {str(e)}")
-
-                for db_task in overdue_tasks:
-                    # 既に自動遅延が適用されているかチェック
-                    if db_task.id in already_delayed_task_ids:
-                        continue
-
-                    due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
-                    if due_date_only < now_date_only:
-                        original_status = db_task.status
-                        db_task.status = models.TaskStatus.DELAYED
-                        db_task.updated_at = now
-                        
-                        # ステータス履歴を記録
-                        status_history_entry = models.TaskStatusHistory(
-                            task_id=db_task.id,
-                            status=models.TaskStatus.DELAYED,
-                            changed_at=now,
-                            changed_by=None  # システムによる変更として記録
-                        )
-                        db.add(status_history_entry)
-                        logger.info(f"タスク {db_task.id} のステータスを {original_status} から DELAYED に自動更新しました（期日超過）")
-                
-                db.commit()
-                # 更新されたタスクのステータスを反映するため、再度取得
-                for db_task in overdue_tasks:
-                    db.refresh(db_task)
         
-            # ステータス履歴をバッチで取得
+        # ステータス履歴をバッチで取得
+        history_map = {row.id: [] for row in rows}
+        if task_ids:
+            try:
+                # 期日を過ぎたタスクをチェックして自動更新する処理は、パフォーマンスと
+                # SQLiteのロック回避のため、個別のタスク取得(get_task)時のみに抑制しました
+                pass # get_tasks 内での書き込みを停止
+            except:
+                pass
             history_map = {row.id: [] for row in rows}
             if task_ids:
                 try:

@@ -23,7 +23,7 @@ import threading
 _task_sync_locks = {}
 _task_sync_locks_lock = threading.Lock()
 
-def auto_sync_task_bg(task_id: int):
+def auto_sync_task_bg(task_id: int, db: Session = None):
     """タスク作成/更新時に呼ばれるバックグラウンド処理。"""
     # 同一タスクの並列同期を防ぐロック
     with _task_sync_locks_lock:
@@ -32,7 +32,10 @@ def auto_sync_task_bg(task_id: int):
         lock = _task_sync_locks[task_id]
     
     with lock:
-        db = SessionLocal()
+        should_close = False
+        if db is None:
+            db = SessionLocal()
+            should_close = True
         try:
             task = crud.get_task(db, task_id)
             if not task:
@@ -56,11 +59,15 @@ def auto_sync_task_bg(task_id: int):
         except Exception as e:
             logger.exception("auto_sync_task_bg failed: %s", e)
         finally:
-            db.close()
+            if should_close:
+                db.close()
 
-def auto_sync_project_bg(project_id: int):
+def auto_sync_project_bg(project_id: int, db: Session = None):
     """プロジェクト作成/更新時に呼ばれるバックグラウンド処理。"""
-    db = SessionLocal()
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
     try:
         project = crud.get_project(db, project_id)
         if not project:
@@ -90,17 +97,21 @@ def auto_sync_project_bg(project_id: int):
         # 紐づく全タスクの同期状態を更新
         db_tasks = db.query(models.Task).filter(models.Task.project_id == project_id).all()
         for t in db_tasks:
-            # 各タスクの背後同期を走らせる（同一スレッドではなくTask IDごとのロックがかかる）
-            auto_sync_task_bg(t.id)
+            # 既存のセッションを再利用して同期
+            auto_sync_task_bg(t.id, db=db)
             
     except Exception as e:
         logger.exception("auto_sync_project_bg failed: %s", e)
     finally:
-        db.close()
+        if should_close:
+            db.close()
 
-def auto_sync_event_bg(event_id: int):
+def auto_sync_event_bg(event_id: int, db: Session = None):
     """イベント作成/更新時に呼ばれるバックグラウンド処理。"""
-    db = SessionLocal()
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
     try:
         event = crud.get_event(db, event_id)
         if not event:
@@ -114,25 +125,22 @@ def auto_sync_event_bg(event_id: int):
             if token_row:
                 sync_event_to_google(db, event, token_row, uid)
                 
-        # 2. 新規自動同期 (参加者に入っている一般ユーザー)
-        participants = event.participants or []
-        for p in participants:
-            if p.get('type') == 'user':
+        # 2. 関係者（一般ユーザー）への新規同期
+        if event.participants:
+            for p in event.participants:
                 uid = p.get('id')
-            else:
-                uid = p.get('user_id')
-            
-            if not uid or uid in synced_uids:
-                continue
-            user = crud.get_user(db, user_id=uid)
-            if user and user.role != 'admin':
-                token_row = crud.get_user_google_token(db, uid)
-                if token_row:
-                    sync_event_to_google(db, event, token_row, uid)
+                if uid and uid not in synced_uids:
+                    user = crud.get_user(db, user_id=uid)
+                    if user and user.role != 'admin':
+                        token_row = crud.get_user_google_token(db, uid)
+                        if token_row:
+                            sync_event_to_google(db, event, token_row, uid)
+                            
     except Exception as e:
         logger.exception("auto_sync_event_bg failed: %s", e)
     finally:
-        db.close()
+        if should_close:
+            db.close()
 
 def _ensure_token_updated(db: Session, token_row: models.UserGoogleToken) -> Optional[str]:
     """トークンの有効期限をチェックし、必要ならリフレッシュしてDBを更新する。"""

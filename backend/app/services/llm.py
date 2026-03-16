@@ -241,7 +241,7 @@ id, name, project_id, assigned_to, due_date, status, priority
 
                         # Wait for the file to be processed (Required for large audio files)
                         # Processing 1 hour of audio can take 30-90 seconds.
-                        max_retries = 30 # Up to 5 minutes
+                        max_retries = 60 # Up to 10 minutes
                         retry_count = 0
                         while file_obj.state == "PROCESSING" and retry_count < max_retries:
                             logger.info(f"File {file_obj.name} is still processing... ({retry_count}/{max_retries})")

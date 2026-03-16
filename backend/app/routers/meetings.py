@@ -77,7 +77,10 @@ async def upload_meeting_audio(
         
         # 4. バックグラウンドでAI解析を開始
         api_key = os.getenv("GOOGLE_API_KEY")
-        background_tasks.add_task(analyze_meeting_background, db_meeting.id, str(file_path), api_key)
+        import asyncio
+        # background_tasks.add_task の代わりに asyncio.create_task を用いて直接非同期タスクとして起動させる
+        # これによりフレームワークの内部エラー（NoneType await）を回避する
+        asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), api_key))
         
         return db_meeting
     except Exception as e:
@@ -171,12 +174,9 @@ async def get_meeting_audio_stream(
 
 async def analyze_meeting_background(meeting_id: int, audio_path: str, api_key: str):
     """バックグラウンド解析タスク"""
-    db = SessionLocal()
     try:
         from ..services.meeting_analyzer import MeetingAnalyzer
         analyzer = MeetingAnalyzer(api_key=api_key)
-        await analyzer.analyze_meeting(db, meeting_id, audio_path)
+        await analyzer.analyze_meeting(meeting_id, audio_path)
     except Exception as e:
         logger.error(f"Background analysis for meeting {meeting_id} failed: {e}")
-    finally:
-        db.close()

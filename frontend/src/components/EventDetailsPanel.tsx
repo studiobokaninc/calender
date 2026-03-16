@@ -2,19 +2,18 @@
 import React, { useMemo } from 'react';
 import { Box, Typography, Divider, Paper, Chip, IconButton, Button, Tooltip, FormControl, Select, MenuItem, FormGroup, FormControlLabel, Checkbox, useTheme, useMediaQuery } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { CalendarEvent, Project, User, Group, Participant } from '../types';
+import { CalendarEvent, Project, User, Group, Participant, Task } from '../types';
+import { TaskQuickDetail } from './TaskQuickDetail';
 import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import GroupIcon from '@mui/icons-material/Group';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import FolderIcon from '@mui/icons-material/Folder';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import EventIcon from '@mui/icons-material/Event';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import FolderIcon from '@mui/icons-material/Folder';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const formatDate = (dateInput: string | Date | null | undefined): string => {
   if (!dateInput) return '';
@@ -58,32 +57,9 @@ const getEventColor = (type?: string, projectStatus?: string, eventDate?: string
   }
 };
 
-const getTaskStatusLabel = (status?: string | null): string => {
-  switch (status?.toLowerCase()) {
-    case 'todo': return '未着手';
-    case 'in-progress': return '進行中';
-    case 'review': return 'レビュー中';
-    case 'delayed': return '遅延';
-    case 'completed': return '完了';
-    default: return status || '未設定';
-  }
-};
-
-const getTaskStatusColor = (status?: string | null): string => {
-  switch (status?.toLowerCase()) {
-    case 'todo': return '#2196F3';
-    case 'in-progress': return '#FF9800';
-    case 'review': return '#9C27B0';
-    case 'delayed': return '#F44336';
-    case 'completed': return '#9E9E9E';
-    default: return '#BDBDBD';
-  }
-};
-
 interface EventDetailsPanelProps {
   selectedDate: Date | null;
   selectedEvent: CalendarEvent | null;
-  totalCost?: number;
   events: CalendarEvent[];
   onEventSelect: (event: CalendarEvent) => void;
   isMinimized: boolean;
@@ -100,6 +76,8 @@ interface EventDetailsPanelProps {
   projects: Project[];
   googleStatus?: { configured: boolean; connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] };
   onGoogleSyncToggle?: (eventId: number, currentSynced: boolean) => void;
+  onUpdateTask?: (taskId: number, updates: any) => Promise<void>;
+  totalCost?: number;
 }
 
 const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
@@ -121,6 +99,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   projects,
   googleStatus,
   onGoogleSyncToggle,
+  onUpdateTask,
 }) => {
   const { user } = useAuth();
   const theme = useTheme();
@@ -288,43 +267,28 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   </Box>
                 )}
 
-                {/* タスク固有の情報表示 */}
+                {/* タスク固有の情報表示（最新のクイックコンポーネントを使用） */}
                 {selectedEvent.extendedProps?.type?.toLowerCase() === 'task' && (
-                  <>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <FolderIcon fontSize="small" color="action" />
-                      <Typography variant="body2">
-                        プロジェクト: {selectedEvent.extendedProps.projectId ? (projectMap.get(String(selectedEvent.extendedProps.projectId))?.name || '不明') : 'なし'}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CalendarTodayIcon fontSize="small" color="action" />
-                      <Typography variant="body2">
-                        開始日: {formatDate(selectedEvent.extendedProps.taskStartDate) || '未設定'}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <GroupIcon fontSize="small" color="action" />
-                      <Typography variant="body2">
-                        担当者: {selectedEvent.extendedProps.taskAssigneeId ? (userMap.get(String(selectedEvent.extendedProps.taskAssigneeId)) || 'なし') : 'なし'}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <TaskAltIcon fontSize="small" color="action" />
-                      <Typography variant="body2" sx={{ mr: 0.5 }}>ステータス:</Typography>
-                      <Chip
-                        label={getTaskStatusLabel(selectedEvent.extendedProps.taskStatus as string | undefined)}
-                        size="small"
-                        sx={{
-                          backgroundColor: getTaskStatusColor(selectedEvent.extendedProps.taskStatus as string | undefined),
-                          color: 'white',
-                          height: 20,
-                          fontSize: '0.75rem',
-                          fontWeight: 600
-                        }}
-                      />
-                    </Box>
-                  </>
+                  <TaskQuickDetail
+                    task={{
+                      id: Number(selectedEvent.extendedProps.taskId),
+                      name: selectedEvent.title,
+                      project_id: selectedEvent.extendedProps.projectId ? Number(selectedEvent.extendedProps.projectId) : undefined,
+                      assigned_to: selectedEvent.extendedProps.taskAssigneeId ? Number(selectedEvent.extendedProps.taskAssigneeId) : undefined,
+                      status: selectedEvent.extendedProps.taskStatus,
+                      progress: selectedEvent.extendedProps.taskProgress,
+                      check_items: selectedEvent.extendedProps.check_items,
+                      deliverables: selectedEvent.extendedProps.deliverables,
+                      start_date: selectedEvent.extendedProps.taskStartDate,
+                      due_date: selectedEvent.extendedProps.taskDueDate,
+                      description: selectedEvent.extendedProps.description,
+                    } as Task}
+                    projects={projects}
+                    users={users}
+                    onUpdate={async (id, updates) => {
+                      if (onUpdateTask) await onUpdateTask(id, updates);
+                    }}
+                  />
                 )}
                 {selectedEvent.extendedProps?.participants && (selectedEvent.extendedProps.participants as Participant[]).length > 0 && (
                   <Box>

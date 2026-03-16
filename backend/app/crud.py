@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from datetime import datetime, timedelta, date
 import math
 from .timezone import now_jst_naive
@@ -87,8 +88,8 @@ def _check_and_update_overdue_task(db: Session, db_task: models.Task) -> bool:
     due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
     now_date_only = now.replace(hour=0, minute=0, second=0, microsecond=0)
     
-    # 期日を過ぎていて、かつステータスがcompleted以外の場合
-    if due_date_only < now_date_only and db_task.status != models.TaskStatus.COMPLETED:
+    # 期日を過ぎていて、かつステータスが完了またはレビュー中以外の場合
+    if due_date_only < now_date_only and db_task.status not in [models.TaskStatus.COMPLETED, models.TaskStatus.REVIEW]:
         # 既にdelayedでない場合のみ更新
         if db_task.status != models.TaskStatus.DELAYED:
             original_status = db_task.status
@@ -400,7 +401,24 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                         phases = []
             except Exception as e:
                 phases = []
-            
+
+            # check_items の安全な処理
+            try:
+                check_items = row.check_items if hasattr(row, 'check_items') and row.check_items else []
+                if not isinstance(check_items, list):
+                    if isinstance(check_items, str):
+                        try:
+                            check_items = json.loads(check_items)
+                        except:
+                            check_items = []
+                    else:
+                        check_items = []
+            except Exception as e:
+                check_items = []
+
+            # deliverables の安全な処理
+            deliverables = row.deliverables if hasattr(row, 'deliverables') and row.deliverables else ""
+
             task_dict = {
                 'id': row.id,
                 'project_id': row.project_id,
@@ -421,6 +439,8 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
                 'display_status': row.display_status if hasattr(row, 'display_status') else 'offline',
                 'updated_at': safe_date_format(row.updated_at),
                 'phases': phases,
+                'check_items': check_items,
+                'deliverables': deliverables,
                 'status_history': history_map.get(row.id, [])
             }
             
@@ -508,10 +528,16 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             continue
         elif key == "phases":
             db_key = "phases"
+        elif key == "check_items":
+            db_key = "check_items"
+        elif key == "deliverables":
+            db_key = "deliverables"
         # typeは任意の文字列を許容するため、検証を削除
 
         if hasattr(db_task, db_key):
             setattr(db_task, db_key, parsed_value)
+            if db_key in ["phases", "check_items", "deliverables", "dependsOn"]:
+                flag_modified(db_task, db_key)
 
     db_task.updated_at = now_jst_naive()
 

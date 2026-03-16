@@ -38,6 +38,8 @@ export interface Task {
   seqID?: string | null;
   shotID?: string | null;
   phases?: { name: string; date: string; is_completed?: boolean }[] | null;
+  deliverables?: string | null;
+  check_items?: { label: string; checked: boolean }[] | null;
   extendedProps: {
     type: 'project' | 'task' | 'Meeting' | 'Workshop' | 'Deadline' | 'Milestone' | 'Generic' | string;
     description?: string | null;
@@ -64,6 +66,10 @@ export interface Task {
     isPhase?: boolean; // Added
     isCompleted?: boolean; // Added for Phase status
     isDelayed?: boolean; // Added for Phase status
+    deliverables?: string | null;
+    check_items?: { label: string; checked: boolean }[] | null;
+    taskProgress?: number | null;
+    phases?: { name: string; date: string; is_completed?: boolean }[] | null;
   };
 }
 
@@ -140,6 +146,9 @@ export interface CalendarEvent {
     isCompleted?: boolean; // Added for Phase status
     isDelayed?: boolean; // Added for Phase status
     phases?: { name: string; date: string; is_completed?: boolean }[] | null; // Added
+    deliverables?: string | null;
+    check_items?: { label: string; checked: boolean }[] | null;
+    taskProgress?: number | null;
   };
 }
 

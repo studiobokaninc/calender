@@ -247,6 +247,26 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
     end_jst = ensure_jst(end_dt)
     is_all_day = True
     
+    project_name = project.name if project else "なし"
+    
+    assignee = crud.get_user(db, task.assigned_to) if task.assigned_to else None
+    assignee_name = assignee.name or assignee.username if assignee else "未設定"
+    
+    status_map = {
+        "todo": "未着手",
+        "in-progress": "進行中",
+        "review": "レビュー中",
+        "completed": "完了",
+        "delayed": "遅延"
+    }
+    task_status_ja = status_map.get(task.status, task.status) if task.status else "未着手"
+
+    task_title = f"[タスク] {task.name}"
+    if project:
+        task_title = f"[タスク: {project.name}] {task.name}"
+
+    task_desc = f"プロジェクト: {project_name}\n担当者: {assignee_name}\nステータス: {task_status_ja}\n\n{task.description or ''}"
+    
     logger.info(f"[Task Sync] Syncing Task: task_id={task.id}, name={task.name}, status={task.status}, display={task.display_status}, start={start_jst}, end={end_jst}")
     
     # 既存の同期行チェック (DBにないがGoogle側にある場合も考慮)
@@ -265,10 +285,10 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
             refresh_token=token_row.refresh_token,
             expires_at=token_row.expires_at,
             event_id=sync_row.google_event_id,
-            task_name=f"[タスク] {task.name}",
+            task_name=task_title,
             start_date=start_jst,
             end_date=end_jst,
-            description=task.description,
+            description=task_desc,
             calendar_id=_ensure_calendar_id(db, token_row),
             is_all_day=is_all_day,
             sync_id=sync_id
@@ -277,10 +297,10 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
             logger.warning(f"Failed to update task {task.id}, attempting to re-create.")
             event_id = google_calendar.create_calendar_event(
                 access_token, token_row.refresh_token, token_row.expires_at,
-                task_name=f"[タスク] {task.name}",
+                task_name=task_title,
                 start_date=start_jst,
                 end_date=end_jst,
-                description=task.description,
+                description=task_desc,
                 calendar_id=_ensure_calendar_id(db, token_row),
                 is_all_day=is_all_day,
                 sync_id=sync_id
@@ -295,10 +315,10 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
         # 新規作成
         event_id = google_calendar.create_calendar_event(
             access_token, token_row.refresh_token, token_row.expires_at,
-            task_name=f"[タスク] {task.name}",
+            task_name=task_title,
             start_date=start_jst,
             end_date=end_jst,
-            description=task.description,
+            description=task_desc,
             calendar_id=_ensure_calendar_id(db, token_row),
             is_all_day=is_all_day,
             sync_id=sync_id
@@ -315,98 +335,21 @@ def sync_project_to_google(db: Session, project: models.Project, token_row: mode
     if not access_token:
         return
 
-    sync_id = f"project_{project.id}"
     sync_row = crud.get_project_google_sync(db, user_id, project.id)
     
-    # オフライン時は削除（紐付けレコードは残してIDだけ消す）
-    if project.display_status == 'offline':
-        if sync_row and sync_row.google_event_id:
+    # オフライン時も含め、プロジェクトは常にカレンダーに反映しない方針に修正
+    if sync_row and sync_row.google_event_id:
+        try:
             google_calendar.delete_calendar_event(
                 access_token, token_row.refresh_token, token_row.expires_at,
                 sync_row.google_event_id, _ensure_calendar_id(db, token_row)
             )
-            crud.set_project_google_sync(db, user_id, project.id, "")
-        return
-
-    start_dt = project.start_date or datetime.utcnow()
-    # Project end_date from DB is inclusive (YYYY-MM-DD), so we add 1 day for Google's exclusive end.
-    end_dt = (project.end_date or start_dt) + timedelta(days=1)
-    
-    start_jst = ensure_jst(start_dt)
-    end_jst = ensure_jst(end_dt)
-    is_all_day = True # Projects are shown as all-day events
-    
-    if not sync_row:
-        # Deduplication
-        found_event_id = google_calendar.find_event_by_sync_id(
-            access_token, token_row.refresh_token, token_row.expires_at,
-            sync_id=sync_id, calendar_id=_ensure_calendar_id(db, token_row)
-        )
-        if found_event_id:
-            logger.info(f"Found orphaned Google event {found_event_id} for project {project.id}, recovering.")
-            sync_row = crud.set_project_google_sync(db, user_id, project.id, found_event_id)
-
-    if sync_row and sync_row.google_event_id:
-        success = google_calendar.update_calendar_event(
-            access_token=access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            event_id=sync_row.google_event_id,
-            task_name=f"[プロジェクト] {project.name}",
-            start_date=start_jst,
-            end_date=end_jst,
-            description=project.description,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if not success:
-            logger.warning(f"Failed to update project {project.id}, attempting to re-create.")
-            event_id = google_calendar.create_calendar_event(
-                access_token, token_row.refresh_token, token_row.expires_at,
-                task_name=f"[プロジェクト] {project.name}",
-                start_date=start_jst,
-                end_date=end_jst,
-                description=project.description,
-                calendar_id=_ensure_calendar_id(db, token_row),
-                is_all_day=is_all_day,
-                sync_id=sync_id
-            )
-            if event_id:
-                crud.set_project_google_sync(db, user_id, project.id, event_id)
-    elif sync_row:
-        # 紐付けはあるがGoogle側にイベントがない場合
-        event_id = google_calendar.create_calendar_event(
-            access_token=access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            task_name=f"[プロジェクト] {project.name}",
-            start_date=start_jst,
-            end_date=end_jst,
-            description=project.description,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if event_id:
-            crud.set_project_google_sync(db, user_id, project.id, event_id)
-    else:
-        event_id = google_calendar.create_calendar_event(
-            access_token=access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            task_name=f"[プロジェクト] {project.name}",
-            start_date=start_jst,
-            end_date=end_jst,
-            description=project.description,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if event_id:
-            crud.set_project_google_sync(db, user_id, project.id, event_id)
-        else:
-            logger.error(f"Failed to create project {project.id} in Google Calendar")
+        except Exception as e:
+            logger.warning(f"Failed to delete project {project.id} from Google Calendar: {e}")
+        finally:
+            crud.delete_project_google_sync(db, user_id, project.id)
+            
+    return
 
 def sync_event_to_google(db: Session, event: models.Event, token_row: models.UserGoogleToken, user_id: int):
     # トークンを最新に保つ
@@ -434,6 +377,15 @@ def sync_event_to_google(db: Session, event: models.Event, token_row: models.Use
     end_jst = ensure_jst(end_dt)
     is_all_day = bool(event.allDay)
     
+    project = crud.get_project(db, event.project_id) if event.project_id else None
+    project_name = project.name if project else "なし"
+    
+    event_title = f"[{event.type}] {event.title}"
+    if project:
+        event_title = f"[{event.type}: {project.name}] {event.title}"
+        
+    event_desc = f"プロジェクト: {project_name}\n\n{event.description or ''}"
+    
     # If it's an all-day event, the end_time in our DB is already the exclusive end (next day 00:00).
     # Google Calendar also expects the exclusive end date for all-day events.
     #google_calendar logic already adds +1 day to the date part, so we need to be careful.
@@ -457,10 +409,10 @@ def sync_event_to_google(db: Session, event: models.Event, token_row: models.Use
             refresh_token=token_row.refresh_token,
             expires_at=token_row.expires_at,
             event_id=sync_row.google_event_id,
-            task_name=f"[{event.type}] {event.title}",
+            task_name=event_title,
             start_date=start_jst,
             end_date=end_jst,
-            description=event.description,
+            description=event_desc,
             calendar_id=_ensure_calendar_id(db, token_row),
             is_all_day=is_all_day,
             sync_id=sync_id
@@ -469,10 +421,10 @@ def sync_event_to_google(db: Session, event: models.Event, token_row: models.Use
             logger.warning(f"Failed to update event {event.id}, attempting to re-create.")
             event_id = google_calendar.create_calendar_event(
                 access_token, token_row.refresh_token, token_row.expires_at,
-                task_name=f"[{event.type}] {event.title}",
+                task_name=event_title,
                 start_date=start_jst,
                 end_date=end_jst,
-                description=event.description,
+                description=event_desc,
                 calendar_id=_ensure_calendar_id(db, token_row),
                 is_all_day=is_all_day,
                 sync_id=sync_id
@@ -485,10 +437,10 @@ def sync_event_to_google(db: Session, event: models.Event, token_row: models.Use
             access_token=access_token,
             refresh_token=token_row.refresh_token,
             expires_at=token_row.expires_at,
-            task_name=f"[{event.type}] {event.title}",
+            task_name=event_title,
             start_date=start_jst,
             end_date=end_jst,
-            description=event.description,
+            description=event_desc,
             calendar_id=_ensure_calendar_id(db, token_row),
             is_all_day=is_all_day,
             sync_id=sync_id
@@ -500,10 +452,10 @@ def sync_event_to_google(db: Session, event: models.Event, token_row: models.Use
             access_token=access_token,
             refresh_token=token_row.refresh_token,
             expires_at=token_row.expires_at,
-            task_name=f"[{event.type}] {event.title}",
+            task_name=event_title,
             start_date=start_jst,
             end_date=end_jst,
-            description=event.description,
+            description=event_desc,
             calendar_id=_ensure_calendar_id(db, token_row),
             is_all_day=is_all_day,
             sync_id=sync_id

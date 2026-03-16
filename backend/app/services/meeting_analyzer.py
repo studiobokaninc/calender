@@ -29,45 +29,108 @@ class MeetingAnalyzer:
         # Use flash for general cases, gemini-1.5-flash is highly stable
         self.llm_client.model_name = "gemini-1.5-flash" 
 
-    async def analyze_meeting(self, db: Session, meeting_id: int, audio_path: str):
-        db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-        if not db_meeting:
-            logger.error(f"Meeting {meeting_id} not found in DB")
+    async def analyze_meeting(self, meeting_id: int, audio_path: str):
+        from ..database import SessionLocal
+        db = SessionLocal()
+        try:
+            db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+            if not db_meeting:
+                logger.error(f"Meeting {meeting_id} not found in DB")
+                return
+
+            logger.info(f"Starting analysis for meeting {meeting_id} using {audio_path}")
+            
+            # ステータスを「解析中」に更新
+            crud.update_meeting(db, db_meeting, {"status": "processing"})
+        finally:
+            db.close()
+
+        # 1. まず whisper で文字起こしを行う（バックエンドを止めないように非同期スレッドで実行）
+        logger.info("Step 1: Transcribing audio with Whisper in background thread...")
+        transcript_text = ""
+        try:
+            import asyncio
+            # CPU処理でメインスレッド(FastAPI)がブロックされるのを防ぐため、別スレッドで実行する
+            def run_whisper():
+                whisper_model = get_whisper_model()
+                # VAD (無音カット) を有効にして、無駄な処理を減らす
+                segments_generator, info = whisper_model.transcribe(audio_path, beam_size=5, vad_filter=True, language="ja")
+                # ジェネレータをリスト化して全セグメントを展開（ここで実際の推論が走る）
+                return list(segments_generator), info
+
+            segments, info = await asyncio.to_thread(run_whisper)
+            logger.info(f"Detected language '{info.language}' with probability {info.language_probability}")
+            
+            transcript_texts = []
+            for segment in segments:
+                start_fmt = f"[{segment.start:.1f}s]"
+                transcript_texts.append(f"{start_fmt} {segment.text.strip()}")
+                
+            transcript_text = "\n".join(transcript_texts)
+            logger.info(f"Transcription completed. Total length: {len(transcript_text)} characters.")
+            
+            if not transcript_text:
+                raise Exception("文字起こしの結果が空でした。")
+                
+        except Exception as e:
+            logger.error(f"Whisper transcription failed: {e}")
+            db = SessionLocal()
+            try:
+                db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+                if db_meeting:
+                    crud.update_meeting(db, db_meeting, {"status": "failed"})
+            finally:
+                db.close()
             return
 
-        logger.info(f"Starting analysis for meeting {meeting_id} using {audio_path}")
+        # 2. Geminiでテキストベースの解析 (構造化と分類)
+        logger.info("Step 2: Semantic analysis and extraction with Gemini...")
+        self.llm_client.model_name = "gemini-2.0-flash"
         
-        # ステータスを「解析中」に更新
-        crud.update_meeting(db, db_meeting, {"status": "processing"})
-        db.commit()
+        # Whisperの出力を元に、Geminiへプロンプトを投げる（音声ファイルは送らない）
+        query = f"""
+あなたは、会議の文字起こしテキストを解析し、「行動情報が欠落しない、実用的な議事録」を作成するAIです。
+以下の【処理ステップ】に必ず従って、会議の内容を構造化してから抽出してください。
 
-        # 1. Geminiで直接解析 (文字起こし+要約)
-        self.llm_client.model_name = "models/gemini-2.0-flash"
-        
-        # JSONが壊れないよう、内容を整理して出力させる
-        query = """
-あなたは、会議音声を詳細に分析し、内容を書き起こす専門のAIアシスタントです。
-提供された音声ファイルを分析し、以下の情報を正確に抽出してください。
-出力文字数の上限によるエラーを防ぐため、必ず以下の指定された順序と区切り文字（===セクション名===）を用いて出力してください。JSONは使用しないでください。
+【対象の文字起こしデータ】
+{transcript_text}
 
-===DECISIONS===
-(会議で決定された事項を箇条書きで記載。ない場合は「なし」)
+【処理ステップ】
+1. テキストの整形: Whisperの文字起こしから、相槌（「あー」「うん」など）、無意味な繰り返し、言い直しを削除してスッキリとしたテキストにする。必要に応じて文脈から発言者を推測してA, B, Cと付与してください。
+2. トピック分割と会話ターン分割: 話題（トピック）が変わるごとに区切り、各発言のターンごとに分割する。
+3. 意味分類タグの付与: 各発言に対して、以下のいずれかの分類タグを先頭に必ず付ける。
+   [議題] [提案] [決定] [タスク] [質問] [雑談]
+4. 集約と抽出: 付与されたタグを元に、タスク（誰が何をするか）や決定事項を一つも漏らさずに抽出する。
 
-===TASKS===
-(会議から発生した課題やネクストアクションを箇条書きで記載。ない場合は「なし」)
-
-===DISCUSSION_POINTS===
-(会議で議論された主要な論点や話題を箇条書きで記載。ない場合は「なし」)
-
-===DEADLINES===
-(期限や日程候補として言及されたスケジュールのリストを箇条書きで記載。ない場合は「なし」)
+出力文字数の制限によるエラーを防ぐため、必ず以下の指定された順序と区切り文字（===セクション名===）を用いて出力してください。JSONは使用しないでください。
 
 ===TRANSCRIPT===
-(ここから最後に、音声の全文文字起こしを記載してください。要約ではなく、誰が何を話したか、詳細に一語一句書き起こしてください。長文になっても構いませんが、途中で途切れても問題ありません。)
+（ステップ1〜3を適用した、トピックごとの全文文字起こしをここに記載してください。
+例：
+【トピック1：〇〇について】
+A [議題]: 〇〇はどうしますか？
+B [提案]: 〇〇が良いと思います。
+C [質問]: 理由は？
+A [決定]: では〇〇で進めましょう。
+B [タスク]: 私が〇〇さんに連絡し、試作します。
+）
+
+===DECISIONS===
+（===TRANSCRIPT=== の [決定] タグの内容から、決定事項を箇条書きで記載。ない場合は「なし」）
+
+===TASKS===
+（===TRANSCRIPT=== の [タスク] タグの内容から、誰が何をするかのタスク情報を具体的に箇条書きで記載。ない場合は「なし」）
+
+===DISCUSSION_POINTS===
+（===TRANSCRIPT=== の [議題] [提案] [質問] タグの内容から、主要な論点を箇条書きで記載。ない場合は「なし」）
+
+===DEADLINES===
+（期限や日程候補として言及されたスケジュールのリストを箇条書きで記載。ない場合は「なし」）
 """
+        # アタッチメントとして音声はもう送らない。テキストで送ることでAPIリソースの枯渇（Resource Exhausted）を回避
         inputs = {
             "mode": "admin",
-            "attachments": [audio_path]
+            "attachments": []
         }
         
         original_mime_type = self.llm_client.config.response_mime_type
@@ -87,7 +150,7 @@ class MeetingAnalyzer:
                         accumulated_response += chunk.get("answer", "")
                     elif chunk.get("event") == "error":
                          err_msg = str(chunk.get('message', ''))
-                         if "429" in err_msg:
+                         if "429" in err_msg or "Too Many Requests" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
                              logger.warning("Rate limit hit (429).")
                              raise Exception(f"429: {err_msg}")
                          raise Exception(f"AI Error: {err_msg}")
@@ -99,13 +162,14 @@ class MeetingAnalyzer:
             except Exception as e:
                 logger.warning(f"Attempt {attempt+1} failed: {e}")
                 if attempt < max_attempts - 1:
-                    wait_time = 30 if "429" in str(e) else 10
-                    logger.info(f"Retrying in {wait_time}s...")
+                    is_429 = "429" in str(e) or "Too Many Requests" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
+                    wait_time = (30 * (attempt + 1)) if is_429 else 15
+                    logger.info(f"Retrying in {wait_time}s due to errors...")
                     await asyncio.sleep(wait_time)
                 else:
                     logger.error("All attempts for Gemini analysis failed.")
 
-        # 2. 結果の処理
+        # 3. 結果の処理
         if analysis_success:
             try:
                 self.llm_client.config.response_mime_type = original_mime_type
@@ -123,9 +187,13 @@ class MeetingAnalyzer:
                 current_section = None
                 transcript_lines = []
                 
+                # TRANSCRIPTが一番上に来るため、パースを対応させる
                 for line in content.split('\n'):
                     line_stripped = line.strip()
-                    if line_stripped.startswith('===DECISIONS==='):
+                    if line_stripped.startswith('===TRANSCRIPT==='):
+                        current_section = 'transcript'
+                        continue
+                    elif line_stripped.startswith('===DECISIONS==='):
                         current_section = 'decisions'
                         continue
                     elif line_stripped.startswith('===TASKS==='):
@@ -136,9 +204,6 @@ class MeetingAnalyzer:
                         continue
                     elif line_stripped.startswith('===DEADLINES==='):
                         current_section = 'deadlines'
-                        continue
-                    elif line_stripped.startswith('===TRANSCRIPT==='):
-                        current_section = 'transcript'
                         continue
                         
                     if current_section == 'transcript':
@@ -160,7 +225,13 @@ class MeetingAnalyzer:
                     "status": "completed"
                 }
                 
-                crud.update_meeting(db, db_meeting, updates)
+                db = SessionLocal()
+                try:
+                    db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+                    if db_meeting:
+                        crud.update_meeting(db, db_meeting, updates)
+                finally:
+                    db.close()
                 logger.info(f"Meeting {meeting_id} analysis completed successfully")
                 return
             except Exception as e:
@@ -169,5 +240,11 @@ class MeetingAnalyzer:
 
         # 失敗時のクリーンアップ
         self.llm_client.config.response_mime_type = original_mime_type
-        crud.update_meeting(db, db_meeting, {"status": "failed"})
+        db = SessionLocal()
+        try:
+            db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+            if db_meeting:
+                crud.update_meeting(db, db_meeting, {"status": "failed"})
+        finally:
+            db.close()
         logger.error("Meeting analysis process finished with failure.")

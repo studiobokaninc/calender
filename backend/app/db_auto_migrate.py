@@ -26,6 +26,18 @@ def check_and_migrate_db():
             conn.commit()
             print("phasesカラムを追加しました。")
             
+        if 'deliverables' not in task_columns:
+            print("deliverablesカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE tasks ADD COLUMN deliverables TEXT")
+            conn.commit()
+            print("deliverablesカラムを追加しました。")
+
+        if 'check_items' not in task_columns:
+            print("check_itemsカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE tasks ADD COLUMN check_items JSON")
+            conn.commit()
+            print("check_itemsカラムを追加しました。")
+            
         # notesテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(notes)")
         note_columns = [row[1] for row in cursor.fetchall()]

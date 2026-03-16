@@ -217,6 +217,8 @@ class TaskBase(BaseModel):
     shotID: Optional[str] = None
     seqID: Optional[str] = None
     phases: Optional[List[Dict[str, Any]]] = None
+    deliverables: Optional[str] = None
+    check_items: Optional[List[Dict[str, Any]]] = None
 
 class TaskCreate(TaskBase):
     project_id: Optional[int] = None
@@ -238,6 +240,8 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     shotID: Optional[str] = None
     seqID: Optional[str] = None
     phases: Optional[List[Dict[str, Any]]] = None
+    deliverables: Optional[str] = None
+    check_items: Optional[List[Dict[str, Any]]] = None
 
 class TaskBulkUpdateRequest(BaseModel):
     """一括更新: 指定したタスクに同じ項目を適用"""

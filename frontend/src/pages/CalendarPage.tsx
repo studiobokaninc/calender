@@ -135,7 +135,7 @@ const getTaskColor = (
 
     // タスクは日付が過ぎただけではグレーにしない（プロジェクトステータスのみで判定）
 
-    switch (status) {
+    switch (status?.toLowerCase()) {
         case 'todo': return '#2196F3';
         case 'in-progress': return '#FF9800';
         case 'review': return '#9C27B0';
@@ -501,6 +501,9 @@ const CalendarPage: React.FC = () => {
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
                             phases: task.phases ?? undefined,
+                            deliverables: task.deliverables,
+                            check_items: task.check_items,
+                            taskProgress: task.progress,
                         },
                     });
                 }
@@ -538,6 +541,8 @@ const CalendarPage: React.FC = () => {
                                     taskDueDate: phase.date, // Phaseの日付を期日として扱う
                                     taskStatus: task.status, // 親タスクのステータスを継承
                                     displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                    check_items: task.check_items ?? [],
+                                    deliverables: task.deliverables ?? "",
                                 }
                             });
                         }
@@ -922,6 +927,8 @@ const CalendarPage: React.FC = () => {
                             displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                             dependsOn: task.dependsOn,
                             phases: task.phases ?? undefined,
+                            check_items: (task as any).check_items ?? [],
+                            deliverables: (task as any).deliverables ?? "",
                         }
                     });
                 }
@@ -958,6 +965,8 @@ const CalendarPage: React.FC = () => {
                                     taskDueDate: phase.date,
                                     taskStatus: task.status,
                                     displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
+                                    check_items: (task as any).check_items ?? [],
+                                    deliverables: (task as any).deliverables ?? "",
                                 }
                             });
                         }
@@ -2191,6 +2200,32 @@ const CalendarPage: React.FC = () => {
         } catch (error) {
             console.error("Failed to save phase:", error);
             alert("Phaseの保存に失敗しました。");
+        }
+    };
+
+    const handleUpdateTask = async (taskId: number, updates: any) => {
+        try {
+            await api.put(`/tasks/${taskId}`, updates);
+            if (refreshGlobalData) await refreshGlobalData();
+            // 選択中のイベントの詳細を更新するためにselectedEventDetailsも更新する
+            if (selectedEventDetails.event && selectedEventDetails.event.extendedProps?.taskId === taskId) {
+                const refreshedEvent = { ...selectedEventDetails.event };
+                refreshedEvent.extendedProps = {
+                    ...refreshedEvent.extendedProps,
+                    ...updates
+                };
+                // 特殊なマッピング（status -> taskStatus, progress -> taskProgress）
+                if (updates.status) refreshedEvent.extendedProps.taskStatus = updates.status;
+                if (updates.progress !== undefined) refreshedEvent.extendedProps.taskProgress = updates.progress;
+
+                setSelectedEventDetails({
+                    ...selectedEventDetails,
+                    event: refreshedEvent
+                });
+            }
+        } catch (error) {
+            console.error("Failed to update task:", error);
+            alert("タスクの更新に失敗しました。");
         }
     };
 
@@ -3509,32 +3544,12 @@ const CalendarPage: React.FC = () => {
                             const isCompletedProject = projectStatusStr === 'completed';
                             const isCancelledProject = projectStatusStr === 'cancelled';
 
-                            // イベントの日付を確認（過去判定用）
-                            // 会議・ワークショップは実施日（start）で判定。
-                            // 終日イベントは FullCalendar が排他的終了日（翌日00:00）で持つため、実質の最終日は end の前日で判定する
-                            let eventDate: string | Date | null = null;
-                            if (type === 'Meeting' || type === 'Workshop') {
-                                // 会議・ワークショップは実施日（start）で判定。FullCalendarのDateオブジェクトを確実に処理
-                                if (arg.event.start) {
-                                    eventDate = typeof arg.event.start === 'string' ? parseISO(arg.event.start) : arg.event.start;
-                                } else {
-                                    eventDate = null;
-                                }
-                            } else if (arg.event.end) {
-                                if (arg.event.allDay) {
-                                    const endVal = arg.event.end;
-                                    const endDate = typeof endVal === 'string' ? parseISO(endVal) : endVal;
-                                    eventDate = addDays(endDate, -1); // 排他的終了日のため前日が実質の最終日
-                                } else {
-                                    eventDate = typeof arg.event.end === 'string' ? parseISO(arg.event.end) : arg.event.end;
-                                }
-                            } else if (arg.event.start) {
-                                eventDate = typeof arg.event.start === 'string' ? parseISO(arg.event.start) : arg.event.start;
-                            }
-                            const isPastEvent = eventDate ? isDatePast(eventDate) : false;
+                            // タスクとイベントのステータスを取得
+                            const taskStatusStr = arg.event.extendedProps.taskStatus ? String(arg.event.extendedProps.taskStatus).toLowerCase() : undefined;
+                            const eventStatusStr = arg.event.extendedProps.status ? String(arg.event.extendedProps.status).toLowerCase() : undefined;
 
-                            // プロジェクトが完了またはキャンセル、または日付が過ぎた場合は特別なクラスを追加
-                            if (isCompletedProject || isCancelledProject || isPastEvent) {
+                            // 完了またはキャンセルの場合はグレー表示にする（日付が過去というだけではグレーにしない）
+                            if (isCompletedProject || isCancelledProject || taskStatusStr === 'completed' || eventStatusStr === 'completed') {
                                 classes.push('grey-event');
                             }
 
@@ -3550,8 +3565,8 @@ const CalendarPage: React.FC = () => {
                                 classes.push('project-event');
                             } else if (normalizedType === 'task') {
                                 // タスクの場合は特別な処理は不要（eventDidMountで色を設定）
-                                // ただし、プロジェクトが完了/キャンセルまたは日付が過ぎた場合はgrey-eventクラスを追加
-                                if (isCompletedProject || isCancelledProject || isPastEvent) {
+                                // ただし、完了/キャンセルの場合はgrey-taskクラスを追加
+                                if (isCompletedProject || isCancelledProject || taskStatusStr === 'completed') {
                                     classes.push('grey-task');
                                 }
                             } else if (normalizedType === 'deadline') {
@@ -3666,6 +3681,7 @@ const CalendarPage: React.FC = () => {
                             projects={projects}
                             googleStatus={googleStatus}
                             onGoogleSyncToggle={handleGoogleSyncEventToggle}
+                            onUpdateTask={handleUpdateTask}
                         />
                     </Box>
                 )}

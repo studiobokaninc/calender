@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-    Box, Typography, CircularProgress, Paper, TableContainer, Table,
-    TableBody, TableRow, TableCell, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
+    Box, Typography, CircularProgress, Paper, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
     Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme, Drawer, useMediaQuery,
     Card, CardContent, CardActionArea, Avatar
@@ -19,6 +18,7 @@ import { ja } from 'date-fns/locale';
 import { DataGrid, GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
 import { useTasksPageState, usePageState } from '../contexts/PageStateContext';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
+import { TaskQuickDetail } from '../components/TaskQuickDetail';
 
 
 
@@ -154,10 +154,10 @@ const TasksPage: React.FC = () => {
 
 
 
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
-    const [openDialog, setOpenDialog] = useState(false);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Drawer state
+    const [openDialog, setOpenDialog] = useState(false); // 従来のモーダルも残す（ダブルクリック時など）
     const [editTaskId, setEditTaskId] = useState<number | null>(null);
     const [currentTask, setCurrentTask] = useState<TaskFormData>({
         id: null,
@@ -570,6 +570,23 @@ const TasksPage: React.FC = () => {
 
 
 
+    const handleUpdateTaskQuick = async (taskId: number, updates: Partial<Task>) => {
+        console.log(`[TasksPage] Updating task ${taskId}:`, updates);
+        try {
+            await api.put(`/tasks/${taskId}`, updates);
+            // ローカルステータスを更新して再フェッチなしで反映
+            setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
+            if (selectedTask && selectedTask.id === taskId) {
+                const updatedTask = { ...selectedTask, ...updates };
+                setSelectedTask(updatedTask);
+                console.log(`[TasksPage] Updated selectedTask:`, updatedTask);
+            }
+        } catch (error) {
+            console.error("Failed to update task:", error);
+            setSnackbar({ open: true, message: 'タスクの更新に失敗しました', severity: 'error' });
+        }
+    };
+
     const filteredTasks = useMemo(() => {
         return tasks.filter(task => {
             const statusMatch = statusFilter === '' || task.status === statusFilter;
@@ -603,7 +620,6 @@ const TasksPage: React.FC = () => {
 
 
     const handleCloseModal = () => {
-        setIsModalOpen(false);
         setSelectedTask(null);
     };
 
@@ -1559,6 +1575,10 @@ const TasksPage: React.FC = () => {
                             onRowDoubleClick={(params) => {
                                 handleEditTask(params.row as Task);
                             }}
+                            onRowClick={(params) => {
+                                setSelectedTask(params.row as Task);
+                                setIsDrawerOpen(true);
+                            }}
                             disableColumnMenu={false}
                             disableColumnSelector={false}
                             sx={{
@@ -1598,75 +1618,43 @@ const TasksPage: React.FC = () => {
 
 
 
-            {/* タスク詳細モーダル */}
-            {selectedTask && (
-                <Dialog open={isModalOpen} onClose={handleCloseModal} maxWidth="md" fullWidth>
-                    <DialogTitle>タスク詳細: {selectedTask.name}</DialogTitle>
-                    <DialogContent dividers>
-                        <TableContainer component={Paper} sx={{ boxShadow: 'none', border: 'none' }}>
-                            <Table size="small" aria-label="task details table">
-                                <TableBody>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ width: '30%', fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>プロジェクト:</TableCell>
-                                        <TableCell sx={{ borderBottom: 'none' }}>{projectMap.get(selectedTask.project_id || 0) || '-'}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>担当者:</TableCell>
-                                        <TableCell sx={{ borderBottom: 'none' }}>{userMap.get(selectedTask.assigned_to || 0) || '未割り当て'}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', verticalAlign: 'top', borderBottom: 'none', pl: 0 }}>説明:</TableCell>
-                                        <TableCell sx={{ whiteSpace: 'pre-line', borderBottom: 'none' }}>
-                                            {selectedTask.description || '-'}
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>ステータス:</TableCell>
-                                        <TableCell sx={{ borderBottom: 'none' }}>
-                                            <Chip
-                                                label={selectedTask.status || '-'}
-                                                size="small"
-                                                sx={{ backgroundColor: getTaskStatusColor(selectedTask.status), color: '#fff' }}
-                                            />
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>開始日:</TableCell>
-                                        <TableCell sx={{ borderBottom: 'none' }}>{formatDate(selectedTask.start_date)}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>期日:</TableCell>
-                                        <TableCell sx={{ borderBottom: 'none' }}>{formatDate(selectedTask.due_date)}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', verticalAlign: 'top', borderBottom: 'none', pl: 0 }}>依存元タスク:</TableCell>
-                                        <TableCell sx={{ borderBottom: 'none' }}>
-                                            {selectedTask.dependsOn && selectedTask.dependsOn.length > 0
-                                                ? selectedTask.dependsOn
-                                                    .map(depIdStr => {
-                                                        const numericId = parseInt(depIdStr.replace("task-", ""), 10);
-                                                        if (!isNaN(numericId)) {
-                                                            return taskMap.get(numericId) || `ID ${depIdStr}`;
-                                                        }
-                                                        return `Invalid ID ${depIdStr}`;
-                                                    })
-                                                    .join(', ')
-                                                : '-'}
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell component="th" scope="row" sx={{ fontWeight: 'bold', borderBottom: 'none', pl: 0 }}>コスト:</TableCell>
-                                        <TableCell sx={{ borderBottom: 'none' }}>{selectedTask.cost?.toLocaleString() ?? '-'}</TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleCloseModal}>閉じる</Button>
-                    </DialogActions>
-                </Dialog>
-            )}
+            {/* タスク詳細ドロワー (クイック更新用) */}
+            <Drawer
+                anchor="right"
+                open={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                PaperProps={{
+                    sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>タスク詳細</Typography>
+                    <IconButton onClick={() => setIsDrawerOpen(false)}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+                {selectedTask && (
+                    <TaskQuickDetail
+                        task={selectedTask}
+                        projects={projects}
+                        users={users}
+                        onUpdate={handleUpdateTaskQuick}
+                    />
+                )}
+                <Box sx={{ p: 2, mt: 'auto', display: 'flex', gap: 1 }}>
+                    <Button
+                        fullWidth
+                        variant="outlined"
+                        startIcon={<EditIcon />}
+                        onClick={() => {
+                            setIsDrawerOpen(false);
+                            handleEditTask(selectedTask!);
+                        }}
+                    >
+                        詳細編集
+                    </Button>
+                </Box>
+            </Drawer>
 
             {/* 一括編集ダイアログ */}
             <Dialog open={bulkEditOpen} onClose={() => setBulkEditOpen(false)} maxWidth="xs" fullWidth>
@@ -2138,7 +2126,7 @@ const TasksPage: React.FC = () => {
                     </Button>
                 </Box>
             </Drawer>
-        </Box>
+        </Box >
     );
 };
 

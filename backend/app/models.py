@@ -124,6 +124,8 @@ class Task(Base):
     shotID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     seqID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     phases: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
+    deliverables: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 提出物
+    check_items: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True) # 確認事項
     auto_started: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_delayed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[Optional[datetime]] = mapped_column()

@@ -261,11 +261,15 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
     }
     task_status_ja = status_map.get(task.status, task.status) if task.status else "未着手"
 
-    task_title = f"[タスク] {task.name}"
-    if project:
-        task_title = f"[タスク: {project.name}] {task.name}"
+    # [ステータス][プロジェクト名] タスク名 の形式にする
+    task_title = f"[{task_status_ja}][{project_name}] {task.name}"
 
-    task_desc = f"プロジェクト: {project_name}\n担当者: {assignee_name}\nステータス: {task_status_ja}\n\n{task.description or ''}"
+    task_desc = (
+        f"【プロジェクト】: {project_name}\n"
+        f"【担当者】: {assignee_name}\n"
+        f"【ステータス】: {task_status_ja}\n"
+        f"【概要】:\n{task.description or 'なし'}"
+    )
     
     logger.info(f"[Task Sync] Syncing Task: task_id={task.id}, name={task.name}, status={task.status}, display={task.display_status}, start={start_jst}, end={end_jst}")
     
@@ -380,11 +384,26 @@ def sync_event_to_google(db: Session, event: models.Event, token_row: models.Use
     project = crud.get_project(db, event.project_id) if event.project_id else None
     project_name = project.name if project else "なし"
     
-    event_title = f"[{event.type}] {event.title}"
-    if project:
-        event_title = f"[{event.type}: {project.name}] {event.title}"
+    # [プロジェクト名] イベント名 の形式にする
+    event_title = f"[{project_name}] {event.title}"
+    if event.type:
+        event_title = f"[{event.type}][{project_name}] {event.title}"
         
-    event_desc = f"プロジェクト: {project_name}\n\n{event.description or ''}"
+    participants_list = []
+    if event.participants:
+        for p in event.participants:
+            p_name = p.get('name') or p.get('username') or "不明"
+            participants_list.append(p_name)
+    
+    participants_str = ", ".join(participants_list) if participants_list else "なし"
+
+    event_desc = (
+        f"【プロジェクト】: {project_name}\n"
+        f"【タイプ】: {event.type}\n"
+        f"【場所】: {event.location or 'なし'}\n"
+        f"【参加者】: {participants_str}\n"
+        f"【概要】:\n{event.description or 'なし'}"
+    )
     
     # If it's an all-day event, the end_time in our DB is already the exclusive end (next day 00:00).
     # Google Calendar also expects the exclusive end date for all-day events.

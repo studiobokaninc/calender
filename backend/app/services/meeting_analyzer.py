@@ -1,250 +1,365 @@
 import os
 import logging
 import json
-from typing import Dict, Any, List
+import asyncio
+import pathlib
+import tempfile
+import shutil
+import mimetypes
+from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from .llm import LLMClient
-import pathlib
+from ..timezone import now_jst_naive
 
 logger = logging.getLogger(__name__)
-
-# Whisperモデルをグローバルにキャッシュ
-_whisper_model = None
-
-def get_whisper_model():
-    global _whisper_model
-    if _whisper_model is None:
-        logger.info("Loading Whisper model 'tiny' into memory (minimal load)...")
-        from faster_whisper import WhisperModel
-        # cpu_threads=1 に制限して、メインプロセスのイベントループ用リソースを確実に残す
-        _whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8", cpu_threads=1)
-    return _whisper_model
 
 class MeetingAnalyzer:
     def __init__(self, api_key: str):
         if not api_key:
             logger.warning("GOOGLE_API_KEY is not set for MeetingAnalyzer")
         self.llm_client = LLMClient(api_key=api_key)
-        # Use flash for general cases, gemini-1.5-flash is highly stable
-        self.llm_client.model_name = "gemini-1.5-flash" 
+        # 確実に安定しているモデルを使用
+        self.llm_client.model_name = "models/gemini-2.0-flash" 
+
+    async def _get_duration(self, audio_path: str) -> float:
+        """ffprobeを使用して音声の長さを取得する（Windows対応強化）"""
+        abs_path = os.path.abspath(audio_path)
+        if not os.path.exists(abs_path):
+            logger.error(f"Audio file not found: {abs_path}")
+            return 0
+            
+        try:
+            # shell=Trueを使うことで、WindowsのPATH解決を確実にする
+            # パスを二重引用符で囲み、エスケープが必要な文字が含まれている場合に対応
+            cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{abs_path}"'
+            process = await asyncio.create_subprocess_shell(
+                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0:
+                d_str = stdout.decode().strip()
+                return float(d_str) if d_str else 0
+            else:
+                logger.warning(f"ffprobe returned non-zero exit code: {process.returncode}, stderr: {stderr.decode()}")
+        except Exception as e:
+            logger.warning(f"ffprobe duration check failed: {e}")
+        return 0
+
+    async def _split_audio(self, audio_path: str, chunk_size_sec: int, output_dir: str) -> List[str]:
+        """ffmpegを使用して音声を分割する"""
+        try:
+            abs_audio_path = os.path.abspath(audio_path)
+            # 元のファイル拡張子を維持
+            ext = pathlib.Path(abs_audio_path).suffix or ".mp3"
+            output_pattern = os.path.join(output_dir, f"chunk_%03d{ext}")
+            
+            # segment muxerを使用して非エンコードで高速分割
+            # -segment_time で長さを指定
+            cmd = f'ffmpeg -i "{abs_audio_path}" -f segment -segment_time {chunk_size_sec} -c copy "{output_pattern}"'
+            process = await asyncio.create_subprocess_shell(
+                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode == 0:
+                chunks = sorted([
+                    os.path.join(output_dir, f) 
+                    for f in os.listdir(output_dir) 
+                    if f.startswith("chunk_")
+                ])
+                logger.info(f"Split audio into {len(chunks)} chunks.")
+                return chunks
+            else:
+                logger.error(f"ffmpeg split failed: {stderr.decode()}")
+        except Exception as e:
+            logger.error(f"Failed to split audio: {e}")
+        return []
 
     async def analyze_meeting(self, meeting_id: int, audio_path: str):
+        """音声を分割し、レート制限に配慮しながら段階的に解析・統合する"""
         from ..database import SessionLocal
         db = SessionLocal()
         try:
             db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-            if not db_meeting:
-                logger.error(f"Meeting {meeting_id} not found in DB")
+            if not db_meeting: 
+                logger.error(f"Meeting {meeting_id} not found in DB.")
                 return
-
-            logger.info(f"Starting analysis for meeting {meeting_id} using {audio_path}")
-            
-            # ステータスを「解析中」に更新
             crud.update_meeting(db, db_meeting, {"status": "processing"})
         finally:
             db.close()
 
-        # 1. まず whisper で文字起こしを行う（バックエンドを止めないように非同期スレッドで実行）
-        logger.info("Step 1: Transcribing audio with Whisper in background thread...")
-        transcript_text = ""
+        temp_dir = tempfile.mkdtemp()
         try:
-            import asyncio
-            # CPU処理でメインスレッド(FastAPI)がブロックされるのを防ぐため、別スレッドで実行する
-            def run_whisper():
-                whisper_model = get_whisper_model()
-                # VAD (無音カット) を有効にして、無駄な処理を減らす
-                segments_generator, info = whisper_model.transcribe(audio_path, beam_size=5, vad_filter=True, language="ja")
-                # ジェネレータをリスト化して全セグメントを展開（ここで実際の推論が走る）
-                return list(segments_generator), info
+            # 1. 音声分割（5分ごと）でトークン制限と429を回避
+            # 文字起こし精度を上げるため、10分から5分に短縮
+            duration = await self._get_duration(audio_path)
+            chunk_size = 300 # 5分
+            
+            logger.info(f"Meeting duration: {duration:.1f}s")
+            
+            if duration > (chunk_size + 30):
+                logger.info(f"Splitting meeting into {chunk_size}s chunks...")
+                chunk_paths = await self._split_audio(audio_path, chunk_size, temp_dir)
+            else:
+                chunk_paths = [audio_path]
+            
+            if not chunk_paths: 
+                logger.warning("Split failed or no chunks, falling back to original path.")
+                chunk_paths = [audio_path]
 
-            segments, info = await asyncio.to_thread(run_whisper)
-            logger.info(f"Detected language '{info.language}' with probability {info.language_probability}")
-            
-            transcript_texts = []
-            for segment in segments:
-                start_fmt = f"[{segment.start:.1f}s]"
-                transcript_texts.append(f"{start_fmt} {segment.text.strip()}")
+            all_results = []
+            for i, path in enumerate(chunk_paths):
+                logger.info(f"Processing chunk {i+1}/{len(chunk_paths)}: {path}")
                 
-            transcript_text = "\n".join(transcript_texts)
-            logger.info(f"Transcription completed. Total length: {len(transcript_text)} characters.")
-            
-            if not transcript_text:
-                raise Exception("文字起こしの結果が空でした。")
+                # チャンクごとに文字起こしと構造化を行う
+                res = await self._process_segment_with_retry(path, i+1, len(chunk_paths), meeting_id)
+                if res:
+                    all_results.append(res)
+                else:
+                    logger.error(f"Failed to process chunk {i+1}")
                 
-        except Exception as e:
-            logger.error(f"Whisper transcription failed: {e}")
+                # レート制限(429)回避のため、チャンク間に待機を入れる
+                if i < len(chunk_paths) - 1:
+                    await asyncio.sleep(10)
+
+            if not all_results:
+                raise Exception("No results obtained from any segment.")
+
+            # 2. 全結果の統合
+            logger.info("Final Phase: Consolidating results...")
+            final_minutes = await self._consolidate_results(all_results, meeting_id)
+            
             db = SessionLocal()
             try:
                 db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
                 if db_meeting:
-                    crud.update_meeting(db, db_meeting, {"status": "failed"})
+                    crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed"})
+                    logger.info(f"Meeting {meeting_id} analysis completed.")
             finally:
                 db.close()
-            return
+                
+        except Exception as e:
+            logger.error(f"Meeting processing failed: {e}")
+            import traceback
+            traceback.print_exc()
+            db = SessionLocal()
+            try:
+                db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+                if db_meeting: crud.update_meeting(db, db_meeting, {"status": "failed"})
+            finally:
+                db.close()
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
-        # 2. Geminiでテキストベースの解析 (構造化と分類)
-        logger.info("Step 2: Semantic analysis and extraction with Gemini...")
-        self.llm_client.model_name = "gemini-2.0-flash"
-        
-        # Whisperの出力を元に、Geminiへプロンプトを投げる（音声ファイルは送らない）
-        query = f"""
-あなたは、会議の文字起こしテキストを解析し、「行動情報が欠落しない、実用的な議事録」を作成するAIです。
-以下の【処理ステップ】に必ず従って、会議の内容を構造化してから抽出してください。
+    async def _process_segment_with_retry(self, path: str, index: int, total: int, meeting_id: int) -> Optional[Dict[str, Any]]:
+        """リトライとバックオフ付きでセグメントを処理する"""
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
+                
+                prompt = f"""
+あなたは、会議音声を詳細に分析し、重要な情報を一切漏らさない精密な議事録を作成するプロフェッショナルAIエディターです。
+現在、会議音声の{segment_info}を処理しています。
 
-【対象の文字起こしデータ】
-{transcript_text}
+以下の【要件】に厳密に従って、出力を生成してください。
 
-【処理ステップ】
-1. テキストの整形: Whisperの文字起こしから、相槌（「あー」「うん」など）、無意味な繰り返し、言い直しを削除してスッキリとしたテキストにする。必要に応じて文脈から発言者を推測してA, B, Cと付与してください。
-2. トピック分割と会話ターン分割: 話題（トピック）が変わるごとに区切り、各発言のターンごとに分割する。
-3. 意味分類タグの付与: 各発言に対して、以下のいずれかの分類タグを先頭に必ず付ける。
-   [議題] [提案] [決定] [タスク] [質問] [雑談]
-4. 集約と抽出: 付与されたタグを元に、タスク（誰が何をするか）や決定事項を一つも漏らさずに抽出する。
+【要件】
+1. 逐次、詳細な文字起こし:
+   - 日本語で全文を文字起こししてください。
+   - 発言者（A, B, C... または会話から推測される名前）を特定し、発言ごとに以下のタグを先頭に付与してください。
+     [議題] [提案] [決定] [タスク] [質問] [雑談]
+   - 相槌（「あー」「うん」「はい」等）や言い直しを適宜削り、読みやすく整形してください。
+   - **要約するのではなく、具体的に誰が何を言ったかを詳細に残すこと**を最優先してください。
 
-出力文字数の制限によるエラーを防ぐため、必ず以下の指定された順序と区切り文字（===セクション名===）を用いて出力してください。JSONは使用しないでください。
+2. 重要情報の抽出:
+   - 決定事項: 会議で合意された、または決定した方針。
+   - タスク: 「誰が」「いつまでに」「何をするか」。些細な依頼もすべて抽出してください。
+   - 論点: 議論されているポイント、出された意見、懸案事項。
+   - スケジュール: 具体的日程、期限、次回の予定。
 
+【出力フォーマット】（以下のキーワードをセクション区切りとして使用し、それ以外の説明は不要です）
 ===TRANSCRIPT===
-（ステップ1〜3を適用した、トピックごとの全文文字起こしをここに記載してください。
-例：
-【トピック1：〇〇について】
-A [議題]: 〇〇はどうしますか？
-B [提案]: 〇〇が良いと思います。
-C [質問]: 理由は？
-A [決定]: では〇〇で進めましょう。
-B [タスク]: 私が〇〇さんに連絡し、試作します。
-）
+（タグ付き文字起こし全文）
 
 ===DECISIONS===
-（===TRANSCRIPT=== の [決定] タグの内容から、決定事項を箇条書きで記載。ない場合は「なし」）
+- 決定事項のリスト（なければ「なし」）
 
 ===TASKS===
-（===TRANSCRIPT=== の [タスク] タグの内容から、誰が何をするかのタスク情報を具体的に箇条書きで記載。ない場合は「なし」）
+- 担当者：内容（期限）（なければ「なし」）
 
 ===DISCUSSION_POINTS===
-（===TRANSCRIPT=== の [議題] [提案] [質問] タグの内容から、主要な論点を箇条書きで記載。ない場合は「なし」）
+- 主要な論点・意見のリスト（なければ「なし」）
 
 ===DEADLINES===
-（期限や日程候補として言及されたスケジュールのリストを箇条書きで記載。ない場合は「なし」）
+- 具体的期限・日程のリスト（なければ「なし」）
 """
-        # アタッチメントとして音声はもう送らない。テキストで送ることでAPIリソースの枯渇（Resource Exhausted）を回避
-        inputs = {
-            "mode": "admin",
-            "attachments": []
+                inputs = {"mode": "admin", "attachments": [path]}
+                response_text = ""
+                
+                # 指数バックオフ
+                if attempt > 0:
+                    wait = (2 ** attempt) * 15
+                    logger.info(f"Retry {attempt}/{max_retries} for chunk {index}. Waiting {wait}s...")
+                    await asyncio.sleep(wait)
+                
+                # 会話履歴が干渉しないよう、セグメントごとにユニークなIDを使用
+                conv_id = f"mtg_{meeting_id}_seg_{index}_v{attempt}"
+                
+                async for chunk in self.llm_client.stream_chat(prompt, conv_id, inputs):
+                    if chunk.get("event") == "message":
+                        response_text += chunk.get("answer", "")
+                
+                if response_text.strip():
+                    parsed = self._parse_output(response_text)
+                    # 文字起こしが含まれていれば成功とみなす
+                    if parsed.get("transcript"):
+                        return parsed
+                
+                logger.warning(f"Empty response for chunk {index}, attempt {attempt}")
+                    
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    logger.warning(f"Rate limit hit at chunk {index}.")
+                    if attempt == max_retries: break # 最後のリトライなら諦める
+                    # バックオフは次のループ開始時に sleep する
+                else:
+                    logger.error(f"Segment {index} processing error: {e}")
+                    if attempt == max_retries: break
+        return None
+
+    def _parse_output(self, text: str) -> Dict[str, Any]:
+        """LLMの応答をパースして辞書に格納する"""
+        result = {
+            "transcript": "",
+            "decisions": [],
+            "tasks": [],
+            "discussion_points": [],
+            "deadlines": []
         }
         
-        original_mime_type = self.llm_client.config.response_mime_type
-        self.llm_client.config.response_mime_type = "text/plain"  # JSONからテキストに変更
+        current_section = None
+        transcript_lines = []
         
-        accumulated_response = ""
-        analysis_success = False
+        for line in text.split('\n'):
+            line_raw = line.strip()
+            if not line_raw:
+                if current_section == 'transcript':
+                    transcript_lines.append("")
+                continue
+                
+            if '===TRANSCRIPT===' in line_raw:
+                current_section = 'transcript'
+                continue
+            elif '===DECISIONS===' in line_raw:
+                current_section = 'decisions'
+                continue
+            elif '===TASKS===' in line_raw:
+                current_section = 'tasks'
+                continue
+            elif '===DISCUSSION_POINTS===' in line_raw:
+                current_section = 'discussion_points'
+                continue
+            elif '===DEADLINES===' in line_raw:
+                current_section = 'deadlines'
+                continue
+                
+            if current_section == 'transcript':
+                transcript_lines.append(line)
+            elif current_section:
+                item = line_raw.lstrip('-*• ').strip()
+                if item and item.lower() not in ['なし', 'none']:
+                    # 重複チェック（リスト内）
+                    if item not in result[current_section]:
+                        result[current_section].append(item)
+                    
+        result['transcript'] = '\n'.join(transcript_lines).strip()
+        return result
 
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                accumulated_response = ""
-                import asyncio
-                logger.info(f"Gemini analysis attempt {attempt+1}/{max_attempts}...")
-                async for chunk in self.llm_client.stream_chat(query, f"meeting_audio_{meeting_id}", inputs):
-                    if chunk.get("event") == "message":
-                        accumulated_response += chunk.get("answer", "")
-                    elif chunk.get("event") == "error":
-                         err_msg = str(chunk.get('message', ''))
-                         if "429" in err_msg or "Too Many Requests" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                             logger.warning("Rate limit hit (429).")
-                             raise Exception(f"429: {err_msg}")
-                         raise Exception(f"AI Error: {err_msg}")
-                
-                if accumulated_response.strip():
-                    analysis_success = True
-                    break
+    async def _consolidate_results(self, chunk_results: List[Dict[str, Any]], meeting_id: int) -> Dict[str, Any]:
+        """全てのチャンク結果を一つの議事録データに統合・整形する"""
+        full_transcript = []
+        all_decisions = []
+        all_tasks = []
+        all_points = []
+        all_deadlines = []
+        
+        for r in chunk_results:
+            if r.get("transcript"): full_transcript.append(r["transcript"])
+            all_decisions.extend(r.get("decisions", []))
+            all_tasks.extend(r.get("tasks", []))
+            all_points.extend(r.get("discussion_points", []))
+            all_deadlines.extend(r.get("deadlines", []))
+            
+        final_transcript = "\n\n".join(full_transcript)
 
-            except Exception as e:
-                logger.warning(f"Attempt {attempt+1} failed: {e}")
-                if attempt < max_attempts - 1:
-                    is_429 = "429" in str(e) or "Too Many Requests" in str(e) or "RESOURCE_EXHAUSTED" in str(e)
-                    wait_time = (30 * (attempt + 1)) if is_429 else 15
-                    logger.info(f"Retrying in {wait_time}s due to errors...")
-                    await asyncio.sleep(wait_time)
-                else:
-                    logger.error("All attempts for Gemini analysis failed.")
+        # チャンクが1つだけなら、そのまま返す
+        if len(chunk_results) == 1:
+            return {
+                "transcript": final_transcript,
+                "decisions": list(dict.fromkeys(all_decisions)),
+                "tasks": list(dict.fromkeys(all_tasks)),
+                "discussion_points": list(dict.fromkeys(all_points)),
+                "deadlines": list(dict.fromkeys(all_deadlines))
+            }
 
-        # 3. 結果の処理
-        if analysis_success:
-            try:
-                self.llm_client.config.response_mime_type = original_mime_type
-                
-                content = accumulated_response.strip()
-                
-                analysis = {
-                    "decisions": [],
-                    "tasks": [],
-                    "discussion_points": [],
-                    "deadlines": [],
-                    "transcript": ""
-                }
-                
-                current_section = None
-                transcript_lines = []
-                
-                # TRANSCRIPTが一番上に来るため、パースを対応させる
-                for line in content.split('\n'):
-                    line_stripped = line.strip()
-                    if line_stripped.startswith('===TRANSCRIPT==='):
-                        current_section = 'transcript'
-                        continue
-                    elif line_stripped.startswith('===DECISIONS==='):
-                        current_section = 'decisions'
-                        continue
-                    elif line_stripped.startswith('===TASKS==='):
-                        current_section = 'tasks'
-                        continue
-                    elif line_stripped.startswith('===DISCUSSION_POINTS==='):
-                        current_section = 'discussion_points'
-                        continue
-                    elif line_stripped.startswith('===DEADLINES==='):
-                        current_section = 'deadlines'
-                        continue
-                        
-                    if current_section == 'transcript':
-                        transcript_lines.append(line)
-                    elif current_section and line_stripped:
-                        # "- 項目" や "* 項目" の形式から抽出、またはそのまま追加
-                        item = line_stripped.lstrip('-*• ').strip()
-                        if item and item != 'なし':
-                            analysis[current_section].append(item)
-                            
-                analysis['transcript'] = '\n'.join(transcript_lines).strip()
-                
-                updates = {
-                    "transcript": analysis["transcript"],
-                    "decisions": analysis["decisions"],
-                    "tasks": analysis["tasks"],
-                    "discussion_points": analysis["discussion_points"],
-                    "deadlines": analysis["deadlines"],
-                    "status": "completed"
-                }
-                
-                db = SessionLocal()
-                try:
-                    db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-                    if db_meeting:
-                        crud.update_meeting(db, db_meeting, updates)
-                finally:
-                    db.close()
-                logger.info(f"Meeting {meeting_id} analysis completed successfully")
-                return
-            except Exception as e:
-                logger.error(f"Failed to parse Gemini response: {e}")
-                logger.debug(f"Response was: {accumulated_response}")
+        logger.info("Executing final consolidation pass...")
+        
+        # 抽出項目を整理するためのプロンプト
+        summary_prompt = f"""
+あなたは、断片的な抽出データと文字起こしを元に、統合された完璧な議事録を作成するシニア・エディターです。
+複数のセグメント（時間帯）から抽出された情報を統合し、重複を排除しながら、会議全体としての結論とアクションプランを明確にしてください。
 
-        # 失敗時のクリーンアップ
-        self.llm_client.config.response_mime_type = original_mime_type
-        db = SessionLocal()
+【提供された断片データ】
+決定事項: {all_decisions}
+タスク: {all_tasks}
+論点: {all_points}
+期限: {all_deadlines}
+
+【要件】
+1. 重複排除: 同じ内容の決定事項やタスクが複数回出てくる場合、最も詳細なもの一つに統合してください。
+2. 矛盾の解消: セグメント間で矛盾する記述がある場合、全体の流れから総合的に判断してください。
+3. 構造化: 誰がいつまでに何をすべきか、何が決まったのかを、即座に実行可能なレベルで整理してください。
+
+【出力フォーマット】（厳守。説明なしで直接開始してください）
+===DECISIONS===
+- 統合・整理された具体的決定事項
+
+===TASKS===
+- 担当者：具体的アクション（期限）
+
+===DISCUSSION_POINTS===
+- 会議全体の議論の要約と重要な背景
+
+===DEADLINES===
+- 整理された具体的スケジュール
+"""
         try:
-            db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-            if db_meeting:
-                crud.update_meeting(db, db_meeting, {"status": "failed"})
-        finally:
-            db.close()
-        logger.error("Meeting analysis process finished with failure.")
+            accumulated_summary = ""
+            # テキスト統合なので attachments は不要
+            async for chunk in self.llm_client.stream_chat(summary_prompt, f"mtg_{meeting_id}_final", {"mode": "admin"}):
+                if chunk.get("event") == "message":
+                    accumulated_summary += chunk.get("answer", "")
+            
+            summary_res = self._parse_output(accumulated_summary)
+            # 文字起こしは元の結合したものを保持
+            summary_res["transcript"] = final_transcript
+            
+            # 補完セーフティ: 統合AIが失敗（空）を返した場
+            if not summary_res["decisions"] and all_decisions:
+                summary_res["decisions"] = list(dict.fromkeys(all_decisions))
+            if not summary_res["tasks"] and all_tasks:
+                summary_res["tasks"] = list(dict.fromkeys(all_tasks))
+            
+            return summary_res
+        except Exception as e:
+            logger.error(f"Final consolidation failed: {e}. Falling back to simple merge.")
+            return {
+                "transcript": final_transcript,
+                "decisions": list(dict.fromkeys(all_decisions)),
+                "tasks": list(dict.fromkeys(all_tasks)),
+                "discussion_points": list(dict.fromkeys(all_points)),
+                "deadlines": list(dict.fromkeys(all_deadlines))
+            }

@@ -132,6 +132,10 @@ async def stream_chat(
     if conversation_id is None:
         import uuid
         conversation_id = str(uuid.uuid4())
+    
+    # 履歴をDBから取得
+    db_history = crud.get_chat_messages(db, conversation_id, limit=20)
+    history_for_llm = [{"role": m.role, "content": m.content} for m in db_history]
 
     async def eventgen():
         try:
@@ -158,7 +162,7 @@ async def stream_chat(
             logger.info(f"[PROFILER] Calling client.stream_chat now... (Elapsed from start: {time.time() - t0:.2f}s)")
             
             t_first_chunk = None
-            async for event_data in client.stream_chat(query, conversation_id, inputs, user):
+            async for event_data in client.stream_chat(query, conversation_id, inputs, user, history=history_for_llm):
                 if t_first_chunk is None:
                     t_first_chunk = time.time()
                     logger.info(f"[PROFILER] First yield from stream_chat arrived. TTFT: {t_first_chunk - t0:.2f}s")
@@ -211,7 +215,9 @@ async def stream_chat(
                                 f"data: {json.dumps({'event': 'message', 'answer': system_msg, 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
                             ).encode("utf-8")
 
-            # 終了（LLMClientがmessage_endを送ってくれるはずだが、念のため改行）
+                    # 会話履歴をDBに保存
+                    crud.create_chat_message(db, conversation_id, "user", query, current_user.id)
+                    crud.create_chat_message(db, conversation_id, "model", full_answer, None)
             yield b"\n"
 
         except Exception as e:
@@ -271,6 +277,10 @@ async def stream_chat_user(
         import uuid
         conversation_id = str(uuid.uuid4())
 
+    # 履歴をDBから取得
+    db_history = crud.get_chat_messages(db, conversation_id, limit=20)
+    history_for_llm = [{"role": m.role, "content": m.content} for m in db_history]
+
     async def eventgen():
         try:
             # ブラウザの自動再接続を抑止
@@ -291,7 +301,7 @@ async def stream_chat_user(
 
             message_buffer = ""
 
-            async for event_data in client.stream_chat(query, conversation_id, inputs, user_email):
+            async for event_data in client.stream_chat(query, conversation_id, inputs, user_email, history=history_for_llm):
                 json_str = json.dumps(event_data, ensure_ascii=False)
                 yield f"data: {json_str}\n\n".encode("utf-8")
                 
@@ -310,6 +320,10 @@ async def stream_chat_user(
                             "event: task_action\n"
                             f"data: {json.dumps(notification, ensure_ascii=False)}\n\n"
                         ).encode("utf-8")
+                    
+                    # 会話履歴をDBに保存
+                    crud.create_chat_message(db, conversation_id, "user", query, current_user.id)
+                    crud.create_chat_message(db, conversation_id, "model", full_answer, None)
 
             yield b"\n"
         except Exception as e:
@@ -354,10 +368,19 @@ async def list_conversations(user: str = Query(..., description="ユーザー識
 @router.get("/messages")
 async def list_messages(conversation_id: str = Query(..., description="会話ID"), user: str = Query(..., description="ユーザー識別子")):
     """
-    メッセージ一覧を取得するエンドポイント（デバッグ用）
+    メッセージ一覧を取得するエンドポイント
     """
-    # 簡易実装：空リストを返す
-    return {"data": [], "has_more": False, "limit": 20}
+    messages = crud.get_chat_messages(db, conversation_id, limit=50)
+    data = []
+    for m in messages:
+        # Dify風のフォーマットに合わせる (role: user/assistant)
+        data.append({
+            "id": m.id,
+            "role": "user" if m.role == "user" else "assistant",
+            "content": m.content,
+            "created_at": int(m.created_at.timestamp()) if m.created_at else int(time.time())
+        })
+    return {"data": data, "has_more": False}
 
 
 @router.post("/chat/stop/{task_id}")

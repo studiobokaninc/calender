@@ -108,6 +108,8 @@ def build_tasks_csv_text(tasks: list[dict]) -> str:
         "cost",
         "updated_at",
         "dependsOn",
+        "check_items",
+        "deliverables",
     ]
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\n")
@@ -129,6 +131,8 @@ def build_tasks_csv_text(tasks: list[dict]) -> str:
             _cell_str(item.get("cost")),
             get_latest_changed_at(item),
             _cell_str(item.get("dependsOn")),
+            _cell_str(item.get("check_items"), normalize_text=True),
+            _cell_str(item.get("deliverables"), normalize_text=True),
         ]
         writer.writerow(row)
     return buffer.getvalue()

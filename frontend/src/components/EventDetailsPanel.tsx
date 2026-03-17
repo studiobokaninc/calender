@@ -244,7 +244,11 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                 />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {getTypeIcon(selectedEvent.extendedProps?.type)}
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>{selectedEvent.title}</Typography>
+                  {selectedEvent.extendedProps?.type?.toLowerCase() !== 'task' ? (
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>{selectedEvent.title}</Typography>
+                  ) : (
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary' }}>タスク詳細</Typography>
+                  )}
                 </Box>
               </Box>
 
@@ -257,7 +261,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               <Divider sx={{ my: 1.5 }} />
 
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {selectedEvent.extendedProps?.description && (
+                {selectedEvent.extendedProps?.description && selectedEvent.extendedProps?.type?.toLowerCase() !== 'task' && (
                   <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>{selectedEvent.extendedProps.description}</Typography>
                 )}
                 {selectedEvent.extendedProps?.location && (

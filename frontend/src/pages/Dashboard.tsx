@@ -229,14 +229,20 @@ const Dashboard: React.FC = () => {
 
   const todayItems = useMemo(() => {
     const projects = globalData?.projects ?? []
+    const users = globalData?.users ?? []
     const getProjectName = (projectId: number | null | undefined): string => {
       if (projectId == null) return '（プロジェクトなし）'
       const p = projects.find((x: any) => x.id === projectId)
       return p?.name ?? `ID:${projectId}`
     }
+    const getAssigneeName = (userId: number | null | undefined): string => {
+      if (userId == null) return ''
+      const u = users.find((x: any) => x.id === userId)
+      return u?.username || u?.full_name || u?.name || u?.email || `User ${userId}`
+    }
 
 
-    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; }
+    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; }
 
     const eventList: TodayItem[] = []
 
@@ -310,6 +316,7 @@ const Dashboard: React.FC = () => {
             id: String(t.id),
             name: t.name,
             projectName: getProjectName(t.project_id ?? null),
+            assigneeName: getAssigneeName(t.assigned_to ?? null),
             timeLabel: '締切', // タスクは時間を持たないことが多いので「締切」等
             kindLabel: 'タスク',
             startTime: t.due_date, // ソート用
@@ -335,6 +342,7 @@ const Dashboard: React.FC = () => {
               id: `phase-${t.id}-${idx}`,
               name: `${t.name}: ${p.name}`,
               projectName: getProjectName(t.project_id ?? null),
+              assigneeName: getAssigneeName(t.assigned_to ?? null),
               timeLabel: '目標日',
               kindLabel: '段階目標',
               startTime: p.date,
@@ -1411,6 +1419,14 @@ const Dashboard: React.FC = () => {
                         <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography>
                       </Box>
+                      {item.assigneeName && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            {item.assigneeName}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
                   </Box>
                 ))

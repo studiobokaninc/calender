@@ -84,6 +84,22 @@ def check_and_migrate_db():
         cursor.execute("UPDATE meetings SET status = 'completed' WHERE transcript IS NOT NULL AND status = 'pending'")
         conn.commit()
 
+        # chat_messagesテーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conversation_id VARCHAR(255),
+                role VARCHAR(50),
+                content TEXT,
+                user_id INTEGER,
+                created_at DATETIME,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_id ON chat_messages(conversation_id)")
+        conn.commit()
+        print("chat_messagesテーブルを確認・作成しました。")
+
         conn.close()
         
     except sqlite3.Error as e:

@@ -14,9 +14,7 @@ from ..timezone import now_jst_naive
 # logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 会話履歴をメモリに保持 (再起動で消える)
-# 構造: { conversation_id: [ { role: "user" | "model", parts: [...] }, ... ] }
-_chat_history_memory: Dict[str, List[Dict[str, Any]]] = {}
+# Note: In-memory history is replaced by DB persistence in routers.
 
 class LLMClient:
     def __init__(self, api_key: str):
@@ -56,27 +54,16 @@ class LLMClient:
             tools=[], 
         )
 
-    def _get_history(self, conversation_id: str) -> List[types.Content]:
-        raw_history = _chat_history_memory.get(conversation_id, [])
+    def _convert_history(self, raw_history: List[Dict[str, Any]]) -> List[types.Content]:
         # Convert to google.genai.types.Content
         contents = []
         for h in raw_history:
             role = h.get("role")
-            parts_text = h.get("parts", [])
-            # google.genai expects parts as list of Part objects or strings
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=p) for p in parts_text]))
+            # Gemini expects 'user' or 'model'
+            gemini_role = "user" if role == "user" else "model"
+            content = h.get("content", "")
+            contents.append(types.Content(role=gemini_role, parts=[types.Part.from_text(text=content)]))
         return contents
-
-    def _update_history(self, conversation_id: str, role: str, text: str):
-        if conversation_id not in _chat_history_memory:
-            _chat_history_memory[conversation_id] = []
-        
-        # Gemini format: role="user" or "model"
-        gemini_role = "user" if role == "user" else "model"
-        _chat_history_memory[conversation_id].append({
-            "role": gemini_role,
-            "parts": [text],
-        })
         
     def generate_system_prompt(self, inputs: Dict[str, Any]) -> str:
         """
@@ -157,6 +144,7 @@ id, name, project_id, assigned_to, due_date, status, priority
 {notes_text}
 
 【全タスク一覧 (未完了のみ)】
+id, name, description, assigned_to, due_date, status, project_id, priority, type, start_date, taskID, seqID, shotID, cost, updated_at, dependsOn, check_items, deliverables
 {task_csv}
 
 【プロジェクト一覧 (簡易版)】
@@ -164,6 +152,10 @@ id, name, project_id, assigned_to, due_date, status, priority
 
 【ユーザー一覧 (簡易版)】
 {user_list}
+
+**追加情報**
+- `check_items`: 各タスク固有の確認事項やチェックリストです。回答の精度を高めるために活用してください。
+- `deliverables`: タスクの成果物（提出物）です。
 """
 
         system_prompt = f"""
@@ -185,14 +177,15 @@ id, name, project_id, assigned_to, due_date, status, priority
         query: str,
         conversation_id: str,
         inputs: Dict[str, Any] = {},
-        user: str = "default_user"
+        user: str = "default_user",
+        history: List[Dict[str, Any]] = []
     ) -> AsyncGenerator[Dict[str, Any], None]:
         
         system_prompt = self.generate_system_prompt(inputs)
         attachments_to_clean = []
         
         # 履歴の取得
-        history_contents = self._get_history(conversation_id)
+        history_contents = self._convert_history(history)
         
         # System Prompt Injection
         # テキストパート作成
@@ -316,9 +309,9 @@ id, name, project_id, assigned_to, due_date, status, priority
                     "conversation_id": conversation_id
                 }
                 
-            # 会話履歴の保存
-            self._update_history(conversation_id, "user", query)
-            self._update_history(conversation_id, "model", accumulated_text)
+            # 会話履歴の保存は呼び出し側(router)で行う
+            # self._update_history(conversation_id, "user", query)
+            # self._update_history(conversation_id, "model", accumulated_text)
             
             # Completion event
             yield {

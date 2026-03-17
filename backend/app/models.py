@@ -198,6 +198,16 @@ class Note(Base):
     owner: Mapped["User"] = relationship("User")
     project: Mapped[Optional["Project"]] = relationship("Project")
 
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    conversation_id: Mapped[str] = mapped_column(String(255), index=True)
+    role: Mapped[str] = mapped_column(String(50)) # user, model, system
+    content: Mapped[str] = mapped_column(Text)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
 class UserActivity(Base):
     __tablename__ = "user_activities"
 

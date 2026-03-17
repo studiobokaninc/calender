@@ -99,22 +99,46 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 2 }}>
             {/* Basic Info Header */}
             <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, lineHeight: 1.2 }}>
+                <Typography variant="h5" sx={{
+                    fontWeight: 800,
+                    mb: 1,
+                    lineHeight: 1.2,
+                    color: theme.palette.text.primary,
+                    letterSpacing: '-0.02em'
+                }}>
                     {task.name}
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+
+                {task.description && (
+                    <Box sx={{
+                        mb: 2,
+                        p: 1.5,
+                        bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                        borderRadius: 1,
+                        borderLeft: `4px solid ${theme.palette.primary.main}`
+                    }}>
+                        <Typography variant="caption" color="primary" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
+                            説明
+                        </Typography>
+                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'text.primary', lineHeight: 1.6 }}>
+                            {task.description}
+                        </Typography>
+                    </Box>
+                )}
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                     <Chip
                         label={project?.name || 'プロジェクト未設定'}
                         size="small"
                         icon={<FolderIcon fontSize="small" />}
                         variant="outlined"
-                        sx={{ maxWidth: 200 }}
+                        sx={{ maxWidth: 200, fontWeight: 500 }}
                     />
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Avatar sx={{ width: 20, height: 20, fontSize: '0.7rem' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
+                        <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: theme.palette.primary.main }}>
                             {assignee?.username?.[0]?.toUpperCase() || '?'}
                         </Avatar>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
                             {assignee?.username || '未割り当て'}
                         </Typography>
                     </Box>
@@ -213,7 +237,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
 
                 <Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <AssignmentIcon fontSize="small" color="primary" /> 提出物
+                        <AssignmentIcon fontSize="small" color="primary" /> メモ
                     </Typography>
                     <TextField
                         key={`deliverables-input-${task.id}`}
@@ -221,7 +245,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         rows={3}
                         fullWidth
                         size="small"
-                        placeholder="提出物の詳細やリンク、保管場所をご記入ください..."
+                        placeholder="タスクに関するメモやリンク、参考情報をご記入ください..."
                         value={localDeliverables}
                         onChange={(e) => setLocalDeliverables(e.target.value)}
                         onBlur={handleDeliverablesBlur}
@@ -253,17 +277,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                 </Box>
             </Box>
 
-            {task.description && (
-                <>
-                    <Divider />
-                    <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>説明</Typography>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.5 }}>
-                            {task.description}
-                        </Typography>
-                    </Box>
-                </>
-            )}
+
         </Box>
     );
 };

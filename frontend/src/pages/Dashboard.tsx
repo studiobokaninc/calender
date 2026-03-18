@@ -20,6 +20,9 @@ import {
   IconButton,
   InputAdornment,
   Tooltip,
+  Checkbox,
+  Drawer,
+  Divider,
 } from '@mui/material'
 import {
   People as PeopleIcon,
@@ -29,14 +32,17 @@ import {
   Event as EventIcon,
   Mic as MicIcon,
   Stop as StopIcon,
+  Close as CloseIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import api from '../services/api'
-import { DashboardMetrics, BackendEvent } from '../types'
+import { DashboardMetrics, BackendEvent, Task } from '../types'
 import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
 import { TaskEditDialog, EventEditDialog } from '../components/SearchEditDialogs'
+import { TaskQuickDetail } from '../components/TaskQuickDetail'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
@@ -70,6 +76,14 @@ const Dashboard: React.FC = () => {
   // 編集ダイアログ用
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
   const [editEventId, setEditEventId] = useState<number | null>(null);
+
+  // 詳細パネル用（タスク）
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+
+  // 詳細パネル用（イベント）
+  const [selectedEventDetail, setSelectedEventDetail] = useState<BackendEvent | null>(null);
+  const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
 
 
   // ページ状態管理の使用
@@ -112,6 +126,15 @@ const Dashboard: React.FC = () => {
       setStateRestored(true);
     }
   }, [dashboardState, isInitialLoad]);
+
+  const handleUpdateTaskQuick = async (taskId: number, updates: any) => {
+    try {
+      await api.put(`/tasks/${taskId}`, updates);
+      refreshGlobalData?.();
+    } catch (err) {
+      console.error('Failed to update task:', err);
+    }
+  };
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -242,7 +265,7 @@ const Dashboard: React.FC = () => {
     }
 
 
-    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; }
+    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; phaseIdx?: number; }
 
     const eventList: TodayItem[] = []
 
@@ -348,6 +371,7 @@ const Dashboard: React.FC = () => {
               startTime: p.date,
               isPhase: true,
               rawId: t.id, // Phaseでも親タスクのIDを保持
+              phaseIdx: idx
             });
           }
         });
@@ -404,6 +428,7 @@ const Dashboard: React.FC = () => {
       // 2. Phaseの判定（タスクが未完了の場合のみ）
       if (!isTaskCompleted && t.phases && Array.isArray(t.phases)) {
         t.phases.forEach((p: any, idx: number) => {
+          if (p.is_completed) return; // 完了済みPhaseは除外
           const phaseDate = p.date ? new Date(p.date) : null
           // Phaseの日付が今週の範囲内なら追加
           if (phaseDate && phaseDate >= startOfWeek && phaseDate <= endOfWeek) {
@@ -411,6 +436,7 @@ const Dashboard: React.FC = () => {
               ...t,
               id: `phase-${t.id}-${idx}`, // IDを一意・文字列に
               originalId: t.id,
+              phaseIdx: idx, // インデックスを保持
               name: `${t.name}: ${p.name}`, // 名前を修飾
               due_date: p.date, // 期日をPhaseの日付に
               isPhase: true
@@ -427,7 +453,6 @@ const Dashboard: React.FC = () => {
         projectName: getProjectName(t.project_id ?? null),
         assigneeName: getAssigneeName(t.assigned_to ?? null),
       }))
-      .slice(0, 10)
   }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
   // 遅延タスク（期日が過去で未完了、または status が delayed）※プロジェクト名・担当者名も付与
@@ -475,6 +500,7 @@ const Dashboard: React.FC = () => {
       // 2. Phaseの判定
       if (t.phases && Array.isArray(t.phases)) {
         t.phases.forEach((p: any, idx: number) => {
+          if (p.is_completed) return; // 完了済みPhaseは除外
           const phaseDate = p.date ? new Date(p.date) : null
           if (phaseDate) {
             phaseDate.setHours(0, 0, 0, 0)
@@ -484,6 +510,7 @@ const Dashboard: React.FC = () => {
                 ...t,
                 id: `phase-${t.id}-${idx}`,
                 originalId: t.id,
+                phaseIdx: idx, // インデックスを保持
                 name: `${t.name}: ${p.name}`,
                 due_date: p.date,
                 isPhase: true
@@ -501,7 +528,6 @@ const Dashboard: React.FC = () => {
         projectName: getProjectName(t.project_id ?? null),
         assigneeName: getAssigneeName(t.assigned_to ?? null),
       }))
-      .slice(0, 10)
   }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
   // サマリー用：オフラインを除いたプロジェクト数・タスク数（globalData があるときのみ使用）
@@ -1235,6 +1261,19 @@ const Dashboard: React.FC = () => {
     )
   }
 
+  const handleTogglePhase = async (taskId: number, phaseIdx: number, completed: boolean) => {
+    try {
+      const task = globalData?.tasks.find((t: any) => t.id === taskId);
+      if (!task || !task.phases) return;
+      const updatedPhases = [...task.phases];
+      updatedPhases[phaseIdx] = { ...updatedPhases[phaseIdx], is_completed: completed };
+      await api.put(`/tasks/${taskId}`, { phases: updatedPhases });
+      if (refreshGlobalData) await refreshGlobalData();
+    } catch (err) {
+      console.error('Failed to update phase:', err);
+    }
+  };
+
   const statCards = [
     {
       title: 'ユーザー',
@@ -1397,15 +1436,39 @@ const Dashboard: React.FC = () => {
                 todayItems.map((item) => (
                   <Box
                     key={`${item.type}-${item.id}`}
-                    onClick={() => {
-                      if (item.type === 'event') setEditEventId(item.rawId);
-                      else setEditTaskId(item.rawId);
+                    onClick={(e) => {
+                      if ((e.target as any).type === 'checkbox') return;
+                      if (item.type === 'event') {
+                        const originalEvent = backendEvents.find(ev => ev.id === item.rawId);
+                        if (originalEvent) {
+                          setSelectedEventDetail(originalEvent);
+                          setIsEventDetailOpen(true);
+                        }
+                      } else {
+                        const originalTask = (globalData?.tasks ?? []).find((t: any) => t.id === item.rawId);
+                        if (originalTask) {
+                          setSelectedTaskDetail(originalTask);
+                          setIsTaskDetailOpen(true);
+                        }
+                      }
                     }}
                     sx={{
                       py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 },
                       cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }
                     }}
                   >
+                    {item.isPhase && (
+                      <Checkbox
+                        size="small"
+                        sx={{ p: 0.5, mt: -0.5, ml: -0.5 }}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (item.phaseIdx !== undefined) {
+                            handleTogglePhase(item.rawId, item.phaseIdx, e.target.checked);
+                          }
+                        }}
+                      />
+                    )}
                     <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : (item.isPhase ? 'secondary.light' : 'warning.light'), color: item.type === 'event' ? 'info.dark' : (item.isPhase ? 'secondary.dark' : 'warning.dark') }}>
                       {item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}
                     </Box>
@@ -1472,7 +1535,15 @@ const Dashboard: React.FC = () => {
                 weekDeadlineTasks.map((t: any) => (
                   <Box
                     key={t.id}
-                    onClick={() => setEditTaskId(t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id))}
+                    onClick={(e) => {
+                      if ((e.target as any).type === 'checkbox') return;
+                      const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id);
+                      const originalTask = (globalData?.tasks ?? []).find((tk: any) => tk.id === taskId);
+                      if (originalTask) {
+                        setSelectedTaskDetail(originalTask);
+                        setIsTaskDetailOpen(true);
+                      }
+                    }}
                     sx={{
                       py: 1,
                       px: 1.25,
@@ -1485,34 +1556,51 @@ const Dashboard: React.FC = () => {
                       borderLeftColor: 'warning.main',
                       '&:last-of-type': { mb: 0 },
                       cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' }
+                      '&:hover': { bgcolor: 'action.hover' },
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
                     }}
                   >
-                    <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, color: 'text.primary' }}
-                      noWrap
-                      title={t.name}
-                    >
-                      {t.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                      <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                        {t.projectName}
+                    {t.isPhase && (
+                      <Checkbox
+                        size="small"
+                        sx={{ p: 0.5 }}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (t.phaseIdx !== undefined) {
+                            handleTogglePhase(Number(t.originalId), t.phaseIdx, e.target.checked);
+                          }
+                        }}
+                      />
+                    )}
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: 'text.primary' }}
+                        noWrap
+                        title={t.name}
+                      >
+                        {t.name}
                       </Typography>
-                    </Box>
-                    {t.assigneeName && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}
+                      </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {t.assigneeName}
+                          {t.projectName}
                         </Typography>
                       </Box>
-                    )}
+                      {t.assigneeName && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            {t.assigneeName}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
                 ))
               )}
@@ -1539,7 +1627,7 @@ const Dashboard: React.FC = () => {
               <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', boxShadow: 2 }}>
                 <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
               </Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク <Typography component="span" sx={{ color: 'error.main', fontSize: '0.75rem', fontWeight: 700, verticalAlign: 'middle' }}>(要確認)</Typography></Typography>
               <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>
                 {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${delayedTasks.length}件`}
               </Typography>
@@ -1557,7 +1645,15 @@ const Dashboard: React.FC = () => {
                 delayedTasks.map((t: any) => (
                   <Box
                     key={t.id}
-                    onClick={() => setEditTaskId(t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id))}
+                    onClick={(e) => {
+                      if ((e.target as any).type === 'checkbox') return;
+                      const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id);
+                      const originalTask = (globalData?.tasks ?? []).find((tk: any) => tk.id === taskId);
+                      if (originalTask) {
+                        setSelectedTaskDetail(originalTask);
+                        setIsTaskDetailOpen(true);
+                      }
+                    }}
                     sx={{
                       py: 1,
                       px: 1.25,
@@ -1570,34 +1666,51 @@ const Dashboard: React.FC = () => {
                       borderLeftColor: 'error.main',
                       '&:last-of-type': { mb: 0 },
                       cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' }
+                      '&:hover': { bgcolor: 'action.hover' },
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
                     }}
                   >
-                    <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, color: 'text.primary' }}
-                      noWrap
-                      title={t.name}
-                    >
-                      {t.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                      <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                        {t.projectName}
+                    {t.isPhase && (
+                      <Checkbox
+                        size="small"
+                        sx={{ p: 0.5 }}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (t.phaseIdx !== undefined) {
+                            handleTogglePhase(Number(t.originalId), t.phaseIdx, e.target.checked);
+                          }
+                        }}
+                      />
+                    )}
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: 'text.primary' }}
+                        noWrap
+                        title={t.name}
+                      >
+                        {t.name}
                       </Typography>
-                    </Box>
-                    {t.assigneeName && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}
+                      </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {t.assigneeName}
+                          {t.projectName}
                         </Typography>
                       </Box>
-                    )}
+                      {t.assigneeName && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                            {t.assigneeName}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
                   </Box>
                 ))
               )}
@@ -1977,6 +2090,86 @@ const Dashboard: React.FC = () => {
           fetchEvents(); // イベントリスト再取得
         }}
       />
+
+      {/* タスク詳細ドロワー */}
+      <Drawer
+        anchor="right"
+        open={isTaskDetailOpen}
+        onClose={() => setIsTaskDetailOpen(false)}
+        PaperProps={{
+          sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>タスク詳細</Typography>
+          <IconButton onClick={() => setIsTaskDetailOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        {selectedTaskDetail && (
+          <TaskQuickDetail
+            task={selectedTaskDetail}
+            projects={globalData?.projects ?? []}
+            users={globalData?.users ?? []}
+            onUpdate={handleUpdateTaskQuick}
+          />
+        )}
+        <Box sx={{ p: 2, mt: 'auto', display: 'flex', gap: 1 }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<EditIcon />}
+            onClick={() => {
+              setIsTaskDetailOpen(false);
+              setEditTaskId(selectedTaskDetail!.id);
+            }}
+          >
+            詳細編集
+          </Button>
+        </Box>
+      </Drawer>
+
+      {/* イベント詳細ドロワー（必要に応じて） */}
+      <Drawer
+        anchor="right"
+        open={isEventDetailOpen}
+        onClose={() => setIsEventDetailOpen(false)}
+        PaperProps={{
+          sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>イベント詳細</Typography>
+          <IconButton onClick={() => setIsEventDetailOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Box sx={{ p: 2 }}>
+          {selectedEventDetail && (
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>{selectedEventDetail.title}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {selectedEventDetail.start_time ? format(new Date(selectedEventDetail.start_time), 'yyyy/MM/dd HH:mm') : ''}
+              </Typography>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{selectedEventDetail.description}</Typography>
+
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<EditIcon />}
+                sx={{ mt: 4 }}
+                onClick={() => {
+                  setIsEventDetailOpen(false);
+                  setEditEventId(selectedEventDetail.id);
+                }}
+              >
+                編集する
+              </Button>
+            </Box>
+          )}
+        </Box>
+      </Drawer>
     </Box >
   )
 }

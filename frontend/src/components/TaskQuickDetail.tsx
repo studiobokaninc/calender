@@ -97,51 +97,82 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 2 }}>
-            {/* Basic Info Header */}
-            <Box>
+            {/* Basic Info Header - Unified & Prominent */}
+            <Box sx={{
+                mb: 1,
+                p: 2.5,
+                borderRadius: 2,
+                background: isDark
+                    ? 'linear-gradient(135deg, rgba(33, 150, 243, 0.15) 0%, rgba(33, 150, 243, 0.05) 100%)'
+                    : 'linear-gradient(135deg, #e3f2fd 0%, #f1f8fe 100%)',
+                border: '1px solid',
+                borderColor: isDark ? 'rgba(33, 150, 243, 0.3)' : '#bbdefb',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+                position: 'relative',
+                overflow: 'hidden',
+                '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '4px',
+                    height: '100%',
+                    backgroundColor: theme.palette.primary.main
+                }
+            }}>
                 <Typography variant="h5" sx={{
                     fontWeight: 800,
-                    mb: 1,
-                    lineHeight: 1.2,
-                    color: theme.palette.text.primary,
-                    letterSpacing: '-0.02em'
+                    mb: task.description ? 1.5 : 0,
+                    lineHeight: 1.3,
+                    color: isDark ? '#90caf9' : '#1976d2',
+                    letterSpacing: '-0.01em',
+                    fontSize: '1.4rem'
                 }}>
                     {task.name}
                 </Typography>
 
                 {task.description && (
-                    <Box sx={{
-                        mb: 2,
-                        p: 1.5,
-                        bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-                        borderRadius: 1,
-                        borderLeft: `4px solid ${theme.palette.primary.main}`
+                    <Typography variant="body2" sx={{
+                        whiteSpace: 'pre-wrap',
+                        color: theme.palette.text.primary,
+                        lineHeight: 1.7,
+                        fontSize: '0.95rem',
+                        opacity: 0.9,
+                        pt: 1.5,
+                        borderTop: '1px solid',
+                        borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'
                     }}>
-                        <Typography variant="caption" color="primary" sx={{ fontWeight: 700, textTransform: 'uppercase', mb: 0.5, display: 'block' }}>
-                            説明
-                        </Typography>
-                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: 'text.primary', lineHeight: 1.6 }}>
-                            {task.description}
-                        </Typography>
-                    </Box>
+                        {task.description}
+                    </Typography>
                 )}
+            </Box>
 
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Chip
-                        label={project?.name || 'プロジェクト未設定'}
-                        size="small"
-                        icon={<FolderIcon fontSize="small" />}
-                        variant="outlined"
-                        sx={{ maxWidth: 200, fontWeight: 500 }}
-                    />
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
-                        <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: theme.palette.primary.main }}>
-                            {assignee?.username?.[0]?.toUpperCase() || '?'}
-                        </Avatar>
-                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                            {assignee?.username || '未割り当て'}
-                        </Typography>
-                    </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                <Chip
+                    label={project?.name || 'プロジェクト未設定'}
+                    size="small"
+                    icon={<FolderIcon fontSize="small" />}
+                    variant="outlined"
+                    sx={{
+                        maxWidth: 200,
+                        fontWeight: 600,
+                        borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                        bgcolor: 'background.paper'
+                    }}
+                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1, bgcolor: 'background.paper', px: 1, py: 0.5, borderRadius: 10, border: '1px solid', borderColor: 'divider' }}>
+                    <Avatar sx={{
+                        width: 24,
+                        height: 24,
+                        fontSize: '0.7rem',
+                        bgcolor: theme.palette.primary.main,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}>
+                        {assignee?.username?.[0]?.toUpperCase() || '?'}
+                    </Avatar>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
+                        {assignee?.username || '未割り当て'}
+                    </Typography>
                 </Box>
             </Box>
 
@@ -177,6 +208,48 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         ))}
                     </Box>
                 </Box>
+
+                {/* Phases (Sub-milestones) */}
+                {task.phases && task.phases.length > 0 && (
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            <CalendarTodayIcon fontSize="small" color="primary" /> 段階目標
+                        </Typography>
+                        <List sx={{ p: 0, bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 1 }}>
+                            {task.phases.map((p, idx) => (
+                                <ListItem key={idx} sx={{ py: 0.5, px: 2 }}>
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox
+                                                size="small"
+                                                checked={!!p.is_completed}
+                                                onChange={async (e) => {
+                                                    const updatedPhases = [...(task.phases || [])];
+                                                    updatedPhases[idx] = { ...updatedPhases[idx], is_completed: e.target.checked };
+                                                    await onUpdate(task.id, { phases: updatedPhases });
+                                                }}
+                                            />
+                                        }
+                                        label={
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography variant="body2" sx={{
+                                                    textDecoration: p.is_completed ? 'line-through' : 'none',
+                                                    color: p.is_completed ? 'text.secondary' : 'text.primary',
+                                                    fontWeight: 600
+                                                }}>
+                                                    {p.name}
+                                                </Typography>
+                                                <Typography variant="caption" sx={{ color: 'text.secondary', bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', px: 0.5, borderRadius: 0.5 }}>
+                                                    {formatDate(p.date)}
+                                                </Typography>
+                                            </Box>
+                                        }
+                                    />
+                                </ListItem>
+                            ))}
+                        </List>
+                    </Box>
+                )}
 
                 {/* Check Items */}
                 <Box>

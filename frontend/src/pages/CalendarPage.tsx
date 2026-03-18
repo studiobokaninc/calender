@@ -39,24 +39,10 @@ const normalizeEventType = (type: string | undefined | null): string => {
 // ★★★ バックアップ版から getEventColor, getProjectColor, getTaskColor を移植 ★★★
 const getEventColor = (
     type?: string,
-    projectStatus?: string,
-    eventDate?: string | Date | null
+    _projectStatus?: string,
+    _eventDate?: string | Date | null
 ): string => {
-    // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
-    const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
-
-    // プロジェクトが完了またはキャンセルの場合は、イベントの種類に関わらずグレーにする
-    if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
-        return '#9E9E9E';
-    }
-
-    // 日付が過ぎている場合はグレーにする
-    if (eventDate) {
-        const isPast = isDatePast(eventDate);
-        if (isPast) {
-            return '#9E9E9E';
-        }
-    }
+    // 完了ステータス以外でグレーにする処理を削除（ユーザー要望：ステータスの色を反映させたい）
 
     const t = type?.toLowerCase();
     switch (t) {
@@ -92,48 +78,15 @@ const getProjectColor = (project?: { status?: string | null; color?: string | nu
     }
 };
 
-// 日付が過ぎているかどうかを判定するヘルパー関数
-// 2/5の時に2/4 00:00~00:00のイベントもグレーになるように、日付のみで比較（時刻は無視）
-const isDatePast = (dateStr: string | Date | null | undefined): boolean => {
-    if (!dateStr) return false;
-    try {
-        const date = typeof dateStr === 'string' ? parseISO(dateStr) : dateStr;
-        if (!isValidDateFns(date)) return false;
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const eventDate = new Date(date);
-        eventDate.setHours(0, 0, 0, 0);
-
-        // 日付のみで比較（2/4のイベントは2/5の時点で「過ぎている」と判定）
-        // eventDate < today ではなく、eventDate <= today - 1日 で判定
-        // つまり、今日より前の日付のイベントは「過ぎている」
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        yesterday.setHours(0, 0, 0, 0);
-
-        // イベント日付が昨日以前なら「過ぎている」
-        return eventDate <= yesterday;
-    } catch {
-        return false;
-    }
-};
 
 const getTaskColor = (
     status?: string,
-    projectStatus?: string,
+    _projectStatus?: string,
     _dueDate?: string | Date | null
 ): string => {
-    // プロジェクトステータスを文字列に変換（Enum型の場合も考慮）
-    const projectStatusStr = projectStatus ? String(projectStatus).toLowerCase() : undefined;
-
-    // プロジェクトが完了またはキャンセルの場合は、タスクのステータスに関わらずグレーにする
-    if (projectStatusStr === 'completed' || projectStatusStr === 'cancelled') {
-        return '#9E9E9E';
-    }
-
-    // タスクは日付が過ぎただけではグレーにしない（プロジェクトステータスのみで判定）
+    // プロジェクトステータスによる一律グレー化を削除
+    // タスクは日付が過ぎただけではグレーにしない
 
     switch (status?.toLowerCase()) {
         case 'todo': return '#2196F3';
@@ -188,6 +141,7 @@ const sortEventsForDisplay = (eventsToSort: CalendarEvent[]): CalendarEvent[] =>
     });
 };
 
+
 const CalendarPage: React.FC = () => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
@@ -229,7 +183,33 @@ const CalendarPage: React.FC = () => {
     };
     // 状態を分離（初期化時はページ状態から取得、context 復元後に上書き）
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [selectedEventDetails, setSelectedEventDetails] = useState<{ event: CalendarEvent | null; totalCost?: number; }>({ event: null });
+    const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+    // 選択中のイベントと合計コストを rawEvents から導出
+    const selectedEvent = useMemo(() => {
+        if (!selectedEventId) return null;
+        return rawEvents.find(e => e.id === selectedEventId) || null;
+    }, [rawEvents, selectedEventId]);
+
+    const calculateTotalCost = useCallback((eventsToConsider: CalendarEvent[]) => {
+        return eventsToConsider
+            .filter(event => event.extendedProps.type?.toLowerCase() === 'task' && typeof event.extendedProps.taskCost === 'number')
+            .reduce((sum, event) => sum + (event.extendedProps.taskCost || 0), 0);
+    }, []);
+
+    const totalCost = useMemo(() => {
+        if (!selectedEvent) return undefined;
+        if (selectedEvent.extendedProps.type?.toLowerCase() === 'task') {
+            return selectedEvent.extendedProps.taskCost ?? 0;
+        }
+        if (selectedEvent.start) {
+            const dateObj = selectedEvent.start instanceof Date ? selectedEvent.start : parseISO(selectedEvent.start as string);
+            const dayEvents = rawEvents.filter(e => e.start && isSameDay(e.start instanceof Date ? e.start : parseISO(e.start as string), dateObj));
+            return calculateTotalCost(dayEvents);
+        }
+        return undefined;
+    }, [selectedEvent, rawEvents, calculateTotalCost]);
+
     const [eventStatusFilter, setEventStatusFilter] = useState<string>('all'); // 'all' または プロジェクトID
     const [eventTypeFilter, setEventTypeFilter] = useState<Record<string, boolean>>(DEFAULT_EVENT_TYPE_FILTER);
     const [stateRestored, setStateRestored] = useState(false);
@@ -967,6 +947,7 @@ const CalendarPage: React.FC = () => {
                                     displayStatus: project?.display_status as 'online' | 'offline' | 'archived' | undefined,
                                     check_items: (task as any).check_items ?? [],
                                     deliverables: (task as any).deliverables ?? "",
+                                    phases: task.phases ?? [],
                                 }
                             });
                         }
@@ -1268,7 +1249,7 @@ const CalendarPage: React.FC = () => {
                 setSelectedDate(new Date(calendarState.selectedDate));
             }
             if (calendarState.selectedEvent) {
-                setSelectedEventDetails({ event: calendarState.selectedEvent });
+                setSelectedEventId(calendarState.selectedEvent?.id || null);
             }
             if (calendarState.filterStatus !== undefined && calendarState.filterStatus !== '') {
                 setEventStatusFilter(calendarState.filterStatus);
@@ -1287,12 +1268,12 @@ const CalendarPage: React.FC = () => {
         if (stateRestored) {
             updateCalendarState({
                 selectedDate: selectedDate?.toISOString() || null,
-                selectedEvent: selectedEventDetails.event,
+                selectedEvent: selectedEvent,
                 filterStatus: eventStatusFilter,
                 eventTypeFilter,
             });
         }
-    }, [selectedDate, selectedEventDetails, eventStatusFilter, eventTypeFilter, stateRestored, updateCalendarState]);
+    }, [selectedDate, selectedEvent, eventStatusFilter, eventTypeFilter, stateRestored, updateCalendarState]);
 
     // プロジェクトの検索を最適化するためのMapを作成（O(1)の検索を可能にする）
     const projectsMap = useMemo(() => {
@@ -1441,6 +1422,7 @@ const CalendarPage: React.FC = () => {
         });
     }, [filteredEvents, projectsMap]);
 
+
     // eventsForFullCalendarが変更されたときに、FullCalendarのイベントを更新
     // 注意: FullCalendarは自動的に再レンダリングするため、render()の呼び出しは不要
     // タスクの色のみ、必要に応じて更新（パフォーマンス最適化のため最小限の処理）
@@ -1487,11 +1469,6 @@ const CalendarPage: React.FC = () => {
     };
 
     // ★★★ calculateTotalCost は rawEvents を使うように修正 ★★★
-    const calculateTotalCost = useCallback((eventsToConsider: CalendarEvent[]) => {
-        return eventsToConsider
-            .filter(event => event.extendedProps.type === 'task' && typeof event.extendedProps.taskCost === 'number')
-            .reduce((sum, event) => sum + (event.extendedProps.taskCost || 0), 0);
-    }, []);
 
     // ★★★ handleDateClick をダブルクリック対応に修正（モバイルではシングルタップで日付選択） ★★★
     const handleDateClick = (arg: DateClickArg) => {
@@ -1503,7 +1480,7 @@ const CalendarPage: React.FC = () => {
             // モバイルでは、その日のイベント一覧を表示するために、
             // 空のイベント詳細（またはその日の最初のイベント）ではなく、
             // 単に「その日」が選択された状態としてボトムシートを開く
-            setSelectedEventDetails({ event: null });
+            setSelectedEventId(null);
 
             // その日のイベントがあるか確認し、あれば合計コストを計算（オプション）
             // const dayEvents = rawEvents.filter(event => event.start && isSameDay(parseISO(event.start as string), newSelectedDate));
@@ -1525,8 +1502,8 @@ const CalendarPage: React.FC = () => {
             console.log("[CalendarPage] Single clicked on date:", arg.date);
             const newSelectedDate = arg.date;
             setSelectedDate(newSelectedDate);
-            setSelectedEventDetails({ event: null });
-            console.log("[CalendarPage] After click - selectedDate:", newSelectedDate, "selectedEventDetails.event:", null);
+            setSelectedEventId(null);
+            console.log("[CalendarPage] After click - selectedDate:", newSelectedDate, "selectedEventId:", null);
         }
         lastClickTimeRef.current = clickTime;
     };
@@ -1534,24 +1511,17 @@ const CalendarPage: React.FC = () => {
     const handleEventClick = (clickInfo: EventClickArg) => {
         const clickedEvent = rawEvents.find(event => event.id === clickInfo.event.id);
         if (!clickedEvent) {
-            setSelectedEventDetails({ event: null });
+            setSelectedEventId(null);
             return;
         }
 
         // モバイルではシングルタップでイベント詳細ボトムシートを開く
         if (isMobile) {
             console.log("[CalendarPage] Mobile: Single tap on event to show details:", clickedEvent);
-            let totalCost: number | undefined = undefined;
-            if (clickedEvent.extendedProps.type === 'Task') {
-                totalCost = clickedEvent.extendedProps.taskCost ?? 0;
-            } else if (clickedEvent.start) {
-                const dayEvents = rawEvents.filter(event => event.start && isSameDay(parseISO(event.start as string), parseISO(clickedEvent.start as string)));
-                totalCost = calculateTotalCost(dayEvents);
-            }
             if (clickedEvent.start) {
                 setSelectedDate(clickedEvent.start instanceof Date ? clickedEvent.start : parseISO(clickedEvent.start as string));
             }
-            setSelectedEventDetails({ event: clickedEvent, totalCost });
+            setSelectedEventId(clickedEvent.id);
             setMobileEventDetailsOpen(true);
             return;
         }
@@ -1568,34 +1538,20 @@ const CalendarPage: React.FC = () => {
             return;
         }
         // シングルクリック: 詳細パネルに表示
-        let totalCost: number | undefined = undefined;
-        if (clickedEvent.extendedProps.type === 'Task') {
-            totalCost = clickedEvent.extendedProps.taskCost ?? 0;
-        } else if (clickedEvent.start) {
-            const dayEvents = rawEvents.filter(event => event.start && isSameDay(parseISO(event.start as string), parseISO(clickedEvent.start as string)));
-            totalCost = calculateTotalCost(dayEvents);
-        }
         if (clickedEvent.start) {
             setSelectedDate(clickedEvent.start instanceof Date ? clickedEvent.start : parseISO(clickedEvent.start as string));
         }
-        setSelectedEventDetails({ event: clickedEvent, totalCost });
+        setSelectedEventId(clickedEvent.id);
         setIsPanelMinimized(false);
     };
 
     const handlePanelEventSelect = (event: CalendarEvent) => {
         console.log("[CalendarPage] handlePanelEventSelect called with event:", JSON.parse(JSON.stringify(event))); // ★★★ ログ追加 ★★★
-        const cost = event.extendedProps.type === 'Task' ? (event.extendedProps.taskCost ?? 0) : undefined;
-        let totalCost = cost;
-        if (event.start && !cost) {
-            // ★★★ 修正: rawEvents を直接参照 ★★★
-            const dayEvents = rawEvents.filter(e => e.start && isSameDay(parseISO(e.start as string), parseISO(event.start as string)));
-            totalCost = calculateTotalCost(dayEvents);
-        }
         if (event.start) {
             setSelectedDate(event.start instanceof Date ? event.start : parseISO(event.start as string));
         }
-        setSelectedEventDetails({ event, totalCost });
-        setIsPanelMinimized(false);
+        setSelectedEventId(event.id);
+        setIsPanelMinimized(false); // ★パネルを開く
     };
 
     const handleOpenAddModal = (selectInfo?: DateSelectArg) => {
@@ -1618,8 +1574,7 @@ const CalendarPage: React.FC = () => {
 
     const handleOpenEditModal = (event: CalendarEvent) => {
         console.log("Opening edit modal for:", event);
-        const cost = event.extendedProps.type === 'task' ? (event.extendedProps.taskCost ?? 0) : undefined;
-        setSelectedEventDetails({ event: event, totalCost: cost });
+        setSelectedEventId(event.id);
         setModalEventToEdit(event); // 編集時のみモーダルに渡す
         if (event.extendedProps?.isPhase) {
             setIsPhaseEditModalOpen(true);
@@ -2016,7 +1971,7 @@ const CalendarPage: React.FC = () => {
 
             // モーダルを閉じて選択をクリア
             handleCloseModal();
-            setSelectedEventDetails({ event: null });
+            setSelectedEventId(null);
             setLoading(false);
         }
     };
@@ -2046,7 +2001,7 @@ const CalendarPage: React.FC = () => {
                         phases: updatedPhases
                     });
 
-                    setSelectedEventDetails({ event: null }); // Close details panel
+                    setSelectedEventId(null); // Close details panel
                     fetchData();
                     console.log("Phase deleted successfully.");
                 }
@@ -2081,7 +2036,7 @@ const CalendarPage: React.FC = () => {
                 console.log(`Event with numeric ID ${numericId} (original ID: ${event.id}) deleted successfully.`);
             }
 
-            setSelectedEventDetails({ event: null }); // 詳細パネルをクリア
+            setSelectedEventId(null); // 詳細パネルをクリア
 
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
@@ -2207,22 +2162,7 @@ const CalendarPage: React.FC = () => {
         try {
             await api.put(`/tasks/${taskId}`, updates);
             if (refreshGlobalData) await refreshGlobalData();
-            // 選択中のイベントの詳細を更新するためにselectedEventDetailsも更新する
-            if (selectedEventDetails.event && selectedEventDetails.event.extendedProps?.taskId === taskId) {
-                const refreshedEvent = { ...selectedEventDetails.event };
-                refreshedEvent.extendedProps = {
-                    ...refreshedEvent.extendedProps,
-                    ...updates
-                };
-                // 特殊なマッピング（status -> taskStatus, progress -> taskProgress）
-                if (updates.status) refreshedEvent.extendedProps.taskStatus = updates.status;
-                if (updates.progress !== undefined) refreshedEvent.extendedProps.taskProgress = updates.progress;
-
-                setSelectedEventDetails({
-                    ...selectedEventDetails,
-                    event: refreshedEvent
-                });
-            }
+            // selectedEventId は保持されるため、rawEvents が更新されれば selectedEvent も自動で更新される
         } catch (error) {
             console.error("Failed to update task:", error);
             alert("タスクの更新に失敗しました。");
@@ -2249,7 +2189,7 @@ const CalendarPage: React.FC = () => {
 
                 setIsPhaseEditModalOpen(false);
                 setModalEventToEdit(null);
-                setSelectedEventDetails({ event: null }); // Close details panel if open
+                setSelectedEventId(null); // Close details panel if open
                 fetchData();
             }
 
@@ -2280,7 +2220,7 @@ const CalendarPage: React.FC = () => {
         const end = selectInfo.end;
 
         setSelectedDate(start instanceof Date ? start : parseISO(start as string));
-        setSelectedEventDetails({ event: null });
+        setSelectedEventId(null);
         setDateClickArg(null); // 選択時はdateClickArgをnullに
 
         // ユーザーが管理者であり、かつドラッグ（1日より長い範囲）の場合はモーダルを開く
@@ -2607,9 +2547,9 @@ const CalendarPage: React.FC = () => {
         // マイルストーン（Milestone）
         if (type?.toLowerCase() === 'milestone') {
             return (
-                <div className="calendar-event-inner milestone-event-content" style={{ width: '100%', overflow: 'hidden' }}>
-                    <span className="calendar-event-type-badge" title={typeLabel}>MS</span>
-                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
+                <div className="calendar-event-inner milestone-event-content" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+                    <span className="calendar-event-type-badge" style={{ marginRight: '4px', fontSize: '0.65rem', padding: '1px 4px', backgroundColor: '#FFD700', color: '#000' }}>マイルストーン</span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 700 }} title={title}>{title}</span>
                 </div>
             );
         }
@@ -2647,14 +2587,14 @@ const CalendarPage: React.FC = () => {
                     <span style={{
                         backgroundColor: '#8E24AA', // 鮮やかな紫 (Purple 600)
                         color: 'white',
-                        fontSize: '0.65em',
-                        padding: '1px 4px',
+                        fontSize: '0.6rem',
+                        padding: '1px 5px',
                         borderRadius: '3px',
                         marginRight: '6px',
                         fontWeight: 'bold',
                         flexShrink: 0,
                         boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                    }}>PHASE</span>
+                    }}>段階目標</span>
                     <span style={{
                         overflow: 'hidden',
                         whiteSpace: 'nowrap',
@@ -2700,11 +2640,11 @@ const CalendarPage: React.FC = () => {
             const timeText = eventInfo.timeText || '';
             const displayTitle = timeText ? `${timeText} ${title}` : title;
             return (
-                <div className="calendar-event-inner calendar-event-generic" style={{ width: '100%', overflow: 'hidden' }}>
-                    <span className="calendar-event-type-badge calendar-event-type-generic" title={typeLabel}>予定</span>
-                    {isTimedEvent && <span className="calendar-event-time" style={{ fontWeight: 600 }}>{timeText}</span>}
-                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={displayTitle}>
-                        {isTimedEvent && ' '}{title}
+                <div className="calendar-event-inner calendar-event-generic" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+                    <span className="calendar-event-type-badge calendar-event-type-generic" style={{ marginRight: '4px', fontSize: '0.65rem' }}>予定</span>
+                    {isTimedEvent && <span className="calendar-event-time" style={{ fontWeight: 600, marginRight: '4px', color: 'rgba(0,0,0,0.6)' }}>{timeText}</span>}
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 500 }} title={displayTitle}>
+                        {title}
                     </span>
                 </div>
             );
@@ -2712,18 +2652,33 @@ const CalendarPage: React.FC = () => {
 
         // タスク
         if (type === 'task') {
+            const status = eventInfo.event.extendedProps.status;
+            const isDelayed = status === 'delayed';
+
             return (
-                <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden' }}>
-                    <span className="calendar-event-type-badge calendar-event-type-task" title={typeLabel}>T</span>
-                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
+                <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+                    <span className="calendar-event-type-badge calendar-event-type-task" style={{ marginRight: '4px', fontSize: '0.65rem', padding: '1px 4px' }}>タスク</span>
+                    {isDelayed && (
+                        <span style={{
+                            backgroundColor: '#D32F2F',
+                            color: 'white',
+                            fontSize: '0.6rem',
+                            padding: '1px 4px',
+                            borderRadius: '3px',
+                            marginRight: '4px',
+                            fontWeight: 'bold',
+                            flexShrink: 0
+                        }}>遅延</span>
+                    )}
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 600 }} title={title}>{title}</span>
                 </div>
             );
         }
 
         // その他（ラベル＋タイトル）
         return (
-            <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden' }}>
-                <span className="calendar-event-type-badge" title={typeLabel}>{typeLabel.slice(0, 2)}</span>
+            <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+                <span className="calendar-event-type-badge" style={{ marginRight: '4px', fontSize: '0.65rem' }}>{typeLabel.slice(0, 2)}</span>
                 <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
             </div>
         );
@@ -3206,10 +3161,6 @@ const CalendarPage: React.FC = () => {
                 .fc-event.grey-event.deadline-event-wrapper .deadline-event-content {
                     color: ${isDark ? '#e0e0e0' : '#616161'} !important;
                 }
-                .fc-event.grey-event.deadline-event-wrapper .calendar-event-type-deadline {
-                    background-color: #9E9E9E !important;
-                    color: #fff !important;
-                }
                 .fc-event.grey-event.milestone-event-wrapper .milestone-event-content {
                     background-color: #9E9E9E !important;
                     color: ${isDark ? '#fff' : '#000'} !important;
@@ -3230,10 +3181,6 @@ const CalendarPage: React.FC = () => {
                 .fc-event.grey-event.workshop-event *,
                 .fc-daygrid-event.grey-event.workshop-event * {
                     color: #9E9E9E !important;
-                }
-                .fc-event.grey-event.custom-event {
-                    background-color: #9E9E9E !important;
-                    border-color: #9E9E9E !important;
                 }
                 /* 完了プロジェクトの会議・ワークショップ - バーなし、文字色のみグレーに */
                 .fc-event.completed-project-event.meeting-event,
@@ -3542,14 +3489,14 @@ const CalendarPage: React.FC = () => {
                             const project = projectId ? projectsMap.get(String(projectId)) : undefined;
                             const projectStatusStr = project?.status ? String(project.status).toLowerCase() : undefined;
                             const isCompletedProject = projectStatusStr === 'completed';
-                            const isCancelledProject = projectStatusStr === 'cancelled';
+
 
                             // タスクとイベントのステータスを取得
                             const taskStatusStr = arg.event.extendedProps.taskStatus ? String(arg.event.extendedProps.taskStatus).toLowerCase() : undefined;
                             const eventStatusStr = arg.event.extendedProps.status ? String(arg.event.extendedProps.status).toLowerCase() : undefined;
 
-                            // 完了またはキャンセルの場合はグレー表示にする（日付が過去というだけではグレーにしない）
-                            if (isCompletedProject || isCancelledProject || taskStatusStr === 'completed' || eventStatusStr === 'completed') {
+                            // 完了の場合はグレー表示にする
+                            if (taskStatusStr === 'completed' || eventStatusStr === 'completed' || eventStatusStr === 'cancelled') {
                                 classes.push('grey-event');
                             }
 
@@ -3565,8 +3512,8 @@ const CalendarPage: React.FC = () => {
                                 classes.push('project-event');
                             } else if (normalizedType === 'task') {
                                 // タスクの場合は特別な処理は不要（eventDidMountで色を設定）
-                                // ただし、完了/キャンセルの場合はgrey-taskクラスを追加
-                                if (isCompletedProject || isCancelledProject || taskStatusStr === 'completed') {
+                                // 完了の場合はgrey-taskクラスを追加
+                                if (taskStatusStr === 'completed') {
                                     classes.push('grey-task');
                                 }
                             } else if (normalizedType === 'deadline') {
@@ -3663,8 +3610,8 @@ const CalendarPage: React.FC = () => {
                     >
                         <EventDetailsPanel
                             selectedDate={selectedDate}
-                            selectedEvent={selectedEventDetails.event}
-                            totalCost={selectedEventDetails.totalCost}
+                            selectedEvent={selectedEvent}
+                            totalCost={totalCost}
                             events={filteredEvents}
                             onEventSelect={handlePanelEventSelect}
                             isMinimized={isPanelMinimized}
@@ -3798,8 +3745,8 @@ const CalendarPage: React.FC = () => {
                         borderColor: 'divider',
                         flexShrink: 0,
                     }}>
-                        <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
-                            {selectedEventDetails.event ? 'イベント詳細' : selectedDate ? formatDateFnsOriginal(selectedDate, 'yyyy年M月d日', { locale: ja }) : 'イベント'}
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, ml: 1, flexGrow: 1 }}>
+                            {selectedEvent ? 'イベント詳細' : selectedDate ? formatDateFnsOriginal(selectedDate, 'yyyy年M月d日', { locale: ja }) : 'イベント'}
                         </Typography>
                         <IconButton onClick={() => setMobileEventDetailsOpen(false)}>
                             <CloseIcon />
@@ -3812,11 +3759,11 @@ const CalendarPage: React.FC = () => {
                     }}>
                         <EventDetailsPanel
                             selectedDate={selectedDate}
-                            selectedEvent={selectedEventDetails.event}
-                            totalCost={selectedEventDetails.totalCost}
+                            selectedEvent={selectedEvent}
+                            totalCost={totalCost}
                             events={filteredEvents}
                             onEventSelect={(event) => {
-                                setSelectedEventDetails({ event, totalCost: event.extendedProps.taskCost ?? undefined });
+                                setSelectedEventId(event.id);
                                 setMobileEventDetailsOpen(true);
                             }}
                             isMinimized={false}
@@ -3837,6 +3784,7 @@ const CalendarPage: React.FC = () => {
                             eventTypeFilter={eventTypeFilter}
                             onEventTypeFilterChange={handleEventTypeFilterChange}
                             projects={projects}
+                            onUpdateTask={handleUpdateTask}
                         />
                     </Box>
                 </Drawer>

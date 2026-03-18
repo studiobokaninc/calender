@@ -264,11 +264,32 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
     # [ステータス][プロジェクト名] タスク名 の形式にする
     task_title = f"[{task_status_ja}][{project_name}] {task.name}"
 
+    # 段階目標のフォーマット
+    phases_list = []
+    if task.phases:
+        for p in task.phases:
+            # フロントエンドに合わせて is_completed と name を使用
+            status = "✓" if p.get('is_completed') else "○"
+            phases_list.append(f"{status} {p.get('name', 'なし')}")
+    phases_str = "\n".join(phases_list) if phases_list else "なし"
+
+    # 確認事項のフォーマット
+    check_list = []
+    if task.check_items:
+        for c in task.check_items:
+            # フロントエンドに合わせて checked と label を使用
+            status = "✓" if c.get('checked') else "□"
+            check_list.append(f"{status} {c.get('label', 'なし')}")
+    check_str = "\n".join(check_list) if check_list else "なし"
+
     task_desc = (
         f"【プロジェクト】: {project_name}\n"
         f"【担当者】: {assignee_name}\n"
         f"【ステータス】: {task_status_ja}\n"
-        f"【概要】:\n{task.description or 'なし'}"
+        f"【概要】:\n{task.description or 'なし'}\n\n"
+        f"【段階目標】:\n{phases_str}\n\n"
+        f"【確認事項】:\n{check_str}\n\n"
+        f"【メモ】:\n{task.deliverables or 'なし'}"
     )
     
     logger.info(f"[Task Sync] Syncing Task: task_id={task.id}, name={task.name}, status={task.status}, display={task.display_status}, start={start_jst}, end={end_jst}")

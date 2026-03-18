@@ -49,66 +49,117 @@ def _parse_int_safe(value: str | None) -> int | None:
         print(f"Warning: Could not parse string to int: {value}")
         return None
 
-def _was_already_auto_delayed(db: Session, task_id: int, due_date: datetime) -> bool:
+def auto_update_task_statuses(db: Session):
     """
-    指定された期日に対して、既にシステムによる自動遅延処理（または担当者なしでの変更）が行われたかチェックする。
-    changed_by が NULL の DELAYED 履歴があれば、システムによる変更（または担当者なしの手動変更）とみなす。
+    期日または開始日を過ぎたタスクのステータスを自動更新する。
+    1. 期日(due_date)を過ぎたタスク -> DELAYED (完了・レビュー中以外)
+    2. 開始日(start_date)を過ぎたタスク -> IN_PROGRESS (未着手のみ)
+    同一の期日/開始日設定に対して一度だけ実行されるようフラグ(auto_delayed/auto_started)を使用する。
     """
-    if not due_date:
-        return False
+    now = now_jst_naive()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    updated_count = 0
+
+    # 1. 自動遅延 (Overdue -> DELAYED)
+    # 期日が昨日の 23:59:59 を過ぎた（= 今日になった）時点でターゲット
+    overdue_tasks = db.query(models.Task).filter(
+        models.Task.due_date.isnot(None),
+        models.Task.due_date < today_start,
+        models.Task.status.notin_([models.TaskStatus.COMPLETED, models.TaskStatus.REVIEW]),
+        models.Task.auto_delayed == False
+    ).all()
+
+    for task in overdue_tasks:
+        if task.status != models.TaskStatus.DELAYED:
+            task.status = models.TaskStatus.DELAYED
+            task.updated_at = now
+            # 履歴追加
+            db.add(models.TaskStatusHistory(
+                task_id=task.id,
+                status=models.TaskStatus.DELAYED,
+                changed_at=now,
+                changed_by=None # システム
+            ))
+            logger.info(f"Task {task.id} auto-updated to DELAYED (due: {task.due_date})")
         
-    # due_date の 00:00:00 を基準
-    if isinstance(due_date, datetime):
-        due_date_start = due_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    else:
-        # date型の場合のフォールバック
-        due_date_start = datetime.combine(due_date, datetime.min.time())
-        
-    exists = db.query(models.TaskStatusHistory).filter(
-        models.TaskStatusHistory.task_id == task_id,
-        models.TaskStatusHistory.status == models.TaskStatus.DELAYED,
-        models.TaskStatusHistory.changed_by == None,
-        models.TaskStatusHistory.changed_at >= due_date_start
-    ).first()
-    
-    return exists is not None
+        task.auto_delayed = True
+        updated_count += 1
+
+    # 2. 自動開始 (Start passed -> IN_PROGRESS)
+    overdue_starts = db.query(models.Task).filter(
+        models.Task.start_date.isnot(None),
+        models.Task.start_date < today_start,
+        models.Task.status == models.TaskStatus.TODO,
+        models.Task.auto_started == False
+    ).all()
+
+    for task in overdue_starts:
+        task.status = models.TaskStatus.IN_PROGRESS
+        task.updated_at = now
+        task.auto_started = True
+        # 履歴追加
+        db.add(models.TaskStatusHistory(
+            task_id=task.id,
+            status=models.TaskStatus.IN_PROGRESS,
+            changed_at=now,
+            changed_by=None # システム
+        ))
+        logger.info(f"Task {task.id} auto-updated to IN_PROGRESS (start: {task.start_date})")
+        updated_count += 1
+
+    if updated_count > 0:
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to commit auto-updates: {e}")
+            
+    return updated_count
 
 def _check_and_update_overdue_task(db: Session, db_task: models.Task) -> bool:
-    """期日を過ぎたタスクのステータスをdelayedに更新する。更新した場合Trueを返す。"""
-    if db_task.due_date is None:
-        return False
-    
-    # 既に自動遅延が適用されているかチェック（適用済みなら何もしない）
-    if _was_already_auto_delayed(db, db_task.id, db_task.due_date):
-        return False
-
-    # 期日が設定されている場合、現在時刻と比較
+    """単一タスクの自動更新チェック（後方互換性と個別の更新用）"""
+    # 既に auto_update_task_statuses があるので、それを活用するか、
+    # 効率のためにこのタスクに限定して実行する。
     now = now_jst_naive()
-    # 期日を日付のみで比較（時刻を無視）
-    due_date_only = db_task.due_date.replace(hour=0, minute=0, second=0, microsecond=0)
-    now_date_only = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    # 期日を過ぎていて、かつステータスが完了またはレビュー中以外の場合
-    if due_date_only < now_date_only and db_task.status not in [models.TaskStatus.COMPLETED, models.TaskStatus.REVIEW]:
-        # 既にdelayedでない場合のみ更新
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    changed = False
+
+    # 遅延チェック
+    if db_task.due_date and db_task.due_date < today_start and \
+       db_task.status not in [models.TaskStatus.COMPLETED, models.TaskStatus.REVIEW] and \
+       not db_task.auto_delayed:
+        
         if db_task.status != models.TaskStatus.DELAYED:
-            original_status = db_task.status
             db_task.status = models.TaskStatus.DELAYED
-            db_task.updated_at = now
-            
-            # ステータス履歴を記録
-            status_history_entry = models.TaskStatusHistory(
+            db.add(models.TaskStatusHistory(
                 task_id=db_task.id,
                 status=models.TaskStatus.DELAYED,
                 changed_at=now,
-                changed_by=None  # システムによる変更として記録
-            )
-            db.add(status_history_entry)
-            db.commit()
-            db.refresh(db_task)
-            logger.info(f"タスク {db_task.id} のステータスを {original_status} から DELAYED に自動更新しました（期日超過）")
-            return True
-    return False
+                changed_by=None
+            ))
+        db_task.auto_delayed = True
+        db_task.updated_at = now
+        changed = True
+
+    # 開始チェック
+    if db_task.start_date and db_task.start_date < today_start and \
+       db_task.status == models.TaskStatus.TODO and \
+       not db_task.auto_started:
+        
+        db_task.status = models.TaskStatus.IN_PROGRESS
+        db.add(models.TaskStatusHistory(
+            task_id=db_task.id,
+            status=models.TaskStatus.IN_PROGRESS,
+            changed_at=now,
+            changed_by=None
+        ))
+        db_task.auto_started = True
+        db_task.updated_at = now
+        changed = True
+
+    if changed:
+        db.commit()
+    return changed
 
 # --- User CRUD ---
 
@@ -268,6 +319,10 @@ def get_task(db: Session, task_id: int) -> models.Task | None:
 def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None) -> list[dict]:
     """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)"""
     try:
+        # 自動ステータス更新を実行 (一括)
+        # get_tasks は最も頻繁に呼ばれるため、ここで最新状態に同期する
+        auto_update_task_statuses(db)
+
         # SQLAlchemyを使わず、直接SQL文でデータ取得（Enum検証を回避）
         from sqlalchemy import text
 
@@ -298,17 +353,12 @@ def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: 
         
         task_ids = [row.id for row in rows]
         
-        # ステータス履歴をバッチで取得
+        if task_ids:
+            # 内部ヒストリー取得などの処理
+            pass
+        
         history_map = {row.id: [] for row in rows}
         if task_ids:
-            try:
-                # 期日を過ぎたタスクをチェックして自動更新する処理は、パフォーマンスと
-                # SQLiteのロック回避のため、個別のタスク取得(get_task)時のみに抑制しました
-                pass # get_tasks 内での書き込みを停止
-            except:
-                pass
-            history_map = {row.id: [] for row in rows}
-            if task_ids:
                 try:
                     chunk_size = 900
                     for i in range(0, len(task_ids), chunk_size):
@@ -535,6 +585,12 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
         # typeは任意の文字列を許容するため、検証を削除
 
         if hasattr(db_task, db_key):
+            # 日付が変更された場合、自動更新済フラグをリセットする
+            if db_key == "start_date" and db_task.start_date != parsed_value:
+                db_task.auto_started = False
+            if db_key == "due_date" and db_task.due_date != parsed_value:
+                db_task.auto_delayed = False
+
             setattr(db_task, db_key, parsed_value)
             if db_key in ["phases", "check_items", "deliverables", "dependsOn"]:
                 flag_modified(db_task, db_key)

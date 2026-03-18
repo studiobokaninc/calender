@@ -23,55 +23,96 @@ class MeetingAnalyzer:
         self.llm_client.model_name = "models/gemini-2.0-flash" 
 
     async def _get_duration(self, audio_path: str) -> float:
-        """ffprobeを使用して音声の長さを取得する（Windows対応強化）"""
+        """ffprobeを使用して音声の長さを取得する（Windows対応・堅牢性強化）"""
         abs_path = os.path.abspath(audio_path)
         if not os.path.exists(abs_path):
             logger.error(f"Audio file not found: {abs_path}")
             return 0
             
         try:
-            # shell=Trueを使うことで、WindowsのPATH解決を確実にする
-            # パスを二重引用符で囲み、エスケープが必要な文字が含まれている場合に対応
-            cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{abs_path}"'
-            process = await asyncio.create_subprocess_shell(
-                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            # ffprobeの実行パスを動的に取得
+            ffprobe_exe = shutil.which("ffprobe") or "ffprobe"
+            
+            # create_subprocess_exec (推奨)
+            # cmd.exeを介さずに呼び出す
+            process = await asyncio.create_subprocess_exec(
+                ffprobe_exe, 
+                "-v", "error", 
+                "-show_entries", "format=duration", 
+                "-of", "default=noprint_wrappers=1:nokey=1", 
+                abs_path,
+                stdout=asyncio.subprocess.PIPE, 
+                stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await process.communicate()
             if process.returncode == 0:
                 d_str = stdout.decode().strip()
-                return float(d_str) if d_str else 0
+                if d_str:
+                    logger.info(f"ffprobe(exec) duration: {d_str} for {abs_path}")
+                    return float(d_str)
+            
+            # 失敗した場合の予備：shell=Trueも試す
+            logger.warning(f"ffprobe-exec failed ({process.returncode}), trying shell fallback for: {abs_path}")
+            shell_cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{abs_path}"'
+            process_shell = await asyncio.create_subprocess_shell(
+                shell_cmd, 
+                stdout=asyncio.subprocess.PIPE, 
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process_shell.communicate()
+            if process_shell.returncode == 0:
+                d_str = stdout.decode().strip()
+                if d_str:
+                    return float(d_str)
             else:
-                logger.warning(f"ffprobe returned non-zero exit code: {process.returncode}, stderr: {stderr.decode()}")
+                logger.warning(f"ffprobe-shell failed: {stderr.decode()}")
+                
         except Exception as e:
-            logger.warning(f"ffprobe duration check failed: {e}")
+            # 例外内容を詳細に記録
+            logger.warning(f"ffprobe exception for {abs_path}: [{type(e).__name__}] {str(e)}")
+            import traceback
+            logger.warning(traceback.format_exc())
+            
         return 0
 
     async def _split_audio(self, audio_path: str, chunk_size_sec: int, output_dir: str) -> List[str]:
         """ffmpegを使用して音声を分割する"""
         try:
             abs_audio_path = os.path.abspath(audio_path)
-            # 元のファイル拡張子を維持
             ext = pathlib.Path(abs_audio_path).suffix or ".mp3"
             output_pattern = os.path.join(output_dir, f"chunk_%03d{ext}")
             
-            # segment muxerを使用して非エンコードで高速分割
-            # -segment_time で長さを指定
-            cmd = f'ffmpeg -i "{abs_audio_path}" -f segment -segment_time {chunk_size_sec} -c copy "{output_pattern}"'
-            process = await asyncio.create_subprocess_shell(
-                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            # 実行パスを動的に取得
+            ffmpeg_exe = shutil.which("ffmpeg") or "ffmpeg"
+            
+            # create_subprocess_exec を優先
+            cmd_args = [
+                ffmpeg_exe, "-i", abs_audio_path, 
+                "-f", "segment", "-segment_time", str(chunk_size_sec), 
+                "-c", "copy", output_pattern
+            ]
+            process = await asyncio.create_subprocess_exec(
+                *cmd_args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await process.communicate()
             
-            if process.returncode == 0:
-                chunks = sorted([
-                    os.path.join(output_dir, f) 
-                    for f in os.listdir(output_dir) 
-                    if f.startswith("chunk_")
-                ])
+            if process.returncode != 0:
+                # 失敗時は shell=True でリトライ
+                logger.warning(f"ffmpeg-exec split failed, trying shell for: {abs_audio_path}")
+                shell_cmd = f'ffmpeg -i "{abs_audio_path}" -f segment -segment_time {chunk_size_sec} -c copy "{output_pattern}"'
+                process_shell = await asyncio.create_subprocess_shell(
+                    shell_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                await process_shell.communicate()
+            
+            chunks = sorted([
+                os.path.join(output_dir, f) 
+                for f in os.listdir(output_dir) 
+                if f.startswith("chunk_")
+            ])
+            if chunks:
                 logger.info(f"Split audio into {len(chunks)} chunks.")
                 return chunks
-            else:
-                logger.error(f"ffmpeg split failed: {stderr.decode()}")
         except Exception as e:
             logger.error(f"Failed to split audio: {e}")
         return []
@@ -91,21 +132,24 @@ class MeetingAnalyzer:
 
         temp_dir = tempfile.mkdtemp()
         try:
-            # 1. 音声分割（5分ごと）でトークン制限と429を回避
-            # 文字起こし精度を上げるため、10分から5分に短縮
+            # 1. 音声分割（5分ごと）
+            # ffprobeの判定が失敗しても、念のため常に分割を試みる（一定以上のファイルサイズの場合）
+            # ※M4A/MP3なら盲目的に分割して1つのチャンクになればそのまま進む
             duration = await self._get_duration(audio_path)
             chunk_size = 300 # 5分
+            file_size = os.path.getsize(audio_path)
             
-            logger.info(f"Meeting duration: {duration:.1f}s")
+            logger.info(f"Meeting duration: {duration:.1f}s, size: {file_size/1024/1024:.2f}MB")
             
-            if duration > (chunk_size + 30):
-                logger.info(f"Splitting meeting into {chunk_size}s chunks...")
+            # 長さが不明(0)でもサイズが大きければ(例えば2MB以上なら15分以上と推測)、分割を試みる
+            if duration > (chunk_size + 30) or file_size > 2 * 1024 * 1024:
+                logger.info(f"Splitting meeting into {chunk_size}s chunks (duration={duration}, size={file_size})...")
                 chunk_paths = await self._split_audio(audio_path, chunk_size, temp_dir)
             else:
                 chunk_paths = [audio_path]
             
             if not chunk_paths: 
-                logger.warning("Split failed or no chunks, falling back to original path.")
+                logger.warning("Split failed to produce chunks, falling back to original path.")
                 chunk_paths = [audio_path]
 
             all_results = []
@@ -173,16 +217,17 @@ class MeetingAnalyzer:
    - 相槌（「あー」「うん」「はい」等）や言い直しを適宜削り、読みやすく整形してください。
    - **要約するのではなく、具体的に誰が何を言ったかを詳細に残すこと**を最優先してください。
 
-2. 重要情報の抽出:
+2. 重要情報の抽出（各セグメントの最後に出力されます）:
    - 決定事項: 会議で合意された、または決定した方針。
    - タスク: 「誰が」「いつまでに」「何をするか」。些細な依頼もすべて抽出してください。
    - 論点: 議論されているポイント、出された意見、懸案事項。
    - スケジュール: 具体的日程、期限、次回の予定。
 
-【出力フォーマット】（以下のキーワードをセクション区切りとして使用し、それ以外の説明は不要です）
-===TRANSCRIPT===
-（タグ付き文字起こし全文）
+【出力順序について】
+文字起こしが非常に長くなる可能性があるため、まずは「文字起こし全文」を出力し、その直後に重要情報を出力してください。
+もし文字起こしが長すぎて制限に達しそうな場合は、重要情報を優先的に出力してください。
 
+【出力フォーマット】（以下のキーワードをセクション区切りとして使用し、それ以外の説明は不要です）
 ===DECISIONS===
 - 決定事項のリスト（なければ「なし」）
 
@@ -194,6 +239,9 @@ class MeetingAnalyzer:
 
 ===DEADLINES===
 - 具体的期限・日程のリスト（なければ「なし」）
+
+===TRANSCRIPT===
+（タグ付き文字起こし全文）
 """
                 inputs = {"mode": "admin", "attachments": [path]}
                 response_text = ""

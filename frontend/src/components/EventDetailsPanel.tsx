@@ -242,14 +242,12 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   size="small"
                   sx={{ mb: 1, fontWeight: 600, backgroundColor: getCardColor(selectedEvent), color: '#fff' }}
                 />
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  {getTypeIcon(selectedEvent.extendedProps?.type)}
-                  {selectedEvent.extendedProps?.type?.toLowerCase() !== 'task' ? (
+                {selectedEvent.extendedProps?.type?.toLowerCase() !== 'task' && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {getTypeIcon(selectedEvent.extendedProps?.type)}
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>{selectedEvent.title}</Typography>
-                  ) : (
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary' }}>タスク詳細</Typography>
-                  )}
-                </Box>
+                  </Box>
+                )}
               </Box>
 
               <Box sx={{ mb: 2 }}>
@@ -271,22 +269,42 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   </Box>
                 )}
 
-                {/* タスク固有の情報表示（最新のクイックコンポーネントを使用） */}
-                {selectedEvent.extendedProps?.type?.toLowerCase() === 'task' && (
+                {/* タスク・段階目標固有の情報表示 */}
+                {(selectedEvent.extendedProps?.type?.toLowerCase() === 'task' || selectedEvent.extendedProps?.isPhase) && (
                   <TaskQuickDetail
-                    task={{
-                      id: Number(selectedEvent.extendedProps.taskId),
-                      name: selectedEvent.title,
-                      project_id: selectedEvent.extendedProps.projectId ? Number(selectedEvent.extendedProps.projectId) : undefined,
-                      assigned_to: selectedEvent.extendedProps.taskAssigneeId ? Number(selectedEvent.extendedProps.taskAssigneeId) : undefined,
-                      status: selectedEvent.extendedProps.taskStatus,
-                      progress: selectedEvent.extendedProps.taskProgress,
-                      check_items: selectedEvent.extendedProps.check_items,
-                      deliverables: selectedEvent.extendedProps.deliverables,
-                      start_date: selectedEvent.extendedProps.taskStartDate,
-                      due_date: selectedEvent.extendedProps.taskDueDate,
-                      description: selectedEvent.extendedProps.description,
-                    } as Task}
+                    task={selectedEvent.extendedProps?.isPhase ? (
+                      // 段階目標の場合は親タスクを見つけて渡す（あれば）
+                      // IDだけでモックを渡すとステータスが混乱するため、名前を段階目標に固定
+                      {
+                        id: Number(selectedEvent.extendedProps.taskId),
+                        name: selectedEvent.title, // Parent: Phase
+                        project_id: selectedEvent.extendedProps.projectId ? Number(selectedEvent.extendedProps.projectId) : undefined,
+                        assigned_to: selectedEvent.extendedProps.taskAssigneeId ? Number(selectedEvent.extendedProps.taskAssigneeId) : undefined,
+                        status: selectedEvent.extendedProps.taskStatus,
+                        check_items: selectedEvent.extendedProps.check_items,
+                        deliverables: selectedEvent.extendedProps.deliverables,
+                        start_date: selectedEvent.extendedProps.taskStartDate,
+                        due_date: selectedEvent.extendedProps.taskDueDate,
+                        description: selectedEvent.extendedProps.description,
+                        // 全てのフェーズを渡すことで、個別完了が可能になる
+                        phases: selectedEvent.extendedProps.phases
+                      } as Task
+                    ) : (
+                      {
+                        id: Number(selectedEvent.extendedProps.taskId),
+                        name: selectedEvent.title,
+                        project_id: selectedEvent.extendedProps.projectId ? Number(selectedEvent.extendedProps.projectId) : undefined,
+                        assigned_to: selectedEvent.extendedProps.taskAssigneeId ? Number(selectedEvent.extendedProps.taskAssigneeId) : undefined,
+                        status: selectedEvent.extendedProps.taskStatus,
+                        progress: selectedEvent.extendedProps.taskProgress,
+                        check_items: selectedEvent.extendedProps.check_items,
+                        deliverables: selectedEvent.extendedProps.deliverables,
+                        start_date: selectedEvent.extendedProps.taskStartDate,
+                        due_date: selectedEvent.extendedProps.taskDueDate,
+                        description: selectedEvent.extendedProps.description,
+                        phases: selectedEvent.extendedProps.phases
+                      } as Task
+                    )}
                     projects={projects}
                     users={users}
                     onUpdate={async (id, updates) => {

@@ -206,6 +206,12 @@ async def root():
 # メトリクスエンドポイント
 @app.get("/metrics/dashboard")
 def get_dashboard_metrics(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # 統計取得前にタスクステータスを自動更新する（遅延判定など）
+    try:
+        crud.auto_update_task_statuses(db)
+    except Exception as e:
+        logger.error(f"Error auto-updating task statuses: {e}")
+
     num_tasks = 0
     try:
         # get_tasks に渡すパラメータを調整する必要があるかもしれません。

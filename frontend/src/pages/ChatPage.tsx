@@ -103,6 +103,8 @@ const ChatPage: React.FC = () => {
   const eventSourceRef = useRef<EventSource | null>(null)
   const hasReceivedTaskActionRef = useRef<boolean>(false)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [isSystemBusy, setIsSystemBusy] = useState(false)
+
 
   const myCategorizedTasks = useMemo(() => {
     if (!currentUser || !globalData?.tasks) return { today: [], delayed: [], dueSoon: [], other: [] }
@@ -147,12 +149,29 @@ const ChatPage: React.FC = () => {
   const recognitionRef = useRef<any>(null)
   const [speechSupport, setSpeechSupport] = useState<boolean | null>(null)
 
-  const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
+  const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating && !isSystemBusy, [chatInput, sending, isGenerating, isSystemBusy])
+
 
   // 初回マウント時にタスク・プロジェクトを取得（レイアウト表示用）
   useEffect(() => {
     refreshGlobalData?.()
   }, [refreshGlobalData])
+
+  // 重い処理（議事録解析）の状況を確認
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await api.get('/chat/status')
+        setIsSystemBusy(!!res.data.is_processing)
+      } catch (err) {
+        console.error('Failed to fetch chat status:', err)
+      }
+    }
+    checkStatus()
+    const interval = setInterval(checkStatus, 15000) // 15秒おきにチェック
+    return () => clearInterval(interval)
+  }, [])
+
 
 
 
@@ -603,7 +622,19 @@ const ChatPage: React.FC = () => {
     }
   }
 
+  const handleNewConversation = () => {
+    if (eventSourceRef.current) {
+      try { eventSourceRef.current.close() } catch { }
+      eventSourceRef.current = null
+    }
+    setConversationId(null)
+    setSending(false)
+    setChatInput('')
+    setMessages([CHAT_WELCOME_MESSAGE])
+  }
+
   const handleSend = async () => {
+
     if (!canSend) return
     const text = chatInput.trim()
     setChatInput('')
@@ -699,7 +730,12 @@ const ChatPage: React.FC = () => {
       mx: 'auto',
       width: '100%'
     }}>
-      <Typography variant="h5" sx={{ mb: 1, fontWeight: 'bold' }}>AIチャット</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>AIチャット</Typography>
+        <Button size="small" variant="outlined" onClick={handleNewConversation}>
+          新しい会話
+        </Button>
+      </Box>
 
       <Paper sx={{
         flex: 1,
@@ -754,7 +790,13 @@ const ChatPage: React.FC = () => {
 
         {/* 入力エリア */}
         <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          {isSystemBusy && (
+            <Typography variant="body2" color="error" sx={{ mb: 1.5, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <WarningIcon fontSize="small" /> 議事録をAI解析中のため、現在チャットは利用できません。完了までお待ちください。
+            </Typography>
+          )}
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+
             <TextField
               fullWidth
               multiline
@@ -768,7 +810,8 @@ const ChatPage: React.FC = () => {
                   handleSend();
                 }
               }}
-              disabled={sending}
+              disabled={sending || isSystemBusy}
+
               InputProps={{
                 endAdornment: speechSupport !== false && (
                   <InputAdornment position="end">
@@ -776,7 +819,8 @@ const ChatPage: React.FC = () => {
                       <IconButton
                         color={isListening ? 'error' : 'default'}
                         onClick={toggleVoiceInput}
-                        disabled={sending || isGenerating}
+                        disabled={sending || isGenerating || isSystemBusy}
+
                         edge="end"
                       >
                         {isListening ? <StopIcon /> : <MicIcon />}
@@ -789,7 +833,8 @@ const ChatPage: React.FC = () => {
             <Button
               variant="contained"
               onClick={isGenerating ? handleStopGeneration : handleSend}
-              disabled={!chatInput.trim() && !isGenerating}
+              disabled={(!chatInput.trim() || isSystemBusy) && !isGenerating}
+
               color={isGenerating ? 'error' : 'primary'}
               sx={{ minWidth: 80, height: 56 }}
             >

@@ -30,6 +30,14 @@ router = APIRouter()
 llm_client = None
 _cached_api_key: str = ""
 
+@router.get("/chat/status")
+async def get_chat_status(db: Session = Depends(get_db)):
+    """現在、システム全体で重い処理（議事録解析など）が動いているかチェック"""
+    from .. import models
+    processing_meetings = db.query(models.Meeting).filter(models.Meeting.status == "processing").count()
+    return {"is_processing": processing_meetings > 0}
+
+
 def get_llm_client():
     """backend/.env を読み込み、API Keyが変更されていればクライアントを再生成"""
     global llm_client, _cached_api_key

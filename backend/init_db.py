@@ -221,6 +221,7 @@ def init_db():
                     "project_id": db_project_id,
                     "assigned_to": db_assignee_id,
                     "cost": task_data.get("cost", 8.0),  # コストはモックデータから取得、なければ8.0
+                    "type": task_data.get("type"),       # タスクタイプ
                     "dependsOn": task_data.get("dependsOn")
                 }
                 

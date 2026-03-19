@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Task, User, Project, StatusHistoryEntry } from '../types';
 import {
     Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem, Tooltip as MuiTooltip, IconButton, Grid,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, LinearProgress, useTheme, useMediaQuery
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
@@ -688,14 +688,17 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
         );
     };
 
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     return (
-        <Paper sx={{ p: 2, height: '450px' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+        <Paper sx={{ p: 2, height: isMobile ? 'auto' : '450px', minHeight: isMobile ? '700px' : '450px' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', mb: 1, flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 1 : 0 }}>
                 <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
                     ユーザー進捗グラフ
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <FormControl size="small" sx={{ minWidth: 180, mr: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+                    <FormControl size="small" sx={{ minWidth: isMobile ? '0' : 180, flex: isMobile ? 1 : 'none', mr: 1 }}>
                         <InputLabel sx={{ fontSize: '0.8rem' }}>ユーザー</InputLabel>
                         <Select
                             value={selectedUserId}
@@ -730,8 +733,8 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                 </Box>
             </Box>
 
-            <Grid container spacing={2} sx={{ height: 'calc(100% - 48px)', minHeight: '280px' }}>
-                <Grid item xs={6} sx={{ height: '100%' }}>
+            <Grid container spacing={2} sx={{ height: isMobile ? 'auto' : 'calc(100% - 48px)', minHeight: '280px' }}>
+                <Grid item xs={isMobile ? 12 : 6} sx={{ height: isMobile ? '300px' : '100%' }}>
                     {!selectedUserId && (
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'text.secondary' }}>
                             <Typography variant="body2">{userOptions.length > 0 ? 'ユーザーを選択してください' : '表示可能なユーザーがいません'}</Typography>
@@ -743,46 +746,56 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
                         </Box>
                     )}
                     {selectedUserId && chartData.length > 0 && (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
-                                data={chartData}
-                                margin={{ top: 5, right: 10, left: -20, bottom: 0 }}
-                                onMouseMove={handleLineChartMouseMove}
-                                onMouseLeave={handleLineChartMouseLeave}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="date" fontSize={10} tick={{ dy: 5 }} />
-                                <YAxis fontSize={10} tickFormatter={yAxisFormatter} domain={[0, 100]} />
-                                <Tooltip content={<CustomTooltip users={users} selectedUserId={selectedUserId} />} />
-                                <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '5px' }} verticalAlign="top" align="right" />
+                        <Box sx={{
+                            width: '100%',
+                            height: '100%',
+                            overflowX: isMobile ? 'auto' : 'visible',
+                            '&::-webkit-scrollbar': { height: '8px' },
+                            '&::-webkit-scrollbar-thumb': { backgroundColor: 'divider', borderRadius: '4px' }
+                        }}>
+                            <Box sx={{ minWidth: isMobile ? '600px' : 'auto', height: '100%' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart
+                                        data={chartData}
+                                        margin={{ top: 10, right: 30, left: isMobile ? 0 : -20, bottom: 0 }}
+                                        onMouseMove={handleLineChartMouseMove}
+                                        onMouseLeave={handleLineChartMouseLeave}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="date" fontSize={10} tick={{ dy: 5 }} />
+                                        <YAxis fontSize={10} tickFormatter={yAxisFormatter} domain={[0, 100]} />
+                                        <Tooltip content={<CustomTooltip users={users} selectedUserId={selectedUserId} />} />
+                                        <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '5px' }} verticalAlign="top" align="right" />
 
-                                {selectedUserId === 'all' ? (
-                                    userOptions.map((user, index) => (
-                                        <Line
-                                            key={user.id}
-                                            type="monotone"
-                                            dataKey={user.id}
-                                            stroke={USER_COLORS[index % USER_COLORS.length]}
-                                            strokeWidth={1.5}
-                                            dot={false}
-                                            name={user.full_name || user.username}
-                                            connectNulls
-                                        />
-                                    ))
-                                ) : (
-                                    <>
-                                        <Line type="monotone" dataKey="plan" stroke="#8884d8" strokeWidth={2} dot={false} name="計画" connectNulls />
-                                        <Line type="monotone" dataKey="actual" stroke="#82ca9d" strokeWidth={2} dot={false} name="実績 (完了+進行中*0.5)" connectNulls />
-                                    </>
-                                )}
-                            </LineChart>
-                        </ResponsiveContainer>
+                                        {selectedUserId === 'all' ? (
+                                            userOptions.map((user, index) => (
+                                                <Line
+                                                    key={`${user.id}-${index}`}
+                                                    type="monotone"
+                                                    dataKey={user.id}
+                                                    stroke={USER_COLORS[index % USER_COLORS.length]}
+                                                    strokeWidth={1.5}
+                                                    dot={false}
+                                                    name={user.full_name || user.username}
+                                                    connectNulls
+                                                />
+                                            ))
+                                        ) : (
+                                            <>
+                                                <Line type="monotone" dataKey="plan" stroke="#8884d8" strokeWidth={2} dot={false} name="計画" connectNulls />
+                                                <Line type="monotone" dataKey="actual" stroke="#82ca9d" strokeWidth={2} dot={false} name="実績 (完了+進行中*0.5)" connectNulls />
+                                            </>
+                                        )}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </Box>
+                        </Box>
                     )}
                 </Grid>
-                <Grid item xs={6} sx={{ height: '100%' }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', gap: 1 }}>
+                <Grid item xs={isMobile ? 12 : 6} sx={{ height: isMobile ? '350px' : '100%' }}>
+                    <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%', width: '100%', gap: 1 }}>
 
-                        <Box sx={{ width: '40%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                        <Box sx={{ width: isMobile ? '100%' : '40%', height: isMobile ? '200px' : '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
                             {selectedUserId && (
                                 <Box sx={{ mb: 0, textAlign: 'center', flexShrink: 0 }}>
                                     <Typography variant="caption" sx={{ fontWeight: 'bold' }}>

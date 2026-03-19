@@ -6,6 +6,7 @@ import pathlib
 import tempfile
 import shutil
 import mimetypes
+import subprocess
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from .. import crud, models, schemas
@@ -33,39 +34,30 @@ class MeetingAnalyzer:
             # ffprobeの実行パスを動的に取得
             ffprobe_exe = shutil.which("ffprobe") or "ffprobe"
             
-            # create_subprocess_exec (推奨)
-            # cmd.exeを介さずに呼び出す
-            process = await asyncio.create_subprocess_exec(
-                ffprobe_exe, 
-                "-v", "error", 
-                "-show_entries", "format=duration", 
-                "-of", "default=noprint_wrappers=1:nokey=1", 
-                abs_path,
-                stdout=asyncio.subprocess.PIPE, 
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            if process.returncode == 0:
-                d_str = stdout.decode().strip()
-                if d_str:
-                    logger.info(f"ffprobe(exec) duration: {d_str} for {abs_path}")
-                    return float(d_str)
+            # WindowsでのNotImplementedError回避のため、subprocess.runをスレッドで実行
+            def _run_ffprobe():
+                return subprocess.run(
+                    [
+                        ffprobe_exe, 
+                        "-v", "error", 
+                        "-show_entries", "format=duration", 
+                        "-of", "default=noprint_wrappers=1:nokey=1", 
+                        abs_path
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
             
-            # 失敗した場合の予備：shell=Trueも試す
-            logger.warning(f"ffprobe-exec failed ({process.returncode}), trying shell fallback for: {abs_path}")
-            shell_cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{abs_path}"'
-            process_shell = await asyncio.create_subprocess_shell(
-                shell_cmd, 
-                stdout=asyncio.subprocess.PIPE, 
-                stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process_shell.communicate()
-            if process_shell.returncode == 0:
-                d_str = stdout.decode().strip()
+            result = await asyncio.to_thread(_run_ffprobe)
+            
+            if result.returncode == 0:
+                d_str = result.stdout.strip()
                 if d_str:
+                    logger.info(f"ffprobe duration: {d_str} for {abs_path}")
                     return float(d_str)
             else:
-                logger.warning(f"ffprobe-shell failed: {stderr.decode()}")
+                logger.warning(f"ffprobe failed ({result.returncode}): {result.stderr}")
                 
         except Exception as e:
             # 例外内容を詳細に記録
@@ -85,25 +77,23 @@ class MeetingAnalyzer:
             # 実行パスを動的に取得
             ffmpeg_exe = shutil.which("ffmpeg") or "ffmpeg"
             
-            # create_subprocess_exec を優先
-            cmd_args = [
-                ffmpeg_exe, "-i", abs_audio_path, 
-                "-f", "segment", "-segment_time", str(chunk_size_sec), 
-                "-c", "copy", output_pattern
-            ]
-            process = await asyncio.create_subprocess_exec(
-                *cmd_args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode != 0:
-                # 失敗時は shell=True でリトライ
-                logger.warning(f"ffmpeg-exec split failed, trying shell for: {abs_audio_path}")
-                shell_cmd = f'ffmpeg -i "{abs_audio_path}" -f segment -segment_time {chunk_size_sec} -c copy "{output_pattern}"'
-                process_shell = await asyncio.create_subprocess_shell(
-                    shell_cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            # Windows環境での安定性を重視し、subprocess.runをスレッドで実行
+            def _run_ffmpeg():
+                return subprocess.run(
+                    [
+                        ffmpeg_exe, "-i", abs_audio_path, 
+                        "-f", "segment", "-segment_time", str(chunk_size_sec), 
+                        "-c", "copy", output_pattern
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=300 # 分割には少し時間がかかる可能性がある
                 )
-                await process_shell.communicate()
+            
+            result = await asyncio.to_thread(_run_ffmpeg)
+            
+            if result.returncode != 0:
+                logger.warning(f"ffmpeg split failed ({result.returncode}): {result.stderr}")
             
             chunks = sorted([
                 os.path.join(output_dir, f) 
@@ -163,9 +153,10 @@ class MeetingAnalyzer:
                 else:
                     logger.error(f"Failed to process chunk {i+1}")
                 
-                # レート制限(429)回避のため、チャンク間に待機を入れる
+                # レート制限(429)回避のため、1分あたりのリクエスト数を抑える待機
                 if i < len(chunk_paths) - 1:
-                    await asyncio.sleep(10)
+                    logger.info("Waiting 30 seconds before next chunk to avoid rate limits...")
+                    await asyncio.sleep(30)
 
             if not all_results:
                 raise Exception("No results obtained from any segment.")
@@ -232,7 +223,8 @@ class MeetingAnalyzer:
 - 決定事項のリスト（なければ「なし」）
 
 ===TASKS===
-- 担当者：内容（期限）（なければ「なし」）
+- [タイプ] 担当者：内容（期限）（なければ「なし」）
+    ※タイプは以下から選択：[design], [documentation], [testing], [review], [meeting], [fx], [asset], [animation], [lighting], [comp]。該当がない場合は最適な単語。
 
 ===DISCUSSION_POINTS===
 - 主要な論点・意見のリスト（なければ「なし」）
@@ -243,12 +235,14 @@ class MeetingAnalyzer:
 ===TRANSCRIPT===
 （タグ付き文字起こし全文）
 """
-                inputs = {"mode": "admin", "attachments": [path]}
+                inputs = {"mode": "admin", "attachments": [path], "no_actions": True}
                 response_text = ""
                 
                 # 指数バックオフ
                 if attempt > 0:
-                    wait = (2 ** attempt) * 15
+                    # 429エラーの場合はより長く待機
+                    wait = (2 ** attempt) * 30
+                    if attempt == 1: wait = 45 # 初回リトライは45秒
                     logger.info(f"Retry {attempt}/{max_retries} for chunk {index}. Waiting {wait}s...")
                     await asyncio.sleep(wait)
                 
@@ -258,14 +252,21 @@ class MeetingAnalyzer:
                 async for chunk in self.llm_client.stream_chat(prompt, conv_id, inputs):
                     if chunk.get("event") == "message":
                         response_text += chunk.get("answer", "")
+                    elif chunk.get("event") == "error":
+                        error_msg = chunk.get("message", "Unknown LLM error")
+                        logger.error(f"LLM Error during chunk {index}: {error_msg}")
+                        raise Exception(f"LLM API Error: {error_msg}")
                 
                 if response_text.strip():
                     parsed = self._parse_output(response_text)
-                    # 文字起こしが含まれていれば成功とみなす
-                    if parsed.get("transcript"):
+                    # 文字起こし、あるいは何らかのまとめ項目があれば成功とみなす
+                    if parsed.get("transcript") or parsed.get("decisions") or parsed.get("tasks"):
                         return parsed
+                    else:
+                        logger.warning(f"Response received for chunk {index} but no structured data found. Length: {len(response_text)}")
                 
-                logger.warning(f"Empty response for chunk {index}, attempt {attempt}")
+                logger.warning(f"Empty or invalid response for chunk {index}, attempt {attempt}")
+
                     
             except Exception as e:
                 err_str = str(e)
@@ -376,7 +377,8 @@ class MeetingAnalyzer:
 - 統合・整理された具体的決定事項
 
 ===TASKS===
-- 担当者：具体的アクション（期限）
+- [タイプ] 担当者：具体的アクション（期限）
+    ※タイプ例: [design], [documentation], [fx] 等
 
 ===DISCUSSION_POINTS===
 - 会議全体の議論の要約と重要な背景
@@ -387,7 +389,7 @@ class MeetingAnalyzer:
         try:
             accumulated_summary = ""
             # テキスト統合なので attachments は不要
-            async for chunk in self.llm_client.stream_chat(summary_prompt, f"mtg_{meeting_id}_final", {"mode": "admin"}):
+            async for chunk in self.llm_client.stream_chat(summary_prompt, f"mtg_{meeting_id}_final", {"mode": "admin", "no_actions": True}):
                 if chunk.get("event") == "message":
                     accumulated_summary += chunk.get("answer", "")
             

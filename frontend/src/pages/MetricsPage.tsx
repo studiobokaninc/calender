@@ -1321,7 +1321,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
                                 <TableRow
                                   key={`${t.user_id}-${t.task_id}`}
                                   hover
-                                  onDoubleClick={() =>
+                                  onClick={() =>
                                     handleWeeklyTaskRowDoubleClick({
                                       task_id: t.task_id,
                                       task_name: t.task_name,

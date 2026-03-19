@@ -8,15 +8,17 @@ import {
 import {
     Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon,
     FilterList as FilterListIcon, Close as CloseIcon,
-    CalendarToday as CalendarIcon, Folder as FolderIcon, PriorityHigh as PriorityIcon
+    CalendarToday as CalendarIcon, Folder as FolderIcon, PriorityHigh as PriorityIcon,
+    Add as AddIcon
 } from '@mui/icons-material';
-import { IconButton } from '@mui/material';
+import { IconButton, Fab } from '@mui/material';
 import api from '../services/api';
 import { Task, Project, User } from '../types'; // Import User type as well
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { DataGrid, GridColDef, GridRenderCellParams, GridSortModel } from '@mui/x-data-grid';
 import { useTasksPageState, usePageState } from '../contexts/PageStateContext';
+import { useAuth } from '../contexts/AuthContext';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { TaskQuickDetail } from '../components/TaskQuickDetail';
 
@@ -51,6 +53,24 @@ const getTaskStatusColor = (status?: string | null): string => {
         case 'completed': return '#9E9E9E';
         default: return '#BDBDBD';
     }
+};
+
+const getTaskStatusLabel = (status?: string | null): string => {
+    switch (status) {
+        case 'todo': return '未着手';
+        case 'in-progress': return '進行中';
+        case 'review': return 'レビュー中';
+        case 'delayed': return '遅延';
+        case 'completed': return '完了';
+        default: return status || '未定';
+    }
+};
+
+const isDatePast = (dateStr: string | null | undefined): boolean => {
+    if (!dateStr) return false;
+    const date = parseISO(dateStr);
+    if (!isValid(date)) return false;
+    return isBefore(startOfDay(date), startOfDay(new Date()));
 };
 
 
@@ -98,6 +118,9 @@ interface StatusHistory {
 
 
 const TasksPage: React.FC = () => {
+    const { user: currentUser } = useAuth();
+    const isAdmin = currentUser?.role === 'admin';
+
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -1449,74 +1472,100 @@ const TasksPage: React.FC = () => {
                         }}
                     >
                         {rows.map((row) => (
-                            <Card key={row.id} variant="outlined" sx={{ mb: 1.5, borderRadius: 2, bgcolor: 'background.paper' }}>
-                                <CardActionArea onClick={() => handleEditTask(row as Task)}>
+                            <Card
+                                key={row.id}
+                                variant="outlined"
+                                sx={{
+                                    mb: 1.5,
+                                    borderRadius: 3,
+                                    bgcolor: 'background.paper',
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    overflow: 'hidden',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                    '&:active': { transform: 'scale(0.98)', transition: 'transform 0.1s' }
+                                }}
+                            >
+                                <CardActionArea onClick={() => {
+                                    setSelectedTask(row as Task);
+                                    setIsDrawerOpen(true);
+                                }}>
+                                    <Box sx={{ height: 4, bgcolor: getTaskStatusColor(row.status) }} />
                                     <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', lineHeight: 1.3, mr: 1, wordBreak: 'break-word' }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1.3, mr: 1, wordBreak: 'break-word', color: 'text.primary' }}>
                                                 {row.name}
                                             </Typography>
                                             <Chip
-                                                label={row.status || '未設定'}
+                                                label={getTaskStatusLabel(row.status)}
                                                 size="small"
                                                 sx={{
                                                     backgroundColor: getTaskStatusColor(row.status),
                                                     color: 'white',
-                                                    height: 20,
+                                                    height: 22,
                                                     fontSize: '0.7rem',
-                                                    fontWeight: 600,
-                                                    flexShrink: 0
+                                                    fontWeight: 800,
+                                                    flexShrink: 0,
+                                                    borderRadius: 1
                                                 }}
                                             />
                                         </Box>
 
-                                        <Box sx={{ display: 'flex', gap: 2, mb: 1, color: 'text.secondary', fontSize: '0.8rem', alignItems: 'center' }}>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                <FolderIcon sx={{ fontSize: '1rem' }} />
-                                                <Typography variant="caption" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
-                                                    {projectMap.get(row.project_id || 0) || '未設定'}
+                                        <Stack spacing={1} sx={{ mb: 1.5 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                                                <FolderIcon sx={{ fontSize: '1rem', color: 'primary.main', opacity: 0.7 }} />
+                                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                                    {projectMap.get(row.project_id || 0) || 'プロジェクト未設定'}
                                                 </Typography>
                                             </Box>
                                             {row.due_date && (
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                    <CalendarIcon sx={{ fontSize: '1rem' }} />
-                                                    <Typography variant="caption">
-                                                        {formatDate(row.due_date)}
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: isDatePast(row.due_date) && row.status !== 'completed' ? 'error.main' : 'text.secondary' }}>
+                                                    <CalendarIcon sx={{ fontSize: '1rem', opacity: 0.7 }} />
+                                                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                                        {formatDate(row.due_date)} {isDatePast(row.due_date) && row.status !== 'completed' ? '(遅延)' : ''}
                                                     </Typography>
                                                 </Box>
                                             )}
-                                        </Box>
+                                        </Stack>
 
                                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                                 {row.assigned_to ? (
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                         <Avatar
-                                                            sx={{ width: 20, height: 20, fontSize: '0.7rem' }}
+                                                            sx={{
+                                                                width: 24,
+                                                                height: 24,
+                                                                fontSize: '0.7rem',
+                                                                bgcolor: 'primary.light',
+                                                                fontWeight: 700
+                                                            }}
                                                         >
                                                             {(userMap.get(row.assigned_to) || '')[0]?.toUpperCase()}
                                                         </Avatar>
-                                                        <Typography variant="caption" color="text.secondary">
+                                                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
                                                             {userMap.get(row.assigned_to)}
                                                         </Typography>
                                                     </Box>
                                                 ) : (
-                                                    <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                                    <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
                                                         未割り当て
                                                     </Typography>
                                                 )}
                                             </Box>
 
-                                            {row.priority && row.priority !== 'low' && (
-                                                <Chip
-                                                    icon={<PriorityIcon sx={{ fontSize: '0.9rem !important' }} />}
-                                                    label={row.priority}
-                                                    size="small"
-                                                    variant="outlined"
-                                                    color={row.priority === 'high' ? 'error' : 'warning'}
-                                                    sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-label': { px: 0.5 } }}
-                                                />
-                                            )}
+                                            <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                                {row.priority && row.priority !== 'low' && (
+                                                    <Chip
+                                                        icon={<PriorityIcon sx={{ fontSize: '0.9rem !important', color: 'inherit !important' }} />}
+                                                        label={row.priority.toUpperCase()}
+                                                        size="small"
+                                                        variant="filled"
+                                                        color={row.priority === 'high' ? 'error' : 'warning'}
+                                                        sx={{ height: 20, fontSize: '0.6rem', fontWeight: 900, '& .MuiChip-label': { px: 0.5 } }}
+                                                    />
+                                                )}
+                                            </Box>
                                         </Box>
                                     </CardContent>
                                 </CardActionArea>
@@ -2126,6 +2175,61 @@ const TasksPage: React.FC = () => {
                     </Button>
                 </Box>
             </Drawer>
+            {/* モバイル用: フローティングアクションボタン */}
+            {isMobile && (
+                <Box
+                    sx={{
+                        position: 'fixed',
+                        bottom: 88,
+                        right: 16,
+                        zIndex: 1000,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2
+                    }}
+                >
+                    <Fab
+                        size="medium"
+                        color="secondary"
+                        aria-label="filter"
+                        onClick={() => setMobileFilterOpen(true)}
+                        sx={{
+                            bgcolor: 'background.paper',
+                            color: 'text.secondary',
+                            boxShadow: 3
+                        }}
+                    >
+                        <FilterListIcon />
+                    </Fab>
+                    {isAdmin && (
+                        <Fab
+                            color="primary"
+                            aria-label="add"
+                            onClick={() => {
+                                setCurrentTask({
+                                    id: null,
+                                    name: '',
+                                    description: '',
+                                    project_id: null,
+                                    due_date: format(new Date(), 'yyyy-MM-dd'),
+                                    start_date: format(new Date(), 'yyyy-MM-dd'),
+                                    assigned_to: null,
+                                    status: 'todo',
+                                    priority: 'medium',
+                                    cost: 0,
+                                    seqID: '',
+                                    shotID: '',
+                                    type: 'development',
+                                    dependsOn: []
+                                } as any);
+                                setOpenDialog(true);
+                            }}
+                        >
+                            <AddIcon />
+                        </Fab>
+                    )}
+                </Box>
+            )}
         </Box >
     );
 };

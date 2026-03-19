@@ -1,4 +1,4 @@
-import React, { useState, ReactNode, useEffect, useCallback } from 'react'
+import React, { useState, ReactNode, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar,
@@ -22,14 +22,15 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  Alert,
   CircularProgress,
   ListSubheader,
   InputAdornment,
   TextField,
+  BottomNavigation,
+  BottomNavigationAction,
+  Paper,
 } from '@mui/material'
 import {
-  Menu as MenuIcon,
   Dashboard as DashboardIcon,
   CalendarMonth as CalendarIcon,
   Task as TaskIcon,
@@ -40,7 +41,6 @@ import {
   Logout as LogoutIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
-  FileDownload as FileDownloadIcon,
   Storage as StorageIcon,
   EventNote as EventNoteIcon,
   Note as NoteIcon,
@@ -54,8 +54,8 @@ import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import { useAuth } from '../contexts/AuthContext'
 import { useThemeMode } from '../contexts/ThemeModeContext'
-import api, { mockDataApi, importMockData, userActivityApi } from '../services/api'
-import { transformImportData } from '../utils/transformImportData'
+import api, { userActivityApi } from '../services/api'
+
 import { debounce } from 'lodash'
 import { ProjectEditDialog, TaskEditDialog, EventEditDialog } from './SearchEditDialogs'
 
@@ -71,8 +71,8 @@ interface MenuItemType {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [mobileOpen, setMobileOpen] = useState(false)
   const [isDrawerCollapsed, setIsDrawerCollapsed] = useState(false)
+  const bottomNavRef = useRef<HTMLDivElement>(null)
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const theme = useTheme()
@@ -81,20 +81,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
   const [currentTitle, setCurrentTitle] = useState('')
   const { mode, toggleMode } = useThemeMode()
-
-  // モックデータ管理用の状態
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
-  const [exportedData, setExportedData] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [exportType, setExportType] = useState<'all' | 'users' | 'events'>('all')
-
-  // ファイル入力用のref
-  const fileInputRef = React.useRef<HTMLInputElement>(null)
-  const userDataFileInputRef = React.useRef<HTMLInputElement>(null)
-  const eventDataFileInputRef = React.useRef<HTMLInputElement>(null)
 
   // グローバル検索
   const [searchOpen, setSearchOpen] = useState(false)
@@ -144,9 +130,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const drawerWidth = isDrawerCollapsed ? 65 : 240
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen)
-  }
 
   const toggleDrawer = () => {
     setIsDrawerCollapsed(!isDrawerCollapsed)
@@ -184,20 +167,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [shouldAutoCollapse])
 
-  // メッセージを一定時間後に消す
-  useEffect(() => {
-    if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [successMessage])
 
-  useEffect(() => {
-    if (errorMessage) {
-      const timer = setTimeout(() => setErrorMessage(null), 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [errorMessage])
 
   // 5:00になったら自動ログアウト（一般ユーザーのみ。管理者は対象外）
   useEffect(() => {
@@ -318,211 +288,36 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [user?.id, user?.role])
 
   // 一般ユーザーはカレンダー、チャット、メモのみ表示。管理者はチャット以外を表示。
+  const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
   const menuItems = user?.role === 'admin'
     ? allMenuItems.filter(item => !item.isAdmin && item.path !== '/chat')
     : allMenuItems.filter(item => ['/calendar', '/chat', '/notes'].includes(item.path))
-  const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
 
-  // モックデータのエクスポート
-  const handleExportMockData = async (type: 'all' | 'users' | 'events' = 'all') => {
-    setIsLoading(true)
-    setErrorMessage(null)
-    setExportType(type)
+  // モバイル用の下部ナビゲーション項目（全てのメニュー項目）
+  const bottomNavItems = [...menuItems, ...adminMenuItems]
 
-    try {
-      let data;
-      let message;
+  // 下部ナビゲーションの現在のアクティブインデックス
+  const activeBottomNavIndex = bottomNavItems.findIndex(item => location.pathname.startsWith(item.path))
 
-      switch (type) {
-        case 'users':
-          data = await mockDataApi.exportUserData();
-          message = 'ユーザーデータを正常にエクスポートしました';
-          break;
-        case 'events':
-          data = await mockDataApi.exportEventData();
-          message = 'イベントデータを正常にエクスポートしました';
-          break;
-        default:
-          data = await mockDataApi.exportMockData();
-          message = 'モックデータを正常にエクスポートしました';
-      }
-
-      setExportedData(data)
-      setIsExportDialogOpen(true)
-      setSuccessMessage(message)
-    } catch (error) {
-      console.error('Export error:', error)
-      setErrorMessage('データのエクスポートに失敗しました')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // モックデータのインポート - ファイル選択ダイアログを開く
-  const handleOpenImportDialog = (type: 'all' | 'users' | 'events' = 'all') => {
-    switch (type) {
-      case 'users':
-        if (userDataFileInputRef.current) {
-          userDataFileInputRef.current.click();
-        }
-        break;
-      case 'events':
-        if (eventDataFileInputRef.current) {
-          eventDataFileInputRef.current.click();
-        }
-        break;
-      default:
-        if (fileInputRef.current) {
-          fileInputRef.current.click();
-        }
-    }
-  }
-
-  // モックデータのインポート - ファイル読み込み（全データ）
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const raw = JSON.parse(e.target?.result as string)
-        const jsonData = transformImportData(raw)
-        setIsLoading(true)
-        setErrorMessage(null)
-
-        await importMockData(jsonData)
-        setSuccessMessage('モックデータを正常にインポートしました')
-
-        // ファイル選択をリセット
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
-      } catch (error: any) {
-        console.error('Import error:', error)
-        let message = 'モックデータのインポートに失敗しました'
-        if (error?.response?.data) {
-          const data = error.response.data
-          if (typeof data === 'string') message += `: ${data}`
-          else if (data?.detail) message += `: ${JSON.stringify(data.detail)}`
-          else message += `: ${JSON.stringify(data)}`
-        } else if (error?.message) {
-          message += `: ${error.message}`
-        }
-        setErrorMessage(message)
-      } finally {
-        setIsLoading(false)
+  // ページ切り替え時にアクティブなナビゲーション項目を中央にスクロールさせる
+  useEffect(() => {
+    if (isMobile && activeBottomNavIndex !== -1 && bottomNavRef.current) {
+      const container = bottomNavRef.current;
+      const navElement = container.firstChild as HTMLElement;
+      if (navElement && navElement.children[activeBottomNavIndex]) {
+        const activeItem = navElement.children[activeBottomNavIndex] as HTMLElement;
+        activeItem.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
       }
     }
-    reader.onerror = () => {
-      setErrorMessage('ファイルの読み込みに失敗しました')
-    }
-    reader.readAsText(file)
-  }
+  }, [activeBottomNavIndex, isMobile]);
 
-  // ユーザーデータのインポート
-  const handleUserDataFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  // 以前のインポート/エクスポート関連の未使用ロジックを削除しました。
 
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const userData = JSON.parse(e.target?.result as string)
-        setIsLoading(true)
-        setErrorMessage(null)
 
-        // 既存のイベントデータと結合してインポート
-        await mockDataApi.importCombinedData(userData, {})
-        setSuccessMessage('ユーザーデータを正常にインポートしました')
-
-        // ファイル選択をリセット
-        if (userDataFileInputRef.current) {
-          userDataFileInputRef.current.value = ''
-        }
-      } catch (error) {
-        console.error('User data import error:', error)
-        setErrorMessage('ユーザーデータのインポートに失敗しました')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    reader.onerror = () => {
-      setErrorMessage('ファイルの読み込みに失敗しました')
-    }
-    reader.readAsText(file)
-  }
-
-  // イベントデータのインポート
-  const handleEventDataFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        const eventData = JSON.parse(e.target?.result as string)
-        setIsLoading(true)
-        setErrorMessage(null)
-
-        // 既存のユーザーデータと結合してインポート
-        await mockDataApi.importCombinedData({}, eventData)
-        setSuccessMessage('イベントデータを正常にインポートしました')
-
-        // ファイル選択をリセット
-        if (eventDataFileInputRef.current) {
-          eventDataFileInputRef.current.value = ''
-        }
-      } catch (error) {
-        console.error('Event data import error:', error)
-        setErrorMessage('イベントデータのインポートに失敗しました')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    reader.onerror = () => {
-      setErrorMessage('ファイルの読み込みに失敗しました')
-    }
-    reader.readAsText(file)
-  }
-
-  // エクスポートしたデータのダウンロード
-  const handleDownloadExportedData = () => {
-    if (!exportedData) return
-
-    const dataStr = JSON.stringify(exportedData, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-
-    const link = document.createElement('a')
-    link.href = url
-
-    // ファイル名をエクスポートタイプに基づいて設定
-    let filename;
-    switch (exportType) {
-      case 'users':
-        filename = `users_data_${new Date().toISOString().split('T')[0]}.json`;
-        break;
-      case 'events':
-        filename = `events_data_${new Date().toISOString().split('T')[0]}.json`;
-        break;
-      default:
-        filename = `mock_data_export_${new Date().toISOString().split('T')[0]}.json`;
-    }
-
-    link.download = filename
-    link.setAttribute('download', filename)
-
-    // ファイルの保存先を /Users/ryoji/calender/data/ に指定
-    // (ブラウザではセキュリティ上の制限により直接指定できないため、
-    // ユーザーが手動で保存先を選択する必要があります)
-
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    setIsExportDialogOpen(false)
-  }
 
   const drawer = (
     <div>
@@ -544,7 +339,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             key={item.text}
             onClick={() => {
               navigate(item.path)
-              if (isMobile) setMobileOpen(false)
             }}
             selected={location.pathname.startsWith(item.path)}
             sx={{
@@ -574,7 +368,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 onClick={() => {
                   console.log(`Navigating to: ${item.path}`);
                   navigate(item.path)
-                  if (isMobile) setMobileOpen(false)
                 }}
                 selected={location.pathname.startsWith(item.path)}
                 sx={{
@@ -616,71 +409,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     </div>
   )
 
+  const handleBottomNavChange = (_event: React.SyntheticEvent, newValue: number) => {
+    const targetPath = bottomNavItems[newValue]?.path
+    if (targetPath) {
+      navigate(targetPath)
+    }
+  }
+
   return (
     <Box sx={{ display: 'flex', width: '100%', height: '100vh' }}>
       <CssBaseline />
-      {/* 通知メッセージ */}
-      {successMessage && (
-        <Alert
-          severity="success"
-          sx={{
-            position: 'fixed',
-            top: '16px',
-            right: '16px',
-            zIndex: 9999,
-            boxShadow: 3
-          }}
-          onClose={() => setSuccessMessage(null)}
-        >
-          {successMessage}
-        </Alert>
-      )}
-      {errorMessage && (
-        <Alert
-          severity="error"
-          sx={{
-            position: 'fixed',
-            top: '16px',
-            right: '16px',
-            zIndex: 9999,
-            boxShadow: 3
-          }}
-          onClose={() => setErrorMessage(null)}
-        >
-          {errorMessage}
-        </Alert>
-      )}
 
-      {/* エクスポートデータのダイアログ */}
-      <Dialog
-        open={isExportDialogOpen}
-        onClose={() => setIsExportDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {exportType === 'users' ? 'ユーザーデータのエクスポート' :
-            exportType === 'events' ? 'イベントデータのエクスポート' :
-              'モックデータのエクスポート'}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" gutterBottom>
-            データを正常にエクスポートしました。データをダウンロードするには「ダウンロード」ボタンをクリックしてください。
-            保存先は「/Users/ryoji/calender/data」を選択してください。
-          </Typography>
-          <Box sx={{ mt: 2, mb: 1 }}>
-            <pre style={{ maxHeight: '400px', overflow: 'auto', backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
-              {exportedData ? JSON.stringify(exportedData, null, 2) : ''}
-            </pre>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsExportDialogOpen(false)}>閉じる</Button>
-          <Button onClick={handleDownloadExportedData} color="primary" variant="contained" startIcon={<FileDownloadIcon />}>
-            ダウンロード
-          </Button>
-        </DialogActions>
-      </Dialog>
+
+      {/* インポート/エクスポート関連のダイアログは削除されました */}
+
 
       {/* グローバル検索ダイアログ（disableScrollLock で背面レイアウトの白飛びを防止） */}
       <Dialog open={searchOpen} onClose={handleCloseSearch} maxWidth="sm" fullWidth disableScrollLock PaperProps={{ sx: { borderRadius: 2 } }}>
@@ -797,15 +539,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Toolbar sx={{ minHeight: { xs: '56px !important', sm: '40px !important' }, display: 'flex', justifyContent: 'space-between', px: { xs: 1, sm: 2 } }}>
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
             <>
-              <IconButton
-                color="inherit"
-                aria-label="open drawer"
-                edge="start"
-                onClick={handleDrawerToggle}
-                sx={{ mr: { xs: 1, sm: 2 }, display: { sm: 'none' }, minWidth: 48, minHeight: 48 }}
-              >
-                <MenuIcon />
-              </IconButton>
               <Typography variant="h6" noWrap component="div" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentTitle}
               </Typography>
@@ -856,25 +589,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }}
       >
         <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-              transition: theme.transitions.create('width', {
-                easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.enteringScreen,
-              }),
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
@@ -901,13 +615,61 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           flexDirection: 'column',
           overflow: 'hidden',
           minHeight: 0,
-          padding: { xs: theme.spacing(1), sm: theme.spacing(1, 2, 2, 2) },
+          padding: { xs: theme.spacing(1, 1, 9, 1), sm: theme.spacing(1, 2, 2, 2) },
         }}
       >
         <Toolbar sx={{ minHeight: { xs: '56px !important', sm: '40px !important' }, flexShrink: 0 }} />
-        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {children}
         </Box>
+        {isMobile && (
+          <Paper sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: (theme) => theme.zIndex.appBar + 1, borderTop: '1px solid', borderColor: 'divider' }} elevation={3}>
+            <Box
+              ref={bottomNavRef}
+              sx={{
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                '&::-webkit-scrollbar': { display: 'none' },
+                msOverflowStyle: 'none',
+                scrollbarWidth: 'none',
+                display: 'flex',
+                width: '100%',
+                bgcolor: 'background.paper',
+              }}
+            >
+              <BottomNavigation
+                showLabels
+                value={activeBottomNavIndex >= 0 ? activeBottomNavIndex : 0}
+                onChange={handleBottomNavChange}
+                sx={{
+                  height: 64,
+                  minWidth: bottomNavItems.length * 80, // 項目ごとに最低幅を確保してスクロール可能に
+                  justifyContent: 'flex-start',
+                  bgcolor: 'transparent',
+                }}
+              >
+                {bottomNavItems.map((item, index) => (
+                  <BottomNavigationAction
+                    key={index}
+                    label={item.text}
+                    icon={item.icon}
+                    sx={{
+                      minWidth: 80,
+                      maxWidth: 'none',
+                      flex: '0 0 auto',
+                      '&.Mui-selected': { color: 'primary.main' },
+                      '& .MuiSvgIcon-root': { fontSize: 24 },
+                      '& .MuiBottomNavigationAction-label': {
+                        fontSize: '0.65rem',
+                        '&.Mui-selected': { fontSize: '0.7rem' }
+                      }
+                    }}
+                  />
+                ))}
+              </BottomNavigation>
+            </Box>
+          </Paper>
+        )}
       </Box>
     </Box>
   )

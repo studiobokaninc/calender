@@ -689,7 +689,7 @@ const UserManagementPage: React.FC = () => {
                                     {part.delayed.map((t) => {
                                       const isPhase = (t as any).isPhase;
                                       return (
-                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
                                             label={t.name}
@@ -701,7 +701,7 @@ const UserManagementPage: React.FC = () => {
                                               maxWidth: 200,
                                               cursor: 'pointer'
                                             }}
-                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                            onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                           />
                                         </Tooltip>
                                       );
@@ -718,7 +718,7 @@ const UserManagementPage: React.FC = () => {
                                     {part.today.map((t) => {
                                       const isPhase = (t as any).isPhase;
                                       return (
-                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
                                             label={t.name}
@@ -730,7 +730,7 @@ const UserManagementPage: React.FC = () => {
                                               maxWidth: 200,
                                               cursor: 'pointer'
                                             }}
-                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                            onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                           />
                                         </Tooltip>
                                       );
@@ -747,7 +747,7 @@ const UserManagementPage: React.FC = () => {
                                     {part.dueSoon.map((t) => {
                                       const isPhase = (t as any).isPhase;
                                       return (
-                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
                                             label={t.name}
@@ -759,7 +759,7 @@ const UserManagementPage: React.FC = () => {
                                               maxWidth: 200,
                                               cursor: 'pointer'
                                             }}
-                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                            onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                           />
                                         </Tooltip>
                                       );
@@ -774,7 +774,7 @@ const UserManagementPage: React.FC = () => {
                                     {part.other.map((t) => {
                                       const isPhase = (t as any).isPhase;
                                       return (
-                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps}>
+                                        <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
                                             label={t.name}
@@ -784,7 +784,7 @@ const UserManagementPage: React.FC = () => {
                                               cursor: 'pointer',
                                               ...(isPhase && { borderStyle: 'dashed' })
                                             }}
-                                            onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                            onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                           />
                                         </Tooltip>
                                       );
@@ -849,7 +849,7 @@ const UserManagementPage: React.FC = () => {
                                   {part.delayed.length === 0 ? '—' : part.delayed.map((t) => {
                                     const isPhase = (t as any).isPhase;
                                     return (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
                                           label={t.name}
@@ -864,7 +864,7 @@ const UserManagementPage: React.FC = () => {
                                             WebkitTouchCallout: 'none',
                                             touchAction: 'manipulation',
                                           }}
-                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                         />
                                       </Tooltip>
                                     );
@@ -876,7 +876,7 @@ const UserManagementPage: React.FC = () => {
                                   {part.today.length === 0 ? '—' : part.today.map((t) => {
                                     const isPhase = (t as any).isPhase;
                                     return (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
                                           label={t.name}
@@ -891,7 +891,7 @@ const UserManagementPage: React.FC = () => {
                                             WebkitTouchCallout: 'none',
                                             touchAction: 'manipulation',
                                           }}
-                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                         />
                                       </Tooltip>
                                     );
@@ -903,7 +903,7 @@ const UserManagementPage: React.FC = () => {
                                   {part.dueSoon.length === 0 ? '—' : part.dueSoon.map((t) => {
                                     const isPhase = (t as any).isPhase;
                                     return (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
                                           label={t.name}
@@ -918,7 +918,7 @@ const UserManagementPage: React.FC = () => {
                                             WebkitTouchCallout: 'none',
                                             touchAction: 'manipulation',
                                           }}
-                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                         />
                                       </Tooltip>
                                     );
@@ -930,7 +930,7 @@ const UserManagementPage: React.FC = () => {
                                   {part.other.length === 0 ? '—' : part.other.map((t) => {
                                     const isPhase = (t as any).isPhase;
                                     return (
-                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — ダブルクリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
+                                      <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
                                           label={t.name}
@@ -943,7 +943,7 @@ const UserManagementPage: React.FC = () => {
                                             WebkitTouchCallout: 'none',
                                             touchAction: 'manipulation',
                                           }}
-                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                         />
                                       </Tooltip>
                                     );

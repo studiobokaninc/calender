@@ -42,6 +42,62 @@ def to_relative_minutes(updated_at_str: str) -> str:
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     return f"{hours}時間{minutes}分前"
+    
+def _extract_task_id(value):
+    """タスクIDを抽出。整数、文字列の整数、"task-XXXX"形式に対応"""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        value = value.strip()
+        # "task-XXXX"形式の場合
+        if value.startswith("task-"):
+            try:
+                return int(value[5:])  # "task-"の後の部分を抽出
+            except (ValueError, TypeError):
+                pass
+        # 通常の数値文字列の場合
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            pass
+    return None
+
+def _resolve_task_dependencies(item: dict, id_to_taskname: dict):
+    """タスクのdependsOn（IDリストまたは文字列）をタスク名のカンマ区切り文字列に変換する"""
+    depends_on = item.get("dependsOn", "")
+    if not depends_on:
+        item["dependsOn"] = ""
+        return
+
+    task_names = []
+    
+    # リスト形式の場合
+    if isinstance(depends_on, list):
+        for dep_id in depends_on:
+            dep_id_int = _extract_task_id(dep_id)
+            if dep_id_int and dep_id_int in id_to_taskname:
+                task_names.append(id_to_taskname[dep_id_int])
+            elif dep_id:
+                task_names.append(str(dep_id))
+    # 文字列形式の場合（カンマ区切りなど）
+    elif isinstance(depends_on, str):
+        dep_ids_str = [d.strip() for d in depends_on.split(",") if d.strip()]
+        for dep_id_str in dep_ids_str:
+            dep_id_int = _extract_task_id(dep_id_str)
+            if dep_id_int and dep_id_int in id_to_taskname:
+                task_names.append(id_to_taskname[dep_id_int])
+            elif dep_id_str:
+                task_names.append(dep_id_str)
+    # 単一のIDの場合
+    else:
+        dep_id_int = _extract_task_id(depends_on)
+        if dep_id_int and dep_id_int in id_to_taskname:
+            task_names.append(id_to_taskname[dep_id_int])
+        elif depends_on:
+            task_names.append(str(depends_on))
+    
+    item["dependsOn"] = ", ".join(task_names) if task_names else ""
+
 
 
 def get_latest_changed_at(task: dict) -> str:
@@ -256,62 +312,8 @@ def build_task_list_for_chat(db: Session) -> str:
                 item["assigned_to"] = id_to_username.get(uid, str(uid))
 
             # 依存タスクをタスクIDからタスク名に置き換え
-            depends_on = item.get("dependsOn", "")
-            if depends_on:
-                task_names = []
-                
-                # タスクIDを抽出するヘルパー関数（"task-XXXX"形式にも対応）
-                def extract_task_id(value):
-                    """タスクIDを抽出。整数、文字列の整数、"task-XXXX"形式に対応"""
-                    if isinstance(value, int):
-                        return value
-                    if isinstance(value, str):
-                        value = value.strip()
-                        # "task-XXXX"形式の場合
-                        if value.startswith("task-"):
-                            try:
-                                return int(value[5:])  # "task-"の後の部分を抽出
-                            except (ValueError, TypeError):
-                                pass
-                        # 通常の数値文字列の場合
-                        try:
-                            return int(value)
-                        except (ValueError, TypeError):
-                            pass
-                    return None
-                
-                # リスト形式の場合
-                if isinstance(depends_on, list):
-                    for dep_id in depends_on:
-                        dep_id_int = extract_task_id(dep_id)
-                        if dep_id_int and dep_id_int in id_to_taskname:
-                            task_names.append(id_to_taskname[dep_id_int])
-                        elif dep_id:
-                            # タスク名が見つからない場合は元の値を保持（既にタスク名の可能性もある）
-                            task_names.append(str(dep_id))
-                # 文字列形式の場合（カンマ区切りなど）
-                elif isinstance(depends_on, str):
-                    # カンマ区切りの文字列をパース
-                    dep_ids_str = [d.strip() for d in depends_on.split(",") if d.strip()]
-                    for dep_id_str in dep_ids_str:
-                        dep_id_int = extract_task_id(dep_id_str)
-                        if dep_id_int and dep_id_int in id_to_taskname:
-                            task_names.append(id_to_taskname[dep_id_int])
-                        elif dep_id_str:
-                            # タスク名が見つからない場合は元の値を保持（既にタスク名の可能性もある）
-                            task_names.append(dep_id_str)
-                # 単一のIDの場合
-                else:
-                    dep_id_int = extract_task_id(depends_on)
-                    if dep_id_int and dep_id_int in id_to_taskname:
-                        task_names.append(id_to_taskname[dep_id_int])
-                    elif depends_on:
-                        task_names.append(str(depends_on))
-                
-                # タスク名をカンマ区切りで結合
-                item["dependsOn"] = ", ".join(task_names) if task_names else ""
-            else:
-                item["dependsOn"] = ""
+            _resolve_task_dependencies(item, id_to_taskname)
+
 
         return build_tasks_csv_text(filtered_tasks)
     except Exception as e:
@@ -688,6 +690,9 @@ def get_personal_context(db: Session, user_id: int) -> dict:
     users = crud.get_users(db, skip=0, limit=10000)
     id_to_username = {u.id: (u.username or u.name or str(u.id)) for u in users}
     
+    # タスクIDからタスク名へのマッピングを作成（全てのタスクを対象にする）
+    id_to_taskname = {t.get("id"): _cell_str(t.get("name"), normalize_text=True) for t in all_tasks if t.get("id") and t.get("name")}
+
     # タスクデータの加工（ID -> Name変換）
     processed_tasks = []
     for item in my_active_tasks:
@@ -698,7 +703,12 @@ def get_personal_context(db: Session, user_id: int) -> dict:
         uid = t.get("assigned_to")
         if uid in id_to_username:
             t["assigned_to"] = id_to_username[uid]
+        
+        # 依存タスクを解決
+        _resolve_task_dependencies(t, id_to_taskname)
+        
         processed_tasks.append(t)
+
         
     inputs["csv"] = build_tasks_csv_text(processed_tasks)
     
@@ -765,6 +775,9 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
     users = crud.get_users(db, limit=10000)
     id_to_username = {u.id: (u.username or u.name or str(u.id)) for u in users}
 
+    # タスクIDからタスク名へのマッピングを作成（全てのタスクを対象にする）
+    id_to_taskname = {t.get("id"): _cell_str(t.get("name"), normalize_text=True) for t in all_tasks if t.get("id") and t.get("name")}
+
     target_tasks = []
     
     for t in all_tasks:
@@ -782,7 +795,12 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
         uid = ct.get("assigned_to")
         if uid in id_to_username:
             ct["assigned_to"] = id_to_username[uid]
+        
+        # 依存タスクを解決
+        _resolve_task_dependencies(ct, id_to_taskname)
+            
         target_tasks.append(ct)
+
 
     inputs["csv"] = build_tasks_csv_text(target_tasks)
     

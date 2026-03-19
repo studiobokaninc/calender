@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Task, User, Project } from '../types'; // Adjust path if necessary
-import { Box, Typography, Paper, Grid, Modal, IconButton, FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput, Tooltip as MuiTooltip } from '@mui/material';
+import { Box, Typography, Paper, Grid, Modal, IconButton, FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput, Tooltip as MuiTooltip, useTheme, useMediaQuery } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // ヘルプアイコン
 import { parseISO, isValid, isBefore, startOfDay } from 'date-fns';
@@ -27,18 +27,18 @@ interface AssigneeLoadData {
 
 // ★★★ データ計算ロジック変更: 新しい遅延定義を適用 ★★★
 const calculateAssigneeLoadData = (
-    tasks: Task[], 
+    tasks: Task[],
     users: User[]
 ): AssigneeLoadData[] => {
     const today = startOfDay(new Date()); // 今日の開始時刻
     const assignees = users.filter(u => u.role !== 'admin');
-    
+
     // 渡されたtasksをそのまま使用（上位でフィルター済み）
     const filteredTasks = tasks;
 
     const loadData = assignees.map(assignee => {
         const assignedTasks = filteredTasks.filter(task => task.assigned_to === assignee.id);
-        
+
         // ★★★ ステータス別に集計 ★★★
         let todoTasks = 0;
         let inProgressTasks = 0;
@@ -92,7 +92,7 @@ const calculateAssigneeLoadData = (
 
         return {
             assigneeId: assignee.id, // IDを追加
-            assigneeName: assignee.full_name || assignee.username || 'Unknown', 
+            assigneeName: assignee.full_name || assignee.username || 'Unknown',
             todoTasks,
             inProgressTasks,
             delayedTasks,
@@ -104,7 +104,7 @@ const calculateAssigneeLoadData = (
         };
     });
 
-    console.log('Calculated Assignee Load Data:', loadData); 
+    console.log('Calculated Assignee Load Data:', loadData);
     return loadData;
 };
 
@@ -117,9 +117,9 @@ const AssigneeCustomTooltip = ({ active, payload, label, formatter }: any) => {
                 {payload.map((pld: any, index: number) => {
                     const value = formatter ? formatter(pld.value) : pld.value;
                     // valueが0の場合は表示しない
-                    if (pld.value === 0) return null; 
+                    if (pld.value === 0) return null;
                     return (
-                        <Typography key={index} sx={{ color: pld.color, fontSize: '0.75rem' }}> 
+                        <Typography key={index} sx={{ color: pld.color, fontSize: '0.75rem' }}>
                             {`${pld.name}: ${value}`}
                         </Typography>
                     );
@@ -132,18 +132,18 @@ const AssigneeCustomTooltip = ({ active, payload, label, formatter }: any) => {
 
 // ★★★ モーダルスタイル (ProjectProgressChartから流用) ★★★
 const modalStyle = {
-  position: 'absolute' as 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: '80vw', // 少し小さめにする
-  height: '70vh', 
-  bgcolor: 'background.paper',
-  border: '1px solid #000',
-  boxShadow: 24,
-  p: 3, 
-  display: 'flex',
-  flexDirection: 'column' 
+    position: 'absolute' as 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '80vw', // 少し小さめにする
+    height: '70vh',
+    bgcolor: 'background.paper',
+    border: '1px solid #000',
+    boxShadow: 24,
+    p: 3,
+    display: 'flex',
+    flexDirection: 'column'
 };
 
 const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) => { // projects は使用しないので削除
@@ -156,11 +156,11 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) =
     );
 
     // ★★★ 担当者リスト（フィルター用）★★★
-    const assigneeOptions = useMemo(() => 
+    const assigneeOptions = useMemo(() =>
         users
             .filter(u => u.role !== 'admin')
             .map(u => ({ id: u.id, name: u.full_name || u.username }))
-    , [users]);
+        , [users]);
     // ★★★ 全担当者IDリスト（「すべて選択」用）★★★
     const allAssigneeIds = useMemo(() => assigneeOptions.map(opt => opt.id), [assigneeOptions]);
 
@@ -169,7 +169,7 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) =
         // ★★★ フィルターロジック変更: IDリストが全IDと同じか空なら全員表示 ★★★
         const isAllSelected = selectedAssigneeIds.length === 0 || selectedAssigneeIds.length === allAssigneeIds.length;
         if (isAllSelected) {
-            return assigneeLoadDataAll; 
+            return assigneeLoadDataAll;
         }
         return assigneeLoadDataAll.filter(d => selectedAssigneeIds.includes(d.assigneeId));
     }, [assigneeLoadDataAll, selectedAssigneeIds, allAssigneeIds]); // allAssigneeIds を依存配列に追加
@@ -179,53 +179,65 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) =
     const [isTaskCostModalOpen, setIsTaskCostModalOpen] = useState(false);
 
     if (!assigneeLoadDataAll) { // 元データがない場合はローディング等を考慮（MetricsPage側で対応済みのはず）
-        return null; 
+        return null;
     }
 
     const taskCountFormatter = (value: number) => `${value} 件`;
-    const costFormatter = (value: number) => `${value}`; 
+    const costFormatter = (value: number) => `${value}`;
 
-    // ★★★ グラフ描画関数修正: done を追加 ★★★
     const renderBarChart = (
-        data: AssigneeLoadData[], 
+        data: AssigneeLoadData[],
         countOrCost: 'count' | 'cost',
-        formatter: (value: any) => string, 
+        formatter: (value: any) => string,
         isModal: boolean = false
     ) => {
+        const theme = useTheme();
+        const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
         // ★★★ keys に done を追加 ★★★
-        const keys = countOrCost === 'count' 
+        const keys = countOrCost === 'count'
             ? { key1: 'todoTasks', name1: 'Todo', key2: 'inProgressTasks', name2: 'In Progress', key3: 'delayedTasks', name3: 'Delayed', key4: 'doneTasks', name4: 'Done' }
             : { key1: 'todoCost', name1: 'Todo', key2: 'inProgressCost', name2: 'In Progress', key3: 'delayedCost', name3: 'Delayed', key4: 'doneCost', name4: 'Done' };
         // ★★★ colors に done を追加 ★★★
-        const colors = { todo: '#2196F3', inProgress: '#4CAF50', delayed: '#F44336', done: '#9E9E9E' }; 
+        const colors = { todo: '#2196F3', inProgress: '#4CAF50', delayed: '#F44336', done: '#9E9E9E' };
 
         return (
-            <ResponsiveContainer width="100%" height={isModal ? "100%" : "90%"}>
-                <BarChart data={data} margin={{ top: 5, right: 5, left: isModal ? -15 : -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="assigneeName" fontSize={isModal ? 11 : 10} tick={{ dy: 5 }} interval={0} />
-                    <YAxis fontSize={isModal ? 11 : 10} tickFormatter={formatter} />
-                    <Tooltip 
-                        content={<AssigneeCustomTooltip formatter={formatter} />} 
-                        cursor={{ fill: '#f5f5f5' }} // カーソル色を薄いグレーに
-                        wrapperStyle={isModal ? { zIndex: 1500 } : {}}
-                    />
-                    <Legend 
-                        wrapperStyle={{ fontSize: isModal ? '0.8rem' : '0.75rem', paddingTop: '5px' }} 
-                        verticalAlign="top" 
-                        align="right" 
-                    />
-                    {/* ★★★ Bar に done を追加 ★★★ */}
-                    <Bar dataKey={keys.key1} name={keys.name1} fill={colors.todo} barSize={isModal ? 15 : 10} />
-                    <Bar dataKey={keys.key2} name={keys.name2} fill={colors.inProgress} barSize={isModal ? 15 : 10} />
-                    <Bar dataKey={keys.key3} name={keys.name3} fill={colors.delayed} barSize={isModal ? 15 : 10} />
-                    <Bar dataKey={keys.key4} name={keys.name4} fill={colors.done} barSize={isModal ? 15 : 10} />
-                </BarChart>
-            </ResponsiveContainer>
+            <Box sx={{
+                width: '100%',
+                height: isModal ? "100%" : "90%",
+                overflowX: isMobile ? 'auto' : 'visible',
+                '&::-webkit-scrollbar': { height: '8px' },
+                '&::-webkit-scrollbar-thumb': { backgroundColor: 'divider', borderRadius: '4px' }
+            }}>
+                <Box sx={{ minWidth: isMobile ? '500px' : 'auto', height: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} margin={{ top: 5, right: isMobile ? 25 : 5, left: isModal ? -15 : -15, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="assigneeName" fontSize={isModal ? 11 : 10} tick={{ dy: 5 }} interval={0} />
+                            <YAxis fontSize={isModal ? 11 : 10} tickFormatter={formatter} />
+                            <Tooltip
+                                content={<AssigneeCustomTooltip formatter={formatter} />}
+                                cursor={{ fill: '#f5f5f5' }} // カーソル色を薄いグレーに
+                                wrapperStyle={isModal ? { zIndex: 1500 } : {}}
+                            />
+                            <Legend
+                                wrapperStyle={{ fontSize: isModal ? '0.8rem' : '0.75rem', paddingTop: '5px' }}
+                                verticalAlign="top"
+                                align="right"
+                            />
+                            {/* ★★★ Bar に done を追加 ★★★ */}
+                            <Bar dataKey={keys.key1} name={keys.name1} fill={colors.todo} barSize={isModal ? 15 : isMobile ? 8 : 10} />
+                            <Bar dataKey={keys.key2} name={keys.name2} fill={colors.inProgress} barSize={isModal ? 15 : isMobile ? 8 : 10} />
+                            <Bar dataKey={keys.key3} name={keys.name3} fill={colors.delayed} barSize={isModal ? 15 : isMobile ? 8 : 10} />
+                            <Bar dataKey={keys.key4} name={keys.name4} fill={colors.done} barSize={isModal ? 15 : isMobile ? 8 : 10} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Box>
+            </Box>
         );
     }
 
-     // ★★★ 「すべて選択」ハンドラー ★★★
+    // ★★★ 「すべて選択」ハンドラー ★★★
     const handleSelectAllAssignees = (event: React.ChangeEvent<HTMLInputElement>) => {
         if (event.target.checked) {
             setSelectedAssigneeIds(allAssigneeIds); // 全員のIDを選択
@@ -236,12 +248,12 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) =
 
     return (
         <Box>
-             {/* ★★★ フィルターUIを Box で囲み、タイトルとヘルプを追加 ★★★ */}
-             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            {/* ★★★ フィルターUIを Box で囲み、タイトルとヘルプを追加 ★★★ */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
-                     担当者別タスク負荷
+                    担当者別タスク負荷
                 </Typography>
-                <MuiTooltip 
+                <MuiTooltip
                     title={
                         <Box sx={{ fontSize: '0.75rem' }}>
                             担当者ごとのタスク状況を表示します。<br />
@@ -258,8 +270,8 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) =
                 </MuiTooltip>
             </Box>
             <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                 <FormControl size="small" sx={{ minWidth: 200 }}>
-                    <InputLabel sx={{fontSize: '0.8rem'}}>担当者</InputLabel>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                    <InputLabel sx={{ fontSize: '0.8rem' }}>担当者</InputLabel>
                     <Select
                         multiple
                         value={selectedAssigneeIds}
@@ -270,25 +282,25 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) =
                             setSelectedAssigneeIds(newValue.filter(id => typeof id === 'number' && !isNaN(id))); // Filter out invalid numbers
                         }}
                         input={<OutlinedInput label="担当者" />}
-                        renderValue={(selected) => 
-                             // ★★★ 空配列の場合「すべて」と表示 ★★★
+                        renderValue={(selected) =>
+                            // ★★★ 空配列の場合「すべて」と表示 ★★★
                             selected.length === 0 || selected.length === allAssigneeIds.length
-                              ? 'すべて' 
-                              : selected.map(id => assigneeOptions.find(opt => opt.id === id)?.name).join(', ')
+                                ? 'すべて'
+                                : selected.map(id => assigneeOptions.find(opt => opt.id === id)?.name).join(', ')
                         }
                         MenuProps={{ PaperProps: { style: { maxHeight: 224 } } }}
-                         sx={{fontSize: '0.8rem'}}
+                        sx={{ fontSize: '0.8rem' }}
                     >
-                         {/* ★★★ 「すべて選択」MenuItem から value="select-all" を削除 ★★★ */}
-                         <MenuItem> 
-                            <Checkbox 
-                                checked={selectedAssigneeIds.length === allAssigneeIds.length} 
+                        {/* ★★★ 「すべて選択」MenuItem から value="select-all" を削除 ★★★ */}
+                        <MenuItem>
+                            <Checkbox
+                                checked={selectedAssigneeIds.length === allAssigneeIds.length}
                                 indeterminate={selectedAssigneeIds.length > 0 && selectedAssigneeIds.length < allAssigneeIds.length}
                                 onChange={handleSelectAllAssignees}
                                 size="small"
-                             />
+                            />
                             <ListItemText primary="すべて選択/解除" primaryTypographyProps={{ fontSize: '0.85rem' }} />
-                         </MenuItem>
+                        </MenuItem>
                         {assigneeOptions.map((assignee) => (
                             <MenuItem key={assignee.id} value={assignee.id}>
                                 <Checkbox checked={selectedAssigneeIds.includes(assignee.id)} size="small" />
@@ -297,69 +309,69 @@ const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) =
                         ))}
                     </Select>
                 </FormControl>
-             </Box>
+            </Box>
 
-             <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold', fontSize: '0.9rem' }}>担当者別タスク負荷</Typography>
-             {/* グラフがない場合のメッセージ */}
-             {filteredAssigneeLoadData.length === 0 && (
-                 <Typography sx={{ textAlign: 'center', color: 'text.secondary', height: 320 }}>表示対象の担当者データがありません。</Typography>
-             )}
-             {/* ★★★ グラフ表示部分 (Grid) ★★★ */}
-             {filteredAssigneeLoadData.length > 0 && (
-                 <Grid container spacing={2}>
-                     <Grid item xs={12} md={6}>
-                         <Paper sx={{ p: 2, height: '320px' }}>
-                             <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign:'center', fontSize: '0.8rem' }}>タスク数</Typography>
-                              {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
-                             <Box onClick={() => setIsTaskCountModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}> 
+            <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold', fontSize: '0.9rem' }}>担当者別タスク負荷</Typography>
+            {/* グラフがない場合のメッセージ */}
+            {filteredAssigneeLoadData.length === 0 && (
+                <Typography sx={{ textAlign: 'center', color: 'text.secondary', height: 320 }}>表示対象の担当者データがありません。</Typography>
+            )}
+            {/* ★★★ グラフ表示部分 (Grid) ★★★ */}
+            {filteredAssigneeLoadData.length > 0 && (
+                <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 2, height: '320px' }}>
+                            <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign: 'center', fontSize: '0.8rem' }}>タスク数</Typography>
+                            {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
+                            <Box onClick={() => setIsTaskCountModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}>
                                 {renderBarChart(filteredAssigneeLoadData, 'count', taskCountFormatter)}
-                              </Box>
-                         </Paper>
-                     </Grid>
-                     <Grid item xs={12} md={6}>
-                         <Paper sx={{ p: 2, height: '320px' }}>
-                             <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign:'center', fontSize: '0.8rem' }}>タスクコスト</Typography>
-                             {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
-                             <Box onClick={() => setIsTaskCostModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}> 
+                            </Box>
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 2, height: '320px' }}>
+                            <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold', textAlign: 'center', fontSize: '0.8rem' }}>タスクコスト</Typography>
+                            {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
+                            <Box onClick={() => setIsTaskCostModalOpen(true)} sx={{ cursor: 'pointer', height: 'calc(100% - 30px)' }}>
                                 {renderBarChart(filteredAssigneeLoadData, 'cost', costFormatter)}
-                             </Box>
-                         </Paper>
-                     </Grid>
-                 </Grid>
-             )}
+                            </Box>
+                        </Paper>
+                    </Grid>
+                </Grid>
+            )}
 
-             {/* ★★★ タスク数モーダル ★★★ */}
+            {/* ★★★ タスク数モーダル ★★★ */}
             <Modal
                 open={isTaskCountModalOpen}
                 onClose={() => setIsTaskCountModalOpen(false)}
             >
                 <Box sx={modalStyle}>
-                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                         <Typography variant="h6" component="h2">担当者別タスク数 (拡大)</Typography>
-                         <IconButton onClick={() => setIsTaskCountModalOpen(false)} size="small"><CloseIcon /></IconButton>
-                     </Box>
-                     <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="h6" component="h2">担当者別タスク数 (拡大)</Typography>
+                        <IconButton onClick={() => setIsTaskCountModalOpen(false)} size="small"><CloseIcon /></IconButton>
+                    </Box>
+                    <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
                         {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
-                        {renderBarChart(filteredAssigneeLoadData, 'count', taskCountFormatter, true)} 
-                     </Box>
+                        {renderBarChart(filteredAssigneeLoadData, 'count', taskCountFormatter, true)}
+                    </Box>
                 </Box>
             </Modal>
 
-             {/* ★★★ タスクコストモーダル ★★★ */}
+            {/* ★★★ タスクコストモーダル ★★★ */}
             <Modal
                 open={isTaskCostModalOpen}
                 onClose={() => setIsTaskCostModalOpen(false)}
             >
-                 <Box sx={modalStyle}>
-                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                         <Typography variant="h6" component="h2">担当者別タスクコスト (拡大)</Typography>
-                         <IconButton onClick={() => setIsTaskCostModalOpen(false)} size="small"><CloseIcon /></IconButton>
-                     </Box>
-                     <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-                         {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
+                <Box sx={modalStyle}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                        <Typography variant="h6" component="h2">担当者別タスクコスト (拡大)</Typography>
+                        <IconButton onClick={() => setIsTaskCostModalOpen(false)} size="small"><CloseIcon /></IconButton>
+                    </Box>
+                    <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                        {/* ★★★ renderBarChart にフィルター後のデータを渡す ★★★ */}
                         {renderBarChart(filteredAssigneeLoadData, 'cost', costFormatter, true)}
-                     </Box>
-                 </Box>
+                    </Box>
+                </Box>
             </Modal>
 
         </Box>

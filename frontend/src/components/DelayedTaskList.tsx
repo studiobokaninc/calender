@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Task, User, Project } from '../types';
 import {
     Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
-    FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput, Tooltip as MuiTooltip, IconButton
+    FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput, Tooltip as MuiTooltip, IconButton, useMediaQuery, useTheme, Card, CardContent, Divider, Grid, Chip
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { format, differenceInDays, isValid, startOfDay, parseISO, isBefore } from 'date-fns'; // date-fnsをインポート
@@ -124,6 +124,8 @@ function stableSort(array: readonly DelayedTaskInfo[], comparator: (a: DelayedTa
 
 
 const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, projects }) => {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [order, setOrder] = useState<Order>('desc'); // デフォルトは遅延日数の降順
     const [orderBy, setOrderBy] = useState<OrderBy>('delayDays');
     const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]);
@@ -236,60 +238,105 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
                 </FormControl>
             </Box>
 
-            {/* タスクリストテーブル */}
-            <TableContainer>
-                <Table stickyHeader size="small">
-                    <TableHead>
-                        <TableRow>
-                            {/* ソート可能なヘッダーセル */}
-                            {(['title', 'projectName', 'assigneeName', 'dueDate', 'delayDays'] as const).map((headCell) => (
-                                <TableCell
-                                    key={headCell}
-                                    sortDirection={orderBy === headCell ? order : false}
-                                    sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}
-                                >
-                                    <TableSortLabel
-                                        active={orderBy === headCell}
-                                        direction={orderBy === headCell ? order : 'asc'}
-                                        onClick={() => handleRequestSort(headCell)}
-                                        sx={{ fontSize: 'inherit' }} // Inherit font size
+            {/* タスクリスト表示 */}
+            {isMobile ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    {sortedDelayedTasks.length > 0 ? (
+                        sortedDelayedTasks.map((task) => (
+                            <Card key={task.id} variant="outlined" sx={{ borderRadius: 2 }}>
+                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.9rem', flex: 1, mr: 1 }}>
+                                            {task.title}
+                                        </Typography>
+                                        <Chip
+                                            label={`${task.delayDays}日遅延`}
+                                            color="error"
+                                            size="small"
+                                            sx={{ fontWeight: 600, fontSize: '0.7rem', height: 24 }}
+                                        />
+                                    </Box>
+                                    <Divider sx={{ my: 1 }} />
+                                    <Grid container spacing={1}>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary" display="block">プロジェクト</Typography>
+                                            <Typography variant="body2" noWrap sx={{ fontSize: '0.75rem' }}>{task.projectName}</Typography>
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary" display="block">担当者</Typography>
+                                            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{task.assigneeName}</Typography>
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <Typography variant="caption" color="text.secondary" display="block">期限日</Typography>
+                                            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                                                {task.dueDate ? format(task.dueDate, 'yyyy/MM/dd') : '日付なし'}
+                                            </Typography>
+                                        </Grid>
+                                    </Grid>
+                                </CardContent>
+                            </Card>
+                        ))
+                    ) : (
+                        <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
+                            遅延しているタスクはありません。
+                        </Typography>
+                    )}
+                </Box>
+            ) : (
+                <TableContainer>
+                    <Table stickyHeader size="small">
+                        <TableHead>
+                            <TableRow>
+                                {/* ソート可能なヘッダーセル */}
+                                {(['title', 'projectName', 'assigneeName', 'dueDate', 'delayDays'] as const).map((headCell) => (
+                                    <TableCell
+                                        key={headCell}
+                                        sortDirection={orderBy === headCell ? order : false}
+                                        sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}
                                     >
-                                        {/* 列名の表示 */}
-                                        {headCell === 'title' ? 'タスク名' :
-                                            headCell === 'projectName' ? 'プロジェクト' :
-                                                headCell === 'assigneeName' ? '担当者' :
-                                                    headCell === 'dueDate' ? '期限日' :
-                                                        headCell === 'delayDays' ? '遅延日数' : headCell}
-                                    </TableSortLabel>
-                                </TableCell>
-                            ))}
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {sortedDelayedTasks.length > 0 ? (
-                            sortedDelayedTasks.map((task) => (
-                                <TableRow hover key={task.id}>
-                                    <TableCell sx={{ fontSize: '0.75rem' }}>{task.title}</TableCell>
-                                    <TableCell sx={{ fontSize: '0.75rem' }}>{task.projectName}</TableCell>
-                                    <TableCell sx={{ fontSize: '0.75rem' }}>{task.assigneeName}</TableCell>
-                                    <TableCell sx={{ fontSize: '0.75rem' }}>
-                                        {task.dueDate ? format(task.dueDate, 'yyyy/MM/dd') : '日付なし'}
+                                        <TableSortLabel
+                                            active={orderBy === headCell}
+                                            direction={orderBy === headCell ? order : 'asc'}
+                                            onClick={() => handleRequestSort(headCell)}
+                                            sx={{ fontSize: 'inherit' }} // Inherit font size
+                                        >
+                                            {/* 列名の表示 */}
+                                            {headCell === 'title' ? 'タスク名' :
+                                                headCell === 'projectName' ? 'プロジェクト' :
+                                                    headCell === 'assigneeName' ? '担当者' :
+                                                        headCell === 'dueDate' ? '期限日' :
+                                                            headCell === 'delayDays' ? '遅延日数' : headCell}
+                                        </TableSortLabel>
                                     </TableCell>
-                                    <TableCell sx={{ fontSize: '0.75rem', color: task.delayDays !== null ? 'error.main' : 'text.disabled', fontWeight: task.delayDays !== null ? 'bold' : 'normal' }}>
-                                        {task.delayDays !== null ? `${task.delayDays} 日` : '-'}
+                                ))}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {sortedDelayedTasks.length > 0 ? (
+                                sortedDelayedTasks.map((task) => (
+                                    <TableRow hover key={task.id}>
+                                        <TableCell sx={{ fontSize: '0.75rem' }}>{task.title}</TableCell>
+                                        <TableCell sx={{ fontSize: '0.75rem' }}>{task.projectName}</TableCell>
+                                        <TableCell sx={{ fontSize: '0.75rem' }}>{task.assigneeName}</TableCell>
+                                        <TableCell sx={{ fontSize: '0.75rem' }}>
+                                            {task.dueDate ? format(task.dueDate, 'yyyy/MM/dd') : '日付なし'}
+                                        </TableCell>
+                                        <TableCell sx={{ fontSize: '0.75rem', color: task.delayDays !== null ? 'error.main' : 'text.disabled', fontWeight: task.delayDays !== null ? 'bold' : 'normal' }}>
+                                            {task.delayDays !== null ? `${task.delayDays} 日` : '-'}
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
+                                        遅延しているタスクはありません。
                                     </TableCell>
                                 </TableRow>
-                            ))
-                        ) : (
-                            <TableRow>
-                                <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-                                    遅延しているタスクはありません。
-                                </TableCell>
-                            </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            )}
         </Paper>
     );
 };

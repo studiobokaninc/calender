@@ -9,9 +9,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   Cell,
-  ComposedChart,
 } from 'recharts';
-import { Box, Typography, Paper, useTheme, Popover, List, ListItem, ListItemText } from '@mui/material';
+import { Box, Typography, Paper, useTheme, Popover, List, ListItem, ListItemText, useMediaQuery } from '@mui/material';
 
 export interface WeeklyTaskItem {
   task_id: number;
@@ -79,6 +78,8 @@ const ResourceStackBar: React.FC<ResourceStackBarProps> = ({
     };
   });
 
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   if (data.length === 0) {
     return (
       <Paper variant="outlined" sx={{ p: 2 }}>
@@ -105,20 +106,21 @@ const ResourceStackBar: React.FC<ResourceStackBarProps> = ({
           <Typography variant="caption">ベースロード（定常業務）</Typography>
         </Box>
       </Box>
-      <Box sx={{ width: '100%', height: Math.max(320, data.length * 32) }}>
+      <Box sx={{ width: '100%', height: Math.max(320, data.length * (isMobile ? 40 : 32)) }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}
             layout="vertical"
-            margin={{ top: 32, right: 56, left: 8, bottom: 8 }}
+            margin={{ top: 32, right: isMobile ? 30 : 56, left: isMobile ? -20 : 8, bottom: 8 }}
           >
             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
             <XAxis
               type="number"
               domain={[0, Math.max(maxHoursPerWeek * 1.2, ...data.map((d) => d.hours), 1)]}
               tickFormatter={(v) => `${v}h`}
+              fontSize={10}
             />
-            <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 12 }} />
+            <YAxis type="category" dataKey="name" width={isMobile ? 80 : 120} tick={{ fontSize: isMobile ? 10 : 12 }} />
             <Tooltip
               formatter={(value: number, name: string) => {
                 if (name === 'baseLoad') return [`${value} h`, 'ベースロード'];

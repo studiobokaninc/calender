@@ -14,7 +14,9 @@ import {
   Button,
   Stack,
   Card,
-  CardContent
+  CardContent,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import {
   AccessTime as AccessTimeIcon,
@@ -58,6 +60,9 @@ function getTodayCycleDateString(): string {
 }
 
 const UserActivityPage: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [activities, setActivities] = useState<UserActivityWithUser[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -394,17 +399,17 @@ const UserActivityPage: React.FC = () => {
 
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: isMobile ? 1.5 : 3, pb: isMobile ? 10 : 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
         <AccessTimeIcon sx={{ mr: 1, color: 'primary.main' }} />
-        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
+        <Typography variant={isMobile ? "h6" : "h5"} component="div" sx={{ fontWeight: 'bold' }}>
           ユーザーアクティビティ管理
         </Typography>
       </Box>
 
       {/* フィルター */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
+      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
+        <Typography variant="subtitle1" gutterBottom fontWeight={600}>
           フィルター
         </Typography>
         <Stack
@@ -413,12 +418,13 @@ const UserActivityPage: React.FC = () => {
           alignItems={{ xs: 'stretch', sm: 'center' }}
           flexWrap="wrap"
         >
-          <FormControl sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
+          <FormControl fullWidth={isMobile} sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
             <InputLabel>ユーザー</InputLabel>
             <Select
               value={selectedUserId}
               label="ユーザー"
               onChange={(e) => setSelectedUserId(e.target.value as number | '')}
+              sx={{ borderRadius: 2 }}
             >
               <MenuItem value="">すべて</MenuItem>
               {users.map(user => (
@@ -431,14 +437,19 @@ const UserActivityPage: React.FC = () => {
           <TextField
             label="周期日"
             type="date"
+            fullWidth={isMobile}
             value={selectedCycleDate}
             onChange={(e) => setSelectedCycleDate(e.target.value)}
             InputLabelProps={{ shrink: true }}
             size="small"
-            sx={{ minWidth: { xs: '100%', sm: 200 } }}
+            sx={{ minWidth: { xs: '100%', sm: 200 }, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
-          <Button variant="outlined" onClick={handleClearFilters} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-            フィルター解除
+          <Button
+            variant="outlined"
+            onClick={handleClearFilters}
+            sx={{ width: { xs: '100%', sm: 'auto' }, borderRadius: 2 }}
+          >
+            解除
           </Button>
         </Stack>
       </Paper>
@@ -518,92 +529,104 @@ const UserActivityPage: React.FC = () => {
                     </Box>
                   </Paper>
                 </Box>
-                <Box sx={{ flex: 1, minHeight: 0 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={hourlyDataByUser} margin={{ top: 10, right: 20, left: 10, bottom: 80 }}>
-                      <defs>
+                <Box sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflowX: isMobile ? 'auto' : 'visible',
+                  '&::-webkit-scrollbar': { height: '8px' },
+                  '&::-webkit-scrollbar-thumb': { backgroundColor: 'divider', borderRadius: '4px' }
+                }}>
+                  <Box sx={{
+                    minWidth: isMobile ? '800px' : 'auto',
+                    height: isMobile ? 'calc(100% - 10px)' : '100%',
+                    pb: isMobile ? 1 : 0
+                  }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={hourlyDataByUser} margin={{ top: 10, right: 30, left: 0, bottom: 80 }}>
+                        <defs>
+                          {userColors.userList.map(user => {
+                            const color = userColors.colorMap.get(user.userId) || '#1976d2';
+                            return (
+                              <linearGradient key={user.userId} id={`color${user.userId}`} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={color} stopOpacity={0.4} />
+                                <stop offset="95%" stopColor={color} stopOpacity={0.05} />
+                              </linearGradient>
+                            );
+                          })}
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+                        <XAxis
+                          dataKey="timeLabel"
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
+                          interval={isMobile ? 2 : 5}
+                          tick={{ fontSize: isMobile ? 10 : 9 }}
+                          label={{ value: '時間帯（10分刻み）', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fontSize: 12 } }}
+                        />
+                        <YAxis
+                          label={{ value: 'アクティブ状態', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 12 } }}
+                          tick={{ fontSize: 11 }}
+                          domain={[0, 1]}
+                          ticks={[0, 1]}
+                          tickFormatter={(value) => value === 1 ? 'オン' : 'オフ'}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            fontSize: '12px',
+                            border: '1px solid #ccc',
+                            borderRadius: '4px',
+                            padding: '8px'
+                          }}
+                          formatter={(value: any, name: string) => [value === 1 ? 'アクティブ' : '非アクティブ', name]}
+                          labelFormatter={(label) => `時間帯: ${label}`}
+                        />
+                        <Legend
+                          wrapperStyle={{ paddingTop: '10px', fontSize: '11px' }}
+                          iconType="circle"
+                          iconSize={8}
+                          verticalAlign="top"
+                          height={36}
+                        />
+                        {/* 現在時刻を示す線（今日のデータを表示している場合のみ） */}
+                        {isShowingToday && currentTimeLabel.cycleHour >= 5 && currentTimeLabel.cycleHour < 29 && (
+                          <ReferenceLine
+                            x={currentTimeLabel.timeLabel}
+                            stroke="#ff0000"
+                            strokeWidth={2.5}
+                            strokeDasharray="5 5"
+                            label={{
+                              value: '現在',
+                              position: 'top',
+                              fill: '#ff0000',
+                              fontSize: 11,
+                              fontWeight: 'bold',
+                              offset: 5
+                            }}
+                          />
+                        )}
                         {userColors.userList.map(user => {
                           const color = userColors.colorMap.get(user.userId) || '#1976d2';
                           return (
-                            <linearGradient key={user.userId} id={`color${user.userId}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={color} stopOpacity={0.4} />
-                              <stop offset="95%" stopColor={color} stopOpacity={0.05} />
-                            </linearGradient>
+                            <Area
+                              key={user.userId}
+                              type="stepAfter"
+                              dataKey={user.name}
+                              stroke={color}
+                              fill={`url(#color${user.userId})`}
+                              strokeWidth={2.5}
+                              name={user.name}
+                              connectNulls={false}
+                              isAnimationActive={false}
+                              strokeOpacity={0.8}
+                              fillOpacity={0.3}
+                            />
                           );
                         })}
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                      <XAxis
-                        dataKey="timeLabel"
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                        interval={5}
-                        tick={{ fontSize: 9 }}
-                        label={{ value: '時間帯（10分刻み）', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fontSize: 12 } }}
-                      />
-                      <YAxis
-                        label={{ value: 'アクティブ状態', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 12 } }}
-                        tick={{ fontSize: 11 }}
-                        domain={[0, 1]}
-                        ticks={[0, 1]}
-                        tickFormatter={(value) => value === 1 ? 'オン' : 'オフ'}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                          fontSize: '12px',
-                          border: '1px solid #ccc',
-                          borderRadius: '4px',
-                          padding: '8px'
-                        }}
-                        formatter={(value: any, name: string) => [value === 1 ? 'アクティブ' : '非アクティブ', name]}
-                        labelFormatter={(label) => `時間帯: ${label}`}
-                      />
-                      <Legend
-                        wrapperStyle={{ paddingTop: '10px', fontSize: '11px' }}
-                        iconType="circle"
-                        iconSize={8}
-                        verticalAlign="top"
-                        height={36}
-                      />
-                      {/* 現在時刻を示す線（今日のデータを表示している場合のみ） */}
-                      {isShowingToday && currentTimeLabel.cycleHour >= 5 && currentTimeLabel.cycleHour < 29 && (
-                        <ReferenceLine
-                          x={currentTimeLabel.timeLabel}
-                          stroke="#ff0000"
-                          strokeWidth={2.5}
-                          strokeDasharray="5 5"
-                          label={{
-                            value: '現在',
-                            position: 'top',
-                            fill: '#ff0000',
-                            fontSize: 11,
-                            fontWeight: 'bold',
-                            offset: 5
-                          }}
-                        />
-                      )}
-                      {userColors.userList.map(user => {
-                        const color = userColors.colorMap.get(user.userId) || '#1976d2';
-                        return (
-                          <Area
-                            key={user.userId}
-                            type="stepAfter"
-                            dataKey={user.name}
-                            stroke={color}
-                            fill={`url(#color${user.userId})`}
-                            strokeWidth={2.5}
-                            name={user.name}
-                            connectNulls={false}
-                            isAnimationActive={false}
-                            strokeOpacity={0.8}
-                            fillOpacity={0.3}
-                          />
-                        );
-                      })}
-                    </AreaChart>
-                  </ResponsiveContainer>
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </Box>
                 </Box>
               </CardContent>
             </Card>

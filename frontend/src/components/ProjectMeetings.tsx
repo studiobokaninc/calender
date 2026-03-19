@@ -4,7 +4,7 @@ import {
     IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
     TextField, CircularProgress,
     Accordion, AccordionSummary, AccordionDetails,
-    Alert, Snackbar, Grid, Chip, Link
+    Alert, Snackbar, Grid, Chip, Link, useMediaQuery, useTheme
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -111,14 +111,29 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
         }
     };
 
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     return (
         <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">会議音声・AI議事録</Typography>
+            <Box sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                mb: 2,
+                flexDirection: isMobile ? 'column' : 'row',
+                gap: isMobile ? 1.5 : 0
+            }}>
+                <Typography variant="h6" sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: 600 }}>
+                    会議音声・AI議事録
+                </Typography>
                 <Button
                     variant="contained"
                     startIcon={<CloudUploadIcon />}
                     onClick={() => setIsUploadOpen(true)}
+                    size={isMobile ? "small" : "medium"}
+                    fullWidth={isMobile}
+                    sx={{ borderRadius: 2 }}
                 >
                     会議オーディオを追加
                 </Button>
@@ -171,7 +186,17 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                 <Grid container spacing={3}>
                                     <Grid item xs={12}>
                                         {meeting.audio_url && (
-                                            <Box sx={{ mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Box sx={{
+                                                mb: 2,
+                                                p: isMobile ? 1.5 : 2,
+                                                bgcolor: 'action.hover',
+                                                borderRadius: 2,
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                flexDirection: isMobile ? 'column' : 'row',
+                                                gap: isMobile ? 1.5 : 0
+                                            }}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                                     <MicIcon sx={{ mr: 1, color: 'text.secondary' }} />
                                                     <Typography variant="body2" color="text.secondary">
@@ -185,9 +210,9 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                     variant="outlined"
                                                     size="small"
                                                     startIcon={<CloudUploadIcon sx={{ transform: 'rotate(180deg)' }} />}
-                                                    sx={{ borderRadius: 2 }}
+                                                    sx={{ borderRadius: 2, width: isMobile ? '100%' : 'auto' }}
                                                 >
-                                                    音声をダウンロードして再生
+                                                    {isMobile ? '音声をダウンロード' : '音声をダウンロードして再生'}
                                                 </Button>
                                             </Box>
                                         )}

@@ -33,7 +33,6 @@ class TaskPriority(str, enum.Enum):
     LOW = "LOW"
 
 class TaskType(str, enum.Enum):
-    DEVELOPMENT = "development"
     DESIGN = "design"
     DOCUMENTATION = "documentation"
     TESTING = "testing"
@@ -44,7 +43,6 @@ class TaskType(str, enum.Enum):
     ANIMATION = "animation"
     LIGHTING = "lighting"
     COMP = "comp"
-    EDIT = "edit"
 
 class EventType(str, enum.Enum):
     MEETING = "Meeting"

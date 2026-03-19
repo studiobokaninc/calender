@@ -1,4 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Body, BackgroundTasks, Response, Request, Query, Path, UploadFile, File
+import asyncio
+import sys
+
+# WindowsではProactorEventLoopを使用することでサブプロセス実行を安定させる
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -9,6 +16,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr, Field
 from . import models, database, crud, schemas
+from .task_utils import normalize_task_type
 from . import mock_data
 from .database import engine, get_db, DATABASE_FILE_PATH
 import uuid
@@ -20,7 +28,7 @@ from . import security
 from . import google_calendar as google_cal
 from .routers import chat as chat_router
 from .routers import meetings as meetings_router
-from .timezone import now_jst_naive
+from .timezone import now_jst_naive, now_jst_aware, JST
 from dotenv import load_dotenv
 import json
 import logging
@@ -137,15 +145,34 @@ def authenticate_user(db: Session, username: str, password: str) -> Union[models
     return db_user
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """
+    JWTアクセストークンを作成。
+    期限は「次の午前5時 (JST)」に設定。
+    """
     to_encode = data.copy()
+    
+    # 日本時間 (JST) での現在時刻を取得
+    now_jst = now_jst_aware()
+    
+    # 「次の午前5時」を計算
+    # 5時前なら今日の5時、5時過ぎなら明日の5時
+    if now_jst.hour < 5:
+        target_5am_jst = now_jst.replace(hour=5, minute=0, second=0, microsecond=0)
+    else:
+        target_5am_jst = (now_jst + timedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
+    
+    # JWT の exp クレーム用には UTC 形式の datetime を渡す (python-jose が処理)
+    expire = target_5am_jst.astimezone(timezone.utc).replace(tzinfo=None)
+    
+    # 開発用などの明示的な期限指定がある場合はそちらを優先
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
     to_encode.update({"exp": expire})
     # チャットルーター等が security.get_current_user を使うため、同じ SECRET_KEY で発行する
     encoded_jwt = jwt.encode(to_encode, security.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session = Depends(get_db)) -> models.User:
     """JWT トークンを検証し、対応するユーザーを DB から取得"""
@@ -1849,16 +1876,8 @@ def parse_task_data(task_data: List[str], project_id: int, db: Session, project_
         # 警告メッセージを収集
         warnings = []
         
-        # タスクタイプのバリデーション（空欄は許容、推奨値チェック、大文字小文字を無視）
-        if task_type:  # 空欄（None）の場合はバリデーションをスキップ
-            valid_types = [t.value for t in models.TaskType]
-            # 小文字に変換して比較
-            task_type_lower = task_type.lower()
-            if task_type_lower not in valid_types:
-                warnings.append(f"タスクタイプ '{task_type}' は推奨値ではありません。推奨値: {', '.join(valid_types)} （空欄も可）")
-            else:
-                # 推奨値として認識された場合、正規化（小文字化）して保存
-                task_type = task_type_lower
+        # タスクタイプの正規化（表記ゆれ吸収と安全な保存）
+        task_type = normalize_task_type(task_type)
 
         # 担当者IDを取得（改良された検索機能を使用）
         assigned_to_id = None
@@ -2451,8 +2470,8 @@ async def import_mock_data(
                     assigned_to_name = task_data.get("assigneeName") or task_data.get("assigned_to_name")
                     assigned_to_id = task_data.get("assigned_to")
                     cost = float(task_data.get("cost", 0) or 0)
-                    # タスクタイプは任意の文字列を許容（そのまま保存）
-                    task_type = task_data.get("type")
+                    # タスクタイプを正規化（表記ゆれ吸収）
+                    task_type = normalize_task_type(task_data.get("type"))
                     seq_id = task_data.get("seqID") or task_data.get("seqId") or ""
                     shot_id = task_data.get("shotID") or task_data.get("shotId") or ""
                     depends_field = task_data.get("dependsOn") or task_data.get("dependent_tasks") or []
@@ -2466,8 +2485,8 @@ async def import_mock_data(
                     description = task_data[2]
                     assigned_to_name = task_data[3]
                     cost = float(task_data[4])
-                    # タスクタイプは任意の文字列を許容（そのまま保存）
-                    task_type = task_data[5] if task_data[5] else None
+                    # タスクタイプを正規化
+                    task_type = normalize_task_type(task_data[5] if len(task_data) > 5 and task_data[5] else None)
                     seq_id = task_data[6]
                     shot_id = task_data[7]
                     depends_on = task_data[8].split(',') if len(task_data) > 8 and task_data[8] else []

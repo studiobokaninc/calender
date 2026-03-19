@@ -99,7 +99,12 @@ projects = [
 tasks = []
 possible_costs = [4, 8, 12, 16, 20, 24, 28, 32, 36, 40]
 possible_priorities = [models.TaskPriority.HIGH, models.TaskPriority.MEDIUM, models.TaskPriority.LOW]
-possible_types = [models.TaskType.DEVELOPMENT, models.TaskType.DESIGN, models.TaskType.DOCUMENTATION, models.TaskType.TESTING, models.TaskType.COMP]
+possible_types = [
+    models.TaskType.DESIGN, models.TaskType.DOCUMENTATION, models.TaskType.TESTING,
+    models.TaskType.REVIEW, models.TaskType.MEETING, models.TaskType.FX,
+    models.TaskType.ASSET, models.TaskType.ANIMATION, models.TaskType.LIGHTING,
+    models.TaskType.COMP
+]
 
 for p_idx, project in enumerate(projects):
     project_id = project["id"]

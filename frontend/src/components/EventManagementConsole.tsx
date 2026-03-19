@@ -3,7 +3,7 @@ import {
   Box, Typography, List, ListItem, Paper, CircularProgress, Button,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, FormControl, InputLabel, Select,
   MenuItem, Chip, FormLabel, RadioGroup, FormControlLabel, Radio, Checkbox, OutlinedInput,
-  IconButton, Tooltip, Card, CardContent, Stack, Snackbar, Alert, Accordion, AccordionSummary, AccordionDetails
+  IconButton, Tooltip, Card, CardContent, Stack, Snackbar, Alert, Accordion, AccordionSummary, AccordionDetails, useMediaQuery, useTheme
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -258,21 +258,21 @@ const EventManagementConsole: React.FC = () => {
 
   const handleCreateRecurringMeetings = async () => {
     const { type, weekday, monthDay, startTime, endTime, title, description, location, participants, projectId, startDate, endDate } = recurringForm;
-    
+
     // 日付範囲の検証
     if (!startDate || !endDate) {
       setSnackbar({ open: true, message: '開始日と終了日を入力してください', severity: 'error' });
       return;
     }
-    
+
     const start = dayjs(startDate);
     const end = dayjs(endDate);
-    
+
     if (start.isAfter(end)) {
       setSnackbar({ open: true, message: '開始日は終了日より前である必要があります', severity: 'error' });
       return;
     }
-    
+
     let dates: dayjs.Dayjs[] = [];
     if (type === 'weekly') {
       let d = start.startOf('day');
@@ -290,15 +290,15 @@ const EventManagementConsole: React.FC = () => {
         d = d.add(1, 'month');
       }
     }
-    
+
     if (dates.length === 0) {
       setSnackbar({ open: true, message: '指定された期間内に該当する日付がありません', severity: 'error' });
       return;
     }
-    
+
     const participantsPayload = participants.map(p => ({ type: p.type, id: parseInt(p.id.replace(/\D/g, ''), 10) }));
     const projectIdNum = projectId ? parseInt(String(projectId), 10) : undefined;
-    
+
     setLoading(true);
     try {
       for (let i = 0; i < dates.length; i++) {
@@ -395,6 +395,10 @@ const EventManagementConsole: React.FC = () => {
     }
   };
 
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   if (loading && events.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 320 }}>
@@ -413,7 +417,16 @@ const EventManagementConsole: React.FC = () => {
   }
 
   return (
-    <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: 2 }}>
+    <Paper sx={{
+      p: isMobile ? 1.5 : 2,
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      borderRadius: isMobile ? 0 : 2,
+      border: isMobile ? 'none' : undefined,
+      pb: isMobile ? 10 : 2
+    }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h6" fontWeight={600}>
           定例会議管理
@@ -427,9 +440,15 @@ const EventManagementConsole: React.FC = () => {
 
       <Box sx={{ flex: 1, overflowY: 'auto' }}>
         {/* プロジェクトに属さない定例会議作成セクション */}
-        <Card variant="outlined" sx={{ mb: 2, bgcolor: 'rgba(25, 118, 210, 0.04)', borderColor: 'primary.main', borderWidth: 2 }}>
-          <CardContent>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+        <Card variant="outlined" sx={{ mb: 2, bgcolor: isDark ? 'rgba(25, 118, 210, 0.15)' : 'rgba(25, 118, 210, 0.04)', borderColor: 'primary.main', borderWidth: 2, borderRadius: 3 }}>
+          <CardContent sx={{ p: isMobile ? 2 : 3 }}>
+            <Box sx={{
+              display: 'flex',
+              alignItems: isMobile ? 'stretch' : 'center',
+              justifyContent: 'space-between',
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: 2
+            }}>
               <Box>
                 <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 0.5 }}>
                   プロジェクトに属さない定例会議
@@ -438,12 +457,13 @@ const EventManagementConsole: React.FC = () => {
                   プロジェクトに関連付けずに定例会議を作成できます
                 </Typography>
               </Box>
-              <Button 
-                variant="contained" 
-                size="medium" 
-                startIcon={<MeetingRoomIcon />} 
+              <Button
+                variant="contained"
+                size="medium"
+                startIcon={<MeetingRoomIcon />}
                 onClick={() => handleOpenRecurringModal()}
-                sx={{ minWidth: 180 }}
+                fullWidth={isMobile}
+                sx={{ minWidth: isMobile ? 'none' : 180, borderRadius: 2 }}
               >
                 定例会議を作成
               </Button>
@@ -456,8 +476,8 @@ const EventManagementConsole: React.FC = () => {
           const noProjectEvents = getNoProjectEvents();
           if (noProjectEvents.length > 0) {
             return (
-              <Accordion 
-                expanded={expandedProjects.has(-1)} 
+              <Accordion
+                expanded={expandedProjects.has(-1)}
                 onChange={handleAccordionChange(-1)}
                 sx={{ mb: 2 }}
               >
@@ -551,16 +571,16 @@ const EventManagementConsole: React.FC = () => {
               const detail = projectEventDetails[project.id] || { total: 0, meeting: 0, deadline: 0, milestone: 0, workshop: 0 };
               const projectEvents = getProjectEvents(project.id);
               const isExpanded = expandedProjects.has(project.id);
-              
+
               return (
-                <Accordion 
+                <Accordion
                   key={project.id}
-                  expanded={isExpanded} 
+                  expanded={isExpanded}
                   onChange={handleAccordionChange(project.id)}
                   sx={{ mb: idx < projects.length - 1 ? 1 : 0 }}
                 >
                   <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pr: 2 }}>
+                    <Box sx={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', width: '100%', pr: 2, flexDirection: isMobile ? 'column' : 'row' }}>
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="subtitle1" fontWeight={600}>{project.name}</Typography>
                         <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} flexWrap="wrap">
@@ -574,15 +594,16 @@ const EventManagementConsole: React.FC = () => {
                           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>優先度: {project.priority}</Typography>
                         )}
                       </Box>
-                      <Button 
-                        variant="outlined" 
-                        size="small" 
-                        startIcon={<MeetingRoomIcon />} 
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<MeetingRoomIcon />}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenRecurringModal(project);
                         }}
-                        sx={{ flexShrink: 0, ml: 2 }}
+                        sx={{ flexShrink: 0, ml: isMobile ? 0 : 2, mt: isMobile ? 1 : 0, borderRadius: 2 }}
+                        fullWidth={isMobile}
                       >
                         定例mtg作成
                       </Button>
@@ -661,15 +682,15 @@ const EventManagementConsole: React.FC = () => {
       </Box>
 
       {/* 定例作成モーダル */}
-      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
         <DialogTitle>定例会議作成</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           {/* プロジェクト選択（任意） */}
           <FormControl fullWidth sx={{ mb: 2 }}>
             <InputLabel>プロジェクト（任意）</InputLabel>
-            <Select 
-              value={recurringForm.projectId} 
-              label="プロジェクト（任意）" 
+            <Select
+              value={recurringForm.projectId}
+              label="プロジェクト（任意）"
               onChange={e => setRecurringForm(f => ({ ...f, projectId: e.target.value }))}
             >
               <MenuItem value="">プロジェクトに属さない</MenuItem>
@@ -681,21 +702,21 @@ const EventManagementConsole: React.FC = () => {
 
           {/* 日付範囲 */}
           <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-            <TextField 
-              fullWidth 
-              label="開始日" 
-              type="date" 
-              value={recurringForm.startDate} 
-              onChange={e => setRecurringForm(f => ({ ...f, startDate: e.target.value }))} 
+            <TextField
+              fullWidth
+              label="開始日"
+              type="date"
+              value={recurringForm.startDate}
+              onChange={e => setRecurringForm(f => ({ ...f, startDate: e.target.value }))}
               InputLabelProps={{ shrink: true }}
               required
             />
-            <TextField 
-              fullWidth 
-              label="終了日" 
-              type="date" 
-              value={recurringForm.endDate} 
-              onChange={e => setRecurringForm(f => ({ ...f, endDate: e.target.value }))} 
+            <TextField
+              fullWidth
+              label="終了日"
+              type="date"
+              value={recurringForm.endDate}
+              onChange={e => setRecurringForm(f => ({ ...f, endDate: e.target.value }))}
               InputLabelProps={{ shrink: true }}
               required
             />
@@ -721,13 +742,13 @@ const EventManagementConsole: React.FC = () => {
               </Select>
             </FormControl>
           ) : (
-            <TextField 
-              fullWidth 
-              sx={{ mb: 2 }} 
-              label="日付 (毎月)" 
-              type="number" 
-              value={recurringForm.monthDay} 
-              onChange={e => setRecurringForm(f => ({ ...f, monthDay: Number(e.target.value) }))} 
+            <TextField
+              fullWidth
+              sx={{ mb: 2 }}
+              label="日付 (毎月)"
+              type="number"
+              value={recurringForm.monthDay}
+              onChange={e => setRecurringForm(f => ({ ...f, monthDay: Number(e.target.value) }))}
               inputProps={{ min: 1, max: 31 }}
               helperText="毎月の日付を指定（1-31）"
             />
@@ -735,52 +756,52 @@ const EventManagementConsole: React.FC = () => {
 
           {/* 時間 */}
           <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-            <TextField 
-              label="開始時刻" 
-              type="time" 
-              value={recurringForm.startTime} 
-              onChange={e => setRecurringForm(f => ({ ...f, startTime: e.target.value }))} 
-              InputLabelProps={{ shrink: true }} 
-              fullWidth 
+            <TextField
+              label="開始時刻"
+              type="time"
+              value={recurringForm.startTime}
+              onChange={e => setRecurringForm(f => ({ ...f, startTime: e.target.value }))}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
             />
-            <TextField 
-              label="終了時刻" 
-              type="time" 
-              value={recurringForm.endTime} 
-              onChange={e => setRecurringForm(f => ({ ...f, endTime: e.target.value }))} 
-              InputLabelProps={{ shrink: true }} 
-              fullWidth 
+            <TextField
+              label="終了時刻"
+              type="time"
+              value={recurringForm.endTime}
+              onChange={e => setRecurringForm(f => ({ ...f, endTime: e.target.value }))}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
             />
           </Stack>
 
           {/* タイトル */}
-          <TextField 
-            fullWidth 
-            label="タイトル" 
-            value={recurringForm.title} 
-            onChange={e => setRecurringForm(f => ({ ...f, title: e.target.value }))} 
+          <TextField
+            fullWidth
+            label="タイトル"
+            value={recurringForm.title}
+            onChange={e => setRecurringForm(f => ({ ...f, title: e.target.value }))}
             sx={{ mb: 2 }}
             required
           />
 
           {/* 説明 */}
-          <TextField 
-            fullWidth 
-            label="説明" 
-            multiline 
-            minRows={2} 
-            value={recurringForm.description} 
-            onChange={e => setRecurringForm(f => ({ ...f, description: e.target.value }))} 
-            sx={{ mb: 2 }} 
+          <TextField
+            fullWidth
+            label="説明"
+            multiline
+            minRows={2}
+            value={recurringForm.description}
+            onChange={e => setRecurringForm(f => ({ ...f, description: e.target.value }))}
+            sx={{ mb: 2 }}
           />
 
           {/* 場所 */}
-          <TextField 
-            fullWidth 
-            label="場所" 
-            value={recurringForm.location} 
-            onChange={e => setRecurringForm(f => ({ ...f, location: e.target.value }))} 
-            sx={{ mb: 2 }} 
+          <TextField
+            fullWidth
+            label="場所"
+            value={recurringForm.location}
+            onChange={e => setRecurringForm(f => ({ ...f, location: e.target.value }))}
+            sx={{ mb: 2 }}
           />
 
           {/* 参加者 */}

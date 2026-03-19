@@ -1255,11 +1255,11 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       onChange={handleChange}
                     >
                       <MenuItem value="">未設定</MenuItem>
-                      <MenuItem value="development">Development</MenuItem>
                       <MenuItem value="design">Design</MenuItem>
                       <MenuItem value="documentation">Documentation</MenuItem>
                       <MenuItem value="testing">Testing</MenuItem>
-                      <MenuItem value="maintenance">Maintenance</MenuItem>
+                      <MenuItem value="review">Review</MenuItem>
+                      <MenuItem value="meeting">Meeting</MenuItem>
                       <MenuItem value="fx">FX</MenuItem>
                       <MenuItem value="asset">Asset</MenuItem>
                       <MenuItem value="animation">Animation</MenuItem>

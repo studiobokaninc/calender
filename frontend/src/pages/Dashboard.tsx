@@ -34,6 +34,7 @@ import {
   Stop as StopIcon,
   Close as CloseIcon,
   Edit as EditIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -60,6 +61,8 @@ const Dashboard: React.FC = () => {
   const [currentMessageId, setCurrentMessageId] = useState<string | null>(null)
   const messageIdRef = useRef<string | null>(null) // 直接参照用のref
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [isSystemBusy, setIsSystemBusy] = useState(false)
+
 
   // アクション確認ダイアログ用の状態（単一・複数どちらも配列で保持）
   interface PendingAction {
@@ -156,6 +159,22 @@ const Dashboard: React.FC = () => {
     refreshGlobalData?.()
   }, [refreshGlobalData])
 
+  // 重い処理（議事録解析）の状況を確認
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const res = await api.get('/chat/status')
+        setIsSystemBusy(!!res.data.is_processing)
+      } catch (err) {
+        console.error('Failed to fetch chat status:', err)
+      }
+    }
+    checkStatus()
+    const interval = setInterval(checkStatus, 15000) // 15秒おきにチェック
+    return () => clearInterval(interval)
+  }, [])
+
+
   // 音声認識の初期化（Web Speech API）
   useEffect(() => {
     const win = typeof window !== 'undefined' ? window : null
@@ -233,7 +252,8 @@ const Dashboard: React.FC = () => {
     fetchEvents()
   }, [fetchEvents])
 
-  const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating, [chatInput, sending, isGenerating])
+  const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating && !isSystemBusy, [chatInput, sending, isGenerating, isSystemBusy])
+
 
   // 今日の日付（YYYY-MM-DD）でタスク・イベントをフィルタし、プロジェクト名付きで一覧化（フックは早期 return の前に必ず呼ぶ）
   const todayStr = useMemo(() => {
@@ -1929,7 +1949,15 @@ const Dashboard: React.FC = () => {
               backgroundColor: 'background.paper',
             }}
           >
+            {isSystemBusy && (
+              <Box sx={{ position: 'absolute', top: -30, left: 0, right: 0 }}>
+                <Typography variant="caption" color="error" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <WarningIcon sx={{ fontSize: 14 }} /> 議事録をAI解析中のため、現在チャットは利用できません。
+                </Typography>
+              </Box>
+            )}
             <TextField
+
               fullWidth
               size="medium"
               placeholder="メッセージを入力...（マイクで音声入力も可能）"
@@ -1941,7 +1969,8 @@ const Dashboard: React.FC = () => {
                   handleSend()
                 }
               }}
-              disabled={sending}
+              disabled={sending || isSystemBusy}
+
               InputProps={{
                 endAdornment: speechSupport !== false && (
                   <InputAdornment position="end">
@@ -1950,7 +1979,8 @@ const Dashboard: React.FC = () => {
                         size="small"
                         color={isListening ? 'error' : 'default'}
                         onClick={toggleVoiceInput}
-                        disabled={sending || isGenerating}
+                        disabled={sending || isGenerating || isSystemBusy}
+
                         aria-label={isListening ? '音声入力を停止' : '音声で入力'}
                       >
                         {isListening ? <StopIcon /> : <MicIcon />}
@@ -1972,7 +2002,8 @@ const Dashboard: React.FC = () => {
             <Button
               variant="contained"
               onClick={isGenerating ? handleStopGeneration : handleSend}
-              disabled={!canSend && !isGenerating}
+              disabled={(!canSend || isSystemBusy) && !isGenerating}
+
               color={isGenerating ? 'error' : 'primary'}
               size="medium"
               sx={{

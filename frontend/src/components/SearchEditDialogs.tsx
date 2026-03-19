@@ -3,7 +3,6 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel,
   Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography,
 } from '@mui/material';
-import { format, parseISO, isValid } from 'date-fns';
 import api from '../services/api';
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
 import EventAddModal from './EventAddModal';
@@ -139,7 +138,7 @@ interface TaskEditDialogProps {
 }
 
 const TASK_TYPE_OPTIONS = [
-  'development', 'design', 'documentation', 'testing', 'maintenance',
+  'design', 'documentation', 'testing', 'review', 'meeting',
   'fx', 'asset', 'animation', 'lighting', 'comp',
 ];
 

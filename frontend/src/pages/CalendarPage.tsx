@@ -2994,16 +2994,28 @@ const CalendarPage: React.FC = () => {
                     background-color: ${isDark ? '#1e1e1e' : '#fafafa'} !important;
                 }
                 .fc-list-day-cushion {
-                    background-color: ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'} !important;
-                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
-                    border-bottom: 1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'} !important;
+                    padding: 8px 12px !important;
+                    background-color: ${isDark ? '#2c2c2e' : '#f8f9fa'} !important;
+                    border-bottom: 1px solid ${isDark ? '#3c4043' : '#e8eaed'} !important;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
                 }
                 .fc-list-day-cushion a {
+                    color: ${isDark ? '#8ab4f8' : '#1a73e8'} !important;
+                    font-weight: 700 !important;
+                    text-decoration: none !important;
+                }
+                .fc-list-day-side-text {
                     color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
+                    font-weight: 500 !important;
                 }
                 .fc-list-event {
                     background-color: ${isDark ? '#1e1e1e' : '#ffffff'} !important;
                     color: ${isDark ? '#e8eaed' : '#202124'} !important;
+                }
+                .fc-list-event:hover td {
+                    background-color: ${isDark ? '#2c2c2e' : '#f1f3f4'} !important;
                 }
                 .fc-list-event-title {
                     color: ${isDark ? '#e8eaed' : '#202124'} !important;
@@ -3032,15 +3044,6 @@ const CalendarPage: React.FC = () => {
                     height: ${isSmallScreen ? '80px' : '120px'} !important;
                     min-height: ${isSmallScreen ? '80px' : '120px'} !important;
                     max-height: ${isSmallScreen ? '80px' : '120px'} !important;
-                    /* モバイル時はイベントのタップ判定を無効化（下のセルへのクリックを透過させる） */
-                    ${isMobile ? 'pointer-events: none !important;' : ''}
-                }
-                /* モバイル時は個別のイベントもタップ判定を無効化 */
-                ${isMobile ? `
-                    .fc-event {
-                        pointer-events: none !important;
-                    }
-                ` : ''}
                 /* 日付セルのトップ部分（日付番号）の高さを固定 */
                 .fc-daygrid-day-top {
                     height: ${isSmallScreen ? '16px' : '20px'} !important;
@@ -3336,37 +3339,6 @@ const CalendarPage: React.FC = () => {
                 .fc-list {
                     border: none !important;
                 }
-                .fc-list-day-cushion {
-                    padding: 6px 12px !important;
-                    background-color: ${isDark ? '#2c2c2e' : '#f8f9fa'} !important;
-                    border-bottom: 1px solid ${isDark ? '#3c4043' : '#e8eaed'} !important;
-                }
-                .fc-list-day-text {
-                    font-weight: 700 !important;
-                    font-size: 0.9rem !important;
-                    color: ${theme.palette.primary.main} !important;
-                }
-                .fc-list-day-side-text {
-                    font-weight: 500 !important;
-                    font-size: 0.85rem !important;
-                    opacity: 0.7;
-                }
-                .fc-list-event:hover td {
-                    background-color: ${isDark ? '#3a3a3c' : '#f1f3f4'} !important;
-                    cursor: pointer;
-                }
-                .fc-list-event-title {
-                    padding: 4px 10px !important;
-                }
-                .fc-list-event-time {
-                    padding-left: 12px !important;
-                    font-size: 0.8rem !important;
-                    font-weight: 500 !important;
-                    color: ${isDark ? '#9aa0a6' : '#5f6368'} !important;
-                }
-                .fc-list-event-dot {
-                    border-width: 4px !important;
-                }
                 /* リストビューではプロジェクトを非表示にしてスッキリさせる */
                 .fc-list .project-event {
                     display: none !important;
@@ -3448,7 +3420,7 @@ const CalendarPage: React.FC = () => {
                     <FullCalendar
                         ref={calendarRef}
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-                        initialView={isMobile ? "dayGridMonth" : "dayGridMonth"}
+                        initialView={isMobile ? "listMonth" : "dayGridMonth"}
                         headerToolbar={isMobile ? {
                             left: 'prev,next today',
                             center: 'title',
@@ -3791,20 +3763,41 @@ const CalendarPage: React.FC = () => {
             )}
 
             {/* モバイル用: フローティングアクションボタン */}
-            {isMobile && user?.role === 'admin' && (
-                <Fab
-                    color="primary"
-                    aria-label="add"
-                    onClick={() => handleOpenAddModal()}
+            {isMobile && (
+                <Box
                     sx={{
                         position: 'fixed',
-                        bottom: 24,
-                        right: 24,
+                        bottom: 88, // BottomNavigation(64) + spacing(24)
+                        right: 16,
                         zIndex: 1000,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 2
                     }}
                 >
-                    <AddIcon />
-                </Fab>
+                    <Fab
+                        size="medium"
+                        color="secondary"
+                        aria-label="filter"
+                        onClick={() => setMobileFilterOpen(true)}
+                        sx={{
+                            bgcolor: 'background.paper',
+                            color: 'text.secondary',
+                            boxShadow: 3
+                        }}
+                    >
+                        <FilterListIcon />
+                    </Fab>
+                    {user?.role === 'admin' && (
+                        <Fab
+                            color="primary"
+                            aria-label="add"
+                            onClick={() => handleOpenAddModal()}
+                        >
+                            <AddIcon />
+                        </Fab>
+                    )}
+                </Box>
             )}
 
             <Snackbar

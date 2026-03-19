@@ -8,9 +8,8 @@ def find_invalid_types():
     cursor = conn.cursor()
     
     valid_types = [
-        'development', 'design', 'documentation', 'testing', 
-        'review', 'meeting', 'fx', 'asset', 'animation', 
-        'lighting', 'comp'
+        'design', 'documentation', 'testing', 'review', 'meeting',
+        'fx', 'asset', 'animation', 'lighting', 'comp'
     ]
     
     # すべてのタスクのtype値を取得

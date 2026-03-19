@@ -72,6 +72,7 @@ class LLMClient:
         """
         now_str = now_jst_naive().strftime('%Y-%m-%d %H:%M:%S')
         mode = inputs.get("mode", "admin")
+        no_actions = inputs.get("no_actions", False)
         
         task_csv = inputs.get("csv", "")
         project_list = inputs.get("proj", "")
@@ -85,21 +86,25 @@ class LLMClient:
 **共通ガイドライン**
 - 回答は必ず**完全な文章**で終わらせてください。
 - ユーザーに追加の質問がある場合も、「〜しますか？」と明確に尋ねて文章を閉じてください。
+"""
+
+        if not no_actions:
+            common_instructions += """
 - タスク操作（作成・更新・削除）が必要な場合は、以下のJSONフォーマット(Markdownコードブロック)を回答の最後に出力してください。
 
 **タスク操作JSONフォーマット**
 ```json
-{{
+{
   "action_type": "create_task" | "update_task" | "delete_task",
   "task_id": 123, // 更新/削除時など
-  "task_data": {{
+  "task_data": {
     "name": "...",
     "status": "...",
     "due_date": "YYYY-MM-DD",
     "assigned_to": 123,
     "project_id": 456
-  }}
-}}
+  }
+}
 ```
 ※ 複数アクションは配列 `[...]` で可。
 """
@@ -137,8 +142,12 @@ id, name, project_id, assigned_to, due_date, status, priority
 - **全体俯瞰**: 提供された全データを分析し、プロジェクト全体の遅延、リスク、リソース不足、または順調な進捗を報告してください。
 - **データに基づく回答**: タスクやプロジェクト情報を網羅的に確認し、根拠のある回答を提示してください。
 - **管理支援**: 管理者が「何をすべきか」を判断するための明確なタスクリストやサマリを提供してください。
+"""
+            if not no_actions:
+                role_instruction += """
 - **積極的な編集**: 管理者が会話の中で「タスクを変更して」「完了にして」と言った場合、**確認を求めすぎず**に、即座にアクションJSONを出力して実行を促してください。管理者の決定は即時の指令とみなします。
-
+"""
+            role_instruction += f"""
 **コンテキスト情報**
 【管理者のメモ】
 {notes_text}
@@ -243,11 +252,12 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
                             retry_count += 1
                         
                         if file_obj.state != "ACTIVE":
-                            logger.warning(f"File {file_obj.name} is not ACTIVE (state: {file_obj.state}). This might lead to analysis failure.")
-                        else:
-                            logger.info(f"File {file_obj.name} is ACTIVE and ready for analysis.")
-                            # 準備完了直後はAPIが不安定な場合があるため、少し待機
-                            await asyncio.sleep(5)
+                            logger.error(f"File {file_obj.name} upload failed or timed out (state: {file_obj.state}).")
+                            raise Exception(f"File upload processing failed (state: {file_obj.state})")
+                        
+                        logger.info(f"File {file_obj.name} is ACTIVE and ready for analysis.")
+                        # 準備完了直後はAPIが不安定な場合があるため、少し待機
+                        await asyncio.sleep(8)
 
                         part = types.Part.from_uri(file_uri=file_obj.uri, mime_type=mime_type)
                         query_parts.append(part)

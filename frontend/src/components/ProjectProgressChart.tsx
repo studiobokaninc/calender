@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { Project, Task } from '../types'; // Adjust path if necessary
-import { Box, Typography, Tooltip as MuiTooltip, IconButton, Modal } from '@mui/material';
+import { Box, Typography, Tooltip as MuiTooltip, IconButton, Modal, useTheme, useMediaQuery } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import { parseISO, format, eachDayOfInterval, isBefore, isEqual, startOfDay, startOfToday, addDays, isAfter, isValid } from 'date-fns';
@@ -47,14 +47,14 @@ const calculateProgressData = (projects: Project[], tasks: Task[], today: Date):
     // プロジェクト終了日+7日 と 今日+7日 の遅い方を採用（遅延プロジェクト対応）
     let chartAxisEndDate: Date;
     const todayPlus7 = addDays(today, 7);
-    
+
     if (latestProjectEndDate) {
         const projectEndPlus7 = addDays(latestProjectEndDate, 7);
         chartAxisEndDate = isAfter(todayPlus7, projectEndPlus7) ? todayPlus7 : projectEndPlus7;
     } else {
         chartAxisEndDate = todayPlus7;
     }
-    
+
     // overallMinDateの検証
     if (!overallMinDate || !isValid(overallMinDate) || isBefore(chartAxisEndDate, overallMinDate)) {
         overallMinDate = startOfDay(new Date(chartAxisEndDate.getTime() - 30 * 24 * 60 * 60 * 1000));
@@ -68,38 +68,38 @@ const calculateProgressData = (projects: Project[], tasks: Task[], today: Date):
 
     // 各プロジェクトの完了日を事前に計算
     const projectCompletionDates = new Map<string, Date | null>();
-    
+
     targetProjects.forEach(project => {
         const projectTasks = tasks.filter(t => String(t.project_id) === String(project.id));
         const allCompleted = projectTasks.length > 0 && projectTasks.every(t => t.status === 'completed');
-        
+
         if (allCompleted) {
             let latestCompletionDate: Date | null = null;
-            
+
             projectTasks.forEach(t => {
                 let taskCompletionDate: Date | null = null;
-                
+
                 if (t.status_history && t.status_history.length > 0) {
                     const completedEntries = t.status_history.filter(h => h.status === 'completed');
-                    
+
                     if (completedEntries.length > 0) {
                         const lastCompleted = completedEntries[completedEntries.length - 1];
                         taskCompletionDate = startOfDay(parseISO(lastCompleted.changed_at));
                     }
                 }
-                
+
                 // フォールバック: status_historyがない場合はupdated_atを使用
                 if (!taskCompletionDate && t.status === 'completed' && t.updated_at) {
                     taskCompletionDate = startOfDay(parseISO(t.updated_at));
                 }
-                
+
                 if (taskCompletionDate && isValid(taskCompletionDate)) {
                     if (!latestCompletionDate || isAfter(taskCompletionDate, latestCompletionDate)) {
                         latestCompletionDate = taskCompletionDate;
                     }
                 }
             });
-            
+
             if (latestCompletionDate) {
                 projectCompletionDates.set(project.name, latestCompletionDate);
             }
@@ -227,14 +227,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             <>
                 <Typography sx={{ fontWeight: 'bold', mb: 0.5, color: 'text.primary', fontSize: '0.8rem' }}>{label}</Typography>
                 {payload.map((pld: any, index: number) => {
-                    const nameMatch = pld.name?.match(/\(([^)]+)\)/); 
+                    const nameMatch = pld.name?.match(/\(([^)]+)\)/);
                     const shortName = nameMatch ? `(${nameMatch[1]})` : pld.name;
                     const value = pld.value;
-                    
+
                     if (value === null || value === undefined) return null;
 
                     return (
-                        <Typography key={index} sx={{ color: pld.color, fontSize: '0.75rem' }}> 
+                        <Typography key={index} sx={{ color: pld.color, fontSize: '0.75rem' }}>
                             {`${shortName}: ${value}%`}
                         </Typography>
                     );
@@ -252,7 +252,7 @@ const ModalChartContent = ({ progressData, projectLines, todayFormatted }: {
     todayFormatted: string;
 }) => (
     <ResponsiveContainer width="100%" height="100%">
-         {/* ★★★ Fragment を削除し、LineChart を直接の子にする ★★★ */}
+        {/* ★★★ Fragment を削除し、LineChart を直接の子にする ★★★ */}
         <LineChart
             data={progressData}
             margin={{ top: 15, right: 30, left: 0, bottom: 10 }}
@@ -269,18 +269,18 @@ const ModalChartContent = ({ progressData, projectLines, todayFormatted }: {
             <Legend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
             <ReferenceLine x={todayFormatted} stroke="red" strokeDasharray="3 3" label={{ value: '今日', position: 'insideTopRight', fill: 'red', fontSize: 12 }} />
             {projectLines.map(line => (
-               <Line
-                   key={line.dataKey}
-                   type="monotone"
-                   dataKey={line.dataKey}
-                   name={line.name}
-                   stroke={line.color}
-                   strokeWidth={2}
-                   dot={false}
-                   strokeOpacity={line.isPlanned ? 0.4 : 1}
-                   strokeDasharray={line.isPlanned ? "5 5" : ""}
-                   connectNulls={false}
-               />
+                <Line
+                    key={line.dataKey}
+                    type="monotone"
+                    dataKey={line.dataKey}
+                    name={line.name}
+                    stroke={line.color}
+                    strokeWidth={2}
+                    dot={false}
+                    strokeOpacity={line.isPlanned ? 0.4 : 1}
+                    strokeDasharray={line.isPlanned ? "5 5" : ""}
+                    connectNulls={false}
+                />
             ))}
         </LineChart>
     </ResponsiveContainer>
@@ -288,18 +288,18 @@ const ModalChartContent = ({ progressData, projectLines, todayFormatted }: {
 
 // ★★★ モーダルのスタイル定義 ★★★
 const modalStyle = {
-  position: 'absolute' as 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: '85vw', // 画面幅の85%
-  height: '80vh', // 画面高さの80%
-  bgcolor: 'background.paper',
-  border: '2px solid #000',
-  boxShadow: 24,
-  p: 3, // 内側のパディング
-  display: 'flex',
-  flexDirection: 'column' // 閉じるボタンを配置しやすくするため
+    position: 'absolute' as 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '85vw', // 画面幅の85%
+    height: '80vh', // 画面高さの80%
+    bgcolor: 'background.paper',
+    border: '2px solid #000',
+    boxShadow: 24,
+    p: 3, // 内側のパディング
+    display: 'flex',
+    flexDirection: 'column' // 閉じるボタンを配置しやすくするため
 };
 
 const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, tasks }) => {
@@ -342,43 +342,56 @@ const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, t
         return lines;
     }, [projects]);
 
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
     // ★★★ Linter Error 対策: 条件付きでレンダリングするコンテンツを事前に定義 ★★★
     let chartContent;
     if (progressData && progressData.length > 0) {
         chartContent = (
-            <ResponsiveContainer width="100%" height={280}>
-                <LineChart
-                    data={progressData}
-                    margin={{ top: 5, right: 15, left: -15, bottom: 5 }}
-                >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" fontSize={10} tick={{ dy: 5 }} />
-                    <YAxis 
-                        label={{ value: '完了率 (%)', angle: -90, position: 'insideLeft', fontSize: 10, dx: -10 }}
-                        domain={[0, 100]} 
-                        fontSize={10}
-                        tick={{ dx: -5 }}
-                    />
-                     {/* wrapperStyle を削除 */} 
-                    <RechartsTooltip content={<CustomTooltip />} /> 
-                    <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '5px' }} />
-                    <ReferenceLine x={todayFormatted} stroke="red" strokeDasharray="3 3" label={{ value: '今日', position: 'insideTopRight', fill: 'red', fontSize: 10 }} />
-                    {projectLines.map(line => (
-                       <Line
-                           key={line.dataKey}
-                           type="monotone"
-                           dataKey={line.dataKey}
-                           name={line.name} 
-                           stroke={line.color}
-                           strokeWidth={2}
-                           dot={false}
-                           strokeOpacity={line.isPlanned ? 0.4 : 1}
-                           strokeDasharray={line.isPlanned ? "5 5" : ""}
-                           connectNulls={false} 
-                       />
-                    ))}
-                </LineChart>
-             </ResponsiveContainer>
+            <Box sx={{
+                width: '100%',
+                height: 280,
+                overflowX: isMobile ? 'auto' : 'visible',
+                '&::-webkit-scrollbar': { height: '8px' },
+                '&::-webkit-scrollbar-thumb': { backgroundColor: 'divider', borderRadius: '4px' }
+            }}>
+                <Box sx={{ minWidth: isMobile ? '600px' : 'auto', height: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                            data={progressData}
+                            margin={{ top: 5, right: isMobile ? 30 : 15, left: isMobile ? 0 : -15, bottom: 5 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="date" fontSize={10} tick={{ dy: 5 }} interval={isMobile ? 1 : 'preserveStartEnd'} />
+                            <YAxis
+                                label={{ value: '完了率 (%)', angle: -90, position: 'insideLeft', fontSize: 10, dx: -10 }}
+                                domain={[0, 100]}
+                                fontSize={10}
+                                tick={{ dx: -5 }}
+                            />
+                            {/* wrapperStyle を削除 */}
+                            <RechartsTooltip content={<CustomTooltip />} />
+                            <Legend wrapperStyle={{ fontSize: '0.75rem', paddingTop: '5px' }} />
+                            <ReferenceLine x={todayFormatted} stroke="red" strokeDasharray="3 3" label={{ value: '今日', position: 'insideTopRight', fill: 'red', fontSize: 10 }} />
+                            {projectLines.map((line, idx) => (
+                                <Line
+                                    key={`${line.dataKey}-${idx}`}
+                                    type="monotone"
+                                    dataKey={line.dataKey}
+                                    name={line.name}
+                                    stroke={line.color}
+                                    strokeWidth={2}
+                                    dot={false}
+                                    strokeOpacity={line.isPlanned ? 0.4 : 1}
+                                    strokeDasharray={line.isPlanned ? "5 5" : ""}
+                                    connectNulls={false}
+                                />
+                            ))}
+                        </LineChart>
+                    </ResponsiveContainer>
+                </Box>
+            </Box>
         );
     } else {
         chartContent = (
@@ -400,11 +413,11 @@ const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, t
                     </IconButton>
                 </MuiTooltip>
             </Box>
-            
+
             {/* ★★★ クリック可能な Box 内で chartContent をレンダリング ★★★ */}
             <Box onClick={handleOpenModal} sx={{ cursor: 'pointer', border: '1px dashed grey', p: 1 }}>
-                 {chartContent}
-             </Box>
+                {chartContent}
+            </Box>
 
             {/* ★★★ モーダルウィンドウ ★★★ */}
             <Modal
@@ -418,24 +431,24 @@ const ProjectProgressChart: React.FC<ProjectProgressChartProps> = ({ projects, t
                         <Typography id="modal-chart-title" variant="h6" component="h2">
                             プロジェクト進捗 (拡大)
                         </Typography>
-                         <IconButton onClick={handleCloseModal} size="small">
+                        <IconButton onClick={handleCloseModal} size="small">
                             <CloseIcon />
                         </IconButton>
                     </Box>
-                   {/* モーダル内にグラフコンテンツを描画 */} 
-                   <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-                       {progressData && progressData.length > 0 ? (
-                           <ModalChartContent 
-                               progressData={progressData} 
-                               projectLines={projectLines} 
-                               todayFormatted={todayFormatted} 
-                           />
-                       ) : (
-                           <Typography sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                               データなし
-                           </Typography>
-                       )}
-                   </Box>
+                    {/* モーダル内にグラフコンテンツを描画 */}
+                    <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+                        {progressData && progressData.length > 0 ? (
+                            <ModalChartContent
+                                progressData={progressData}
+                                projectLines={projectLines}
+                                todayFormatted={todayFormatted}
+                            />
+                        ) : (
+                            <Typography sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                データなし
+                            </Typography>
+                        )}
+                    </Box>
                 </Box>
             </Modal>
         </Box>

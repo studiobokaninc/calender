@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme } from '@mui/material';
+import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { Project, Task } from '../types';
@@ -66,6 +66,7 @@ const displayStatusOptions = [
 
 const ProjectsPage: React.FC = () => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isDark = theme.palette.mode === 'dark';
     const [projects, setProjects] = useState<ProjectWithProgress[]>([]);
     const [loading, setLoading] = useState(true);
@@ -416,16 +417,16 @@ const ProjectsPage: React.FC = () => {
                 const statusColor = getDisplayStatusColor(value);
                 if (!isAdmin) {
                     return (
-                        <Chip 
-                            label={label} 
+                        <Chip
+                            label={label}
                             size="small"
-                            sx={{ 
-                                backgroundColor: statusColor, 
+                            sx={{
+                                backgroundColor: statusColor,
                                 color: '#fff',
                                 fontSize: '0.75rem',
                                 height: 24,
                                 fontWeight: 500
-                            }} 
+                            }}
                         />
                     );
                 }
@@ -454,8 +455,8 @@ const ProjectsPage: React.FC = () => {
                                 setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
                             }
                         }}
-                        sx={{ 
-                            minWidth: 100, 
+                        sx={{
+                            minWidth: 100,
                             fontSize: '0.75rem',
                             backgroundColor: statusColor,
                             color: '#fff',
@@ -480,10 +481,10 @@ const ProjectsPage: React.FC = () => {
                         }}
                     >
                         {displayStatusOptions.map(opt => (
-                            <MenuItem 
-                                key={opt.value} 
-                                value={opt.value} 
-                                sx={{ 
+                            <MenuItem
+                                key={opt.value}
+                                value={opt.value}
+                                sx={{
                                     fontSize: '0.75rem',
                                     backgroundColor: opt.value === value ? statusColor : 'transparent',
                                     color: opt.value === value ? '#fff' : 'inherit',
@@ -562,13 +563,14 @@ const ProjectsPage: React.FC = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                maxHeight: 'calc(100vh - 120px)',
+                maxHeight: isMobile ? 'none' : 'calc(100vh - 120px)',
                 minHeight: 0,
-                overflow: 'hidden',
+                overflow: isMobile ? 'visible' : 'hidden',
                 p: { xs: 1.5, sm: 2 },
                 maxWidth: 1600,
                 mx: 'auto',
                 width: '100%',
+                pb: isMobile ? 10 : 2, // Bottom nav space
             }}
         >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, mb: 2 }}>
@@ -578,12 +580,12 @@ const ProjectsPage: React.FC = () => {
                 {isAdmin && (
                     <Button
                         variant="contained"
-                        size="medium"
+                        size={isMobile ? "small" : "medium"}
                         startIcon={<AddIcon />}
                         onClick={handleAddProject}
                         sx={{ textTransform: 'none', borderRadius: 2 }}
                     >
-                        新規プロジェクト
+                        新規
                     </Button>
                 )}
             </Box>
@@ -599,58 +601,156 @@ const ProjectsPage: React.FC = () => {
                 </Box>
             )}
 
-            <Paper
-                elevation={0}
-                sx={{
-                    flex: 1,
-                    minHeight: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    overflow: 'hidden',
-                }}
-            >
-                <Box sx={{ flex: 1, minHeight: 0, width: '100%' }}>
-                    <DataGrid<ProjectWithProgress>
-                        rows={filteredProjects}
-                        columns={columns}
-                        initialState={{
-                            pagination: { paginationModel: { pageSize: 10, page: 0 } },
-                        }}
-                        pageSizeOptions={[10, 20, 50]}
-                        checkboxSelection={false}
-                        disableRowSelectionOnClick
-                        getRowId={(row) => row.id}
-                        rowHeight={40}
-                        onRowDoubleClick={isAdmin ? (params) => {
-                            handleEditProject(params.row);
-                        } : undefined}
-                        sx={{
-                            height: '100%',
-                            '& .MuiDataGrid-columnHeaders': {
-                                background: isDark ? theme.palette.action.hover : '#f5f5f5',
-                                fontSize: '0.8rem'
-                            },
-                            '& .MuiDataGrid-cell': {
-                                alignItems: 'center',
-                                fontSize: '0.8rem',
-                                cursor: 'pointer'
-                            },
-                            '& .MuiDataGrid-row:hover': {
-                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
-                            },
-                            '& .MuiDataGrid-pinnedColumns': {
-                                backgroundColor: 'background.paper',
-                                boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
-                            }
-                        }}
-                    />
-                </Box>
-            </Paper>
+            {!isMobile ? (
+                <Paper
+                    elevation={0}
+                    sx={{
+                        flex: 1,
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        borderRadius: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        overflow: 'hidden',
+                    }}
+                >
+                    <Box sx={{ flex: 1, minHeight: 0, width: '100%' }}>
+                        <DataGrid<ProjectWithProgress>
+                            rows={filteredProjects}
+                            columns={columns}
+                            initialState={{
+                                pagination: { paginationModel: { pageSize: 10, page: 0 } },
+                            }}
+                            pageSizeOptions={[10, 20, 50]}
+                            checkboxSelection={false}
+                            disableRowSelectionOnClick
+                            getRowId={(row) => row.id}
+                            rowHeight={40}
+                            onRowDoubleClick={isAdmin ? (params) => {
+                                handleEditProject(params.row);
+                            } : undefined}
+                            sx={{
+                                height: '100%',
+                                '& .MuiDataGrid-columnHeaders': {
+                                    background: isDark ? theme.palette.action.hover : '#f5f5f5',
+                                    fontSize: '0.8rem'
+                                },
+                                '& .MuiDataGrid-cell': {
+                                    alignItems: 'center',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer'
+                                },
+                                '& .MuiDataGrid-row:hover': {
+                                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
+                                },
+                                '& .MuiDataGrid-pinnedColumns': {
+                                    backgroundColor: 'background.paper',
+                                    boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
+                                }
+                            }}
+                        />
+                    </Box>
+                </Paper>
+            ) : (
+                <Stack spacing={2}>
+                    {filteredProjects.map((project) => (
+                        <Card
+                            key={project.id}
+                            elevation={0}
+                            sx={{
+                                borderRadius: 3,
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                position: 'relative',
+                                overflow: 'visible'
+                            }}
+                        >
+                            <CardContent sx={{ p: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1rem', flex: 1, mr: 1 }}>
+                                        {project.name}
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                        <Chip
+                                            label={project.status}
+                                            size="small"
+                                            sx={{
+                                                backgroundColor: getProjectStatusColor(project.status ?? undefined),
+                                                color: '#fff',
+                                                fontSize: '0.7rem',
+                                                height: 20
+                                            }}
+                                        />
+                                        {isAdmin && (
+                                            <IconButton size="small" onClick={() => handleEditProject(project)} sx={{ ml: 0.5 }}>
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                        )}
+                                    </Box>
+                                </Box>
 
-            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.85rem' }}>
+                                    {project.description || '説明なし'}
+                                </Typography>
+
+                                <Box sx={{ mb: 1 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Typography variant="caption" color="text.secondary">進捗率</Typography>
+                                        <Typography variant="caption" sx={{ fontWeight: 700 }}>{project.progress}%</Typography>
+                                    </Box>
+                                    <LinearProgress
+                                        variant="determinate"
+                                        value={project.progress}
+                                        sx={{
+                                            height: 8,
+                                            borderRadius: 4,
+                                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                                            '& .MuiLinearProgress-bar': {
+                                                borderRadius: 4,
+                                                background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
+                                            }
+                                        }}
+                                    />
+                                </Box>
+
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>優先度</Typography>
+                                        <Chip
+                                            label={project.priority || '未設定'}
+                                            size="small"
+                                            variant="outlined"
+                                            sx={{
+                                                height: 20,
+                                                fontSize: '0.7rem',
+                                                borderColor: getPriorityColor(project.priority ?? undefined),
+                                                color: getPriorityColor(project.priority ?? undefined),
+                                                mt: 0.5
+                                            }}
+                                        />
+                                    </Box>
+                                    <Box sx={{ textAlign: 'right' }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>期間</Typography>
+                                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                                            {project.start_date ? format(new Date(project.start_date), 'MM/dd') : '-'}
+                                            ～
+                                            {project.end_date ? format(new Date(project.end_date), 'MM/dd') : '-'}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </CardContent>
+                        </Card>
+                    ))}
+                    {filteredProjects.length === 0 && (
+                        <Box sx={{ textAlign: 'center', py: 5 }}>
+                            <Typography color="text.secondary">プロジェクトがありません</Typography>
+                        </Box>
+                    )}
+                </Stack>
+            )}
+
+            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth fullScreen={isMobile}>
                 <DialogTitle>{isEditMode ? 'プロジェクト編集' : '新規プロジェクト'}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 2 }}>

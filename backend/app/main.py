@@ -28,6 +28,7 @@ from . import security
 from . import google_calendar as google_cal
 from .routers import chat as chat_router
 from .routers import meetings as meetings_router
+from .routers import knowledge as knowledge_router
 from .timezone import now_jst_naive, now_jst_aware, JST
 from dotenv import load_dotenv
 import json
@@ -106,6 +107,7 @@ app.add_middleware(
 # バックエンド側はルートに直接マウントしておく
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])
+app.include_router(knowledge_router.router, tags=["Knowledge Base"])
 
 # ユーザー認証関連のモデルとユーティリティ
 _DEFAULT_SECRET = "your_very_secret_key_that_is_long_and_secure"

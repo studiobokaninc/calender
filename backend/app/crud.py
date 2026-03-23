@@ -1948,3 +1948,69 @@ def delete_conversation_messages(db: Session, conversation_id: str):
         models.ChatMessage.conversation_id == conversation_id
     ).delete()
     db.commit()
+
+
+# --- Knowledge Base CRUD ---
+
+def get_knowledge_item(db: Session, item_id: int) -> models.KnowledgeItem | None:
+    return db.query(models.KnowledgeItem).filter(models.KnowledgeItem.id == item_id).first()
+
+def get_knowledge_items(db: Session, project_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[models.KnowledgeItem]:
+    query = db.query(models.KnowledgeItem)
+    if project_id is not None:
+        query = query.filter(models.KnowledgeItem.project_id == project_id)
+    return query.order_by(models.KnowledgeItem.created_at.desc()).offset(skip).limit(limit).all()
+
+def create_knowledge_item(db: Session, item: schemas.KnowledgeItemCreate) -> models.KnowledgeItem:
+    db_item = models.KnowledgeItem(
+        title=item.title,
+        project_id=item.project_id,
+        file_name=item.file_name,
+        file_path=item.file_path,
+        file_type=item.file_type,
+        created_by=item.created_by,
+        status="pending",
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def update_knowledge_item(db: Session, db_item: models.KnowledgeItem, updates: dict) -> models.KnowledgeItem:
+    for key, value in updates.items():
+        if hasattr(db_item, key):
+            setattr(db_item, key, value)
+    db_item.updated_at = now_jst_naive()
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def delete_knowledge_item(db: Session, db_item: models.KnowledgeItem) -> None:
+    db.delete(db_item)
+    db.commit()
+
+def add_knowledge_tag(db: Session, item_id: int, tag_name: str) -> models.KnowledgeTag:
+    db_tag = models.KnowledgeTag(knowledge_item_id=item_id, name=tag_name)
+    db.add(db_tag)
+    db.commit()
+    db.refresh(db_tag)
+    return db_tag
+
+def get_all_knowledge_summaries(db: Session, project_id: Optional[int] = None) -> str:
+    """知識項目の全タイトルと要約を結合して返す（AIのコンテキスト用）"""
+    query = db.query(models.KnowledgeItem).filter(models.KnowledgeItem.status == "completed")
+    if project_id:
+        query = query.filter(models.KnowledgeItem.project_id == project_id)
+    items = query.all()
+    
+    if not items:
+        return "利用可能な知識ベースの資料はありません。"
+        
+    context = ""
+    for item in items:
+        tags = ", ".join([t.name for t in item.tags])
+        context += f"- 【資料：{item.title}】 (ID: {item.id}, タグ: {tags})\n"
+        context += f"  要約: {item.summary or '要約なし'}\n"
+    return context

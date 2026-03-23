@@ -100,6 +100,39 @@ def check_and_migrate_db():
         conn.commit()
         print("chat_messagesテーブルを確認・作成しました。")
 
+        # knowledge_itemsテーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title VARCHAR(255),
+                project_id INTEGER,
+                file_name VARCHAR(255),
+                file_path TEXT,
+                file_type VARCHAR(50),
+                status VARCHAR(50),
+                summary TEXT,
+                content_text TEXT,
+                metadata_json JSON,
+                created_by INTEGER,
+                created_at DATETIME,
+                updated_at DATETIME,
+                FOREIGN KEY(project_id) REFERENCES projects(id),
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+        
+        # knowledge_tagsテーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                knowledge_item_id INTEGER,
+                name VARCHAR(100),
+                FOREIGN KEY(knowledge_item_id) REFERENCES knowledge_items(id)
+            )
+        """)
+        conn.commit()
+        print("knowledge_items/tagsテーブルを確認・作成しました。")
+
         conn.close()
         
     except sqlite3.Error as e:

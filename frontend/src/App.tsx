@@ -26,6 +26,7 @@ import MockDataConsole from './components/MockDataConsole';
 import ChatPage from './pages/ChatPage';
 import UserActivityPage from './pages/UserActivityPage';
 import MeetingMinutesPage from './pages/MeetingMinutesPage';
+import KnowledgePage from './pages/KnowledgePage';
 
 // ★★★ PrivateRoute component ★★★
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -97,6 +98,7 @@ const App: React.FC = () => {
             <Route path="tasks" element={<AdminOnlyRoute><TasksPage /></AdminOnlyRoute>} />
             <Route path="notes" element={<NotesPage />} />
             <Route path="meetings" element={<AdminOnlyRoute><MeetingMinutesPage /></AdminOnlyRoute>} />
+            <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="events" element={<AdminOnlyRoute><Navigate to="/metrics?tab=events" replace /></AdminOnlyRoute>} />
             <Route path="projects/:projectId" element={<AdminOnlyRoute><ProjectDetailPage /></AdminOnlyRoute>} />
             <Route path="admin/users" element={<AdminOnlyRoute><UserManagementPage /></AdminOnlyRoute>} />

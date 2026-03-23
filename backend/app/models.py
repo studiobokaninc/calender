@@ -282,3 +282,36 @@ class Meeting(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
     project: Mapped["Project"] = relationship("Project")
+
+
+class KnowledgeItem(Base):
+    __tablename__ = "knowledge_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), index=True, nullable=True)
+    title: Mapped[str] = mapped_column(index=True)
+    file_name: Mapped[str] = mapped_column(index=True)
+    file_path: Mapped[str] = mapped_column(Text) # Local path or URL
+    file_type: Mapped[str] = mapped_column(String(50)) # pdf, excel, ppt, image, audio, doc
+    status: Mapped[str] = mapped_column(String(50), default="pending", index=True) # pending, processing, completed, failed
+    
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # OCR results, transcriptions, or doc content
+    metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True) # AI extracted metadata
+    
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+    project: Mapped[Optional["Project"]] = relationship("Project")
+    creator: Mapped["User"] = relationship("User", foreign_keys=[created_by])
+    tags: Mapped[List["KnowledgeTag"]] = relationship("KnowledgeTag", back_populates="knowledge_item", cascade="all, delete-orphan")
+
+class KnowledgeTag(Base):
+    __tablename__ = "knowledge_tags"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    knowledge_item_id: Mapped[int] = mapped_column(ForeignKey("knowledge_items.id"), index=True)
+    name: Mapped[str] = mapped_column(index=True)
+
+    knowledge_item: Mapped["KnowledgeItem"] = relationship("KnowledgeItem", back_populates="tags")

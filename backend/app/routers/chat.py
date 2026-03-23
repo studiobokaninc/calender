@@ -15,6 +15,7 @@ import json
 import time
 
 from ..services.llm import LLMClient
+from ..services.rag import rag_service
 from ..database import get_db
 from .. import crud, schemas, models, task_list as task_list_module
 from jose import JWTError, jwt
@@ -129,13 +130,21 @@ async def stream_chat(
         
     logger.info(f"[PROFILER] get_dashboard_context took {time.time() - t0:.2f}s")
         
-    # RAG Context Retrieval (Temporarily Disabled)
-    # try:
-    #     rag_context = rag_service.query_context(query)
-    #     if rag_context:
-    #         inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
-    # except Exception as e:
-    #     logger.warning("[chat/stream] RAG query failed: %s", e)
+    # --- Knowledge Base Integration ---
+    try:
+        # 1. 知識ベースの全資料目次（要約リスト）を取得
+        kb_summaries = crud.get_all_knowledge_summaries(db)
+        inputs["kb_summaries"] = kb_summaries
+        
+        # 2. クエリに応じたRAG検索（ベクトル検索）
+        # 「まとめて」「一覧」「概要」などの場合は広めに検索、それ以外はピンポイント
+        top_k = 15 if any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断"]) else 5
+        rag_context = rag_service.query_context(query, top_k=top_k)
+        
+        if rag_context:
+            inputs["notes"] = (inputs.get("notes") or "") + "\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context
+    except Exception as e:
+        logger.warning("[chat/stream] RAG/KB context failed: %s", e)
         
     if conversation_id is None:
         import uuid
@@ -273,13 +282,18 @@ async def stream_chat_user(
         logger.warning("[chat/user/stream] get_personal_context failed: %s", e)
         inputs = {"csv": "", "proj": "", "events": "", "mode": "personal", "notes": ""}
 
-    # RAG Context Retrieval (Temporarily Disabled)
-    # try:
-    #     rag_context = rag_service.query_context(query)
-    #     if rag_context:
-    #         inputs["notes"] = inputs.get("notes", "") + "\n\n--- RAG Knowledge Base Context ---\n" + rag_context
-    # except Exception as e:
-    #     logger.warning("[chat/user/stream] RAG query failed: %s", e)
+    # --- Knowledge Base Integration ---
+    try:
+        kb_summaries = crud.get_all_knowledge_summaries(db)
+        inputs["kb_summaries"] = kb_summaries
+        
+        top_k = 15 if any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断"]) else 5
+        rag_context = rag_service.query_context(query, top_k=top_k)
+        
+        if rag_context:
+            inputs["notes"] = (inputs.get("notes") or "") + "\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context
+    except Exception as e:
+        logger.warning("[chat/user/stream] RAG/KB context failed: %s", e)
 
     if conversation_id is None:
         import uuid

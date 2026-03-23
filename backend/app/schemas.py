@@ -195,7 +195,6 @@ class StatusHistoryResponse(StatusHistoryBase):
 
     # Pydantic V1 の場合
     class Config:
-        orm_mode = True
         # Pydantic V2 の場合: model_config = ConfigDict(from_attributes=True) 
         from_attributes = True # orm_mode から変更 
 
@@ -261,9 +260,6 @@ class TaskResponse(TaskBase):
 
     # Pydantic V1 の場合
     class Config:
-        orm_mode = True
-        # Pydantic V2 の場合: model_config = ConfigDict(from_attributes=True) 
-        from_attributes = True # orm_mode から変更 
         from_attributes = True # orm_mode から変更
 
 # --- Note Schemas ---
@@ -352,6 +348,51 @@ class MeetingResponse(MeetingBase):
     deadlines: Optional[List[str]] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+# --- Knowledge Base Schemas ---
+
+class KnowledgeTagBase(BaseModel):
+    name: str
+
+class KnowledgeTagCreate(KnowledgeTagBase):
+    pass
+
+class KnowledgeTagResponse(KnowledgeTagBase):
+    id: int
+    knowledge_item_id: int
+
+    class Config:
+        from_attributes = True
+
+class KnowledgeItemBase(BaseModel):
+    title: str
+    project_id: Optional[int] = None
+    file_type: str
+
+class KnowledgeItemCreate(KnowledgeItemBase):
+    file_name: str
+    file_path: str
+    created_by: int
+
+class KnowledgeItemResponse(KnowledgeItemBase):
+    id: int
+    file_name: str
+    file_path: str
+    status: str
+    summary: Optional[str] = None
+    content_text: Optional[str] = None
+    metadata_json: Optional[Dict[str, Any]] = None
+    created_by: int
+    created_at: datetime
+    updated_at: datetime
+    tags: List[KnowledgeTagResponse] = []
 
     class Config:
         from_attributes = True

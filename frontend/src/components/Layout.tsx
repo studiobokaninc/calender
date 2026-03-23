@@ -49,6 +49,7 @@ import {
   AccessTime as AccessTimeIcon,
   Search as SearchIcon,
   Description as DescriptionIcon,
+  LibraryBooks as KnowledgeIcon,
 } from '@mui/icons-material'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
@@ -148,6 +149,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
+    { text: 'ナレッジ基盤', icon: <KnowledgeIcon />, path: '/knowledge' },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
   ]
 
@@ -291,7 +293,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
   const menuItems = user?.role === 'admin'
     ? allMenuItems.filter(item => !item.isAdmin && item.path !== '/chat')
-    : allMenuItems.filter(item => ['/calendar', '/chat', '/notes'].includes(item.path))
+    : allMenuItems.filter(item => ['/calendar', '/chat', '/notes', '/knowledge'].includes(item.path))
 
   // モバイル用の下部ナビゲーション項目（全てのメニュー項目）
   const bottomNavItems = [...menuItems, ...adminMenuItems]

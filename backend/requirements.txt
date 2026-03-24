@@ -9,6 +9,8 @@ python-multipart>=0.0.6
 python-dotenv>=1.0.0
 pandas
 openpyxl
+python-pptx
+tabulate
 requests
 httpx
 google-genai

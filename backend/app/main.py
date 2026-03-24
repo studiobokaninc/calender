@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Body, BackgroundTasks, Response, Request, Query, Path, UploadFile, File
+from pydantic import BaseModel, Field
 import asyncio
 import sys
 
@@ -14,10 +15,12 @@ from datetime import datetime, timedelta, date, timezone
 from typing import Optional, List, Dict, Any, Union, Annotated
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel, EmailStr, Field
 from . import models, database, crud, schemas
 from .task_utils import normalize_task_type
+print("Main: 初期化モジュールをインポート中...")
 from . import mock_data
+print(f"Main: mock_data インポート完了")
+
 from .database import engine, get_db, DATABASE_FILE_PATH
 import uuid
 import os
@@ -26,9 +29,13 @@ import shutil
 from pathlib import Path as PathLibPath
 from . import security
 from . import google_calendar as google_cal
+
+print("Main: ルーターをインポート中...")
 from .routers import chat as chat_router
+print("Main: chat_router インポート完了 (RAG初期化完了)")
 from .routers import meetings as meetings_router
 from .routers import knowledge as knowledge_router
+print("Main: ルーター読み込み完了")
 from .timezone import now_jst_naive, now_jst_aware, JST
 from dotenv import load_dotenv
 import json
@@ -61,11 +68,15 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # DBマイグレーション（カラム追加など）
+print("Main: DBマイグレーションを開始...")
 from . import db_auto_migrate
 db_auto_migrate.check_and_migrate_db()
+print("Main: DBマイグレーション完了")
 
 # データベーステーブルの作成
+print("Main: テーブル作成(metadata.create_all)を開始...")
 models.Base.metadata.create_all(bind=engine)
+print("Main: テーブル作成完了")
 
 # .env を読み込む（backend/.env など）
 load_dotenv()

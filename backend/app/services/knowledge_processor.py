@@ -48,61 +48,60 @@ class KnowledgeProcessor:
             summary = ""
             metadata = {}
 
-            # Determine processor based on extension if not explicitly set correctly
-            ext = os.path.splitext(db_item.file_name)[1].lower().rstrip(".")
-            file_type = db_item.file_type
+            # Determine processor based on extension
+            ext = os.path.splitext(db_item.file_name)[1].lower().lstrip(".")
+            file_type = db_item.file_type 
             if ext in ["pdf"]: file_type = "pdf"
-            elif ext in ["xlsx", "xls", "csv"]: file_type = "excel"
+            elif ext in ["xlsx", "xls"]: file_type = "excel"
             elif ext in ["pptx", "ppt"]: file_type = "ppt"
             elif ext in ["png", "jpg", "jpeg", "webp"]: file_type = "image"
             elif ext in ["mp3", "m4a", "wav"]: file_type = "audio"
+            elif ext in ["txt", "md", "json", "csv"]: file_type = "text"
+
+            logger.info(f"Processing type: {file_type} (Ext: {ext})")
 
             if file_type == "pdf":
-                # LlamaIndex handles PDF directly
-                success = rag_service.add_document(file_path, metadata={"item_id": item_id, "title": db_item.title})
-                if success:
-                    content_text = "PDF indexed in RAG."
-                    summary = await self._generate_summary_from_file_content(file_path, "pdf")
-                else:
-                    raise Exception("Failed to index PDF in RAG.")
+                # Use Gemini for OCR - much better than simple local read
+                content_text = await self._ocr_pdf_via_gemini(file_path, is_summary=False)
+                summary = await self._ocr_pdf_via_gemini(file_path, is_summary=True)
+                
+                print(f"KnowledgeProcessor: RAG に PDF を追加中... ({file_path})")
+                await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
 
             elif file_type in ["excel", "ppt"]:
-                # Custom processing for Excel/PPT (Summarization)
-                summary = await self._process_complex_doc(file_path, file_type)
-                content_text = summary # For now, use summary as content
-                # Also add to RAG as text
-                temp_text_path = KNOWLEDGE_DIR / f"tmp_{uuid.uuid4()}.txt"
-                with open(temp_text_path, "w", encoding="utf-8") as f:
-                    f.write(summary)
-                rag_service.add_document(temp_text_path, metadata={"item_id": item_id, "title": db_item.title})
-                if os.path.exists(temp_text_path):
-                    os.remove(temp_text_path)
+                # Custom local extraction + LLM Summary
+                result = await self._process_complex_doc(file_path, file_type)
+                summary = result["summary"]
+                content_text = result["content"]
+                
+                # Add to RAG (Summary + Content)
+                full_kb_text = f"SUMMARY: {summary}\n\n--- FULL CONTENT ---\n{content_text}"
+                print(f"KnowledgeProcessor: RAG に内容を追加中... ({db_item.file_name})")
+                await rag_service.add_text(full_kb_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
 
             elif file_type == "image":
-                # OCR via Gemini
                 content_text = await self._ocr_image(file_path)
                 summary = await self._generate_summary_from_text(content_text)
-                # Add to RAG
-                temp_text_path = KNOWLEDGE_DIR / f"tmp_{uuid.uuid4()}.txt"
-                with open(temp_text_path, "w", encoding="utf-8") as f:
-                    f.write(content_text)
-                rag_service.add_document(temp_text_path, metadata={"item_id": item_id, "title": db_item.title})
-                if os.path.exists(temp_text_path):
-                    os.remove(temp_text_path)
+                
+                print(f"KnowledgeProcessor: RAG に画像テキストを追加中... ({db_item.file_name})")
+                await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
 
             elif file_type == "audio":
-                # Use MeetingAnalyzer logic
-                res = await self.meeting_analyzer._process_segment_with_retry(file_path, 1, 1, 0) # 0 is dummy id
+                res = await self.meeting_analyzer._process_segment_with_retry(file_path, 1, 1, 0)
                 if res:
                     content_text = res.get("transcript", "")
-                    summary = f"Decisions: {res.get('decisions')}\nTasks: {res.get('tasks')}"
-                    # Add to RAG
-                    temp_text_path = KNOWLEDGE_DIR / f"tmp_{uuid.uuid4()}.txt"
-                    with open(temp_text_path, "w", encoding="utf-8") as f:
-                        f.write(content_text)
-                    rag_service.add_document(temp_text_path, metadata={"item_id": item_id, "title": db_item.title})
-                    if os.path.exists(temp_text_path):
-                        os.remove(temp_text_path)
+                    summary = f"Summary: {res.get('summary', 'N/A')}\nDecisions: {res.get('decisions')}\nTasks: {res.get('tasks')}"
+                    
+                    print(f"KnowledgeProcessor: RAG にオーディオ文字起こしを追加中... ({db_item.file_name})")
+                    await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
+            
+            elif file_type == "text":
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content_text = f.read()
+                summary = await self._generate_summary_from_text(content_text)
+                
+                print(f"KnowledgeProcessor: RAG にテキストドキュメントを追加中... ({file_path})")
+                await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
 
             # Auto-tagging
             tags = await self._generate_tags(content_text or summary)
@@ -113,8 +112,9 @@ class KnowledgeProcessor:
                 "status": "completed",
                 "content_text": content_text,
                 "summary": summary,
-                "metadata_json": metadata
+                "updated_at": now_jst_naive()
             })
+            db.commit()
             logger.info(f"KnowledgeItem {item_id} processed successfully.")
 
         except Exception as e:
@@ -131,36 +131,51 @@ class KnowledgeProcessor:
         finally:
             db.close()
 
-    async def _process_complex_doc(self, file_path: str, file_type: str) -> str:
+    async def _process_complex_doc(self, file_path: str, file_type: str) -> dict:
         """Local text extraction for Excel and PPTX to avoid Gemini MIME type 400 errors."""
         extracted_text = ""
         try:
             if file_type == "excel":
                 import pandas as pd
-                # Read all sheets
                 df_dict = pd.read_excel(file_path, sheet_name=None)
                 for sheet_name, df in df_dict.items():
                     extracted_text += f"\nSheet: {sheet_name}\n"
-                    extracted_text += df.to_markdown() + "\n"
+                    # df.to_markdown() requires tabulate, use to_string() instead
+                    extracted_text += df.to_string() + "\n"
             elif file_type == "ppt":
                 from pptx import Presentation
                 prs = Presentation(file_path)
                 for i, slide in enumerate(prs.slides):
                     extracted_text += f"\nSlide {i+1}\n"
                     for shape in slide.shapes:
-                        if hasattr(shape, "text"):
+                        if hasattr(shape, "text") and shape.text:
                             extracted_text += shape.text + "\n"
+                        if shape.has_table:
+                             for row in shape.table.rows:
+                                extracted_text += " | ".join([cell.text for cell in row.cells]) + "\n"
+                    if slide.has_notes_slide:
+                        notes = slide.notes_slide.notes_text_frame.text
+                        if notes: extracted_text += f"(Note: {notes})\n"
         except Exception as e:
             logger.error(f"Failed to locally extract text from {file_type}: {e}")
             extracted_text = f"Error extracting text from {file_type}."
 
         if not extracted_text or len(extracted_text) < 10:
-             return f"The {file_type} file appears to be empty or unreadable."
+             return {"summary": "Error: Could not extract content.", "content": ""}
 
-        prompt = f"Analyze the following content extracted from a {file_type} file and provide a structured summary emphasizing key points and data structures.\n\n{extracted_text[:30000]}" # Limit to 30k chars
+        prompt = f"Analyze the following content extracted from a {file_type} file and provide a structured summary in Japanese emphasizing key points and data structures.\n\n{extracted_text[:30000]}"
         inputs = {"mode": "admin", "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_proc_{uuid.uuid4()}", inputs):
+            if chunk.get("event") == "message":
+                response_text += chunk.get("answer", "")
+        return {"summary": response_text, "content": extracted_text}
+
+    async def _ocr_pdf_via_gemini(self, file_path: str, is_summary: bool = False) -> str:
+        prompt = "Summarize this PDF in Japanese." if is_summary else "Transcription all text from this PDF to Markdown."
+        inputs = {"mode": "admin", "attachments": [file_path], "no_actions": True}
+        response_text = ""
+        async for chunk in self.llm_client.stream_chat(prompt, f"kb_pdf_{uuid.uuid4()}", inputs):
             if chunk.get("event") == "message":
                 response_text += chunk.get("answer", "")
         return response_text

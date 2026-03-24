@@ -138,11 +138,34 @@ async def stream_chat(
         
         # 2. クエリに応じたRAG検索（ベクトル検索）
         # 「まとめて」「一覧」「概要」などの場合は広めに検索、それ以外はピンポイント
-        top_k = 15 if any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断"]) else 5
+        is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約"])
+        top_k = 20 if is_summary_query else 8
         rag_context = rag_service.query_context(query, top_k=top_k)
         
-        if rag_context:
-            inputs["notes"] = (inputs.get("notes") or "") + "\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context
+        # 3. 特定の資料への言及がある場合、その資料の全文（または長めの抜粋）を個別に取得
+        full_content_context = ""
+        try:
+            kb_items = crud.get_knowledge_items(db, limit=50) # 直近50件
+            for item in kb_items:
+                if item.status == "completed" and item.title and (item.title in query or f"ID:{item.id}" in query):
+                    if is_summary_query or len(query) < 20: 
+                        content_limit = 50000 
+                        text = item.content_text or ""
+                        full_content_context += f"\n\n--- [資料：{item.title} の全文抜粋 (ID: {item.id})] ---\n"
+                        full_content_context += text[:content_limit]
+                        if len(text) > content_limit:
+                            full_content_context += "\n... (以下略: 資料が長すぎるため一部のみ抜粋しました)"
+        except Exception as e:
+            logger.warning("[chat/stream] Full content retrieval failed: %s", e)
+
+        if rag_context or full_content_context:
+            knowledge_blocks = []
+            if full_content_context:
+                knowledge_blocks.append(full_content_context)
+            if rag_context:
+                knowledge_blocks.append("\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context)
+            
+            inputs["notes"] = (inputs.get("notes") or "") + "\n".join(knowledge_blocks)
     except Exception as e:
         logger.warning("[chat/stream] RAG/KB context failed: %s", e)
         
@@ -287,11 +310,33 @@ async def stream_chat_user(
         kb_summaries = crud.get_all_knowledge_summaries(db)
         inputs["kb_summaries"] = kb_summaries
         
-        top_k = 15 if any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断"]) else 5
+        is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約"])
+        top_k = 20 if is_summary_query else 8
         rag_context = rag_service.query_context(query, top_k=top_k)
         
-        if rag_context:
-            inputs["notes"] = (inputs.get("notes") or "") + "\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context
+        full_content_context = ""
+        try:
+            kb_items = crud.get_knowledge_items(db, limit=50)
+            for item in kb_items:
+                if item.status == "completed" and item.title and (item.title in query or f"ID:{item.id}" in query):
+                    if is_summary_query or len(query) < 20: 
+                        content_limit = 50000
+                        text = item.content_text or ""
+                        full_content_context += f"\n\n--- [資料：{item.title} の全文抜粋 (ID: {item.id})] ---\n"
+                        full_content_context += text[:content_limit]
+                        if len(text) > content_limit:
+                            full_content_context += "\n... (以下略: 資料が長すぎるため一部のみ抜粋しました)"
+        except Exception as e:
+            logger.warning("[chat/user/stream] Full content retrieval failed: %s", e)
+
+        if rag_context or full_content_context:
+            knowledge_blocks = []
+            if full_content_context:
+                knowledge_blocks.append(full_content_context)
+            if rag_context:
+                knowledge_blocks.append("\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context)
+            
+            inputs["notes"] = (inputs.get("notes") or "") + "\n".join(knowledge_blocks)
     except Exception as e:
         logger.warning("[chat/user/stream] RAG/KB context failed: %s", e)
 
@@ -388,7 +433,11 @@ async def list_conversations(user: str = Query(..., description="ユーザー識
 
 
 @router.get("/messages")
-async def list_messages(conversation_id: str = Query(..., description="会話ID"), user: str = Query(..., description="ユーザー識別子")):
+async def list_messages(
+    conversation_id: str = Query(..., description="会話ID"),
+    user: str = Query(..., description="ユーザー識別子"),
+    db: Session = Depends(get_db)
+):
     """
     メッセージ一覧を取得するエンドポイント
     """

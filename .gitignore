@@ -29,4 +29,5 @@ dist-ssr/
 # Custom application files
 backend/*.db
 backend/*.db-journal 
-backend/static/uploads/*
+backend/static/
+backend/data/

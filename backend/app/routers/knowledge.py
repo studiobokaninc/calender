@@ -117,7 +117,7 @@ async def delete_knowledge_item(
     # 知識ベース (RAG) からも削除
     from ..services.rag import rag_service
     try:
-        rag_service.delete_item(db_item.id)
+        await rag_service.delete_item(db_item.id)
     except Exception as e:
         logger.error(f"Failed to delete {db_item.id} from RAG: {e}")
 

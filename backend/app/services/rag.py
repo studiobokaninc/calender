@@ -120,25 +120,27 @@ class RAGService:
         return await self.add_documents([doc])
 
     async def add_documents(self, documents: List[Document]):
-        """Non-blocking asynchronous method to add documents to the index."""
+        """Asynchronous method to add documents, but using sync calls in to_thread for stability on Windows."""
         await self._ensure_initialized()
         try:
             index = await self._ensure_index()
                     
             if not index:
-                print(f"RAGService: 新規インデックスを作成中 (Async)...")
-                self.index = await VectorStoreIndex.afrom_documents(
+                print(f"RAGService: 新規インデックスを作成中 (to_thread)...")
+                # Use to_thread for the heavy sync factory method
+                self.index = await asyncio.to_thread(
+                    VectorStoreIndex.from_documents,
                     documents=documents,
                     storage_context=self.storage_context,
                     embed_model=Settings.embed_model
                 )
                 self._index_initialized = True
             else:
-                print(f"RAGService: {len(documents)} 個のドキュメントを非同期で挿入中...")
+                print(f"RAGService: {len(documents)} 個のドキュメントを順次挿入中(to_thread)...")
                 for i, doc in enumerate(documents):
-                    print(f"RAGService: [{i+1}/{len(documents)}] Gemini API 呼び出し中(Async)...")
-                    # Use aainsert for true non-blocking insertion
-                    await index.ainsert(doc)
+                    print(f"RAGService: [{i+1}/{len(documents)}] Gemini API 同期呼び出し中...")
+                    # Wrap the sync insert in to_thread -- this was verified to work in test scripts
+                    await asyncio.to_thread(index.insert, doc)
                     print(f"RAGService: [{i+1}/{len(documents)}] 挿入完了")
             
             logger.info(f"Successfully added {len(documents)} documents to RAG knowledge base.")
@@ -146,6 +148,8 @@ class RAGService:
             return True
         except Exception as e:
             print(f"RAGService: ドキュメント追加中にエラーが発生: {e}")
+            import traceback
+            traceback.print_exc()
             logger.error(f"Failed to add documents to RAG: {e}")
             return False
 

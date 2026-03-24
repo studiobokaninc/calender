@@ -187,6 +187,12 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
 - `deliverables`: タスクの成果物（提出物）です。
 """
 
+        if mode == "utility":
+            return """あなたは、提供されたデータや資料を正確に処理する実務的なデータ処理ツールです。
+会話形式（「〜ですね」「いかがでしょうか？」など）は一切不要です。
+求められた情報（要約、リスト、タグなど）のみを、簡潔かつ客観的な事実に基づいて出力してください。
+"""
+
         system_prompt = f"""
 あなたはプロジェクト管理ツールのAIアシスタントです。
 {common_instructions}
@@ -257,18 +263,19 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
                             
                     # For large files like audio/video/pdf, use the File API
                     if mime_type.startswith("audio/") or mime_type == "application/pdf":
-                        logger.info(f"Uploading large file to Gemini File API: {file_path}")
-                        # 正しいキーワード引数 'file' を使用
-                        file_obj = self.client.files.upload(file=str(file_path), config={"mime_type": mime_type})
+                        logger.info(f"Uploading large file to Gemini File API (Async): {file_path}")
+                        print(f"LLMClient: Gemini File API へアップロード中... ({p.name})")
+                        
+                        file_obj = await self.client.aio.files.upload(file=str(file_path), config={"mime_type": mime_type})
 
                         # Wait for the file to be processed (Required for large audio files)
-                        # Processing 1 hour of audio can take 30-90 seconds.
                         max_retries = 60 # Up to 10 minutes
                         retry_count = 0
                         while file_obj.state == "PROCESSING" and retry_count < max_retries:
                             logger.info(f"File {file_obj.name} is still processing... ({retry_count}/{max_retries})")
+                            print(f"LLMClient: ファイルを準備中... ({retry_count+1}/{max_retries})")
                             await asyncio.sleep(10)
-                            file_obj = self.client.files.get(name=file_obj.name)
+                            file_obj = await self.client.aio.files.get(name=file_obj.name)
                             retry_count += 1
                         
                         if file_obj.state != "ACTIVE":
@@ -276,6 +283,7 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
                             raise Exception(f"File upload processing failed (state: {file_obj.state})")
                         
                         logger.info(f"File {file_obj.name} is ACTIVE and ready for analysis.")
+                        print(f"LLMClient: ファイル準備完了. 解析を開始します.")
                         # 準備完了直後はAPIが不安定な場合があるため、少し待機
                         await asyncio.sleep(8)
 
@@ -362,8 +370,8 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
             # クリーンアップ: アップロードしたファイルを削除してクォータを節約
             for file_name in attachments_to_clean:
                 try:
-                    self.client.files.delete(name=file_name)
-                    logger.info(f"Deleted file from Gemini: {file_name}")
+                    await self.client.aio.files.delete(name=file_name)
+                    logger.info(f"Deleted file from Gemini (Async): {file_name}")
                 except:
                     pass
 

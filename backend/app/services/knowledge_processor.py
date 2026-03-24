@@ -62,10 +62,12 @@ class KnowledgeProcessor:
 
             if file_type == "pdf":
                 # Use Gemini for OCR - much better than simple local read
+                print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini OCR 解読を開始...")
                 content_text = await self._ocr_pdf_via_gemini(file_path, is_summary=False)
+                print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini 要約作成を開始...")
                 summary = await self._ocr_pdf_via_gemini(file_path, is_summary=True)
                 
-                print(f"KnowledgeProcessor: RAG に PDF を追加中... ({file_path})")
+                print(f"KnowledgeProcessor: [{db_item.file_name}] RAG に PDF 内容を追加中...")
                 await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
 
             elif file_type in ["excel", "ppt"]:
@@ -164,7 +166,7 @@ class KnowledgeProcessor:
              return {"summary": "Error: Could not extract content.", "content": ""}
 
         prompt = f"Analyze the following content extracted from a {file_type} file and provide a structured summary in Japanese emphasizing key points and data structures.\n\n{extracted_text[:30000]}"
-        inputs = {"mode": "admin", "no_actions": True}
+        inputs = {"mode": "utility", "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_proc_{uuid.uuid4()}", inputs):
             if chunk.get("event") == "message":
@@ -191,7 +193,7 @@ class KnowledgeProcessor:
 
     async def _generate_summary_from_text(self, text: str) -> str:
         prompt = f"Summarize the following text concisely:\n\n{text}"
-        inputs = {"mode": "admin", "no_actions": True}
+        inputs = {"mode": "utility", "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_sum_{uuid.uuid4()}", inputs):
             if chunk.get("event") == "message":

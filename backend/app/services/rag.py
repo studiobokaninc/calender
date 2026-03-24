@@ -77,11 +77,23 @@ class RAGService:
             print(f"RAGService: コレクション '{self.collection_name}' を取得中...")
             try:
                 # Use to_thread for the synchronous chromadb call to avoid blocking the loop
-                self.chroma_collection = await asyncio.to_thread(self.db.get_or_create_collection, self.collection_name)
+                # Wrap with wait_for to prevent infinite hanging if SQLite is locked
+                print(f"RAGService: ChromaDBアクセス中 (ロックされている場合はここで待機が発生します...待機上限 20秒)")
+                self.chroma_collection = await asyncio.wait_for(
+                    asyncio.to_thread(self.db.get_or_create_collection, self.collection_name),
+                    timeout=20.0
+                )
                 print(f"RAGService: コレクション取得完了 (現在のドキュメント数: {self.chroma_collection.count()})")
+            except asyncio.TimeoutError:
+                print(f"RAGService ERROR: ChromaDBのコレクション取得が20秒以内に完了しませんでした。")
+                print(f" SQLiteファイルが他のプロセスでロックされているか、破損している可能性があります。")
+                print(f" 手動で backend/data/chroma/ 内のフォルダやファイルを削除して再起動を試みてください。")
+                logger.error("RAGService initialization timeout (ChromaDB collection access). Possible SQLite lock.")
+                raise Exception("RAGService: ChromaDB initialization timeout. Please check for SQLite locks.")
             except Exception as e:
                 print(f"RAGService: コレクション取得に失敗: {e}")
                 raise e
+
             
             # Initialize VectorStore and Index structures
             self.vector_store = ChromaVectorStore(chroma_collection=self.chroma_collection)

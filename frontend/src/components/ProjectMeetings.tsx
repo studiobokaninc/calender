@@ -28,11 +28,6 @@ interface ProjectMeetingsProps {
 const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isUploadOpen, setIsUploadOpen] = useState(false);
-    const [uploadTitle, setUploadTitle] = useState('');
-    const [uploadDate, setUploadDate] = useState(new Date().toISOString().split('T')[0]);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [uploading, setUploading] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
     useEffect(() => {
@@ -64,41 +59,6 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
         }
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setSelectedFile(e.target.files[0]);
-        }
-    };
-
-    const handleUpload = async () => {
-        if (!selectedFile) return;
-        setUploading(true);
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('title', uploadTitle || '新規会議');
-        formData.append('date', uploadDate);
-
-        try {
-            await api.post(`/projects/${projectId}/meetings/upload`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-            setSnackbar({ open: true, message: 'アップロードを開始しました。解析には数分かかる場合があります。', severity: 'success' });
-            setIsUploadOpen(false);
-            setUploadTitle('');
-            setSelectedFile(null);
-
-            // 数秒後に一度更新してみる
-            setTimeout(fetchMeetings, 3000);
-        } catch (err) {
-            console.error('Upload failed:', err);
-            setSnackbar({ open: true, message: 'アップロードに失敗しました', severity: 'error' });
-        } finally {
-            setUploading(false);
-        }
-    };
-
     const handleDelete = async (meetingId: number) => {
         if (!window.confirm('この会議データを削除してもよろしいですか？')) return;
         try {
@@ -127,16 +87,9 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                 <Typography variant="h6" sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: 600 }}>
                     会議音声・AI議事録
                 </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<CloudUploadIcon />}
-                    onClick={() => setIsUploadOpen(true)}
-                    size={isMobile ? "small" : "medium"}
-                    fullWidth={isMobile}
-                    sx={{ borderRadius: 2 }}
-                >
-                    会議オーディオを追加
-                </Button>
+                <Typography variant="h6" sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: 600 }}>
+                    会議音声・AI議事録
+                </Typography>
             </Box>
 
             {loading ? (
@@ -185,37 +138,7 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                             <AccordionDetails sx={{ bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider', p: 3 }}>
                                 <Grid container spacing={3}>
                                     <Grid item xs={12}>
-                                        {meeting.audio_url && (
-                                            <Box sx={{
-                                                mb: 2,
-                                                p: isMobile ? 1.5 : 2,
-                                                bgcolor: 'action.hover',
-                                                borderRadius: 2,
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                flexDirection: isMobile ? 'column' : 'row',
-                                                gap: isMobile ? 1.5 : 0
-                                            }}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                                    <MicIcon sx={{ mr: 1, color: 'text.secondary' }} />
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        会議音声ファイル
-                                                    </Typography>
-                                                </Box>
-                                                <Button
-                                                    component={Link}
-                                                    href={meeting.audio_url ? `http://${window.location.hostname}:8001/api/projects/${projectId}/meetings/${meeting.id}/audio` : ''}
-                                                    download
-                                                    variant="outlined"
-                                                    size="small"
-                                                    startIcon={<CloudUploadIcon sx={{ transform: 'rotate(180deg)' }} />}
-                                                    sx={{ borderRadius: 2, width: isMobile ? '100%' : 'auto' }}
-                                                >
-                                                    {isMobile ? '音声をダウンロード' : '音声をダウンロードして再生'}
-                                                </Button>
-                                            </Box>
-                                        )}
+                                        {/* Audio download removed by request */}
                                     </Grid>
 
                                     {meeting.transcript ? (
@@ -352,70 +275,7 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
             )}
 
             {/* アップロードダイアログ */}
-            <Dialog open={isUploadOpen} onClose={() => setIsUploadOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CloudUploadIcon color="primary" /> 会議オーディオのアップロード
-                </DialogTitle>
-                <DialogContent dividers>
-                    <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <TextField
-                            label="会議名"
-                            fullWidth
-                            value={uploadTitle}
-                            onChange={(e) => setUploadTitle(e.target.value)}
-                            placeholder="例: 第12回 プロジェクト定例"
-                            variant="outlined"
-                        />
-                        <TextField
-                            label="実施日"
-                            type="date"
-                            fullWidth
-                            value={uploadDate}
-                            onChange={(e) => setUploadDate(e.target.value)}
-                            InputLabelProps={{ shrink: true }}
-                            variant="outlined"
-                        />
-
-                        <Box>
-                            <Typography variant="subtitle2" gutterBottom>音声ファイル</Typography>
-                            <Button
-                                variant="outlined"
-                                component="label"
-                                fullWidth
-                                startIcon={<CloudUploadIcon />}
-                                sx={{ py: 4, borderStyle: 'dashed', borderWidth: 2, bgcolor: 'action.hover' }}
-                            >
-                                {selectedFile ? 'ファイルを変更' : 'クリックして音声ファイルを選択'}
-                                <input type="file" hidden accept="audio/*" onChange={handleFileChange} />
-                            </Button>
-                            {selectedFile && (
-                                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <MicIcon color="primary" fontSize="small" />
-                                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                        {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(1)}MB)
-                                    </Typography>
-                                </Box>
-                            )}
-                        </Box>
-
-                        <Alert severity="info" sx={{ fontSize: '0.8rem' }}>
-                            アップロード後、AIが自動的に文字起こしと議事録作成（決定事項、課題等の抽出）を行います。
-                            300MB以下のオーディオファイルを推奨します。
-                        </Alert>
-                    </Box>
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setIsUploadOpen(false)} color="inherit">キャンセル</Button>
-                    <Button
-                        onClick={handleUpload}
-                        variant="contained"
-                        disabled={!selectedFile || uploading}
-                        startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CheckCircleIcon />}
-                    >
-                        {uploading ? 'アップロード中...' : 'アップロードして解析開始'}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {/* Upload Dialog removed. Automation via Network Drive is now used. */}
 
             <Snackbar
                 open={snackbar.open}

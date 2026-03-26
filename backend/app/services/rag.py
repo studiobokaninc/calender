@@ -175,32 +175,91 @@ class RAGService:
                 print(f"RAGService: 削除エラー: {e}")
                 return False
 
-    async def query_context(self, query_text: str, top_k: int = 10) -> str:
-        """Query the RAG knowledge base and return string context with citations."""
+    async def query_context(
+        self, 
+        query_text: str, 
+        project_id: Optional[int] = None, 
+        top_k: int = 20, 
+        metadata_filters: Optional[Dict[str, Any]] = None,
+        recency_weight: float = 0.3
+    ) -> str:
+        """Query the RAG knowledge base and return string context with recency-weighted scoring."""
         await self._ensure_initialized()
         if not self.index:
             return "Knowledge base is currently empty."
             
         try:
-            print(f"RAGService: 知識ベースを検索中: '{query_text}'...")
-            retriever = self.index.as_retriever(similarity_top_k=top_k)
-            nodes = await retriever.aretrieve(query_text)
+            print(f"RAGService: 知識ベースを検索中: '{query_text}' (Project: {project_id})...")
+            
+            # Metadata filtering
+            from llama_index.core.vector_stores import MetadataFilter, MetadataFilters, FilterOperator
+            
+            filters_list = []
+            if project_id is not None:
+                filters_list.append(MetadataFilter(key="project_id", value=project_id, operator=FilterOperator.EQ))
+            
+            if metadata_filters:
+                for k, v in metadata_filters.items():
+                    filters_list.append(MetadataFilter(key=k, value=v, operator=FilterOperator.EQ))
+            
+            # Use sync retriever inside to_thread to avoid Gemini async bug
+            def _retrieve():
+                retriever = self.index.as_retriever(
+                    similarity_top_k=top_k, 
+                    filters=MetadataFilters(filters=filters_list) if filters_list else None
+                )
+                return retriever.retrieve(query_text)
+            
+            nodes = await asyncio.wait_for(
+                asyncio.to_thread(_retrieve),
+                timeout=60.0
+            )
             
             if not nodes:
                 print("RAGService: 関連情報が見つかりませんでした。")
                 return ""
 
-            print(f"RAGService: {len(nodes)} 件の情報を取得しました。")
-            context = "Found the following relevant excerpts from the Knowledge Base:\n"
-            for i, node in enumerate(nodes):
+            # Recency-weighted scoring logic
+            from datetime import datetime
+            now = datetime.now()
+            
+            scored_nodes = []
+            for node in nodes:
+                similarity = node.score or 0.5
+                
+                # Extract date from metadata
+                date_str = node.metadata.get('date')
+                recency_score = 0.0
+                if date_str:
+                    try:
+                        # isoformat conversion
+                        dt = datetime.fromisoformat(date_str.replace('Z', '+00:00')).replace(tzinfo=None)
+                        days_diff = (now - dt).days
+                        recency_score = max(0.0, 1.0 - (days_diff / 365.0))
+                    except (ValueError, TypeError):
+                        recency_score = 0.0
+                
+                final_score = similarity * (1.0 - recency_weight) + recency_score * recency_weight
+                scored_nodes.append((final_score, node))
+            
+            scored_nodes.sort(key=lambda x: x[0], reverse=True)
+            top_nodes = [node for score, node in scored_nodes[:10]]
+
+            print(f"RAGService: {len(top_nodes)} 件の情報を取得しました (再ランキング済)。")
+            context = "Found the following relevant excerpts from the Knowledge Base (Prioritizing recent info):\n"
+            for i, node in enumerate(top_nodes):
                 title = node.metadata.get('title', 'Unknown Document')
                 file_name = node.metadata.get('file_name', 'Unknown File')
-                context += f"\n--- [資料：{title}] (File: {file_name}) ---\n"
+                date_str = node.metadata.get('date', 'Date Unknown')
+                type_str = node.metadata.get('type', 'document')
+                context += f"\n--- [{type_str.upper()}：{title}] (Date: {date_str}, File: {file_name}) ---\n"
                 context += f"{node.text}\n"
                 
             return context
         except Exception as e:
             print(f"RAGService: 検索エラー: {e}")
+            import traceback
+            traceback.print_exc()
             return ""
 
 # Singleton instance

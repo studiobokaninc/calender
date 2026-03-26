@@ -60,6 +60,18 @@ class KnowledgeProcessor:
 
             logger.info(f"Processing type: {file_type} (Ext: {ext})")
 
+            # Prepare metadata for RAG
+            # Use created_at as the reference date for knowledge items
+            ref_date = db_item.created_at or now_jst_naive()
+            rag_metadata = {
+                "item_id": item_id, 
+                "title": db_item.title, 
+                "file_name": db_item.file_name,
+                "project_id": db_item.project_id,
+                "type": "knowledge",
+                "date": ref_date.isoformat()
+            }
+
             if file_type == "pdf":
                 # Use Gemini for OCR - much better than simple local read
                 print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini OCR 解読を開始...")
@@ -68,7 +80,7 @@ class KnowledgeProcessor:
                 summary = await self._ocr_pdf_via_gemini(file_path, is_summary=True)
                 
                 print(f"KnowledgeProcessor: [{db_item.file_name}] RAG に PDF 内容を追加中...")
-                await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
+                await rag_service.add_text(content_text, metadata=rag_metadata)
 
             elif file_type in ["excel", "ppt"]:
                 # Custom local extraction + LLM Summary
@@ -79,14 +91,14 @@ class KnowledgeProcessor:
                 # Add to RAG (Summary + Content)
                 full_kb_text = f"SUMMARY: {summary}\n\n--- FULL CONTENT ---\n{content_text}"
                 print(f"KnowledgeProcessor: RAG に内容を追加中... ({db_item.file_name})")
-                await rag_service.add_text(full_kb_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
+                await rag_service.add_text(full_kb_text, metadata=rag_metadata)
 
             elif file_type == "image":
                 content_text = await self._ocr_image(file_path)
                 summary = await self._generate_summary_from_text(content_text)
                 
                 print(f"KnowledgeProcessor: RAG に画像テキストを追加中... ({db_item.file_name})")
-                await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
+                await rag_service.add_text(content_text, metadata=rag_metadata)
 
             elif file_type == "audio":
                 res = await self.meeting_analyzer._process_segment_with_retry(file_path, 1, 1, 0)
@@ -95,7 +107,7 @@ class KnowledgeProcessor:
                     summary = f"Summary: {res.get('summary', 'N/A')}\nDecisions: {res.get('decisions')}\nTasks: {res.get('tasks')}"
                     
                     print(f"KnowledgeProcessor: RAG にオーディオ文字起こしを追加中... ({db_item.file_name})")
-                    await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
+                    await rag_service.add_text(content_text, metadata=rag_metadata)
             
             elif file_type == "text":
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -103,7 +115,7 @@ class KnowledgeProcessor:
                 summary = await self._generate_summary_from_text(content_text)
                 
                 print(f"KnowledgeProcessor: RAG にテキストドキュメントを追加中... ({file_path})")
-                await rag_service.add_text(content_text, metadata={"item_id": item_id, "title": db_item.title, "file_name": db_item.file_name})
+                await rag_service.add_text(content_text, metadata=rag_metadata)
 
             # Auto-tagging
             tags = await self._generate_tags(content_text or summary)

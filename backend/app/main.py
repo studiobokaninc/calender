@@ -118,6 +118,7 @@ app.add_middleware(
 # バックエンド側はルートに直接マウントしておく
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])
+app.include_router(meetings_router.root_router, tags=["Meetings (All)"]) # Add this line
 app.include_router(knowledge_router.router, tags=["Knowledge Base"])
 
 # ユーザー認証関連のモデルとユーティリティ
@@ -834,6 +835,8 @@ def create_project_endpoint(
 ):
     """新規プロジェクトを作成（管理者のみ）"""
     created_project = crud.create_project(db=db, project=project_data)
+    from app.services.meeting_scanner import create_project_folder
+    create_project_folder(created_project.name)
     from app.services.google_sync import auto_sync_project_bg
     background_tasks.add_task(auto_sync_project_bg, created_project.id)
     return created_project
@@ -853,7 +856,14 @@ def update_project_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="プロジェクトが見つかりません"
         )
+    old_name = db_project.name
     updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
+    
+    # 名前が変わった場合はフォルダもリネーム
+    if old_name != updated_project.name:
+        from app.services.meeting_scanner import rename_project_folder
+        rename_project_folder(old_name, updated_project.name)
+
     # プロジェクトが完了またはキャンセルになった場合、そのプロジェクトに属する未完了タスクをすべて完了にする
     if updated_project.status == models.ProjectStatus.COMPLETED or updated_project.status == models.ProjectStatus.CANCELLED:
         crud.complete_tasks_for_project(db=db, project_id=project_id)

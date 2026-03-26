@@ -1897,6 +1897,7 @@ def create_meeting(db: Session, meeting: schemas.MeetingCreate) -> models.Meetin
         title=meeting.title,
         project_id=meeting.project_id,
         date=meeting.date or now_jst_naive(),
+        version_group=meeting.version_group,
         created_at=now_jst_naive(),
         updated_at=now_jst_naive()
     )
@@ -1918,6 +1919,64 @@ def delete_meeting(db: Session, db_meeting: models.Meeting) -> models.Meeting:
     db.delete(db_meeting)
     db.commit()
     return db_meeting
+
+# --- Decision CRUD ---
+
+def create_decision(db: Session, decision: schemas.DecisionCreate) -> models.Decision:
+    db_decision = models.Decision(
+        meeting_id=decision.meeting_id,
+        content=decision.content,
+        date=decision.date or now_jst_naive(),
+        superseded=decision.superseded,
+        project_id=decision.project_id
+    )
+    db.add(db_decision)
+    db.commit()
+    db.refresh(db_decision)
+    return db_decision
+
+def get_decisions(db: Session, project_id: Optional[int] = None, meeting_id: Optional[int] = None, superseded: Optional[bool] = None) -> List[models.Decision]:
+    query = db.query(models.Decision)
+    if project_id is not None:
+        query = query.filter(models.Decision.project_id == project_id)
+    if meeting_id is not None:
+        query = query.filter(models.Decision.meeting_id == meeting_id)
+    if superseded is not None:
+        query = query.filter(models.Decision.superseded == superseded)
+    return query.order_by(models.Decision.date.desc()).all()
+
+def get_latest_meeting(db: Session, project_id: Optional[int] = None) -> Optional[models.Meeting]:
+    """最新（日付が最後）の完了済み議事録を1件取得"""
+    query = db.query(models.Meeting).filter(models.Meeting.status == "completed")
+    if project_id:
+        query = query.filter(models.Meeting.project_id == project_id)
+    return query.order_by(models.Meeting.date.desc()).first()
+
+def update_decision(db: Session, db_decision: models.Decision, updates: dict) -> models.Decision:
+    for key, value in updates.items():
+        if hasattr(db_decision, key):
+            setattr(db_decision, key, value)
+    db.commit()
+    db.refresh(db_decision)
+    return db_decision
+
+def get_all_meeting_summaries(db: Session, project_id: Optional[int] = None) -> str:
+    """会議の全タイトルと抽出項目の要約を結合して返す（AIのコンテキスト用）"""
+    query = db.query(models.Meeting).filter(models.Meeting.status == "completed")
+    if project_id:
+        query = query.filter(models.Meeting.project_id == project_id)
+    items = query.order_by(models.Meeting.date.desc()).all()
+    
+    if not items:
+        return "利用可能な議事録はありません。"
+        
+    context = ""
+    for item in items:
+        date_str = item.date.strftime("%Y-%m-%d") if item.date else "不明"
+        context += f"- 【会議：{item.title}】 (ID: {item.id}, 日付: {date_str}, グループ: {item.version_group or 'なし'})\n"
+        if item.decisions:
+            context += f"  主な決定: {', '.join(item.decisions[:3])}...\n"
+    return context
 
 # --- Chat Message CRUD ---
 

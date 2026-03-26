@@ -15,6 +15,8 @@ from .chat import get_llm_client
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects/{project_id}/meetings", tags=["Meetings"])
+# 新規追加: プロジェクト特定なしのグローバルな会議管理用ルーター
+root_router = APIRouter(prefix="/meetings", tags=["Meetings (All)"])
 
 # 静的ファイルの保存先 (backend/static/audio)
 # backend/app/routers/meetings.py からの相対パス
@@ -77,16 +79,17 @@ async def upload_meeting_audio(
         
         # 4. バックグラウンドでAI解析を開始
         api_key = os.getenv("GOOGLE_API_KEY")
-        import asyncio
-        # background_tasks.add_task の代わりに asyncio.create_task を用いて直接非同期タスクとして起動させる
-        # これによりフレームワークの内部エラー（NoneType await）を回避する
-        asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), api_key))
+        if not api_key:
+            logger.error("GOOGLE_API_KEY is not set. Background analysis will not start.")
+        else:
+            import asyncio
+            asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), api_key))
         
         return db_meeting
     except Exception as e:
         logger.exception("Error in upload_meeting_audio")
         # 失敗した場合はファイルを削除
-        if file_path.exists():
+        if 'file_path' in locals() and file_path.exists():
             file_path.unlink()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -171,6 +174,21 @@ async def get_meeting_audio_stream(
         media_type="audio/mpeg",
         headers=headers
     )
+
+@root_router.post("/scan")
+async def scan_network_drive(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Xレポジトリをスキャンして未処理の会議音声を一括登録・解析開始する"""
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY is not configured")
+        
+    from ..services.meeting_scanner import run_batch_scan
+    # バックグラウンドではなく、まずはスキャン自体を走らせる（解析は各々内部で非同期タスクとして起動）
+    await run_batch_scan(api_key)
+    return {"message": "Scanning started, new meetings will appear as they are processed."}
 
 async def analyze_meeting_background(meeting_id: int, audio_path: str, api_key: str):
     """バックグラウンド解析タスク"""

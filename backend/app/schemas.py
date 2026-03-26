@@ -333,9 +333,22 @@ class MeetingBase(BaseModel):
     title: str
     project_id: int
     date: Optional[datetime] = None
+    version_group: Optional[str] = None
 
 class MeetingCreate(MeetingBase):
     pass
+
+class MeetingUpdate(BaseModel):
+    title: Optional[str] = None
+    date: Optional[datetime] = None
+    status: Optional[str] = None
+    audio_url: Optional[str] = None
+    transcript: Optional[str] = None
+    decisions: Optional[List[str]] = None
+    tasks: Optional[List[str]] = None
+    discussion_points: Optional[List[str]] = None
+    deadlines: Optional[List[str]] = None
+    version_group: Optional[str] = None
 
 class MeetingResponse(MeetingBase):
     id: int
@@ -346,8 +359,37 @@ class MeetingResponse(MeetingBase):
     tasks: Optional[List[str]] = None
     discussion_points: Optional[List[str]] = None
     deadlines: Optional[List[str]] = None
+    version_group: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+# --- Decision Schemas ---
+
+class DecisionBase(BaseModel):
+    content: str
+    date: Optional[datetime] = None
+    superseded: bool = False
+    project_id: Optional[int] = None
+    meeting_id: Optional[int] = None
+
+class DecisionCreate(DecisionBase):
+    pass
+
+class DecisionUpdate(BaseModel):
+    content: Optional[str] = None
+    date: Optional[datetime] = None
+    superseded: Optional[bool] = None
+    project_id: Optional[int] = None
+    meeting_id: Optional[int] = None
+
+class DecisionResponse(DecisionBase):
+    id: int
 
     class Config:
         from_attributes = True

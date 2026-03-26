@@ -278,10 +278,25 @@ class Meeting(Base):
     tasks: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     discussion_points: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     deadlines: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    version_group: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
     project: Mapped["Project"] = relationship("Project")
+
+
+class Decision(Base):
+    __tablename__ = "decisions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    meeting_id: Mapped[Optional[int]] = mapped_column(ForeignKey("meetings.id"), nullable=True)
+    content: Mapped[str] = mapped_column(Text)
+    date: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    superseded: Mapped[bool] = mapped_column(Boolean, default=False)
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), index=True, nullable=True)
+
+    meeting: Mapped[Optional["Meeting"]] = relationship("Meeting")
+    project: Mapped[Optional["Project"]] = relationship("Project")
 
 
 class KnowledgeItem(Base):

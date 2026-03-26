@@ -70,12 +70,32 @@ const MeetingMinutesPage: React.FC = () => {
                         <Typography color="text.primary">議事録管理</Typography>
                     </Breadcrumbs>
                 )}
-                <Typography variant={isMobile ? "h5" : "h4"} sx={{ mt: isMobile ? 0 : 2, fontWeight: 'bold' }}>
-                    議事録管理
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: isMobile ? 0 : 2 }}>
+                    <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
+                        議事録管理
+                    </Typography>
+                    <Button
+                        variant="outlined"
+                        startIcon={<DescriptionIcon />}
+                        onClick={async () => {
+                            if (window.confirm('Xドライブのスキャンを開始しますか？')) {
+                                try {
+                                    await api.post('/meetings/scan');
+                                    alert('スキャンを開始しました。新しい会議が順次追加されます。');
+                                } catch (err) {
+                                    console.error('Scan failed:', err);
+                                    alert('スキャンに失敗しました。');
+                                }
+                            }
+                        }}
+                        sx={{ borderRadius: 2 }}
+                    >
+                        ネットワークドライブをスキャン
+                    </Button>
+                </Box>
                 {!isMobile && (
-                    <Typography variant="body2" color="text.secondary">
-                        プロジェクトを選択して、会議音声のアップロードやAI解析結果を確認できます。
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        プロジェクトを選択して、AI解析結果を確認できます。Xドライブ（MTG_audio）内の音声データが自動的に同期されます。
                     </Typography>
                 )}
             </Box>

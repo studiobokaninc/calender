@@ -114,8 +114,13 @@ class LLMClient:
         if kb_summaries:
             kb_instruction = f"""
 【知識ベース（ナレッジ基盤）の資料目次】
-以下の資料が利用可能です。質問の内容に応じて、適切な資料を引用して回答してください。
 {kb_summaries}
+
+**時系列（Time-Series）解釈の重要ルール**
+- 議事録には日付（Date: YYYY-MM-DD）が付与されています。**常に日付の新しい情報を最終的な正信（Source of Truth）として扱ってください。**
+- 過去の決定事項（DECISIONS）と新しい会議の決定事項が矛盾する場合、新しい方が「上書き」したものとみなしてください。
+- 知識ベース（Knowledge Base）内の資料と会議議事録の内容が異なる場合は、原則として**会議議事録の最新の合意**を優先してください。
+- 「最新の状況は？」と聞かれた場合は、まず直近の会議（LATEST MEETING）を確認し、それ以前の経緯を時系列で遡って説明してください。
 
 **引用のルール**
 - 知識ベースの情報を使用する場合は、必ずどの資料に基づいているかを明記してください。
@@ -150,18 +155,21 @@ id, name, project_id, assigned_to, due_date, status, priority
 """
         else: # admin / dashboard
             role_instruction = f"""
-あなたはプロジェクト全体の管理者（PM）を補佐する強力なAIアシスタントです。
-プロジェクト管理に限らず、管理者の**あらゆる相談（技術的な課題、マネジメントの悩み、アイデア出し、雑談など）**に真摯に乗ってください。
+あなたはプロジェクト全体の管理者（PM）を補佐する強力なAIアシスタントであり、戦略的パートナーです。
+単なる情報提供に留まらず、管理者の**あらゆる相談（技術的な課題、経営・マネジメントの悩み、アイデア出し、壁打ち、雑談など）**に対して、プロフェッショナルかつ親身に応じ、プロジェクト成功のための洞察を提示してください。
 
 {kb_instruction}
 
-**あなたの行動指針**
-- **あらゆる相談の解決**: 管理者の抱えるどんな相談にでも応じ、適切なアドバイスや壁打ち相手として機能してください。
-- **資料の横断分析**: 「まとめて」「概要を」と依頼された場合は、知識ベースの複数の資料を比較・集約して報告してください。
-- **精緻な検索**: 具体的な事実（「いつ」「どこで」「誰が」）を問われた場合は、知識ベースの抜粋情報を精査し、正確な根拠（[資料：タイトル]）と共に回答してください。
-- **全体俯瞰**: 提供された全データを分析し、プロジェクト全体の遅延、リスク、リソース不足、または順調な進捗を報告してください。
-- **データに基づく回答**: タスクやプロジェクト情報を網羅的に確認し、根拠のある回答を提示してください。
-- **管理支援**: 管理者が「何をすべきか」を判断するための明確なタスクリストやサマリを提供してください。
+**あなたのAdmin行動指針**
+- **横断的な洞察**: 提供された「最新の議事録」「決定事項DB」「RAGによる過去経緯」を組み合わせ、多角的な視点から回答してください。
+- **Source of Truth（正信）の優先順位**:
+    1. **【LATEST MEETING】**: 最も新しい合意事項です。
+    2. **【CURRENT ACTIVE DECISIONS】**: 現在生きている決定事項のリストです。
+    3. **【RAG/Historical Excerpts】**: 過去の議論の詳細です。最新情報と矛盾する場合は新しい方を優先してください。
+- **情報の不足に対する判断**: 提供された情報で回答が不十分な場合、「どの情報が足りないか（例：〇〇プロジェクトの過去の議事録、特定の資料名など）」を具体的に指摘し、管理者に追加の検索や資料提供を促してください。
+- **タスク情報の扱い**: タスク詳細は特定のキーワード（タスク、期限など）が含まれる場合のみ提供されます。全体像を問われた場合は、タスク統計と決定事項を元にリスク予測（遅延予兆など）を行ってください。
+- **積極的な提案**: 管理者が「何をすべきか」を迷っている場合、対話を通じて優先順位の整理や具体的なネクストアクションの提案を積極的に行ってください。
+- **即時の編集**: 管理者からタスクの変更や完了の指示があった場合は、即座にアクションJSONを出力して実行してください。
 """
             if not no_actions:
                 role_instruction += """
@@ -215,7 +223,10 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
         user: str = "default_user",
         history: List[Dict[str, Any]] = []
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        
+        """
+        Gemini 2.0 Flash を使用してストリーミング回答を生成。
+        429 Too Many Requests エラーに対して指数バックオフまたは簡易リトライを行う。
+        """
         system_prompt = self.generate_system_prompt(inputs)
         attachments_to_clean = []
         
@@ -251,29 +262,24 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
                         elif file_path.lower().endswith(".mp3"):
                             mime_type = "audio/mp3"
                         elif file_path.lower().endswith(".m4a"):
-                            mime_type = "audio/mp4"  # For Gemini, m4a is audio/mp4 or audio/x-m4a
+                            mime_type = "audio/mp4" 
                         elif file_path.lower().endswith(".mp4"):
                             mime_type = "video/mp4"
                         else:
-                            continue # 未知のタイプはスキップ
+                            continue 
                             
-                    # Some systems incorrectly guess m4a audio types, force to audio/mp4
                     if mime_type == "audio/x-m4a" or file_path.lower().endswith(".m4a"):
                          mime_type = "audio/mp4"
                             
-                    # For large files like audio/video/pdf, use the File API
                     if mime_type.startswith("audio/") or mime_type == "application/pdf":
                         logger.info(f"Uploading large file to Gemini File API (Async): {file_path}")
                         print(f"LLMClient: Gemini File API へアップロード中... ({p.name})")
                         
                         file_obj = await self.client.aio.files.upload(file=str(file_path), config={"mime_type": mime_type})
 
-                        # Wait for the file to be processed (Required for large audio files)
-                        max_retries = 60 # Up to 10 minutes
+                        max_retries = 60 
                         retry_count = 0
                         while file_obj.state == "PROCESSING" and retry_count < max_retries:
-                            logger.info(f"File {file_obj.name} is still processing... ({retry_count}/{max_retries})")
-                            print(f"LLMClient: ファイルを準備中... ({retry_count+1}/{max_retries})")
                             await asyncio.sleep(10)
                             file_obj = await self.client.aio.files.get(name=file_obj.name)
                             retry_count += 1
@@ -282,11 +288,7 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
                             logger.error(f"File {file_obj.name} upload failed or timed out (state: {file_obj.state}).")
                             raise Exception(f"File upload processing failed (state: {file_obj.state})")
                         
-                        logger.info(f"File {file_obj.name} is ACTIVE and ready for analysis.")
-                        print(f"LLMClient: ファイル準備完了. 解析を開始します.")
-                        # 準備完了直後はAPIが不安定な場合があるため、少し待機
                         await asyncio.sleep(8)
-
                         part = types.Part.from_uri(file_uri=file_obj.uri, mime_type=mime_type)
                         query_parts.append(part)
                         attachments_to_clean.append(file_obj.name)
@@ -294,7 +296,6 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
                         with open(file_path, "rb") as f:
                             file_data = f.read()
                         part = types.Part.from_bytes(data=file_data, mime_type=mime_type)
-                        
                         query_parts.append(part)
                     
                 except Exception as e:
@@ -303,77 +304,75 @@ id, name, description, assigned_to, due_date, status, project_id, priority, type
         current_config = self.config
         current_config.system_instruction = system_parts
 
-        try:
-            # google-genai 1.0+ async chat structure
-            chat = self.client.aio.chats.create(
-                model=self.model_name,
-                config=current_config,
-                history=history_contents
-            )
-            
-            accumulated_text = ""
-            
-            # 完全に非同期な通信を行う (スレッドプールの枯渇やゾンビ接続を防ぐ)
-            response_stream = await chat.send_message_stream(query_parts)
-            async for chunk in response_stream:
-                text_chunk = chunk.text
-                if text_chunk:
-                    accumulated_text += text_chunk
-                    
+        # Retry logic for 429 Resource Exhausted
+        max_retries_429 = 3
+        retry_delay = 5.0 # 5 seconds
+        
+        for attempt in range(max_retries_429):
+            try:
+                chat = self.client.aio.chats.create(
+                    model=self.model_name,
+                    config=current_config,
+                    history=history_contents
+                )
+                
+                accumulated_text = ""
+                response_stream = await chat.send_message_stream(query_parts)
+                async for chunk in response_stream:
+                    text_chunk = chunk.text
+                    if text_chunk:
+                        accumulated_text += text_chunk
+                        yield {
+                            "event": "message",
+                            "answer": text_chunk,
+                            "conversation_id": conversation_id,
+                            "message_id": "gemini-msg-" + conversation_id
+                        }
+                
+                # --- アクション検出 ---
+                detected_action = self.detect_action_from_text(accumulated_text)
+                if detected_action:
                     yield {
-                        "event": "message",
-                        "answer": text_chunk,
-                        "conversation_id": conversation_id,
-                        "message_id": "gemini-msg-" + conversation_id
+                        "event": "task_action",
+                        "type": "task_action_candidate",
+                        "action": detected_action,
+                        "conversation_id": conversation_id
                     }
                 
-                # Check for finish reason
-                if hasattr(chunk, 'candidates') and chunk.candidates:
-                    for cand in chunk.candidates:
-                        if cand.finish_reason:
-                            pass # can log finish reason here
-
-            # --- アクション検出 (ストリーミング完了時) ---
-            # サーバー側でもフォールバックとしてパースするが、
-            # 基本はフロントエンドで全結合後にパースするのを推奨
-            detected_action = self.detect_action_from_text(accumulated_text)
-            
-            if detected_action:
-                logger.info(f"[LLM] Detected task action: {detected_action.get('action_type')}")
                 yield {
-                    "event": "task_action",
-                    "type": "task_action_candidate",
-                    "action": detected_action,
-                    "conversation_id": conversation_id
+                    "event": "message_end",
+                    "conversation_id": conversation_id,
+                    "message_id": "gemini-msg-" + conversation_id
                 }
                 
-            # 会話履歴の保存は呼び出し側(router)で行う
-            # self._update_history(conversation_id, "user", query)
-            # self._update_history(conversation_id, "model", accumulated_text)
-            
-            # Completion event
-            yield {
-                "event": "message_end",
-                "conversation_id": conversation_id,
-                "message_id": "gemini-msg-" + conversation_id
-            }
-            
-        except Exception as e:
-            logger.error(f"Gemini API Error: {e}")
-            yield {
-                "event": "error",
-                "status": 500,
-                "code": "gemini_error",
-                "message": str(e)
-            }
-        finally:
-            # クリーンアップ: アップロードしたファイルを削除してクォータを節約
-            for file_name in attachments_to_clean:
-                try:
-                    await self.client.aio.files.delete(name=file_name)
-                    logger.info(f"Deleted file from Gemini (Async): {file_name}")
-                except:
-                    pass
+                # Successful response, exit retry loop
+                break
+
+            except Exception as e:
+                err_msg = str(e)
+                if "429" in err_msg or "Resource exhausted" in err_msg:
+                    if attempt < max_retries_429 - 1:
+                        logger.warning(f"Gemini API 429 Error (Attempt {attempt+1}/{max_retries_429}). Retrying after delay...")
+                        await asyncio.sleep(retry_delay)
+                        continue
+                
+                # Non-429 error or final retry failed
+                logger.error(f"Gemini API Error: {e}")
+                yield {
+                    "event": "error",
+                    "status": 500,
+                    "code": "gemini_error",
+                    "message": f"Gemini API Error: {err_msg}"
+                }
+                break
+
+        # Final Cleanup
+        for file_name in attachments_to_clean:
+            try:
+                await self.client.aio.files.delete(name=file_name)
+                logger.info(f"Deleted file from Gemini (Async): {file_name}")
+            except:
+                pass
 
     def detect_action_from_text(self, text: str) -> Optional[Dict[str, Any]]:
         """回答テキストからJSONアクションを抽出"""

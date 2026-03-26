@@ -79,6 +79,14 @@ def check_and_migrate_db():
             cursor.execute("UPDATE meetings SET status = 'completed' WHERE transcript IS NOT NULL AND (status IS NULL OR status = 'pending')")
             conn.commit()
             print("既存のデータのステータスを更新しました。")
+        
+        # version_groupカラムが存在しない場合のみ追加
+        if 'version_group' not in meeting_columns:
+            print("version_groupカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE meetings ADD COLUMN version_group VARCHAR(255)")
+            conn.commit()
+            print("version_groupカラムを追加しました。")
+
         # 既存データのステータス不整合を修正（transcriptがあるのにpendingになっているもの、
         # またはマイグレーションの順序で更新が漏れたものへの対応）
         cursor.execute("UPDATE meetings SET status = 'completed' WHERE transcript IS NOT NULL AND status = 'pending'")

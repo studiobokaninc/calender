@@ -117,57 +117,96 @@ async def stream_chat(
     user = request.user if request.user else "admin_user"
 
     t0 = time.time()
-    # inputs にタスクリストCSV、プロジェクトリスト、ユーザーリストを含める
     inputs: dict = {}
     try:
-        inputs = task_list_module.get_dashboard_context(db, current_user.id)
-        inputs["mode"] = "admin"
-        inputs["user_name"] = current_user.name or current_user.username or "Admin"
+        # Full dashboard context (includes tasks, projects, users, notes)
+        full_context = task_list_module.get_dashboard_context(db, current_user.id)
+        
+        # ユーザーの質問内容に応じて、タスク詳細（巨大なCSV）を渡すか判断する
+        # 「タスク」「期限」「担当」「誰が」「いつ」などのキーワードがあれば詳細を渡す
+        task_keywords = ["タスク", "期限", "予定", "進捗", "誰が", "担当", "いつ", "スケジュール", "遅れ", "進んでる", "やること", "task", "status", "due", "who"]
+        needs_tasks = any(kw in query.lower() for kw in task_keywords)
+        
+        if needs_tasks:
+            task_csv = full_context.get("csv", "")
+            logger.info("[chat/stream] Injecting FULL task context for task-related query.")
+        else:
+            task_count = len(full_context.get("csv", "").splitlines()) - 1
+            task_csv = f"--- Task Summary --- \nTotal {task_count} active tasks across projects. (Full list hidden to focus on high-level analysis. Ask about 'tasks' if you need details.)"
+            logger.info("[chat/stream] Using summarized task context.")
+
+        inputs = {
+            "csv": task_csv, 
+            "proj": full_context.get("proj", ""), 
+            "user_list": full_context.get("user_list", ""), 
+            "mode": "admin", 
+            "user_name": current_user.name or current_user.username or "Admin",
+            "notes": full_context.get("notes", "")
+        }
     except Exception as e:
         logger.warning("[chat/stream] get_dashboard_context failed: %s", e)
-        # Fallback to empty context
         inputs = {"csv": "", "proj": "", "user_list": "", "mode": "admin", "notes": ""}
         
     logger.info(f"[PROFILER] get_dashboard_context took {time.time() - t0:.2f}s")
         
-    # --- Knowledge Base Integration ---
+    # --- Time-Series Layered RAG Context Collection ---
     try:
-        # 1. 知識ベースの全資料目次（要約リスト）を取得
-        kb_summaries = crud.get_all_knowledge_summaries(db)
-        inputs["kb_summaries"] = kb_summaries
-        
-        # 2. クエリに応じたRAG検索（ベクトル検索）
-        # 「まとめて」「一覧」「概要」などの場合は広めに検索、それ以外はピンポイント
-        is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約"])
-        top_k = 20 if is_summary_query else 8
-        rag_context = rag_service.query_context(query, top_k=top_k)
-        
-        # 3. 特定の資料への言及がある場合、その資料の全文（または長めの抜粋）を個別に取得
+        # 1. Get Latest Meeting (Full Context)
+        latest_mtg = crud.get_latest_meeting(db)
+        ts_context = ""
+        if latest_mtg:
+            ts_context += f"--- [LATEST MEETING: {latest_mtg.title}] (Date: {latest_mtg.date}) ---\n"
+            # Extract decisions from Decision model for this meeting
+            decs = crud.get_decisions(db, meeting_id=latest_mtg.id)
+            dec_text = ", ".join([d.content for d in decs]) if decs else "N/A"
+            ts_context += f"CURRENT DECISIONS: {dec_text}\n"
+            ts_context += f"FULL TRANSCRIPT: {latest_mtg.transcript[:5000]}...\n\n"
+
+        # 1.5 Get Active Decisions (Non-superseded across all meetings)
+        active_decs = crud.get_decisions(db, superseded=False)
+        if active_decs:
+            ts_context += "--- [CURRENT ACTIVE DECISIONS (Consolidated Source of Truth)] ---\n"
+            # 最新の15件程度に絞る（多すぎるとコンテキストを圧迫するため）
+            for d in active_decs[:15]:
+                date_str = d.date.strftime("%Y-%m-%d") if d.date else "Unknown"
+                ts_context += f"- {d.content} (Established: {date_str})\n"
+            ts_context += "\n"
+
+        # 2. Get Chronological Summaries (The "Map")
+        mtg_summaries = crud.get_all_meeting_summaries(db)
+        ts_context += "--- Chronological Meeting Summaries (Map of Decisions) ---\n"
+        ts_context += mtg_summaries + "\n\n"
+
+        # 3. RAG Search (Recency Weighted Vector Search)
+        is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約", "経緯", "歴史"])
+        top_k = 20 if is_summary_query else 10
+        rag_context = await rag_service.query_context(query, top_k=top_k)
+        if rag_context:
+            ts_context += "\n--- Knowledge Base & Historical Meeting Excerpts (RAG) ---\n"
+            ts_context += rag_context + "\n"
+
+        # 4. Specific Document Mention
         full_content_context = ""
         try:
-            kb_items = crud.get_knowledge_items(db, limit=50) # 直近50件
+            kb_items = crud.get_knowledge_items(db, limit=20)
             for item in kb_items:
                 if item.status == "completed" and item.title and (item.title in query or f"ID:{item.id}" in query):
-                    if is_summary_query or len(query) < 20: 
-                        content_limit = 50000 
-                        text = item.content_text or ""
-                        full_content_context += f"\n\n--- [資料：{item.title} の全文抜粋 (ID: {item.id})] ---\n"
-                        full_content_context += text[:content_limit]
-                        if len(text) > content_limit:
-                            full_content_context += "\n... (以下略: 資料が長すぎるため一部のみ抜粋しました)"
+                    content_limit = 30000 
+                    text = item.content_text or ""
+                    full_content_context += f"\n\n--- [SPOTLIGHT DOCUMENT: {item.title} (ID: {item.id})] ---\n"
+                    full_content_context += text[:content_limit]
+                    if len(text) > content_limit:
+                        full_content_context += "\n... (Content truncated)"
         except Exception as e:
-            logger.warning("[chat/stream] Full content retrieval failed: %s", e)
+            logger.warning("[chat/stream] Spotlight retrieval failed: %s", e)
 
-        if rag_context or full_content_context:
-            knowledge_blocks = []
-            if full_content_context:
-                knowledge_blocks.append(full_content_context)
-            if rag_context:
-                knowledge_blocks.append("\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context)
-            
-            inputs["notes"] = (inputs.get("notes") or "") + "\n".join(knowledge_blocks)
+        inputs["notes"] = (inputs.get("notes") or "") + ts_context + full_content_context
+        inputs["kb_summaries"] = "Available in Time-Series context above." # Already included in ts_context
+        
     except Exception as e:
-        logger.warning("[chat/stream] RAG/KB context failed: %s", e)
+        logger.warning("[chat/stream] Time-Series RAG failed: %s", e)
+        import traceback
+        traceback.print_exc()
         
     if conversation_id is None:
         import uuid
@@ -305,40 +344,55 @@ async def stream_chat_user(
         logger.warning("[chat/user/stream] get_personal_context failed: %s", e)
         inputs = {"csv": "", "proj": "", "events": "", "mode": "personal", "notes": ""}
 
-    # --- Knowledge Base Integration ---
-    try:
-        kb_summaries = crud.get_all_knowledge_summaries(db)
-        inputs["kb_summaries"] = kb_summaries
-        
-        is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約"])
-        top_k = 20 if is_summary_query else 8
-        rag_context = rag_service.query_context(query, top_k=top_k)
-        
+        # 1. Get Latest Meeting (Full Context)
+        latest_mtg = crud.get_latest_meeting(db)
+        ts_context = ""
+        if latest_mtg:
+            ts_context += f"--- [LATEST MEETING: {latest_mtg.title}] (Date: {latest_mtg.date}) ---\n"
+            decs = crud.get_decisions(db, meeting_id=latest_mtg.id)
+            dec_text = ", ".join([d.content for d in decs]) if decs else "N/A"
+            ts_context += f"CURRENT DECISIONS: {dec_text}\n"
+            ts_context += f"FULL TRANSCRIPT: {latest_mtg.transcript[:4000]}...\n\n"
+
+        # 1.5 Get Active Decisions (Non-superseded)
+        active_decs = crud.get_decisions(db, superseded=False)
+        if active_decs:
+            ts_context += "--- [CURRENT ACTIVE DECISIONS (Consolidated Source of Truth)] ---\n"
+            for d in active_decs[:15]:
+                date_str = d.date.strftime("%Y-%m-%d") if d.date else "Unknown"
+                ts_context += f"- {d.content} (Established: {date_str})\n"
+            ts_context += "\n"
+
+        # 2. Get Chronological Summaries (Map)
+        mtg_summaries = crud.get_all_meeting_summaries(db)
+        ts_context += "--- Chronological Meeting Summaries (Map of Decisions) ---\n"
+        ts_context += mtg_summaries + "\n\n"
+
+        # 3. RAG Search (Recency Weighted)
+        is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約", "経緯", "歴史"])
+        top_k = 20 if is_summary_query else 10
+        rag_context = await rag_service.query_context(query, top_k=top_k)
+        if rag_context:
+            ts_context += "\n--- Knowledge Base & Historical Meeting Excerpts (RAG) ---\n"
+            ts_context += rag_context + "\n"
+
+        # 4. Spotlight Document
         full_content_context = ""
         try:
-            kb_items = crud.get_knowledge_items(db, limit=50)
+            kb_items = crud.get_knowledge_items(db, limit=10)
             for item in kb_items:
                 if item.status == "completed" and item.title and (item.title in query or f"ID:{item.id}" in query):
-                    if is_summary_query or len(query) < 20: 
-                        content_limit = 50000
-                        text = item.content_text or ""
-                        full_content_context += f"\n\n--- [資料：{item.title} の全文抜粋 (ID: {item.id})] ---\n"
-                        full_content_context += text[:content_limit]
-                        if len(text) > content_limit:
-                            full_content_context += "\n... (以下略: 資料が長すぎるため一部のみ抜粋しました)"
+                    content_limit = 20000 
+                    text = item.content_text or ""
+                    full_content_context += f"\n\n--- [SPOTLIGHT DOCUMENT: {item.title}] ---\n"
+                    full_content_context += text[:content_limit]
         except Exception as e:
-            logger.warning("[chat/user/stream] Full content retrieval failed: %s", e)
+            logger.warning("[chat/user/stream] Spotlight retrieval failed: %s", e)
 
-        if rag_context or full_content_context:
-            knowledge_blocks = []
-            if full_content_context:
-                knowledge_blocks.append(full_content_context)
-            if rag_context:
-                knowledge_blocks.append("\n\n--- Knowledge Base Excerpts (RAG) ---\n" + rag_context)
-            
-            inputs["notes"] = (inputs.get("notes") or "") + "\n".join(knowledge_blocks)
+        inputs["notes"] = (inputs.get("notes") or "") + ts_context + full_content_context
+        inputs["kb_summaries"] = "Available in Time-Series context above."
     except Exception as e:
-        logger.warning("[chat/user/stream] RAG/KB context failed: %s", e)
+        logger.warning("[chat/user/stream] Time-Series RAG failed: %s", e)
 
     if conversation_id is None:
         import uuid

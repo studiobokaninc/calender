@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from .. import crud, models, schemas
 from .llm import LLMClient
+from .rag import rag_service
 from ..timezone import now_jst_naive
 
 logger = logging.getLogger(__name__)
@@ -170,14 +171,54 @@ class MeetingAnalyzer:
                 db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
                 if db_meeting:
                     crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed"})
-                    logger.info(f"Meeting {meeting_id} analysis completed.")
+                    
+                    # Add to RAG after DB update
+                    ref_date = db_meeting.date or now_jst_naive()
+                    rag_metadata = {
+                        "meeting_id": meeting_id, 
+                        "title": db_meeting.title, 
+                        "project_id": db_meeting.project_id,
+                        "version_group": db_meeting.version_group,
+                        "type": "meeting",
+                        "date": ref_date.isoformat()
+                    }
+                    
+                    # Store transcript + summary of decisions/tasks in RAG
+                    rag_text = f"TITLE: {db_meeting.title}\n"
+                    rag_text += f"DECISIONS: {', '.join(final_minutes.get('decisions', []))}\n"
+                    rag_text += f"TASKS: {', '.join(final_minutes.get('tasks', []))}\n"
+                    rag_text += f"--- TRANSCRIPT ---\n{final_minutes.get('transcript', '')}"
+                    
+                    await rag_service.add_text(rag_text, metadata=rag_metadata)
+
+                    # Create Decision records in the new Decision table
+                    if db_meeting.version_group:
+                        # 同じプロジェクトかつ同じバージョン・グループの古い決定事項を「上書き済み」にする
+                        logger.info(f"Superseding previous decisions in version_group: {db_meeting.version_group}")
+                        db.query(models.Decision).filter(
+                            models.Decision.project_id == db_meeting.project_id,
+                            models.Decision.meeting_id != meeting_id,
+                            models.Decision.superseded == False
+                        ).join(models.Meeting).filter(
+                            models.Meeting.version_group == db_meeting.version_group
+                        ).update({"superseded": True}, synchronize_session=False)
+
+                    for dec_content in final_minutes.get('decisions', []):
+                        crud.create_decision(db, schemas.DecisionCreate(
+                            meeting_id=meeting_id,
+                            content=dec_content,
+                            date=ref_date,
+                            project_id=db_meeting.project_id
+                        ))
+                    db.commit()
+                    
+                    logger.info(f"Meeting {meeting_id} analysis completed and added to RAG/Decisions.")
             finally:
                 db.close()
                 
         except Exception as e:
-            logger.error(f"Meeting processing failed: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Meeting processing failed (meeting_id={meeting_id}): {e}")
+            logger.exception(e)
             db = SessionLocal()
             try:
                 db_meeting = crud.get_meeting(db, meeting_id=meeting_id)

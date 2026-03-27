@@ -16,6 +16,10 @@ from ..timezone import now_jst_naive
 
 logger = logging.getLogger(__name__)
 
+# 同時実行数を制限するためのセマフォ (サーバー負荷とAPI制限の管理)
+# 高負荷な解析が同時に走りすぎてバックエンドが応答不能になるのを防ぐ
+ANALYZE_SEMAPHORE = asyncio.Semaphore(2)
+
 class MeetingAnalyzer:
     def __init__(self, api_key: str):
         if not api_key:
@@ -110,123 +114,115 @@ class MeetingAnalyzer:
 
     async def analyze_meeting(self, meeting_id: int, audio_path: str):
         """音声を分割し、レート制限に配慮しながら段階的に解析・統合する"""
-        from ..database import SessionLocal
-        db = SessionLocal()
-        try:
-            db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-            if not db_meeting: 
-                logger.error(f"Meeting {meeting_id} not found in DB.")
+        # ANALYZE_SEMAPHORE により同時実行数を制限し、バックエンドのフリーズを防止
+        async with ANALYZE_SEMAPHORE:
+            from ..database import SessionLocal
+            db = SessionLocal()
+            db_meeting = None
+            try:
+                db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+                if not db_meeting: 
+                    logger.error(f"Meeting {meeting_id} not found in DB.")
+                    return
+                crud.update_meeting(db, db_meeting, {"status": "processing"})
+                db.commit()
+            except Exception as e:
+                logger.error(f"Initial meeting check failed: {e}")
                 return
-            crud.update_meeting(db, db_meeting, {"status": "processing"})
-        finally:
-            db.close()
+            finally:
+                db.close()
 
-        temp_dir = tempfile.mkdtemp()
-        try:
-            # 1. 音声分割（5分ごと）
-            # ffprobeの判定が失敗しても、念のため常に分割を試みる（一定以上のファイルサイズの場合）
-            # ※M4A/MP3なら盲目的に分割して1つのチャンクになればそのまま進む
-            duration = await self._get_duration(audio_path)
-            chunk_size = 300 # 5分
-            file_size = os.path.getsize(audio_path)
-            
-            logger.info(f"Meeting duration: {duration:.1f}s, size: {file_size/1024/1024:.2f}MB")
-            
-            # 長さが不明(0)でもサイズが大きければ(例えば2MB以上なら15分以上と推測)、分割を試みる
-            if duration > (chunk_size + 30) or file_size > 2 * 1024 * 1024:
-                logger.info(f"Splitting meeting into {chunk_size}s chunks (duration={duration}, size={file_size})...")
-                chunk_paths = await self._split_audio(audio_path, chunk_size, temp_dir)
-            else:
-                chunk_paths = [audio_path]
-            
-            if not chunk_paths: 
-                logger.warning("Split failed to produce chunks, falling back to original path.")
-                chunk_paths = [audio_path]
-
-            all_results = []
-            for i, path in enumerate(chunk_paths):
-                logger.info(f"Processing chunk {i+1}/{len(chunk_paths)}: {path}")
+            temp_dir = tempfile.mkdtemp()
+            try:
+                # 1. 音声分割（5分ごと）
+                duration = await self._get_duration(audio_path)
+                chunk_size = 300 # 5分
+                file_size = os.path.getsize(audio_path)
                 
-                # チャンクごとに文字起こしと構造化を行う
-                res = await self._process_segment_with_retry(path, i+1, len(chunk_paths), meeting_id)
-                if res:
-                    all_results.append(res)
+                logger.info(f"Meeting duration: {duration:.1f}s, size: {file_size/1024/1024:.2f}MB")
+                
+                if duration > (chunk_size + 30) or file_size > 2 * 1024 * 1024:
+                    logger.info(f"Splitting meeting into {chunk_size}s chunks...")
+                    chunk_paths = await self._split_audio(audio_path, chunk_size, temp_dir)
                 else:
-                    logger.error(f"Failed to process chunk {i+1}")
+                    chunk_paths = [audio_path]
                 
-                # レート制限(429)回避のため、1分あたりのリクエスト数を抑える待機
-                if i < len(chunk_paths) - 1:
-                    logger.info("Waiting 30 seconds before next chunk to avoid rate limits...")
-                    await asyncio.sleep(30)
+                if not chunk_paths: 
+                    chunk_paths = [audio_path]
 
-            if not all_results:
-                raise Exception("No results obtained from any segment.")
+                all_results = []
+                for i, path in enumerate(chunk_paths):
+                    logger.info(f"Processing chunk {i+1}/{len(chunk_paths)}: {path}")
+                    res = await self._process_segment_with_retry(path, i+1, len(chunk_paths), meeting_id)
+                    if res:
+                        all_results.append(res)
+                    
+                    if i < len(chunk_paths) - 1:
+                        await asyncio.sleep(30)
 
-            # 2. 全結果の統合
-            logger.info("Final Phase: Consolidating results...")
-            final_minutes = await self._consolidate_results(all_results, meeting_id)
-            
-            db = SessionLocal()
-            try:
-                db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-                if db_meeting:
-                    crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed"})
-                    
-                    # Add to RAG after DB update
-                    ref_date = db_meeting.date or now_jst_naive()
-                    rag_metadata = {
-                        "meeting_id": meeting_id, 
-                        "title": db_meeting.title, 
-                        "project_id": db_meeting.project_id,
-                        "version_group": db_meeting.version_group,
-                        "type": "meeting",
-                        "date": ref_date.isoformat()
-                    }
-                    
-                    # Store transcript + summary of decisions/tasks in RAG
-                    rag_text = f"TITLE: {db_meeting.title}\n"
-                    rag_text += f"DECISIONS: {', '.join(final_minutes.get('decisions', []))}\n"
-                    rag_text += f"TASKS: {', '.join(final_minutes.get('tasks', []))}\n"
-                    rag_text += f"--- TRANSCRIPT ---\n{final_minutes.get('transcript', '')}"
-                    
-                    await rag_service.add_text(rag_text, metadata=rag_metadata)
+                if not all_results:
+                    raise Exception("No results obtained from any segment.")
 
-                    # Create Decision records in the new Decision table
-                    if db_meeting.version_group:
-                        # 同じプロジェクトかつ同じバージョン・グループの古い決定事項を「上書き済み」にする
-                        logger.info(f"Superseding previous decisions in version_group: {db_meeting.version_group}")
-                        db.query(models.Decision).filter(
-                            models.Decision.project_id == db_meeting.project_id,
-                            models.Decision.meeting_id != meeting_id,
-                            models.Decision.superseded == False
-                        ).join(models.Meeting).filter(
-                            models.Meeting.version_group == db_meeting.version_group
-                        ).update({"superseded": True}, synchronize_session=False)
-
-                    for dec_content in final_minutes.get('decisions', []):
-                        crud.create_decision(db, schemas.DecisionCreate(
-                            meeting_id=meeting_id,
-                            content=dec_content,
-                            date=ref_date,
-                            project_id=db_meeting.project_id
-                        ))
-                    db.commit()
-                    
-                    logger.info(f"Meeting {meeting_id} analysis completed and added to RAG/Decisions.")
-            finally:
-                db.close()
+                # 2. 全結果の統合
+                final_minutes = await self._consolidate_results(all_results, meeting_id)
                 
-        except Exception as e:
-            logger.error(f"Meeting processing failed (meeting_id={meeting_id}): {e}")
-            logger.exception(e)
-            db = SessionLocal()
-            try:
-                db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-                if db_meeting: crud.update_meeting(db, db_meeting, {"status": "failed"})
+                db = SessionLocal()
+                try:
+                    db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+                    if db_meeting:
+                        crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed"})
+                        
+                        # RAGに追加
+                        ref_date = db_meeting.date or now_jst_naive()
+                        rag_metadata = {
+                            "meeting_id": meeting_id, 
+                            "title": db_meeting.title, 
+                            "project_id": db_meeting.project_id,
+                            "version_group": db_meeting.version_group,
+                            "type": "meeting",
+                            "date": ref_date.isoformat()
+                        }
+                        
+                        rag_text = f"TITLE: {db_meeting.title}\n"
+                        rag_text += f"DECISIONS: {', '.join(final_minutes.get('decisions', []))}\n"
+                        rag_text += f"TASKS: {', '.join(final_minutes.get('tasks', []))}\n"
+                        rag_text += f"--- TRANSCRIPT ---\n{final_minutes.get('transcript', '')}"
+                        
+                        await rag_service.add_text(rag_text, metadata=rag_metadata)
+
+                        if db_meeting.version_group:
+                            db.query(models.Decision).filter(
+                                models.Decision.project_id == db_meeting.project_id,
+                                models.Decision.meeting_id != meeting_id,
+                                models.Decision.superseded == False
+                            ).join(models.Meeting).filter(
+                                models.Meeting.version_group == db_meeting.version_group
+                            ).update({"superseded": True}, synchronize_session=False)
+
+                        for dec_content in final_minutes.get('decisions', []):
+                            crud.create_decision(db, schemas.DecisionCreate(
+                                meeting_id=meeting_id,
+                                content=dec_content,
+                                date=ref_date,
+                                project_id=db_meeting.project_id
+                            ))
+                        db.commit()
+                        logger.info(f"Meeting {meeting_id} analysis completed.")
+                finally:
+                    db.close()
+                    
+            except Exception as e:
+                logger.error(f"Meeting processing failed (id={meeting_id}): {e}")
+                db = SessionLocal()
+                try:
+                    db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+                    if db_meeting: 
+                        crud.update_meeting(db, db_meeting, {"status": "failed"})
+                        db.commit()
+                finally:
+                    db.close()
             finally:
-                db.close()
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
     async def _process_segment_with_retry(self, path: str, index: int, total: int, meeting_id: int) -> Optional[Dict[str, Any]]:
         """リトライとバックオフ付きでセグメントを処理する"""

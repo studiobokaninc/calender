@@ -204,8 +204,10 @@ class RAGService:
             
             # Use sync retriever inside to_thread to avoid Gemini async bug
             def _retrieve():
+                # 表記揺れ対策として、similarity_top_kを多めに取得し、後の再ランキングで絞り込む
+                search_k = top_k * 2 if top_k > 10 else 20
                 retriever = self.index.as_retriever(
-                    similarity_top_k=top_k, 
+                    similarity_top_k=search_k, 
                     filters=MetadataFilters(filters=filters_list) if filters_list else None
                 )
                 return retriever.retrieve(query_text)
@@ -216,6 +218,7 @@ class RAGService:
             )
             
             if not nodes:
+                # 表記揺れ対策：プロジェクト名のみでもう一度検索を試みる（任意検討）
                 print("RAGService: 関連情報が見つかりませんでした。")
                 return ""
 
@@ -243,7 +246,9 @@ class RAGService:
                 scored_nodes.append((final_score, node))
             
             scored_nodes.sort(key=lambda x: x[0], reverse=True)
-            top_nodes = [node for score, node in scored_nodes[:10]]
+            # Return up to top_k nodes, or at least a generous 15 for summary queries
+            limit = max(10, top_k // 2) if top_k > 20 else 10
+            top_nodes = [node for score, node in scored_nodes[:limit]]
 
             print(f"RAGService: {len(top_nodes)} 件の情報を取得しました (再ランキング済)。")
             context = "Found the following relevant excerpts from the Knowledge Base (Prioritizing recent info):\n"
@@ -252,7 +257,8 @@ class RAGService:
                 file_name = node.metadata.get('file_name', 'Unknown File')
                 date_str = node.metadata.get('date', 'Date Unknown')
                 type_str = node.metadata.get('type', 'document')
-                context += f"\n--- [{type_str.upper()}：{title}] (Date: {date_str}, File: {file_name}) ---\n"
+                project_name = node.metadata.get('project_name', 'General')
+                context += f"\n--- [{type_str.upper()}：{title}] (Date: {date_str}, File: {file_name}, Project: {project_name}) ---\n"
                 context += f"{node.text}\n"
                 
             return context

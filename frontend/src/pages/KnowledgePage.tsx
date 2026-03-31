@@ -11,6 +11,10 @@ import {
     IconButton,
     TextField,
     CircularProgress,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material';
 import {
     CloudUpload as UploadIcon,
@@ -22,6 +26,7 @@ import {
     Image as ImageIcon,
     Audiotrack as AudioIcon,
     Refresh as RefreshIcon,
+    ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -37,6 +42,8 @@ interface KnowledgeItem {
     file_type: string;
     status: string;
     summary?: string;
+    content_text?: string;
+    file_path: string;
     tags: KnowledgeTag[];
     created_at: string;
 }
@@ -47,6 +54,8 @@ const KnowledgePage: React.FC = () => {
     const [uploading, setUploading] = useState(false);
     const [file, setFile] = useState<File | null>(null);
     const [title, setTitle] = useState('');
+    const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
+    const [openDialog, setOpenDialog] = useState(false);
 
     const fetchItems = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -119,6 +128,11 @@ const KnowledgePage: React.FC = () => {
         } catch (err) {
             console.error('Delete failed:', err);
         }
+    };
+
+    const handleItemClick = (item: KnowledgeItem) => {
+        setSelectedItem(item);
+        setOpenDialog(true);
     };
 
     const getFileIcon = (type: string) => {
@@ -236,13 +250,17 @@ const KnowledgePage: React.FC = () => {
                         <Grid container spacing={2}>
                             {items.map((item) => (
                                 <Grid item xs={12} key={item.id}>
-                                    <Card sx={{
-                                        display: 'flex',
-                                        borderRadius: 2,
-                                        boxShadow: 1,
-                                        '&:hover': { boxShadow: 4, transition: '0.3s' },
-                                        position: 'relative'
-                                    }}>
+                                    <Card
+                                        sx={{
+                                            display: 'flex',
+                                            borderRadius: 2,
+                                            boxShadow: 1,
+                                            cursor: 'pointer',
+                                            '&:hover': { boxShadow: 4, transition: '0.3s' },
+                                            position: 'relative'
+                                        }}
+                                        onClick={() => handleItemClick(item)}
+                                    >
                                         <Box sx={{
                                             p: 2,
                                             display: 'flex',
@@ -299,7 +317,14 @@ const KnowledgePage: React.FC = () => {
                                             </Box>
                                         </CardContent>
                                         <Box sx={{ p: 1, display: 'flex', alignItems: 'center' }}>
-                                            <IconButton onClick={() => handleDelete(item.id)} color="error" size="small">
+                                            <IconButton
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDelete(item.id);
+                                                }}
+                                                color="error"
+                                                size="small"
+                                            >
                                                 <DeleteIcon fontSize="small" />
                                             </IconButton>
                                         </Box>
@@ -310,6 +335,93 @@ const KnowledgePage: React.FC = () => {
                     )}
                 </Grid>
             </Grid>
+
+            {/* Item Detail Dialog */}
+            <Dialog
+                open={openDialog}
+                onClose={() => setOpenDialog(false)}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: { borderRadius: 3 }
+                }}
+            >
+                {selectedItem && (
+                    <>
+                        <DialogTitle sx={{ pb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {getFileIcon(selectedItem.file_type)}
+                                <Box>
+                                    <Typography variant="h6" sx={{ fontWeight: 'bold', lineHeight: 1.1 }}>
+                                        {selectedItem.title}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                        {selectedItem.file_name}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <IconButton onClick={() => setOpenDialog(false)} size="small">
+                                <ExpandMoreIcon sx={{ transform: 'rotate(180deg)' }} />
+                            </IconButton>
+                        </DialogTitle>
+                        <DialogContent dividers sx={{ bgcolor: 'background.default', py: 3 }}>
+                            <Grid container spacing={3}>
+                                <Grid item xs={12}>
+                                    <Typography variant="subtitle2" color="primary" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                        AI要約
+                                    </Typography>
+                                    <Paper sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+                                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                                            {selectedItem.summary || '解析中、または要約が生成されませんでした。'}
+                                        </Typography>
+                                    </Paper>
+                                </Grid>
+
+                                <Grid item xs={12}>
+                                    <Typography variant="subtitle2" color="primary" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                        解析内容 (フルテキスト)
+                                    </Typography>
+                                    <Paper sx={{
+                                        p: 2,
+                                        borderRadius: 2,
+                                        bgcolor: 'background.paper',
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        maxHeight: 400,
+                                        overflow: 'auto'
+                                    }}>
+                                        <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontFamily: 'serif' }}>
+                                            {selectedItem.content_text || '内容の抽出は行われませんでした。'}
+                                        </Typography>
+                                    </Paper>
+                                </Grid>
+                            </Grid>
+                        </DialogContent>
+                        <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
+                            <Box sx={{ ml: 1 }}>
+                                {selectedItem.tags.map(tag => (
+                                    <Chip key={tag.id} label={`#${tag.name}`} size="small" sx={{ mr: 0.5 }} />
+                                ))}
+                            </Box>
+                            <Box>
+                                <Button onClick={() => setOpenDialog(false)} sx={{ mr: 1 }}>
+                                    閉じる
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<UploadIcon sx={{ transform: 'rotate(180deg)' }} />}
+                                    component="a"
+                                    href={selectedItem.file_path}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    ファイルを開く
+                                </Button>
+                            </Box>
+                        </DialogActions>
+                    </>
+                )}
+            </Dialog>
         </Box>
     );
 };

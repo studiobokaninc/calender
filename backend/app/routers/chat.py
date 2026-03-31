@@ -33,10 +33,14 @@ _cached_api_key: str = ""
 
 @router.get("/chat/status")
 async def get_chat_status(db: Session = Depends(get_db)):
-    """現在、システム全体で重い処理（議事録解析など）が動いているかチェック"""
+    """現在、システム全体で重い処理（議事録解析や資料追加など）が動いているかチェック"""
     from .. import models
-    processing_meetings = db.query(models.Meeting).filter(models.Meeting.status == "processing").count()
-    return {"is_processing": processing_meetings > 0}
+    # 議事録の解析
+    processing_meetings = db.query(models.Meeting).filter(models.Meeting.status.in_(["pending", "processing"])).count()
+    # ナレッジベースの追加（PDF解析やタグ付けなど）
+    processing_knowledge = db.query(models.KnowledgeItem).filter(models.KnowledgeItem.status.in_(["pending", "processing"])).count()
+    
+    return {"is_processing": (processing_meetings + processing_knowledge) > 0}
 
 
 def get_llm_client():
@@ -112,9 +116,15 @@ async def stream_chat(
         raise HTTPException(status_code=400, detail="queryパラメータが必要です")
 
     client = get_llm_client()
+    user_email = current_user.email
+
+    # --- History Retrieval (Early for Inference) ---
+    if conversation_id is None:
+        import uuid
+        conversation_id = str(uuid.uuid4())
     
-    # ユーザー名は管理者/デフォルトとして扱う
-    user = request.user if request.user else "admin_user"
+    db_history = crud.get_chat_messages(db, conversation_id, limit=20)
+    history_for_llm = [{"role": m.role, "content": m.content} for m in db_history]
 
     t0 = time.time()
     inputs: dict = {}
@@ -123,17 +133,14 @@ async def stream_chat(
         full_context = task_list_module.get_dashboard_context(db, current_user.id)
         
         # ユーザーの質問内容に応じて、タスク詳細（巨大なCSV）を渡すか判断する
-        # 「タスク」「期限」「担当」「誰が」「いつ」などのキーワードがあれば詳細を渡す
         task_keywords = ["タスク", "期限", "予定", "進捗", "誰が", "担当", "いつ", "スケジュール", "遅れ", "進んでる", "やること", "task", "status", "due", "who"]
         needs_tasks = any(kw in query.lower() for kw in task_keywords)
         
         if needs_tasks:
             task_csv = full_context.get("csv", "")
-            logger.info("[chat/stream] Injecting FULL task context for task-related query.")
         else:
             task_count = len(full_context.get("csv", "").splitlines()) - 1
-            task_csv = f"--- Task Summary --- \nTotal {task_count} active tasks across projects. (Full list hidden to focus on high-level analysis. Ask about 'tasks' if you need details.)"
-            logger.info("[chat/stream] Using summarized task context.")
+            task_csv = f"--- Task Summary --- \nTotal {task_count} active tasks across projects."
 
         inputs = {
             "csv": task_csv, 
@@ -141,7 +148,8 @@ async def stream_chat(
             "user_list": full_context.get("user_list", ""), 
             "mode": "admin", 
             "user_name": current_user.name or current_user.username or "Admin",
-            "notes": full_context.get("notes", "")
+            "notes": full_context.get("notes", ""),
+            "active_project_id": None 
         }
     except Exception as e:
         logger.warning("[chat/stream] get_dashboard_context failed: %s", e)
@@ -177,13 +185,56 @@ async def stream_chat(
         ts_context += "--- Chronological Meeting Summaries (Map of Decisions) ---\n"
         ts_context += mtg_summaries + "\n\n"
 
-        # 3. RAG Search (Recency Weighted Vector Search)
+        # 3. RAG Search (Recency Weighted Vector Search with Project Inference)
         is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約", "経緯", "歴史"])
-        top_k = 20 if is_summary_query else 10
-        rag_context = await rag_service.query_context(query, top_k=top_k)
+        
+        # 表記揺れ対策：検索クエリの拡張（プロジェクト名などを自動付与）
+        search_query = query
+        focused_project_id = None
+        try:
+            active_projects = crud.get_projects(db, skip=0, limit=100)
+            
+            # A) Check query explicitly
+            for p in active_projects:
+                if p.name and p.name.lower() in query.lower():
+                    focused_project_id = p.id
+                    # クエリにプロジェクト名が含まれていない表記揺れを想定し、検索語に補完
+                    if p.name.lower() not in query.lower():
+                        search_query = f"{p.name} {query}"
+                    break
+            
+            # B) If not in query, check history (last 3 messages)
+            if not focused_project_id and db_history:
+                last_msgs = db_history[-3:]
+                for m in last_msgs:
+                    msg_content = str(m.content).lower() if m.content else ""
+                    for p in active_projects:
+                        if p.name and p.name.lower() in msg_content:
+                            focused_project_id = p.id
+                            # 文脈上のプロジェクト名を検索クエリに含めることで、表記揺れ耐性を高める
+                            search_query = f"{p.name} {query}"
+                            break
+                    if focused_project_id: break
+            
+            if focused_project_id:
+                logger.info(f"[chat/stream] Focusing search on project_id: {focused_project_id} with query: {search_query}")
+                inputs["active_project_id"] = focused_project_id
+        except Exception as pe:
+            logger.warning("[chat/stream] Project inference failed: %s", pe)
+
+        top_k = 40 if is_summary_query else 25
+        rag_context = await rag_service.query_context(search_query, project_id=focused_project_id, top_k=top_k)
         if rag_context:
             ts_context += "\n--- Knowledge Base & Historical Meeting Excerpts (RAG) ---\n"
             ts_context += rag_context + "\n"
+
+        # 3.5 Project-specific Deep Context
+        if focused_project_id:
+            proj_decs = crud.get_decisions(db, project_id=focused_project_id, superseded=False)
+            if proj_decs:
+                ts_context += f"\n--- [PROJECT-SPECIFIC ACTIVE DECISIONS: {focused_project_id}] ---\n"
+                for d in proj_decs[:20]:
+                    ts_context += f"- {d.content} (Date: {d.date})\n"
 
         # 4. Specific Document Mention
         full_content_context = ""
@@ -208,13 +259,7 @@ async def stream_chat(
         import traceback
         traceback.print_exc()
         
-    if conversation_id is None:
-        import uuid
-        conversation_id = str(uuid.uuid4())
-    
-    # 履歴をDBから取得
-    db_history = crud.get_chat_messages(db, conversation_id, limit=20)
-    history_for_llm = [{"role": m.role, "content": m.content} for m in db_history]
+    # (History already retrieved above)
 
     async def eventgen():
         try:
@@ -241,7 +286,7 @@ async def stream_chat(
             logger.info(f"[PROFILER] Calling client.stream_chat now... (Elapsed from start: {time.time() - t0:.2f}s)")
             
             t_first_chunk = None
-            async for event_data in client.stream_chat(query, conversation_id, inputs, user, history=history_for_llm):
+            async for event_data in client.stream_chat(query, conversation_id, inputs, history=history_for_llm, user=current_user.username):
                 if t_first_chunk is None:
                     t_first_chunk = time.time()
                     logger.info(f"[PROFILER] First yield from stream_chat arrived. TTFT: {t_first_chunk - t0:.2f}s")
@@ -335,15 +380,26 @@ async def stream_chat_user(
     client = get_llm_client()
     user_email = current_user.email
 
+    # --- History Retrieval (Early for Inference) ---
+    if conversation_id is None:
+        import uuid
+        conversation_id = str(uuid.uuid4())
+    
+    db_history = crud.get_chat_messages(db, conversation_id, limit=20)
+    history_for_llm = [{"role": m.role, "content": m.content} for m in db_history]
+
     inputs: dict = {}
     try:
         inputs = task_list_module.get_personal_context(db, current_user.id)
         inputs["mode"] = "personal"
         inputs["user_name"] = current_user.name or current_user.username or "User"
+        inputs["active_project_id"] = None
     except Exception as e:
         logger.warning("[chat/user/stream] get_personal_context failed: %s", e)
         inputs = {"csv": "", "proj": "", "events": "", "mode": "personal", "notes": ""}
 
+    # --- Time-Series Layered RAG Context Collection ---
+    try:
         # 1. Get Latest Meeting (Full Context)
         latest_mtg = crud.get_latest_meeting(db)
         ts_context = ""
@@ -368,10 +424,43 @@ async def stream_chat_user(
         ts_context += "--- Chronological Meeting Summaries (Map of Decisions) ---\n"
         ts_context += mtg_summaries + "\n\n"
 
-        # 3. RAG Search (Recency Weighted)
+        # 3. RAG Search (Recency Weighted with Project Inference & Query Enrichment)
         is_summary_query = any(kw in query for kw in ["まとめて", "一覧", "概要", "全部", "横断", "詳細", "要約", "経緯", "歴史"])
-        top_k = 20 if is_summary_query else 10
-        rag_context = await rag_service.query_context(query, top_k=top_k)
+        
+        search_query = query
+        focused_project_id = None
+        try:
+            active_projects = crud.get_projects(db, skip=0, limit=100)
+            
+            # A) Check query explicitly
+            for p in active_projects:
+                if p.name and p.name.lower() in query.lower():
+                    focused_project_id = p.id
+                    # 表記揺れ対策：プロジェクト名補完
+                    if p.name.lower() not in query.lower():
+                        search_query = f"{p.name} {query}"
+                    break
+            
+            if not focused_project_id and db_history:
+                last_msgs = db_history[-3:]
+                for m in last_msgs:
+                    msg_content = str(m.content).lower() if m.content else ""
+                    for p in active_projects:
+                        if p.name and p.name.lower() in msg_content:
+                            focused_project_id = p.id
+                            # 文脈からプロジェクト名を補完して表記揺れを吸収
+                            search_query = f"{p.name} {query}"
+                            break
+                    if focused_project_id: break
+            
+            if focused_project_id:
+                logger.info(f"[chat/user/stream] Focusing search on project_id: {focused_project_id} with query: {search_query}")
+                inputs["active_project_id"] = focused_project_id
+        except Exception as pe:
+            logger.warning("[chat/user/stream] Project inference failed: %s", pe)
+
+        top_k = 40 if is_summary_query else 25
+        rag_context = await rag_service.query_context(search_query, project_id=focused_project_id, top_k=top_k)
         if rag_context:
             ts_context += "\n--- Knowledge Base & Historical Meeting Excerpts (RAG) ---\n"
             ts_context += rag_context + "\n"
@@ -394,13 +483,7 @@ async def stream_chat_user(
     except Exception as e:
         logger.warning("[chat/user/stream] Time-Series RAG failed: %s", e)
 
-    if conversation_id is None:
-        import uuid
-        conversation_id = str(uuid.uuid4())
-
-    # 履歴をDBから取得
-    db_history = crud.get_chat_messages(db, conversation_id, limit=20)
-    history_for_llm = [{"role": m.role, "content": m.content} for m in db_history]
+    # (History already retrieved above)
 
     async def eventgen():
         try:

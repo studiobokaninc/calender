@@ -44,64 +44,100 @@ class MeetingScanner:
                 
                 project_id = project_map.get(proj_folder.lower())
                 if not project_id:
-                    logger.warning(f"Project '{proj_folder}' not found in database. Skipping...")
                     continue
                 
-                # 3. Iterate through date folders (YYYYMMDD)
-                for date_folder in os.listdir(proj_path):
-                    date_path = os.path.join(proj_path, date_folder)
-                    if not os.path.isdir(date_path):
-                        continue
+                # 3. Iterate through project children (direct files or date folders)
+                for entry_name in os.listdir(proj_path):
+                    entry_path = os.path.join(proj_path, entry_name)
                     
-                    try:
-                        # Attempt to parse YYYYMMDD
-                        mtg_date = datetime.strptime(date_folder, "%Y%m%d")
-                    except ValueError:
-                        logger.warning(f"Invalid date folder: {date_folder} in {proj_folder}")
-                        continue
-                    
-                    # 4. Iterate through audio files
-                    for audio_file in os.listdir(date_path):
-                        file_path = os.path.join(date_path, audio_file)
-                        ext = os.path.splitext(audio_file)[1].lower()
+                    if os.path.isdir(entry_path):
+                        # Case A: Date Folder (YYYYMMDD) or arbitrary folder
+                        mtg_date = None
+                        try:
+                            # Attempt to parse YYYYMMDD from folder name
+                            mtg_date = datetime.strptime(entry_name, "%Y%m%d")
+                        except ValueError:
+                            # If folder name is not YYYYMMDD, we will use file time inside
+                            pass
+                        
+                        # Scan files inside this folder
+                        for audio_file in os.listdir(entry_path):
+                            file_path = os.path.join(entry_path, audio_file)
+                            await self._check_and_register_meeting(
+                                db, file_path, project_id, mtg_date, proj_folder, 
+                                entry_name if mtg_date else None
+                            )
+                            
+                    elif os.path.isfile(entry_path):
+                        # Case B: Date-prefixed File or arbitrary File
+                        ext = os.path.splitext(entry_name)[1].lower()
                         if ext not in ALLOWED_EXTENSIONS:
                             continue
-                            
-                        # Check if already processed
-                        existing = db.query(models.Meeting).filter(models.Meeting.audio_url == file_path).first()
                         
-                        if existing:
-                            # 既にメモリ上でタスクが実行中ならスキップ
-                            if existing.id in active_tasks:
-                                continue
-                                
-                            # 完了済みの場合はスキップ
-                            if existing.status == "completed":
-                                continue
-                            
-                            # 解析中なのにタスクがない、または失敗した場合は再度解析を試みる（レジューム）
-                            logger.info(f"Restarting/Retrying incomplete meeting: {file_path}")
-                            asyncio.create_task(self._safe_analyze(existing.id, file_path))
-                            continue
-
-                        # 5. 新規レコード作成
-                        logger.info(f"Found new meeting: {file_path} (Project: {proj_folder}, Date: {date_folder})")
-                        new_mtg = models.Meeting(
-                            project_id=project_id,
-                            title=f"{proj_folder} 会議 ({date_folder})",
-                            date=mtg_date,
-                            audio_url=file_path,
-                            status="pending"
+                        # Extract date from filename (look for first 8 digits)
+                        import re
+                        date_match = re.search(r'(\d{8})', entry_name)
+                        mtg_date = None
+                        date_str = None
+                        
+                        if date_match:
+                            try:
+                                mtg_date = datetime.strptime(date_match.group(1), "%Y%m%d")
+                                date_str = date_match.group(1)
+                            except ValueError:
+                                pass
+                        
+                        # Use helper with fallback logic
+                        await self._check_and_register_meeting(
+                            db, entry_path, project_id, mtg_date, proj_folder, date_str
                         )
-                        db.add(new_mtg)
-                        db.commit()
-                        db.refresh(new_mtg)
-                        
-                        # 6. 解析開始
-                        asyncio.create_task(self._safe_analyze(new_mtg.id, file_path))
-                        
         finally:
             db.close()
+
+    async def _check_and_register_meeting(self, db: Session, file_path: str, project_id: int, mtg_date: Optional[datetime], proj_name: str, date_str: Optional[str]):
+        """Helper to create DB record and task if not already exists. Falls back to file mtime if mtg_date is None."""
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS or not os.path.isfile(file_path):
+            return
+
+        # 日付が取得できていない場合のフォールバック (ファイルの更新日時を使用)
+        if not mtg_date:
+            mtime = os.path.getmtime(file_path)
+            mtg_date = datetime.fromtimestamp(mtime)
+            # YYYY/MM/DD 形式で表示用に整形
+            date_str = mtg_date.strftime("%Y%m%d")
+
+        # Check if already processed (Path is the unique key)
+        existing = db.query(models.Meeting).filter(models.Meeting.audio_url == file_path).first()
+        
+        if existing:
+            # 既にメモリ上でタスクが実行中ならスキップ
+            if existing.id in active_tasks:
+                return
+            # 完了済みの場合はスキップ
+            if existing.status == "completed":
+                return
+            
+            # 解析中なのにタスクがない、または失敗した場合は再度解析を試みる（レジューム）
+            logger.info(f"Restarting/Retrying incomplete meeting: {file_path}")
+            asyncio.create_task(self._safe_analyze(existing.id, file_path))
+            return
+
+        # 新規レコード作成
+        logger.info(f"Found new meeting: {file_path} (Project: {proj_name}, Date: {date_str})")
+        new_mtg = models.Meeting(
+            project_id=project_id,
+            title=f"{proj_name} 会議 ({date_str})",
+            date=mtg_date,
+            audio_url=file_path,
+            status="pending"
+        )
+        db.add(new_mtg)
+        db.commit()
+        db.refresh(new_mtg)
+        
+        # 解析開始
+        asyncio.create_task(self._safe_analyze(new_mtg.id, file_path))
 
     async def _safe_analyze(self, meeting_id: int, file_path: str):
         """Semaphore で同時実行数を制限しながら解析を実行。"""

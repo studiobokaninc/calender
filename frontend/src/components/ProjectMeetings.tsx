@@ -71,6 +71,15 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
         }
     };
 
+    const handleOpenExplorer = async (path: string) => {
+        try {
+            await api.post('/meetings/open-explorer', { path });
+        } catch (err) {
+            console.error('Failed to open explorer:', err);
+            setSnackbar({ open: true, message: 'エクスプローラーを開けませんでした', severity: 'error' });
+        }
+    };
+
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -84,9 +93,6 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                 flexDirection: isMobile ? 'column' : 'row',
                 gap: isMobile ? 1.5 : 0
             }}>
-                <Typography variant="h6" sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: 600 }}>
-                    会議音声・AI議事録
-                </Typography>
                 <Typography variant="h6" sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: 600 }}>
                     会議音声・AI議事録
                 </Typography>
@@ -108,11 +114,52 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', pr: 2 }}>
                                     <EventNoteIcon sx={{ mr: 2, color: 'primary.main' }} />
-                                    <Box sx={{ flexGrow: 1 }}>
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{meeting.title}</Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            実施日: {new Date(meeting.date).toLocaleDateString('ja-JP')}
-                                        </Typography>
+                                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>{meeting.title}</Typography>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                                            <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+                                                実施日: {new Date(meeting.date).toLocaleDateString('ja-JP')}
+                                            </Typography>
+                                            {meeting.audio_url && (
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        sx={{
+                                                            display: 'inline-block',
+                                                            maxWidth: isMobile ? '150px' : '400px',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                            fontFamily: 'monospace'
+                                                        }}
+                                                        title={meeting.audio_url}
+                                                    >
+                                                        {meeting.audio_url}
+                                                    </Typography>
+                                                    {(meeting.audio_url.startsWith('X:') || meeting.audio_url.includes('\\')) && (
+                                                        <Button
+                                                            size="small"
+                                                            variant="text"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenExplorer(meeting.audio_url!);
+                                                            }}
+                                                            sx={{
+                                                                minWidth: 'auto',
+                                                                p: 0,
+                                                                fontSize: '0.65rem',
+                                                                textTransform: 'none',
+                                                                color: 'primary.main',
+                                                                '&:hover': { textDecoration: 'underline' }
+                                                            }}
+                                                        >
+                                                            [開く]
+                                                        </Button>
+                                                    )}
+                                                </Box>
+                                            )}
+                                        </Box>
                                     </Box>
                                     {meeting.status === 'failed' ? (
                                         <Chip size="small" label="解析失敗" color="error" variant="outlined" sx={{ mr: 2 }} />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Divider, Chip, Checkbox, FormControlLabel, TextField, List, ListItem, useTheme, Avatar } from '@mui/material';
+import { Box, Typography, Divider, Chip, Checkbox, FormControlLabel, TextField, List, ListItem, useTheme, Avatar, Button } from '@mui/material';
 import { Task, User, Project } from '../types';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import ChecklistIcon from '@mui/icons-material/Checklist';
@@ -309,9 +309,21 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                 </Box>
 
                 <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                        <AssignmentIcon fontSize="small" color="primary" /> メモ
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <AssignmentIcon fontSize="small" color="primary" /> メモ
+                        </Typography>
+                        {localDeliverables !== (task.deliverables || '') && (
+                            <Button
+                                size="small"
+                                variant="contained"
+                                onClick={handleDeliverablesBlur}
+                                sx={{ py: 0, fontSize: '0.75rem' }}
+                            >
+                                確定
+                            </Button>
+                        )}
+                    </Box>
                     <TextField
                         key={`deliverables-input-${task.id}`}
                         multiline
@@ -322,6 +334,11 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         value={localDeliverables}
                         onChange={(e) => setLocalDeliverables(e.target.value)}
                         onBlur={handleDeliverablesBlur}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                handleDeliverablesBlur();
+                            }
+                        }}
                         sx={{
                             '& .MuiInputBase-root': {
                                 fontSize: '0.85rem',

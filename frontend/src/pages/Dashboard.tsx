@@ -35,6 +35,7 @@ import {
   Close as CloseIcon,
   Edit as EditIcon,
   Warning as WarningIcon,
+  VolumeUp as VolumeUpIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -103,8 +104,40 @@ const Dashboard: React.FC = () => {
 
   // 音声認識（Web Speech API）
   const [isListening, setIsListening] = useState(false)
+  const [interimTranscript, setInterimTranscript] = useState('')
   const recognitionRef = useRef<any>(null)
   const [speechSupport, setSpeechSupport] = useState<boolean | null>(null)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [currentlySpeakingText, setCurrentlySpeakingText] = useState<string | null>(null)
+
+  const speakText = (text: string) => {
+    if (!('speechSynthesis' in window)) return
+    window.speechSynthesis.cancel()
+    const plainText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, '')
+    const uttr = new SpeechSynthesisUtterance(plainText)
+    uttr.lang = 'ja-JP'
+    uttr.onstart = () => {
+      setIsSpeaking(true)
+      setCurrentlySpeakingText(text)
+    }
+    uttr.onend = () => {
+      setIsSpeaking(false)
+      setCurrentlySpeakingText(null)
+    }
+    uttr.onerror = () => {
+      setIsSpeaking(false)
+      setCurrentlySpeakingText(null)
+    }
+    window.speechSynthesis.speak(uttr)
+  }
+
+  const stopSpeaking = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+    setIsSpeaking(false)
+    setCurrentlySpeakingText(null)
+  }
 
   // ページ状態が復元されたらローカル状態を更新
   useEffect(() => {
@@ -170,7 +203,7 @@ const Dashboard: React.FC = () => {
       }
     }
     checkStatus()
-    const interval = setInterval(checkStatus, 15000) // 15秒おきにチェック
+    const interval = setInterval(checkStatus, 5000) // 5秒おきにチェック (15秒から短縮)
     return () => clearInterval(interval)
   }, [])
 
@@ -185,29 +218,46 @@ const Dashboard: React.FC = () => {
     }
     const recognition = new SR()
     recognition.lang = 'ja-JP'
-    recognition.continuous = false
+    recognition.continuous = true
     recognition.interimResults = true
     recognition.onresult = (event: any) => {
-      let finalTranscript = ''
-      let interimTranscript = ''
+      let final = ''
+      let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i]
-        const transcript = result[0]?.transcript ?? ''
-        if (result.isFinal) {
-          finalTranscript += transcript
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript
         } else {
-          interimTranscript += transcript
+          interim += event.results[i][0].transcript
         }
       }
-      const toAppend = finalTranscript || interimTranscript
-      if (toAppend) {
-        setChatInput(prev => (prev ? prev + ' ' + toAppend : toAppend))
+      if (final) {
+        setChatInput(prev => (prev.trim() + ' ' + final.trim()).trim())
       }
+      setInterimTranscript(interim)
     }
-    recognition.onend = () => setIsListening(false)
-    recognition.onerror = () => setIsListening(false)
+    recognition.onstart = () => {
+      console.log('Speech recognition started (Dashboard)')
+      setIsListening(true)
+    }
+    recognition.onend = () => {
+      setIsListening(false)
+      setInterimTranscript('')
+    }
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error (Dashboard):', event.error)
+      if (event.error === 'not-allowed') {
+        alert('マイクの使用が許可されていません。ブラウザの設定から許可してください。')
+      }
+      setIsListening(false)
+      setInterimTranscript('')
+    }
     recognitionRef.current = recognition
     setSpeechSupport(true)
+
+    // セキュアコンテキストチェック
+    if (win && win.location.protocol !== 'https:' && win.location.hostname !== 'localhost' && !win.location.hostname.startsWith('127.')) {
+      console.warn('SpeechRecognition might not work on insecure origins (HTTP).')
+    }
     return () => {
       try {
         if (recognitionRef.current) {
@@ -225,10 +275,14 @@ const Dashboard: React.FC = () => {
       return
     }
     if (isListening) {
-      recognitionRef.current.stop()
+      try {
+        recognitionRef.current.stop()
+        setIsListening(false)
+      } catch (e) { console.error(e) }
       return
     }
     try {
+      setInterimTranscript('')
       recognitionRef.current.start()
       setIsListening(true)
     } catch (e) {
@@ -1748,9 +1802,16 @@ const Dashboard: React.FC = () => {
           <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
             会話
           </Typography>
-          <Button size="medium" variant="outlined" onClick={handleNewConversation} sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, minHeight: { xs: 40, sm: 36 } }}>
-            新しい会話
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {isSpeaking && (
+              <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' } }}>
+                音声停止
+              </Button>
+            )}
+            <Button size="medium" variant="outlined" onClick={handleNewConversation} sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, minHeight: { xs: 40, sm: 36 } }}>
+              新しい会話
+            </Button>
+          </Box>
         </Box>
         <Box sx={{ position: 'relative', height: { xs: 350, sm: 420 } }}>
           {/* メッセージ一覧 */}
@@ -1922,17 +1983,43 @@ const Dashboard: React.FC = () => {
                   },
                 }}>
                   {m.role === 'assistant' ? (
-                    <div
-                      className="message-content markdown-content"
-                      style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
-                    />
+                    <>
+                      <div
+                        className="message-content markdown-content"
+                        style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}
+                        dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
+                      />
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5 }}>
+                        {currentlySpeakingText === m.content ? (
+                          <Button size="small" variant="text" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}>停止</Button>
+                        ) : (
+                          <Button size="small" variant="text" color="primary" startIcon={<VolumeUpIcon />} onClick={() => speakText(m.content)} sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}>読み上げる</Button>
+                        )}
+                      </Box>
+                    </>
                   ) : (
                     m.content
                   )}
                 </Box>
               </Box>
             ))}
+            {isListening && interimTranscript && (
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1.5 }}>
+                <Paper sx={{ p: 1, bgcolor: 'action.hover', border: '1px dashed grey', opacity: 0.85, maxWidth: '90%', borderRadius: 1.5 }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.8 }}>
+                    <MicIcon fontSize="inherit" sx={{ animation: 'pulse-dash 1.5s infinite' }} />
+                    {interimTranscript}...
+                  </Typography>
+                </Paper>
+              </Box>
+            )}
+            <style>{`
+              @keyframes pulse-dash {
+                0% { opacity: 0.4; }
+                50% { opacity: 1; }
+                100% { opacity: 0.4; }
+              }
+            `}</style>
             <div ref={listEndRef} />
           </Box>
 

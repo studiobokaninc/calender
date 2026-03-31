@@ -1975,7 +1975,10 @@ def get_all_meeting_summaries(db: Session, project_id: Optional[int] = None) -> 
         date_str = item.date.strftime("%Y-%m-%d") if item.date else "不明"
         context += f"- 【会議：{item.title}】 (ID: {item.id}, 日付: {date_str}, グループ: {item.version_group or 'なし'})\n"
         if item.decisions:
-            context += f"  主な決定: {', '.join(item.decisions[:3])}...\n"
+            # 増やしてより多くのコンテキストを提供
+            context += f"  決定事項: {', '.join(item.decisions[:10])}\n"
+        if item.tasks:
+            context += f"  タスク: {', '.join(item.tasks[:5])}...\n"
     return context
 
 # --- Chat Message CRUD ---
@@ -2070,6 +2073,12 @@ def get_all_knowledge_summaries(db: Session, project_id: Optional[int] = None) -
     context = ""
     for item in items:
         tags = ", ".join([t.name for t in item.tags])
-        context += f"- 【資料：{item.title}】 (ID: {item.id}, タグ: {tags})\n"
-        context += f"  要約: {item.summary or '要約なし'}\n"
+        project_name = item.project.name if item.project else "全般"
+        context += f"- 【資料：{item.title}】 (ID: {item.id}, プロジェクト: {project_name}, タグ: [{tags}])\n"
+        if item.summary:
+            context += f"  内容要約: {item.summary}\n"
+        else:
+            # 要約がない場合は冒頭を少し出す
+            snippet = (item.content_text or "")[:200].replace("\n", " ")
+            context += f"  プレビュー: {snippet}...\n"
     return context

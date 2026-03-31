@@ -369,6 +369,9 @@ class MeetingResponse(MeetingBase):
             datetime: lambda v: v.isoformat()
         }
 
+class OpenExplorerRequest(BaseModel):
+    path: str
+
 # --- Decision Schemas ---
 
 class DecisionBase(BaseModel):

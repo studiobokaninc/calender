@@ -23,6 +23,7 @@ import {
   Checkbox,
   Drawer,
   Divider,
+  Chip,
 } from '@mui/material'
 import {
   People as PeopleIcon,
@@ -36,6 +37,7 @@ import {
   Edit as EditIcon,
   Warning as WarningIcon,
   VolumeUp as VolumeUpIcon,
+  HelpOutline as HelpIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -45,6 +47,7 @@ import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '
 import { useAuth } from '../contexts/AuthContext'
 import { TaskEditDialog, EventEditDialog } from '../components/SearchEditDialogs'
 import { TaskQuickDetail } from '../components/TaskQuickDetail'
+import { VoiceHelpDialog } from '../components/VoiceHelpDialog'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
@@ -98,6 +101,7 @@ const Dashboard: React.FC = () => {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [stateRestored, setStateRestored] = useState(false)
+  const [openVoiceHelp, setOpenVoiceHelp] = useState(false)
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const hasReceivedTaskActionRef = useRef<boolean>(false)
@@ -109,11 +113,31 @@ const Dashboard: React.FC = () => {
   const [speechSupport, setSpeechSupport] = useState<boolean | null>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [currentlySpeakingText, setCurrentlySpeakingText] = useState<string | null>(null)
+  const [autoSpeak, setAutoSpeak] = useState(false)
+  const [autoSend, setAutoSend] = useState(false)
+  const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const autoSpeakRef = useRef(autoSpeak)
+  useEffect(() => {
+    autoSpeakRef.current = autoSpeak
+  }, [autoSpeak])
 
   const speakText = (text: string) => {
     if (!('speechSynthesis' in window)) return
+    console.log('[Dashboard TTS] Starting speakText:', text.substring(0, 50) + '...')
     window.speechSynthesis.cancel()
-    const plainText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, '')
+
+    // Markdown、コードブロック、特殊記号、リンク等を除去
+    const plainText = text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`[^`]*`/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[#*_-]/g, ' ')
+      .replace(/<[^>]*>?/gm, '')
+      .trim()
+
+    if (!plainText) return
+
     const uttr = new SpeechSynthesisUtterance(plainText)
     uttr.lang = 'ja-JP'
     uttr.onstart = () => {
@@ -137,6 +161,26 @@ const Dashboard: React.FC = () => {
     }
     setIsSpeaking(false)
     setCurrentlySpeakingText(null)
+  }
+
+  const triggerManualSend = async (text: string) => {
+    if (text.trim().length === 0 || sending || isGenerating || isSystemBusy) return
+    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
+    setChatInput('')
+    setMessages(prev => [...prev, { role: 'user', content: text }])
+    setSending(true)
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    if (autoSpeakRef.current) {
+      // ブラウザの音声再生制限を解除するために無音を再生（プライミング）
+      speakText('')
+    }
+    handleStreamingMessage(text).catch(() => {
+      setSending(false)
+      setIsGenerating(false)
+    })
   }
 
   // ページ状態が復元されたらローカル状態を更新
@@ -231,7 +275,16 @@ const Dashboard: React.FC = () => {
         }
       }
       if (final) {
-        setChatInput(prev => (prev.trim() + ' ' + final.trim()).trim())
+        setChatInput(prev => {
+          const newVal = (prev.trim() + ' ' + final.trim()).trim()
+          if (autoSend) {
+            if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
+            autoSendTimerRef.current = setTimeout(() => {
+              triggerManualSend(newVal)
+            }, 1500)
+          }
+          return newVal
+        })
       }
       setInterimTranscript(interim)
     }
@@ -308,8 +361,6 @@ const Dashboard: React.FC = () => {
 
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating && !isSystemBusy, [chatInput, sending, isGenerating, isSystemBusy])
 
-
-  // 今日の日付（YYYY-MM-DD）でタスク・イベントをフィルタし、プロジェクト名付きで一覧化（フックは早期 return の前に必ず呼ぶ）
   const todayStr = useMemo(() => {
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -844,23 +895,7 @@ const Dashboard: React.FC = () => {
 
   const handleSend = async () => {
     if (!canSend) return
-    const text = chatInput.trim()
-    setChatInput('')
-    setMessages((prev) => [...prev, { role: 'user', content: text }])
-    setSending(true)
-
-    // 既存のEventSourceをクリーンアップ
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-
-    handleStreamingMessage(text).catch((e: any) => {
-      const msg = e?.message || '送信に失敗しました'
-      setMessages((prev) => [...prev, { role: 'assistant', content: `エラー: ${msg}` }])
-      setSending(false)
-      setIsGenerating(false)
-    })
+    triggerManualSend(chatInput)
   }
 
   const handleStopGeneration = async () => {
@@ -1295,6 +1330,10 @@ const Dashboard: React.FC = () => {
       setIsGenerating(false)
       setSending(false)
       setCurrentTaskId(null)
+      // Refを使用して最新のautoSpeak設定を確認
+      if (autoSpeakRef.current && accumulatedContent) {
+        speakText(accumulatedContent)
+      }
     }
   }
 
@@ -1385,6 +1424,7 @@ const Dashboard: React.FC = () => {
     <Box
       sx={{
         p: { xs: 1, sm: 1.5, md: 2 },
+        pb: { xs: 12, sm: 3 }, // モバイル下部メニュー対応の余白
         maxWidth: 1600,
         mx: 'auto',
         width: '100%',
@@ -1799,13 +1839,43 @@ const Dashboard: React.FC = () => {
       </Typography>
       <Paper sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 1.5 }, flexWrap: 'wrap', gap: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-            会話
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
+              会話
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>自動読み上げ</Typography>
+              <Chip
+                size="small"
+                label={autoSpeak ? 'ON' : 'OFF'}
+                color={autoSpeak ? 'primary' : 'default'}
+                onClick={() => setAutoSpeak(!autoSpeak)}
+                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>話しかけ</Typography>
+              <Chip
+                size="small"
+                label={autoSend ? 'ON' : 'OFF'}
+                color={autoSend ? 'primary' : 'default'}
+                onClick={() => {
+                  setAutoSend(!autoSend)
+                  if (!autoSend && !isListening) toggleVoiceInput()
+                }}
+                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+              />
+            </Box>
+            <Tooltip title="音声機能の設定方法">
+              <IconButton size="small" onClick={() => setOpenVoiceHelp(true)} sx={{ ml: -0.5 }}>
+                <HelpIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+              </IconButton>
+            </Tooltip>
             {isSpeaking && (
-              <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' } }}>
-                音声停止
+              <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, height: 32 }}>
+                停止
               </Button>
             )}
             <Button size="medium" variant="outlined" onClick={handleNewConversation} sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, minHeight: { xs: 40, sm: 36 } }}>
@@ -2187,11 +2257,11 @@ const Dashboard: React.FC = () => {
             {isExecutingAction ? '実行中...' : '実行する'}
           </Button>
         </DialogActions>
-      </Dialog>
+      </Dialog >
 
 
       {/* 編集ダイアログ */}
-      <TaskEditDialog
+      < TaskEditDialog
         open={editTaskId !== null}
         taskId={editTaskId}
         onClose={() => setEditTaskId(null)}
@@ -2200,7 +2270,7 @@ const Dashboard: React.FC = () => {
         }}
       />
 
-      <EventEditDialog
+      < EventEditDialog
         open={editEventId !== null}
         eventId={editEventId}
         onClose={() => setEditEventId(null)}
@@ -2288,7 +2358,8 @@ const Dashboard: React.FC = () => {
           )}
         </Box>
       </Drawer>
-    </Box >
+      <VoiceHelpDialog open={openVoiceHelp} onClose={() => setOpenVoiceHelp(false)} />
+    </Box>
   )
 }
 

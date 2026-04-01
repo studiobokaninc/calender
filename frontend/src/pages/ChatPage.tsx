@@ -17,7 +17,6 @@ import {
   MenuItem,
   Chip,
   Tooltip,
-  useTheme,
   IconButton,
   InputAdornment,
 } from '@mui/material'
@@ -29,7 +28,9 @@ import {
   Mic as MicIcon,
   Stop as StopIcon,
   VolumeUp as VolumeUpIcon,
+  HelpOutline as HelpIcon,
 } from '@mui/icons-material'
+import { VoiceHelpDialog } from '../components/VoiceHelpDialog'
 import api from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { usePageState } from '../contexts/PageStateContext'
@@ -144,14 +145,34 @@ const ChatPage: React.FC = () => {
   const [interimTranscript, setInterimTranscript] = useState('')
   const recognitionRef = useRef<any>(null)
   const [speechSupport, setSpeechSupport] = useState<boolean | null>(null)
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const [currentlySpeakingText, setCurrentlySpeakingText] = useState<string | null>(null)
+  const [autoSpeak, setAutoSpeak] = useState(false)
+  const [autoSend, setAutoSend] = useState(false)
+  const [openVoiceHelp, setOpenVoiceHelp] = useState(false)
+  const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const autoSpeakRef = useRef(autoSpeak)
+  useEffect(() => {
+    autoSpeakRef.current = autoSpeak
+  }, [autoSpeak])
 
   const speakText = (text: string) => {
     if (!('speechSynthesis' in window)) return
+    console.log('[TTS] Starting speakText:', text.substring(0, 50) + '...')
     window.speechSynthesis.cancel()
 
-    // Markdownタグなどを簡易除去
-    const plainText = text.replace(/<[^>]*>?/gm, '').replace(/```[\s\S]*?```/g, '')
+    // Markdownタグやコードブロック、特殊文字をより丁寧に除去
+    const plainText = text
+      .replace(/```[\s\S]*?```/g, '') // コードブロック削除
+      .replace(/`[^`]*`/g, '')        // インラインコード削除
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // リンクをテキストのみに
+      .replace(/[#*_-]/g, ' ')        // 装飾記号をスペースに
+      .replace(/<[^>]*>?/gm, '')      // HTMLタグ削除
+      .trim()
+
+    if (!plainText) return
+
     const uttr = new SpeechSynthesisUtterance(plainText)
     uttr.lang = 'ja-JP'
     uttr.onstart = () => {
@@ -178,6 +199,31 @@ const ChatPage: React.FC = () => {
   }
 
   const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating && !isSystemBusy, [chatInput, sending, isGenerating, isSystemBusy])
+
+  const triggerManualSend = async (text: string) => {
+    if (text.trim().length === 0 || sending || isGenerating || isSystemBusy) return
+    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
+    setChatInput('')
+    setMessages(prev => [...prev, { role: 'user', content: text }])
+    setSending(true)
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    if (autoSpeak) {
+      // ブラウザの音声再生制限を解除するために無音を再生（プライミング）
+      speakText('')
+    }
+    handleStreamingMessage(text).catch(() => {
+      setSending(false)
+      setIsGenerating(false)
+    })
+  }
+
+  const handleSend = async () => {
+    if (!canSend) return
+    triggerManualSend(chatInput)
+  }
 
 
   // 初回マウント時にタスク・プロジェクトを取得（レイアウト表示用）
@@ -226,7 +272,19 @@ const ChatPage: React.FC = () => {
         }
       }
       if (final) {
-        setChatInput(prev => (prev.trim() + ' ' + final.trim()).trim())
+        setChatInput(prev => {
+          const newVal = (prev.trim() + ' ' + final.trim()).trim()
+          // 自動送信フラグがオンの場合、一定時間（例：1.5秒）無入力なら送信する
+          if (autoSend) {
+            if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
+            autoSendTimerRef.current = setTimeout(() => {
+              // ここで現在のchatInputの最新状態を反映して送信
+              // ※Reactのステート更新（setChatInput）が非同期なため、newValを使う
+              triggerManualSend(newVal)
+            }, 1500)
+          }
+          return newVal
+        })
       }
       setInterimTranscript(interim)
     }
@@ -641,23 +699,28 @@ const ChatPage: React.FC = () => {
                 }
                 return prev
               })
-
-              if (!hasReceivedTaskActionRef.current) {
-                const detected = detectActionFromContent(accumulatedContent)
-                if (detected != null) {
-                  const list = Array.isArray(detected) ? detected : [detected]
-                  setPendingActions(
-                    list.map((a: any) => ({
-                      action_type: a.action_type,
-                      task_id: a.task_id,
-                      task_data: a.task_data,
-                      description: generateActionDescription(a),
-                    }))
-                  )
-                }
+              setIsGenerating(false)
+              if (autoSpeak) {
+                speakText(accumulatedContent)
               }
-              hasReceivedTaskActionRef.current = false
+              return
             }
+
+            if (!hasReceivedTaskActionRef.current) {
+              const detected = detectActionFromContent(accumulatedContent)
+              if (detected != null) {
+                const list = Array.isArray(detected) ? detected : [detected]
+                setPendingActions(
+                  list.map((a: any) => ({
+                    action_type: a.action_type,
+                    task_id: a.task_id,
+                    task_data: a.task_data,
+                    description: generateActionDescription(a),
+                  }))
+                )
+              }
+            }
+            hasReceivedTaskActionRef.current = false
           } catch (e) {
             console.error('JSON parse error', e)
           }
@@ -672,6 +735,10 @@ const ChatPage: React.FC = () => {
       setIsGenerating(false)
       setSending(false)
       setCurrentTaskId(null)
+      // Refを使用して最新のautoSpeak設定を確認
+      if (autoSpeakRef.current && accumulatedContent) {
+        speakText(accumulatedContent)
+      }
     }
   }
 
@@ -686,22 +753,6 @@ const ChatPage: React.FC = () => {
     setMessages([CHAT_WELCOME_MESSAGE])
   }
 
-  const handleSend = async () => {
-
-    if (!canSend) return
-    const text = chatInput.trim()
-    setChatInput('')
-    setMessages(prev => [...prev, { role: 'user', content: text }])
-    setSending(true)
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-    handleStreamingMessage(text).catch(() => {
-      setSending(false)
-      setIsGenerating(false)
-    })
-  }
 
   const handleStopGeneration = async () => {
     if (currentTaskId) {
@@ -775,7 +826,7 @@ const ChatPage: React.FC = () => {
 
   return (
     <Box sx={{
-      height: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' },
+      height: '100%',
       display: 'flex',
       flexDirection: 'column',
       p: { xs: 1, sm: 2 },
@@ -783,11 +834,52 @@ const ChatPage: React.FC = () => {
       mx: 'auto',
       width: '100%'
     }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>AIチャット</Typography>
-        <Button size="small" variant="outlined" onClick={handleNewConversation}>
-          新しい会話
-        </Button>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            チャット
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>自動読み上げ</Typography>
+            <Chip
+              size="small"
+              label={autoSpeak ? 'ON' : 'OFF'}
+              color={autoSpeak ? 'primary' : 'default'}
+              onClick={() => setAutoSpeak(!autoSpeak)}
+              sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+            />
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>話しかけモード</Typography>
+            <Chip
+              size="small"
+              label={autoSend ? 'ON' : 'OFF'}
+              color={autoSend ? 'primary' : 'default'}
+              onClick={() => {
+                setAutoSend(!autoSend)
+                if (!autoSend && !isListening) {
+                  toggleVoiceInput()
+                }
+              }}
+              sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+            />
+          </Box>
+          <Tooltip title="音声機能の設定方法">
+            <IconButton size="small" onClick={() => setOpenVoiceHelp(true)} sx={{ ml: -0.5 }}>
+              <HelpIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+            </IconButton>
+          </Tooltip>
+          <Button size="small" variant="outlined" onClick={handleNewConversation}>
+            新しい会話
+          </Button>
+          {isSpeaking && (
+            <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ height: 32 }}>
+              停止
+            </Button>
+          )}
+        </Box>
       </Box>
 
       <Paper sx={{
@@ -1098,6 +1190,8 @@ const ChatPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* 音声ヘルプダイアログ */}
+      <VoiceHelpDialog open={openVoiceHelp} onClose={() => setOpenVoiceHelp(false)} />
     </Box>
   )
 }

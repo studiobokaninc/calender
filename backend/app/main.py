@@ -35,6 +35,7 @@ from .routers import chat as chat_router
 print("Main: chat_router インポート完了 (RAG初期化完了)")
 from .routers import meetings as meetings_router
 from .routers import knowledge as knowledge_router
+from .routers import tts as tts_router
 print("Main: ルーター読み込み完了")
 from .timezone import now_jst_naive, now_jst_aware, JST
 from dotenv import load_dotenv
@@ -114,12 +115,15 @@ app.add_middleware(
 )
 
 # --- Routers ---
-# Vite の proxy が "/api" を剥がしてバックエンドに転送するため、
-# バックエンド側はルートに直接マウントしておく
+app.include_router(tts_router.router, prefix="/tts", tags=["TTS"])
+@app.get("/tts_debug")
+async def tts_debug():
+    return {"status": "ok", "message": "TTS route should be active"}
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])
 app.include_router(meetings_router.root_router, tags=["Meetings (All)"]) # Add this line
 app.include_router(knowledge_router.router, tags=["Knowledge Base"])
+app.include_router(tts_router.router, prefix="/tts", tags=["TTS"])
 
 # ユーザー認証関連のモデルとユーティリティ
 _DEFAULT_SECRET = "your_very_secret_key_that_is_long_and_secure"
@@ -585,13 +589,9 @@ def google_calendar_callback(
         )
         logger.info(f"Google token saved for user {user_id}")
         
-        # トークンの保存完了後、一般ユーザーのみ自動同期を実行
-        user_record = crud.get_user(db, user_id=user_id)
-        if user_record and user_record.role != "admin":
-            from app.services.google_sync import initial_sync_for_user_bg
-            background_tasks.add_task(initial_sync_for_user_bg, user_id)
-        else:
-            logger.info(f"Skipping auto-sync for admin user {user_id}")
+        # トークンの保存完了後、全ユーザーに対して自動同期を実行
+        from app.services.google_sync import initial_sync_for_user_bg
+        background_tasks.add_task(initial_sync_for_user_bg, user_id)
         
     except Exception as e:
         logger.exception(f"Failed to save Google token: {e}")
@@ -603,20 +603,17 @@ def google_calendar_callback(
 
 @app.delete("/api/google/disconnect", tags=["Google Calendar"])
 def google_calendar_disconnect(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Google連携を解除する"""
-    if not crud.delete_user_google_token(db, current_user.id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google 連携が見つかりません")
+    """Google 連携を解除し、カレンダーの予定を削除。"""
+    from app.services.google_sync import cleanup_all_google_events_bg
     
-    # 既存の同期レコードをすべて削除（必要に応じてGoogleカレンダー上の予定も削除できますが、ここでは単純に連携解除のみとします）
-    db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.user_id == current_user.id).delete()
-    db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.user_id == current_user.id).delete()
-    db.query(models.EventGoogleSync).filter(models.EventGoogleSync.user_id == current_user.id).delete()
-    db.commit()
+    # すべての重い処理（Google API呼び出しとDB削除）をバックグラウンドへ
+    background_tasks.add_task(cleanup_all_google_events_bg, current_user.id)
     
-    return {"message": "Google 連携を解除しました"}
+    return {"message": "Google 連携解除のプロセスを開始しました"}
 
 class TaskGoogleSyncRequest(BaseModel):
     sync: bool  # True=表示する, False=表示しない

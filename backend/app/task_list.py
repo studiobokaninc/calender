@@ -236,6 +236,81 @@ def build_projects_list_for_chat(db: Session) -> str:
         return ""
 
 
+def build_project_summary_for_chat(tasks: list[dict], projects: list[models.Project]) -> str:
+    """
+    プロジェクトごとの統計情報（タスク数、遅延数、完了率）をテキスト形式で生成する。
+    AIがプロジェクト全体の健康状態を即座に把握できるようにするため。
+    """
+    if not projects:
+        return "進行中のプロジェクトはありません。"
+
+    # プロジェクトIDごとのタスク集計用
+    stats = {}
+    for p in projects:
+        stats[p.id] = {
+            "name": p.name,
+            "total": 0,
+            "completed": 0,
+            "delayed": 0,
+            "todo": 0,
+            "in_progress": 0,
+            "review": 0,
+            "near_deadline": 0,  # 3日以内
+        }
+
+    today = date.today()
+    near_threshold = today + timedelta(days=3)
+
+    for t in tasks:
+        pid = t.get("raw_project_id") # 加工前のIDが必要
+        if pid not in stats:
+            continue
+        
+        s = stats[pid]
+        s["total"] += 1
+        
+        status = (t.get("status") or "").lower()
+        if status == "completed":
+            s["completed"] += 1
+        elif status == "delayed":
+            s["delayed"] += 1
+        elif status == "todo":
+            s["todo"] += 1
+        elif status == "in-progress":
+            s["in_progress"] += 1
+        elif status == "review":
+            s["review"] += 1
+
+        # 期限間近の判定
+        due_str = t.get("due_date")
+        if due_str and status != "completed":
+            try:
+                due_date = datetime.fromisoformat(due_str).date()
+                if today <= due_date <= near_threshold:
+                    s["near_deadline"] += 1
+            except:
+                pass
+
+    buffer = io.StringIO()
+    buffer.write("【プロジェクト稼働状況サマリー】\n")
+    for pid, s in stats.items():
+        if s["total"] == 0:
+            buffer.write(f"- {s['name']}: タスクなし\n")
+            continue
+        
+        progress = (s["completed"] / s["total"]) * 100
+        buffer.write(f"- {s['name']}: 進捗 {progress:.1f}% ({s['completed']}/{s['total']} 完了)\n")
+        details = []
+        if s["delayed"] > 0: details.append(f"遅延 {s['delayed']}件")
+        if s["near_deadline"] > 0: details.append(f"3日以内期限 {s['near_deadline']}件")
+        if s["in_progress"] > 0: details.append(f"実行中 {s['in_progress']}件")
+        
+        if details:
+            buffer.write(f"  注意点: {', '.join(details)}\n")
+    
+    return buffer.getvalue()
+
+
 def build_users_list_for_chat(db: Session) -> str:
     """
     ユーザーリストをCSV形式で生成する。
@@ -779,16 +854,33 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
     id_to_taskname = {t.get("id"): _cell_str(t.get("name"), normalize_text=True) for t in all_tasks if t.get("id") and t.get("name")}
 
     target_tasks = []
+    today_dt = datetime.now(timezone.utc)
     
     for t in all_tasks:
         status = (t.get("status") or "").lower()
         
-        # 完了タスクの場合はスキップ
+        # 完了タスクのフィルタリング：直近7日以内に更新（完了）されたもの以外はスキップ
         if status == "completed":
-            continue
+            updated_at = t.get("updated_at")
+            if updated_at:
+                try:
+                    # ISO string (e.g. 2026-04-01T12:34:56)
+                    # safe_date_format in crud.py might have already ISO-formatted it
+                    dt = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    if (today_dt - dt).days > 7:
+                        continue
+                except:
+                    continue
+            else:
+                continue
         
-        # マッピング適用
+        # 集計用に元IDを保持
         ct = t.copy()
+        ct["raw_project_id"] = ct.get("project_id")
+
+        # マッピング適用
         pid = ct.get("project_id")
         if pid in id_to_project_name:
             ct["project_id"] = id_to_project_name[pid]
@@ -801,7 +893,10 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
             
         target_tasks.append(ct)
 
+    # 1. プロジェクトサマリーを生成
+    inputs["project_summary"] = build_project_summary_for_chat(target_tasks, projects)
 
+    # 2. タスクCSVを生成
     inputs["csv"] = build_tasks_csv_text(target_tasks)
     
     # イベント：全ユーザー分を含める (user_id=None)

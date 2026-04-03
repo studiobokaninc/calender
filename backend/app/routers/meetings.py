@@ -191,42 +191,6 @@ async def scan_network_drive(
     await run_batch_scan(api_key)
     return {"message": "Scanning started, new meetings will appear as they are processed."}
 
-@root_router.post("/open-explorer")
-async def open_explorer(
-    request: schemas.OpenExplorerRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """指定されたパスをエクスプローラーで開く"""
-    path = request.path
-    # セキュリティ上の最低限のチェック (X:ドライブ以外を禁じる、等の制約が必要な場合はここに追加)
-    normalized_path = os.path.normpath(path)
-    
-    from ..services.meeting_scanner import BASE_DIR
-    normalized_base = os.path.normpath(BASE_DIR)
-    
-    # Xドライブ、または設定されたBASE_DIRから始まるものだけ許可する
-    is_x_drive = normalized_path.lower().startswith("x:\\")
-    is_in_base = normalized_path.lower().startswith(normalized_base.lower())
-    
-    if not (is_x_drive or is_in_base):
-        raise HTTPException(status_code=403, detail="このディレクトリへのアクセスは許可されていません")
-
-    if not os.path.exists(normalized_path):
-         raise HTTPException(status_code=404, detail="パスが見つかりません")
-    
-    try:
-        # Windows の場合は explorer を使用。ディレクトリならその場所を、ファイルなら親ディレクトリを開いて選択状態にする
-        # Popen を使うことで非同期に開き、レスポンスを即座に帰す
-        if os.path.isdir(normalized_path):
-            subprocess.Popen(f'explorer "{normalized_path}"')
-        else:
-            subprocess.Popen(rf'explorer /select,"{normalized_path}"')
-        return {"message": "Explorer opened"}
-    except Exception as e:
-        logger.error(f"Failed to open explorer for path {path}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 async def analyze_meeting_background(meeting_id: int, audio_path: str, api_key: str):
     """バックグラウンド解析タスク"""
     try:

@@ -96,6 +96,45 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                 <Typography variant="h6" sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem', fontWeight: 600 }}>
                     会議音声・AI議事録
                 </Typography>
+                <Box>
+                    <input
+                        type="file"
+                        id="meeting-upload-input"
+                        accept="audio/*"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            formData.append('title', file.name.split('.')[0]);
+
+                            try {
+                                setLoading(true);
+                                await api.post(`/projects/${projectId}/meetings/upload`, formData, {
+                                    headers: { 'Content-Type': 'multipart/form-data' }
+                                });
+                                setSnackbar({ open: true, message: 'アップロードが完了しました。解析を開始します。', severity: 'success' });
+                                fetchMeetings(); // 一覧を再取得
+                            } catch (err) {
+                                console.error('Upload failed:', err);
+                                setSnackbar({ open: true, message: 'アップロードに失敗しました。', severity: 'error' });
+                            } finally {
+                                setLoading(false);
+                            }
+                        }}
+                    />
+                    <Button
+                        variant="contained"
+                        startIcon={<CloudUploadIcon />}
+                        size={isMobile ? "small" : "medium"}
+                        onClick={() => document.getElementById('meeting-upload-input')?.click()}
+                        sx={{ borderRadius: 2, textTransform: 'none', boxShadow: 2 }}
+                    >
+                        ファイルを選択して追加
+                    </Button>
+                </Box>
             </Box>
 
             {loading ? (

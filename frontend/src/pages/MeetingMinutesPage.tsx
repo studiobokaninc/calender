@@ -94,26 +94,9 @@ const MeetingMinutesPage: React.FC = () => {
                     </Button>
                 </Box>
                 {!isMobile && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, display: 'flex', alignItems: 'center' }}>
-                        プロジェクトを選択して、AI解析結果を確認できます。スキャンボタンをクリックするとXドライブ
-                        (<span style={{ fontFamily: 'monospace', margin: '0 4px', color: theme.palette.primary.main }}>X:\cg\proj\kikaku\MTG_audio</span>)
-                        内の音声データが自動的に同期されます。
-                        <Button
-                            size="small"
-                            variant="text"
-                            onClick={async () => {
-                                try {
-                                    await api.post('/meetings/open-explorer', { path: 'X:\\cg\\proj\\kikaku\\MTG_audio' });
-                                } catch (err) {
-                                    console.error('Failed to open explorer:', err);
-                                    alert('エクスプローラーを開けませんでした');
-                                }
-                            }}
-                            sx={{ minWidth: 'auto', p: 0.5, ml: 1, fontSize: '0.75rem', textTransform: 'none' }}
-                            title="このフォルダをエクスプローラで開く"
-                        >
-                            [フォルダを開く]
-                        </Button>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        プロジェクトを選択して、AI解析結果を確認できます。
+                        （参照先: <span style={{ fontFamily: 'monospace', color: theme.palette.primary.main, fontWeight: 'bold' }}>X:\cg\proj\kikaku\MTG_audio</span>）
                     </Typography>
                 )}
             </Box>

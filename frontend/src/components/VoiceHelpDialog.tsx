@@ -33,23 +33,37 @@ export const VoiceHelpDialog: React.FC<VoiceHelpDialogProps> = ({ open, onClose 
                     </Typography>
                     <Box component="ol" sx={{ m: 0, pl: 2.5, fontSize: '0.85rem' }}>
                         <li>
-                            アドレスバーに <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> を入力（Edgeの場合は <code>edge://...</code>）
+                            アドレスバーに <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> を入力
                         </li>
                         <li>
                             <b>Insecure origins treated as secure</b> を <b>Enabled</b> に変更
                         </li>
                         <li>
-                            その下に入力欄が出るので、現在のURL（例: <code>http://192.168.x.x:5175</code>）を入力
-                        </li>
-                        <li>
-                            ブラウザを再起動（Relaunch）して完了
+                            その下に入力欄が出るので、現在のURL（例: <code>http://192.168.x.x:5175</code>）を入力して再起動
                         </li>
                     </Box>
                 </Box>
 
                 <Divider sx={{ my: 2 }} />
+
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    音声アシスタントの使い方
+                </Typography>
+                <Box component="ul" sx={{ m: 0, pl: 2.5, fontSize: '0.85rem' }}>
+                    <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>自動送信</strong>: ONにすると、話し終えてから約2秒後にメッセージを自動送信します。
+                    </Typography>
+                    <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>回答中の保護</strong>: AIが回答を生成している間、および音声を読み上げている間は、誤入力を防ぐため音声入力が一時的に無視（ミュート）されます。
+                    </Typography>
+                    <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
+                        <strong>話しかけ</strong>: ONにするとマイクが常に待機し、画面を開いている間、ハンズフリーで連続して会話できます。
+                    </Typography>
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
                 <Typography variant="caption" color="text.secondary">
-                    ※これは開発や検証のための暫定的な回避策です。本番運用では HTTPS（SSL証明書）の使用が推奨されます。
+                    ※セキュリティ制限により、本番運用では HTTPS（SSL証明書）の使用が推奨されます。
                 </Typography>
             </DialogContent>
             <DialogActions>

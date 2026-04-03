@@ -163,8 +163,19 @@ def create_calendar_event(
     token = _ensure_valid_token(access_token, refresh_token, expires_at)
     if not token:
         return None
+    def _to_dt(d):
+        if isinstance(d, str):
+            try:
+                return datetime.fromisoformat(d.replace('Z', '+00:00'))
+            except:
+                return None
+        return d
+
+    start_date = _to_dt(start_date)
+    end_date = _to_dt(end_date)
+
     if not start_date:
-        start_date = datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0)
+        start_date = datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=microsecond) if 'microsecond' in locals() else datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0)
     if not end_date:
         end_date = start_date + timedelta(hours=1)
         
@@ -194,22 +205,36 @@ def create_calendar_event(
         }
     
     if sync_id:
-        body["extendedProperties"] = {"private": {"app_sync_id": sync_id}}
-        
+        safe_id = sync_id.replace("_", "").replace("-", "").lower()
+        if len(safe_id) < 5:
+            safe_id = "syncevent" + safe_id
+        body["id"] = safe_id
+
     target_calendar = calendar_id or "primary"
     
     try:
         with httpx.Client() as client:
             r = client.post(
                 f"{CALENDAR_API}/calendars/{target_calendar}/events",
+                headers={"Authorization": f"Bearer {token}"},
                 json=body,
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
                 timeout=15.0,
             )
-            r.raise_for_status()
-            return r.json().get("id")
+            if r.status_code == 409: # すでに存在
+                logger.warning(f"Event ID {body.get('id')} already exists. Try updating instead.")
+                return body.get("id")
+            
+            try:
+                r.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Google Calendar API 400 error body: {r.text}")
+                logger.error(f"Request body was: {body}")
+                raise e
+                
+            res = r.json()
+            return res.get("id")
     except Exception as e:
-        logger.exception("Google Calendar create event failed: %s", e)
+        logger.error(f"Google Calendar create event failed: {e}")
         return None
 
 
@@ -230,6 +255,17 @@ def update_calendar_event(
     token = _ensure_valid_token(access_token, refresh_token, expires_at)
     if not token:
         return False
+    def _to_dt(d):
+        if isinstance(d, str):
+            try:
+                return datetime.fromisoformat(d.replace('Z', '+00:00'))
+            except:
+                return None
+        return d
+
+    start_date = _to_dt(start_date)
+    end_date = _to_dt(end_date)
+
     if not start_date:
         start_date = datetime.utcnow().replace(hour=9, minute=0, second=0, microsecond=0)
     if not end_date:
@@ -300,13 +336,18 @@ def delete_calendar_event(
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=15.0,
             )
-            # 404 は既に削除済みなので成功扱い
-            if r.status_code in (204, 404):
+            # 204, 404 (Not Found), 410 (Gone) は既に削除済みなので成功扱い
+            if r.status_code in (204, 404, 410):
                 return True
+            # 403 は権限不足などのため、削除不可として失敗を返す（トレースバックは出さない）
+            if r.status_code == 403:
+                logger.error(f"Google Calendar delete event 403 Forbidden: {event_id} in {target_calendar}")
+                return False
             r.raise_for_status()
             return True
     except Exception as e:
-        logger.exception("Google Calendar delete event failed: %s", e)
+        # その他の予期せぬエラー
+        logger.error(f"Google Calendar delete event failed: {e}")
         return False
 
 def find_event_by_sync_id(

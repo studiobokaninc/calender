@@ -4,28 +4,40 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from app import models, crud, google_calendar
 from pytz import timezone
+import threading
 
 logger = logging.getLogger(__name__)
 
-def ensure_jst(dt: datetime | None) -> datetime | None:
-    if dt is None:
+def to_datetime(val: Any) -> Optional[datetime]:
+    if val is None:
         return None
+    if isinstance(val, datetime):
+        return val
+    if isinstance(val, str):
+        try:
+            return datetime.fromisoformat(val.replace('Z', '+00:00'))
+        except ValueError:
+            logger.warning(f"Failed to parse datetime string: {val}")
+            return None
+    return None
+
+def ensure_jst(dt: datetime | str | None) -> datetime | None:
+    dt_obj = to_datetime(dt)
+    if not dt_obj:
+        return None
+            
     from pytz import timezone
     jst = timezone("Asia/Tokyo")
-    if dt.tzinfo is None:
-        # DBに保存されている naive な datetime は JST と想定するため、JSTとしてlocalizeする
-        return jst.localize(dt)
-    return dt.astimezone(jst)
+    if dt_obj.tzinfo is None:
+        return jst.localize(dt_obj)
+    return dt_obj.astimezone(jst)
 
 from app.database import SessionLocal
-import threading
-
 _task_sync_locks = {}
 _task_sync_locks_lock = threading.Lock()
 
 def auto_sync_task_bg(task_id: int, db: Session = None):
-    """タスク作成/更新時に呼ばれるバックグラウンド処理。"""
-    # 同一タスクの並列同期を防ぐロック
+    """タスク作成/更新時に呼ばれるバックグラウンド処理。全連携ユーザーに対して同期を試みる。"""
     with _task_sync_locks_lock:
         if task_id not in _task_sync_locks:
             _task_sync_locks[task_id] = threading.Lock()
@@ -40,22 +52,10 @@ def auto_sync_task_bg(task_id: int, db: Session = None):
             task = crud.get_task(db, task_id)
             if not task:
                 return
-                
-            # 1. 既に手動・自動で同期済みの全ユーザー(admin含む)の予定を更新
-            syncs = crud.get_task_google_syncs_for_task(db, task_id=task_id)
-            synced_uids = {s.user_id for s in syncs}
-            for uid in synced_uids:
-                token_row = crud.get_user_google_token(db, uid)
-                if token_row:
-                    sync_task_to_google(db, task, token_row, uid)
-                    
-            # 2. まだ同期していないが、条件(担当者、かつ一般ユーザー)を満たす場合は新規同期
-            if task.assigned_to and task.assigned_to not in synced_uids:
-                user = crud.get_user(db, user_id=task.assigned_to)
-                if user and user.role != 'admin':
-                    token_row = crud.get_user_google_token(db, task.assigned_to)
-                    if token_row:
-                        sync_task_to_google(db, task, token_row, task.assigned_to)
+            # Google連携している全ユーザーを取得
+            token_rows = db.query(models.UserGoogleToken).all()
+            for token_row in token_rows:
+                sync_task_to_google(db, task, token_row, token_row.user_id)
         except Exception as e:
             logger.exception("auto_sync_task_bg failed: %s", e)
         finally:
@@ -63,7 +63,7 @@ def auto_sync_task_bg(task_id: int, db: Session = None):
                 db.close()
 
 def auto_sync_project_bg(project_id: int, db: Session = None):
-    """プロジェクト作成/更新時に呼ばれるバックグラウンド処理。"""
+    """プロジェクト更新時に紐づく全タスク・全イベントを再同期する。"""
     should_close = False
     if db is None:
         db = SessionLocal()
@@ -72,34 +72,12 @@ def auto_sync_project_bg(project_id: int, db: Session = None):
         project = crud.get_project(db, project_id)
         if not project:
             return
-            
-        # 1. 既に同期済みの全ユーザー
-        sync_rows = db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.project_id == project_id).all()
-        synced_uids = {s.user_id for s in sync_rows}
-        for uid in synced_uids:
-            token_row = crud.get_user_google_token(db, uid)
-            if token_row:
-                sync_project_to_google(db, project, token_row, uid)
-        
-        # 2. 新規自動同期 (このプロジェクトにタスクを持つ一般ユーザー)
-        tasks = db.query(models.Task).filter(models.Task.project_id == project_id).all()
-        user_ids = set([t.assigned_to for t in tasks if t.assigned_to])
-        for uid in user_ids:
-            if uid in synced_uids:
-                continue
-            user = crud.get_user(db, user_id=uid)
-            if user and user.role != 'admin':
-                token_row = crud.get_user_google_token(db, uid)
-                if token_row:
-                    sync_project_to_google(db, project, token_row, uid)
-                    
-        # 3. プロジェクトの状態（オンライン/オフライン）が変わった可能性があるため
-        # 紐づく全タスクの同期状態を更新
         db_tasks = db.query(models.Task).filter(models.Task.project_id == project_id).all()
         for t in db_tasks:
-            # 既存のセッションを再利用して同期
             auto_sync_task_bg(t.id, db=db)
-            
+        db_events = db.query(models.Event).filter(models.Event.project_id == project_id).all()
+        for e in db_events:
+            auto_sync_event_bg(e.id, db=db)
     except Exception as e:
         logger.exception("auto_sync_project_bg failed: %s", e)
     finally:
@@ -107,7 +85,7 @@ def auto_sync_project_bg(project_id: int, db: Session = None):
             db.close()
 
 def auto_sync_event_bg(event_id: int, db: Session = None):
-    """イベント作成/更新時に呼ばれるバックグラウンド処理。"""
+    """イベント作成/更新時。全連携ユーザーに対して同期を試みる。"""
     should_close = False
     if db is None:
         db = SessionLocal()
@@ -116,26 +94,9 @@ def auto_sync_event_bg(event_id: int, db: Session = None):
         event = crud.get_event(db, event_id)
         if not event:
             return
-            
-        # 1. 既に同期済みのユーザー
-        sync_rows = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == event_id).all()
-        synced_uids = {s.user_id for s in sync_rows}
-        for uid in synced_uids:
-            token_row = crud.get_user_google_token(db, uid)
-            if token_row:
-                sync_event_to_google(db, event, token_row, uid)
-                
-        # 2. 関係者（一般ユーザー）への新規同期
-        if event.participants:
-            for p in event.participants:
-                uid = p.get('id')
-                if uid and uid not in synced_uids:
-                    user = crud.get_user(db, user_id=uid)
-                    if user and user.role != 'admin':
-                        token_row = crud.get_user_google_token(db, uid)
-                        if token_row:
-                            sync_event_to_google(db, event, token_row, uid)
-                            
+        token_rows = db.query(models.UserGoogleToken).all()
+        for token_row in token_rows:
+            sync_event_to_google(db, event, token_row, token_row.user_id)
     except Exception as e:
         logger.exception("auto_sync_event_bg failed: %s", e)
     finally:
@@ -143,39 +104,30 @@ def auto_sync_event_bg(event_id: int, db: Session = None):
             db.close()
 
 def _ensure_token_updated(db: Session, token_row: models.UserGoogleToken) -> Optional[str]:
-    """トークンの有効期限をチェックし、必要ならリフレッシュしてDBを更新する。"""
     if not token_row:
         return None
-        
-    # UTC で期限チェック (google_calendar.py と整合)
     if token_row.expires_at and datetime.utcnow() < token_row.expires_at - timedelta(minutes=5):
         return token_row.access_token
-        
     if not token_row.refresh_token:
-        return token_row.access_token # リフレッシュ不可
-        
-    logger.info(f"Refreshing Google token for user {token_row.user_id}")
+        return token_row.access_token
     tokens = google_calendar.refresh_access_token(token_row.refresh_token)
     if tokens and tokens.get("access_token"):
         token_row.access_token = tokens["access_token"]
         expires_in = tokens.get("expires_in")
         if expires_in:
             token_row.expires_at = datetime.utcnow() + timedelta(seconds=int(expires_in))
-        token_row.updated_at = datetime.now() # JST naive
+        token_row.updated_at = datetime.now()
         db.commit()
         db.refresh(token_row)
         return token_row.access_token
     return token_row.access_token
 
 def _ensure_calendar_id(db: Session, token_row: models.UserGoogleToken) -> str | None:
-    # 呼び出し前にトークンが有効であることを確認
     access_token = _ensure_token_updated(db, token_row)
     if not access_token:
         return None
-        
     if token_row.calendar_id:
         return token_row.calendar_id
-    
     calendar_id = google_calendar.get_or_create_app_calendar(
         access_token=access_token,
         refresh_token=token_row.refresh_token,
@@ -186,402 +138,332 @@ def _ensure_calendar_id(db: Session, token_row: models.UserGoogleToken) -> str |
         db.commit()
     return calendar_id
 
-def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGoogleToken, user_id: int) -> bool:
-    # トークンを最新に保つ
+def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGoogleToken, user_id: int):
+    """単一のタスクを同期。権限とプロジェクトステータスをチェックする。"""
     access_token = _ensure_token_updated(db, token_row)
     if not access_token:
-        return False
+        return
 
-    # ユーザー情報を取得
+    sync_row = crud.get_task_google_sync(db, user_id, task.id)
+    project = crud.get_project(db, task.project_id) if task.project_id else None
     user = crud.get_user(db, user_id=user_id)
     is_admin = user and user.role == 'admin'
 
-    # 既存の同期行チェック
-    sync_id = f"task_{task.id}"
-    sync_row = crud.get_task_google_sync(db, user_id, task.id)
-
-    # 一般ユーザー（自動同期対象）で、かつ担当者から外れている場合はカレンダーから削除
-    if not is_admin and task.assigned_to != user_id:
-        if sync_row and sync_row.google_event_id:
-            logger.info(f"[Task Sync] Removing task {task.id} from user {user_id} calendar (reassigned)")
-            google_calendar.delete_calendar_event(
-                access_token, token_row.refresh_token, token_row.expires_at,
-                sync_row.google_event_id, _ensure_calendar_id(db, token_row)
-            )
-            crud.delete_task_google_sync(db, user_id, task.id)
-        return False
-
-    # プロジェクトの状態を確認
-    project = crud.get_project(db, task.project_id) if task.project_id else None
-    
-    # 基本はプロジェクトのステータスに従う
+    # 同期・削除判定
     is_project_offline = (project and project.display_status == 'offline')
-    # プロジェクトがオンラインであれば、タスク個別の設定に関わらずオンラインとして扱う（不整合防止）
-    is_offline = is_project_offline
-    
-    # ログ出力用
-    is_task_offline = (task.display_status == 'offline')
-    
-    if is_offline:
-        # デバッグのために print も併用
-        msg = f"[Task Sync] Skipping: task_id={task.id}, name={task.name}, task_off={is_task_offline}, proj_off={is_project_offline}"
-        logger.info(msg)
-        print(msg) 
+    # 完了タスク、オフラインプロジェクト、または自分に関係ないタスクは削除対象
+    is_completed = (task.status == 'completed')
+    is_unrelated = (not is_admin and task.assigned_to != user_id)
+
+    if task.status == 'offline' or is_project_offline or is_unrelated or is_completed:
         if sync_row and sync_row.google_event_id:
             google_calendar.delete_calendar_event(
-                access_token, token_row.refresh_token, token_row.expires_at,
-                sync_row.google_event_id, _ensure_calendar_id(db, token_row)
+                access_token=access_token,
+                refresh_token=token_row.refresh_token,
+                expires_at=token_row.expires_at,
+                event_id=sync_row.google_event_id,
+                calendar_id=_ensure_calendar_id(db, token_row)
             )
-            # 紐付けは残すが Event ID は消す（オフラインにつき表示停止中）
             crud.set_task_google_sync(db, user_id, task.id, "")
-        return False
+        return
 
-    start_dt = task.start_date if task.start_date else (task.due_date or datetime.utcnow())
-    # 期限日はその日の終わりまで。Google Calendar の終日イベントは終了日を含まない（翌日の 00:00）ため +1 日
-    # ただし、開始日より前にならないようにガードを入れる (Google API 400エラー防止)
-    end_dt = (task.due_date or start_dt) + timedelta(days=1)
-    if end_dt <= start_dt:
-        end_dt = start_dt + timedelta(days=1)
-    
-    start_jst = ensure_jst(start_dt)
+    # 同期用情報生成
+    start_jst = ensure_jst(task.start_date or task.due_date or datetime.utcnow())
+    end_dt = (to_datetime(task.due_date) or to_datetime(start_jst)) + timedelta(days=1)
     end_jst = ensure_jst(end_dt)
-    is_all_day = True
     
     project_name = project.name if project else "なし"
-    
-    assignee = crud.get_user(db, task.assigned_to) if task.assigned_to else None
-    assignee_name = assignee.name or assignee.username if assignee else "未設定"
-    
-    status_map = {
-        "todo": "未着手",
-        "in-progress": "進行中",
-        "review": "レビュー中",
-        "completed": "完了",
-        "delayed": "遅延"
-    }
-    task_status_ja = status_map.get(task.status, task.status) if task.status else "未着手"
-
-    # [ステータス][プロジェクト名] タスク名 の形式にする
+    status_map = {"todo": "未着手", "in-progress": "進行中", "review": "レビュー中", "completed": "完了", "delayed": "遅延長"}
+    task_status_ja = status_map.get(task.status, task.status or "未着手")
     task_title = f"[{task_status_ja}][{project_name}] {task.name}"
 
-    # 段階目標のフォーマット
-    phases_list = []
-    if task.phases:
-        for p in task.phases:
-            # フロントエンドに合わせて is_completed と name を使用
-            status = "✓" if p.get('is_completed') else "○"
-            phases_list.append(f"{status} {p.get('name', 'なし')}")
-    phases_str = "\n".join(phases_list) if phases_list else "なし"
+    # 担当者名取得
+    assignee_name = "未設定"
+    if task.assigned_to:
+        assignee_user = crud.get_user(db, task.assigned_to)
+        if assignee_user:
+            assignee_name = assignee_user.full_name or assignee_user.username
 
-    # 確認事項のフォーマット
-    check_list = []
-    if task.check_items:
-        for c in task.check_items:
-            # フロントエンドに合わせて checked と label を使用
-            status = "✓" if c.get('checked') else "□"
-            check_list.append(f"{status} {c.get('label', 'なし')}")
-    check_str = "\n".join(check_list) if check_list else "なし"
+    # 確認事項整形
+    checks_str = "なし"
+    if task.check_items and isinstance(task.check_items, list):
+        items = []
+        for item in task.check_items:
+            label = item.get("label", "項目")
+            checked = " [v] " if item.get("checked") else " [ ] "
+            items.append(f"{checked}{label}")
+        if items:
+            checks_str = "\n" + "\n".join(items)
 
-    task_desc = (
-        f"【プロジェクト】: {project_name}\n"
-        f"【担当者】: {assignee_name}\n"
-        f"【ステータス】: {task_status_ja}\n"
-        f"【概要】:\n{task.description or 'なし'}\n\n"
-        f"【段階目標】:\n{phases_str}\n\n"
-        f"【確認事項】:\n{check_str}\n\n"
-        f"【メモ】:\n{task.deliverables or 'なし'}"
-    )
+    desc = f"""【プロジェクト】: {project_name}
+【ステータス】: {task_status_ja}
+【担当者】: {assignee_name}
+
+【説明】:
+{task.description or "（なし）"}
+
+【メモ/提出物】:
+{task.deliverables or "（なし）"}
+
+【確認事項】:
+{checks_str}
+"""
+
+    cal_id = _ensure_calendar_id(db, token_row)
+    sync_id = f"task_{task.id}"
     
-    logger.info(f"[Task Sync] Syncing Task: task_id={task.id}, name={task.name}, status={task.status}, display={task.display_status}, start={start_jst}, end={end_jst}")
-    
-    # 既存の同期行チェック (DBにないがGoogle側にある場合も考慮)
-    if not sync_row:
-        found_event_id = google_calendar.find_event_by_sync_id(
-            token_row.access_token, token_row.refresh_token, token_row.expires_at,
-            sync_id=sync_id, calendar_id=_ensure_calendar_id(db, token_row)
-        )
-        if found_event_id:
-            sync_row = crud.set_task_google_sync(db, user_id, task.id, found_event_id)
-
-    if sync_row and sync_row.google_event_id:
-        # 更新
-        success = google_calendar.update_calendar_event(
-            access_token=access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            event_id=sync_row.google_event_id,
-            task_name=task_title,
-            start_date=start_jst,
-            end_date=end_jst,
-            description=task_desc,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if not success:
-            logger.warning(f"Failed to update task {task.id}, attempting to re-create.")
-            event_id = google_calendar.create_calendar_event(
-                access_token, token_row.refresh_token, token_row.expires_at,
+    try:
+        if sync_row and sync_row.google_event_id:
+            google_calendar.update_calendar_event(
+                access_token=access_token,
+                refresh_token=token_row.refresh_token,
+                expires_at=token_row.expires_at,
+                event_id=sync_row.google_event_id,
                 task_name=task_title,
                 start_date=start_jst,
                 end_date=end_jst,
-                description=task_desc,
-                calendar_id=_ensure_calendar_id(db, token_row),
-                is_all_day=is_all_day,
+                description=desc,
+                calendar_id=cal_id,
+                is_all_day=True,
+                sync_id=sync_id
+            )
+        else:
+            event_id = google_calendar.create_calendar_event(
+                access_token=access_token,
+                refresh_token=token_row.refresh_token,
+                expires_at=token_row.expires_at,
+                task_name=task_title,
+                start_date=start_jst,
+                end_date=end_jst,
+                description=desc,
+                calendar_id=cal_id,
+                is_all_day=True,
                 sync_id=sync_id
             )
             if event_id:
                 crud.set_task_google_sync(db, user_id, task.id, event_id)
-                return True
-            else:
-                raise Exception(f"Failed to re-create task {task.id} in Google")
-        return True
-    else:
-        # 新規作成
-        event_id = google_calendar.create_calendar_event(
-            access_token, token_row.refresh_token, token_row.expires_at,
-            task_name=task_title,
-            start_date=start_jst,
-            end_date=end_jst,
-            description=task_desc,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if event_id:
-            crud.set_task_google_sync(db, user_id, task.id, event_id)
-            return True
-        else:
-            raise Exception(f"Failed to create task {task.id} in Google")
-
-def sync_project_to_google(db: Session, project: models.Project, token_row: models.UserGoogleToken, user_id: int):
-    # トークンを最新に保つ
-    access_token = _ensure_token_updated(db, token_row)
-    if not access_token:
-        return
-
-    sync_row = crud.get_project_google_sync(db, user_id, project.id)
-    
-    # オフライン時も含め、プロジェクトは常にカレンダーに反映しない方針に修正
-    if sync_row and sync_row.google_event_id:
-        try:
-            google_calendar.delete_calendar_event(
-                access_token, token_row.refresh_token, token_row.expires_at,
-                sync_row.google_event_id, _ensure_calendar_id(db, token_row)
-            )
-        except Exception as e:
-            logger.warning(f"Failed to delete project {project.id} from Google Calendar: {e}")
-        finally:
-            crud.delete_project_google_sync(db, user_id, project.id)
-            
-    return
+    except Exception as e:
+        logger.error(f"Failed to sync task {task.id} for user {user_id}: {e}")
 
 def sync_event_to_google(db: Session, event: models.Event, token_row: models.UserGoogleToken, user_id: int):
-    # トークンを最新に保つ
+    """単一のイベント（会議）を同期。"""
     access_token = _ensure_token_updated(db, token_row)
     if not access_token:
         return
 
-    sync_id = f"event_{event.id}"
     sync_row = crud.get_event_google_sync(db, user_id, event.id)
-    
-    # オフライン設定時はGoogleカレンダーから削除（ただし同期記録は保持）
-    if event.status == 'offline': 
+    project = crud.get_project(db, event.project_id) if event.project_id else None
+    user = crud.get_user(db, user_id=user_id)
+    is_admin = user and user.role == 'admin'
+
+    participants = event.participants or []
+    participant_ids = [p.get('id') for p in participants if isinstance(p, dict)]
+    is_project_offline = (project and project.display_status == 'offline')
+    # 一般ユーザーの場合、自分が参加者でないなら同期対象外
+    is_unrelated = (not is_admin and user_id not in participant_ids)
+
+    if event.status == 'offline' or is_project_offline or is_unrelated:
         if sync_row and sync_row.google_event_id:
             google_calendar.delete_calendar_event(
-                access_token, token_row.refresh_token, token_row.expires_at,
-                sync_row.google_event_id, _ensure_calendar_id(db, token_row)
+                access_token=access_token,
+                refresh_token=token_row.refresh_token,
+                expires_at=token_row.expires_at,
+                event_id=sync_row.google_event_id,
+                calendar_id=_ensure_calendar_id(db, token_row)
             )
             crud.set_event_google_sync(db, user_id, event.id, "")
         return
 
-    start_dt = event.start_time
-    end_dt = event.end_time
-    
-    start_jst = ensure_jst(start_dt)
-    end_jst = ensure_jst(end_dt)
-    is_all_day = bool(event.allDay)
-    
-    project = crud.get_project(db, event.project_id) if event.project_id else None
+    start_jst = ensure_jst(event.start_time)
+    end_jst = ensure_jst(event.end_time)
     project_name = project.name if project else "なし"
-    
-    # [プロジェクト名] イベント名 の形式にする
     event_title = f"[{project_name}] {event.title}"
-    if event.type:
-        event_title = f"[{event.type}][{project_name}] {event.title}"
-        
-    participants_list = []
-    if event.participants:
-        for p in event.participants:
-            p_name = p.get('name') or p.get('username') or "不明"
-            participants_list.append(p_name)
-    
-    participants_str = ", ".join(participants_list) if participants_list else "なし"
+    event_desc = f"【プロジェクト】: {project_name}\n【場所】: {event.location or 'なし'}\n【概要】:\n{event.description or 'なし'}"
 
-    event_desc = (
-        f"【プロジェクト】: {project_name}\n"
-        f"【タイプ】: {event.type}\n"
-        f"【場所】: {event.location or 'なし'}\n"
-        f"【参加者】: {participants_str}\n"
-        f"【概要】:\n{event.description or 'なし'}"
-    )
+    cal_id = _ensure_calendar_id(db, token_row)
+    sync_id = f"event_{event.id}"
     
-    # If it's an all-day event, the end_time in our DB is already the exclusive end (next day 00:00).
-    # Google Calendar also expects the exclusive end date for all-day events.
-    #google_calendar logic already adds +1 day to the date part, so we need to be careful.
-    # However, if we change google_calendar.py to NOT add +1, it's cleaner.
-    # Let's keep the sync logic here passing what Google expects, 
-    # but we'll modify google_calendar.py to be a simple pass-through for the date part.
-    
-    if not sync_row:
-        # Deduplication
-        found_event_id = google_calendar.find_event_by_sync_id(
-            access_token, token_row.refresh_token, token_row.expires_at,
-            sync_id=sync_id, calendar_id=_ensure_calendar_id(db, token_row)
-        )
-        if found_event_id:
-            logger.info(f"Found orphaned Google event {found_event_id} for event {event.id}, recovering.")
-            sync_row = crud.set_event_google_sync(db, user_id, event.id, found_event_id)
-
-    if sync_row and sync_row.google_event_id:
-        success = google_calendar.update_calendar_event(
-            access_token=access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            event_id=sync_row.google_event_id,
-            task_name=event_title,
-            start_date=start_jst,
-            end_date=end_jst,
-            description=event_desc,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if not success:
-            logger.warning(f"Failed to update event {event.id}, attempting to re-create.")
-            event_id = google_calendar.create_calendar_event(
-                access_token, token_row.refresh_token, token_row.expires_at,
+    try:
+        if sync_row and sync_row.google_event_id:
+            google_calendar.update_calendar_event(
+                access_token=access_token,
+                refresh_token=token_row.refresh_token,
+                expires_at=token_row.expires_at,
+                event_id=sync_row.google_event_id,
                 task_name=event_title,
                 start_date=start_jst,
                 end_date=end_jst,
                 description=event_desc,
-                calendar_id=_ensure_calendar_id(db, token_row),
-                is_all_day=is_all_day,
+                calendar_id=cal_id,
+                is_all_day=bool(event.allDay),
                 sync_id=sync_id
             )
-            if event_id:
-                crud.set_event_google_sync(db, user_id, event.id, event_id)
-    elif sync_row:
-        # Sync enabled but missing Google event
-        event_id = google_calendar.create_calendar_event(
-            access_token=access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            task_name=event_title,
-            start_date=start_jst,
-            end_date=end_jst,
-            description=event_desc,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if event_id:
-            crud.set_event_google_sync(db, user_id, event.id, event_id)
-    else:
-        event_id = google_calendar.create_calendar_event(
-            access_token=access_token,
-            refresh_token=token_row.refresh_token,
-            expires_at=token_row.expires_at,
-            task_name=event_title,
-            start_date=start_jst,
-            end_date=end_jst,
-            description=event_desc,
-            calendar_id=_ensure_calendar_id(db, token_row),
-            is_all_day=is_all_day,
-            sync_id=sync_id
-        )
-        if event_id:
-            crud.set_event_google_sync(db, user_id, event.id, event_id)
         else:
-            logger.error(f"Failed to create event {event.id} in Google Calendar")
+            g_id = google_calendar.create_calendar_event(
+                access_token=access_token,
+                refresh_token=token_row.refresh_token,
+                expires_at=token_row.expires_at,
+                task_name=event_title,
+                start_date=start_jst,
+                end_date=end_jst,
+                description=event_desc,
+                calendar_id=cal_id,
+                is_all_day=bool(event.allDay),
+                sync_id=sync_id
+            )
+            if g_id:
+                crud.set_event_google_sync(db, user_id, event.id, g_id)
+    except Exception as e:
+        logger.error(f"Failed to sync event {event.id} for user {user_id}: {e}")
 
 def initial_sync_for_user(db: Session, user_id: int):
+    """初期同期。全オンラインプロジェクトを対象に回すが、内部関数でユーザー権限によるフィルタが掛かる。"""
     token_row = crud.get_user_google_token(db, user_id)
     if not token_row:
         return
+    online_projects = db.query(models.Project).filter(models.Project.display_status == 'online').all()
+    for p in online_projects:
+        tasks = db.query(models.Task).filter(models.Task.project_id == p.id).all()
+        for t in tasks:
+            sync_task_to_google(db, t, token_row, user_id)
+        events = db.query(models.Event).filter(models.Event.project_id == p.id).all()
+        for e in events:
+            sync_event_to_google(db, e, token_row, user_id)
 
-    # 1. Sync tasks assigned to the user
-    # 一般ユーザーの場合は自分が担当のものを同期
-    tasks = db.query(models.Task).filter(models.Task.assigned_to == user_id).all()
-    for task in tasks:
-        sync_task_to_google(db, task, token_row, user_id)
-        
-    # 2. Sync projects the user is involved in (via tasks)
-    project_ids = set([t.project_id for t in tasks if t.project_id])
-    if project_ids:
-        projects = db.query(models.Project).filter(models.Project.id.in_(project_ids)).all()
-        for project in projects:
-            sync_project_to_google(db, project, token_row, user_id)
-            
-    # 3. Sync events the user is participating in
-    all_events = db.query(models.Event).all()
-    for evt in all_events:
-        participants = evt.participants or []
-        is_participant = False
-        for p in participants:
-            uid = p.get('id') if p.get('type') == 'user' else p.get('user_id')
-            if str(uid) == str(user_id):
-                is_participant = True
-                break
-        if is_participant:
-            sync_event_to_google(db, evt, token_row, user_id)
-
-def initial_sync_for_user_bg(user_id: int):
-    db = SessionLocal()
+def initial_sync_for_user_bg(user_id: int, db: Session = None):
+    """ユーザー連携時の初期同期をバックグラウンドで実行するラッパー。"""
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
     try:
         initial_sync_for_user(db, user_id)
     except Exception as e:
         logger.exception("initial_sync_for_user_bg failed: %s", e)
     finally:
-        db.close()
-def delete_task_syncs(db: Session, task_id: int):
-    """タスクに関連するすべての Google カレンダー同期を解除・削除。"""
-    syncs = crud.get_task_google_syncs_for_task(db, task_id=task_id)
-    for s in syncs:
-        t_row = crud.get_user_google_token(db, s.user_id)
-        if t_row:
-            access_token = _ensure_token_updated(db, t_row)
-            if access_token:
-                google_calendar.delete_calendar_event(
-                    access_token, t_row.refresh_token, t_row.expires_at,
-                    s.google_event_id, _ensure_calendar_id(db, t_row)
-                )
-        crud.delete_task_google_sync(db, s.user_id, task_id)
+        if should_close:
+            db.close()
 
-def delete_project_syncs(db: Session, project_id: int):
-    """プロジェクトに関連するすべての Google カレンダー同期を解除・削除。"""
-    syncs = db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.project_id == project_id).all()
-    for s in syncs:
-        t_row = crud.get_user_google_token(db, s.user_id)
-        if t_row:
-            access_token = _ensure_token_updated(db, t_row)
-            if access_token:
+def cleanup_all_google_events(db: Session, user_id: int):
+    """連携解除時の全件削除。"""
+    token_row = crud.get_user_google_token(db, user_id)
+    if not token_row:
+        return
+    access_token = _ensure_token_updated(db, token_row)
+    cal_id = _ensure_calendar_id(db, token_row)
+    if not cal_id or not access_token:
+        return
+    
+    # 登録済みの全同期レコードを取得
+    task_syncs = db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.user_id == user_id).all()
+    for s in task_syncs:
+        if s.google_event_id:
+            try:
                 google_calendar.delete_calendar_event(
-                    access_token, t_row.refresh_token, t_row.expires_at,
-                    s.google_event_id, _ensure_calendar_id(db, t_row)
+                    access_token=access_token,
+                    refresh_token=token_row.refresh_token,
+                    expires_at=token_row.expires_at,
+                    event_id=s.google_event_id,
+                    calendar_id=cal_id
                 )
+            except Exception as e:
+                logger.error(f"Cleanup: Failed to delete task event {s.google_event_id}: {e}")
+            s.google_event_id = ""
+            
+    event_syncs = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.user_id == user_id).all()
+    for s in event_syncs:
+        if s.google_event_id:
+            try:
+                google_calendar.delete_calendar_event(
+                    access_token=access_token,
+                    refresh_token=token_row.refresh_token,
+                    expires_at=token_row.expires_at,
+                    event_id=s.google_event_id,
+                    calendar_id=cal_id
+                )
+            except Exception as e:
+                logger.error(f"Cleanup: Failed to delete meeting event {s.google_event_id}: {e}")
+            s.google_event_id = ""
+    db.commit()
+
+# --- Placeholder to match previous imports in main.py ---
+def delete_task_syncs(db: Session, task_id: int):
+    syncs = db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.task_id == task_id).all()
+    for s in syncs:
+        token_row = crud.get_user_google_token(db, s.user_id)
+        if token_row and s.google_event_id:
+            access_token = _ensure_token_updated(db, token_row)
+            cal_id = _ensure_calendar_id(db, token_row)
+            if access_token and cal_id:
+                try:
+                    google_calendar.delete_calendar_event(
+                        access_token=access_token,
+                        refresh_token=token_row.refresh_token,
+                        expires_at=token_row.expires_at,
+                        event_id=s.google_event_id,
+                        calendar_id=cal_id
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to delete task sync {s.google_event_id}: {e}")
         db.delete(s)
+    db.commit()
 
 def delete_event_syncs(db: Session, event_id: int):
-    """イベントに関連するすべての Google カレンダー同期を解除・削除。"""
     syncs = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == event_id).all()
     for s in syncs:
-        t_row = crud.get_user_google_token(db, s.user_id)
-        if t_row:
-            access_token = _ensure_token_updated(db, t_row)
-            if access_token:
-                google_calendar.delete_calendar_event(
-                    access_token, t_row.refresh_token, t_row.expires_at,
-                    s.google_event_id, _ensure_calendar_id(db, t_row)
-                )
+        token_row = crud.get_user_google_token(db, s.user_id)
+        if token_row and s.google_event_id:
+            access_token = _ensure_token_updated(db, token_row)
+            cal_id = _ensure_calendar_id(db, token_row)
+            if access_token and cal_id:
+                try:
+                    google_calendar.delete_calendar_event(
+                        access_token=access_token,
+                        refresh_token=token_row.refresh_token,
+                        expires_at=token_row.expires_at,
+                        event_id=s.google_event_id,
+                        calendar_id=cal_id
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to delete event sync {s.google_event_id}: {e}")
         db.delete(s)
+    db.commit()
+
+def delete_project_syncs(db: Session, project_id: int):
+    # プロジェクトに関連するタスク・イベントの同期をすべて消す
+    tasks = db.query(models.Task).filter(models.Task.project_id == project_id).all()
+    for t in tasks:
+        delete_task_syncs(db, t.id)
+    events = db.query(models.Event).filter(models.Event.project_id == project_id).all()
+    for e in events:
+        delete_event_syncs(db, e.id)
+    # プロジェクト自体の同期レコード（もしあれば）も消す
+    proj_syncs = db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.project_id == project_id).all()
+    for s in proj_syncs:
+        db.delete(s)
+    db.commit()
+
+def cleanup_all_google_events_bg(user_id: int):
+    """バックグラウンドで全件削除と連携解除（DB削除）を完遂するルーチン。"""
+    db = SessionLocal()
+    try:
+        # 1. Googleカレンダー上の予定を削除 (この中でトークンを取得してAPIを叩く)
+        logger.info(f"Background cleanup started for user {user_id}")
+        cleanup_all_google_events(db, user_id)
+        
+        # 2. 同期レコードをDBから物理削除
+        logger.info(f"Deleting sync records from DB for user {user_id}")
+        db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.user_id == user_id).delete()
+        db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.user_id == user_id).delete()
+        db.query(models.EventGoogleSync).filter(models.EventGoogleSync.user_id == user_id).delete()
+        
+        # 3. Google連携トークンを削除 (これが最後)
+        crud.delete_user_google_token(db, user_id)
+        
+        db.commit()
+        logger.info(f"Background cleanup completed for user {user_id}")
+    except Exception as e:
+        logger.error(f"cleanup_all_google_events_bg failed for user {user_id}: {e}")
+        db.rollback()
+    finally:
+        db.close()

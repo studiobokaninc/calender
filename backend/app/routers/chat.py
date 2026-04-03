@@ -130,11 +130,16 @@ async def stream_chat(
     inputs: dict = {}
     try:
         # Full dashboard context (includes tasks, projects, users, notes)
-        full_context = task_list_module.get_dashboard_context(db, current_user.id)
-        
         # ユーザーの質問内容に応じて、タスク詳細（巨大なCSV）を渡すか判断する
-        task_keywords = ["タスク", "期限", "予定", "進捗", "誰が", "担当", "いつ", "スケジュール", "遅れ", "進んでる", "やること", "task", "status", "due", "who"]
+        task_keywords = [
+            "タスク", "期限", "予定", "進捗", "誰が", "担当", "いつ", "スケジュール", "遅れ", "進んでる", "やること",
+            "案件", "プロジェクト", "状況", "どう", "ワーク", "作業",
+            "task", "status", "due", "who", "schedule", "plan", "project"
+        ]
         needs_tasks = any(kw in query.lower() for kw in task_keywords)
+        
+        # Full dashboard context (includes tasks, projects, users, notes, project_summary)
+        full_context = task_list_module.get_dashboard_context(db, current_user.id)
         
         if needs_tasks:
             task_csv = full_context.get("csv", "")
@@ -146,6 +151,7 @@ async def stream_chat(
             "csv": task_csv, 
             "proj": full_context.get("proj", ""), 
             "user_list": full_context.get("user_list", ""), 
+            "project_summary": full_context.get("project_summary", ""),
             "mode": "admin", 
             "user_name": current_user.name or current_user.username or "Admin",
             "notes": full_context.get("notes", ""),

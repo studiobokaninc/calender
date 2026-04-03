@@ -153,48 +153,82 @@ const ChatPage: React.FC = () => {
   const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const autoSpeakRef = useRef(autoSpeak)
-  useEffect(() => {
-    autoSpeakRef.current = autoSpeak
-  }, [autoSpeak])
+  useEffect(() => { autoSpeakRef.current = autoSpeak }, [autoSpeak])
+
+  const autoSendRef = useRef(autoSend)
+  useEffect(() => { autoSendRef.current = autoSend }, [autoSend])
+
+  const isGeneratingRef = useRef(isGenerating)
+  useEffect(() => { isGeneratingRef.current = isGenerating }, [isGenerating])
+
+  const isSpeakingRef = useRef(isSpeaking)
+  useEffect(() => { isSpeakingRef.current = isSpeaking }, [isSpeaking])
+
+  const isSystemBusyRef = useRef(isSystemBusy)
+  useEffect(() => { isSystemBusyRef.current = isSystemBusy }, [isSystemBusy])
+
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const speakText = (text: string) => {
-    if (!('speechSynthesis' in window)) return
-    console.log('[TTS] Starting speakText:', text.substring(0, 50) + '...')
-    window.speechSynthesis.cancel()
+    if (!text) return
 
-    // Markdownタグやコードブロック、特殊文字をより丁寧に除去
-    const plainText = text
-      .replace(/```[\s\S]*?```/g, '') // コードブロック削除
-      .replace(/`[^`]*`/g, '')        // インラインコード削除
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // リンクをテキストのみに
-      .replace(/[#*_-]/g, ' ')        // 装飾記号をスペースに
-      .replace(/<[^>]*>?/gm, '')      // HTMLタグ削除
-      .trim()
+    // 以前の音声を停止
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
 
+    // Markdownタグなどを除去してプレーンテキストにする
+    const plainText = text.replace(/```[\s\S]*?```/g, '').replace(/[#*`]/g, '')
     if (!plainText) return
 
-    const uttr = new SpeechSynthesisUtterance(plainText)
-    uttr.lang = 'ja-JP'
-    uttr.onstart = () => {
+    // バックエンドの高品質TTSエンドポイントを使用
+    const url = `/api/tts/generate?text=${encodeURIComponent(plainText)}`
+    const audio = new Audio(url)
+    audioRef.current = audio
+
+    audio.onplay = () => {
       setIsSpeaking(true)
-      setCurrentlySpeakingText(text)
     }
-    uttr.onend = () => {
+    audio.onended = () => {
       setIsSpeaking(false)
-      setCurrentlySpeakingText(null)
+      audioRef.current = null
     }
-    uttr.onerror = () => {
+    audio.onerror = () => {
+      console.error('High quality TTS playback failed')
       setIsSpeaking(false)
-      setCurrentlySpeakingText(null)
+      audioRef.current = null
     }
-    window.speechSynthesis.speak(uttr)
+
+    audio.play().catch(err => {
+      console.error('Audio play error:', err)
+      setIsSpeaking(false)
+    })
   }
 
+  // コンポーネントがアンマウントされる際（ページ遷移時など）に
+  // 再生中の音声を停止する
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [])
+
   const stopSpeaking = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    setIsSpeaking(false)
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel()
     }
-    setIsSpeaking(false)
     setCurrentlySpeakingText(null)
   }
 
@@ -262,6 +296,11 @@ const ChatPage: React.FC = () => {
     recognition.continuous = true
     recognition.interimResults = true
     recognition.onresult = (event: any) => {
+      // 回答中、読み上げ中、またはシステムがビジーな場合は音声入力を完全に無視する
+      if (isGeneratingRef.current || isSpeakingRef.current || isSystemBusyRef.current) {
+        return
+      }
+
       let final = ''
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -274,14 +313,13 @@ const ChatPage: React.FC = () => {
       if (final) {
         setChatInput(prev => {
           const newVal = (prev.trim() + ' ' + final.trim()).trim()
-          // 自動送信フラグがオンの場合、一定時間（例：1.5秒）無入力なら送信する
-          if (autoSend) {
+          // 自動送信フラグがオンの場合、指定時間（2秒）無入力なら送信する
+          if (autoSendRef.current) {
             if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
             autoSendTimerRef.current = setTimeout(() => {
-              // ここで現在のchatInputの最新状態を反映して送信
-              // ※Reactのステート更新（setChatInput）が非同期なため、newValを使う
+              // 最新の入力内容で送信
               triggerManualSend(newVal)
-            }, 1500)
+            }, 2000)
           }
           return newVal
         })

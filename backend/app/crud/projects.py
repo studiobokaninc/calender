@@ -82,24 +82,30 @@ def delete_project_with_cascade(db: Session, project_id: int) -> bool:
         task_ids = [r.id for r in db.query(models.Task.id).filter(models.Task.project_id == project_id).all()]
         event_ids = [r.id for r in db.query(models.Event.id).filter(models.Event.project_id == project_id).all()]
 
+        from sqlalchemy import delete
+        
+        # チャンク分けして削除を実行するヘルパー（SQLiteの制限回避とIN句の確実な展開）
+        def chunked_delete(model, ids, column):
+            if not ids: return
+            for i in range(0, len(ids), 100):
+                chunk = ids[i:i + 100]
+                db.execute(delete(model).where(column.in_(chunk)))
+
         # 3. カスケード削除
         if task_ids:
-            # 履歴を削除
-            db.execute(text("DELETE FROM task_status_history WHERE task_id IN :tids"), {"tids": tuple(task_ids)})
-            # タスク同期を削除
-            db.execute(text("DELETE FROM task_google_syncs WHERE task_id IN :tids"), {"tids": tuple(task_ids)})
+            chunked_delete(models.TaskStatusHistory, task_ids, models.TaskStatusHistory.task_id)
+            chunked_delete(models.TaskGoogleSync, task_ids, models.TaskGoogleSync.task_id)
         
         if event_ids:
-            # イベント同期を削除
-            db.execute(text("DELETE FROM event_google_syncs WHERE event_id IN :eids"), {"eids": tuple(event_ids)})
+            chunked_delete(models.EventGoogleSync, event_ids, models.EventGoogleSync.event_id)
 
         # プロジェクト同期を削除
-        db.execute(text("DELETE FROM project_google_syncs WHERE project_id = :pid"), {"pid": project_id})
+        db.execute(delete(models.ProjectGoogleSync).where(models.ProjectGoogleSync.project_id == project_id))
         
         # 4. メインテーブルの削除
-        db.execute(text("DELETE FROM tasks WHERE project_id = :pid"), {"pid": project_id})
-        db.execute(text("DELETE FROM events WHERE project_id = :pid"), {"pid": project_id})
-        db.execute(text("DELETE FROM projects WHERE id = :pid"), {"pid": project_id})
+        db.execute(delete(models.Task).where(models.Task.project_id == project_id))
+        db.execute(delete(models.Event).where(models.Event.project_id == project_id))
+        db.execute(delete(models.Project).where(models.Project.id == project_id))
         
         db.commit()
         return True

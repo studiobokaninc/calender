@@ -181,8 +181,15 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
         return
 
     # 同期用情報生成
-    start_jst = ensure_jst(task.start_date or task.due_date or datetime.utcnow())
-    end_dt = (to_datetime(task.due_date) or to_datetime(start_jst)) + timedelta(days=1)
+    start_dt_obj = to_datetime(task.start_date or task.due_date or datetime.utcnow())
+    start_jst = ensure_jst(start_dt_obj)
+    
+    # 期限日が開始日より前になっている場合の整合性チェック
+    end_base_dt = to_datetime(task.due_date) or start_dt_obj
+    if end_base_dt < start_dt_obj:
+        end_base_dt = start_dt_obj
+        
+    end_dt = end_base_dt + timedelta(days=1)
     end_jst = ensure_jst(end_dt)
     
     project_name = project.name if project else "なし"

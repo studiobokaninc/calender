@@ -107,9 +107,17 @@ def delete_project_endpoint(
     """プロジェクトを削除（関連タスク・履歴等を含めて削除、管理者のみ）"""
     # 実際には crud.delete_project_with_cascade を使用
     try:
+        project = db.query(models.Project).filter(models.Project.id == project_id).first()
+        project_name = project.name if project else None
+        
         success = crud.delete_project_with_cascade(db, project_id)
         if not success:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="プロジェクトが見つかりません")
+        
+        # フォルダのリネーム (削除マーク)
+        if project_name:
+            from app.services.meeting_scanner import delete_project_folder
+            delete_project_folder(project_name)
         
         # Google Calendar 同期削除の呼び出しが必要な場合は、crud 内で既に完結している想定。
         # 必要に応じて追加。

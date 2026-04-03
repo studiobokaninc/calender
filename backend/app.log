@@ -414,3 +414,92 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 2026-04-03 13:50:36,793 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event dtv7thk8o4jjg3t9hpmpffkof8: 'NoneType' object has no attribute 'refresh_token'
 2026-04-03 13:50:36,796 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event qdnc25t4vn7fepgfe82oe8pfp4: 'NoneType' object has no attribute 'refresh_token'
 2026-04-03 13:50:36,797 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event fqfmn5p5v09er985k5if2ihkmc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 19:59:14,208 - app.crud.projects - ERROR - Error deleting project 70
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: near "?": syntax error
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\crud\projects.py", line 88, in delete_project_with_cascade
+    db.execute(text("DELETE FROM task_status_history WHERE task_id IN :tids"), {"tids": tuple(task_ids)})
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) near "?": syntax error
+[SQL: DELETE FROM task_status_history WHERE task_id IN ?]
+[parameters: ((2563, 2564, 2565),)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-04-03 19:59:14,270 - app.routers.projects - ERROR - Error deleting project
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlite3.OperationalError: near "?": syntax error
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\projects.py", line 110, in delete_project_endpoint
+    success = crud.delete_project_with_cascade(db, project_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\app\crud\projects.py", line 88, in delete_project_with_cascade
+    db.execute(text("DELETE FROM task_status_history WHERE task_id IN :tids"), {"tids": tuple(task_ids)})
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\session.py", line 2260, in _execute_internal
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+           ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) near "?": syntax error
+[SQL: DELETE FROM task_status_history WHERE task_id IN ?]
+[parameters: ((2563, 2564, 2565),)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)

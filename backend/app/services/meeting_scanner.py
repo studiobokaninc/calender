@@ -201,3 +201,29 @@ def rename_project_folder(old_name: str, new_name: str):
     elif not os.path.exists(old_path):
         # 元のフォルダがない場合は作成を試みる
         create_project_folder(new_name)
+
+def delete_project_folder(project_name: str):
+    """Rename the project folder to mark it as deleted (won't be scanned)."""
+    if not os.path.exists(BASE_DIR):
+        return
+    
+    import re
+    safe_name = re.sub(r'[\\/:*?"<>|]', '_', project_name)
+    old_path = os.path.join(BASE_DIR, safe_name)
+    
+    if os.path.exists(old_path):
+        # "(deleted) " プリフィックスを付けてリネーム
+        new_name = f"(deleted) {safe_name}"
+        new_path = os.path.join(BASE_DIR, new_name)
+        
+        # 既に同名の(deleted)フォルダがある場合はタイムスタンプを付与
+        if os.path.exists(new_path):
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            new_path = os.path.join(BASE_DIR, f"(deleted) {safe_name}_{timestamp}")
+            
+        try:
+            os.rename(old_path, new_path)
+            logger.info(f"Marked project folder as deleted: {old_path} -> {new_path}")
+        except Exception as e:
+            logger.error(f"Failed to rename folder on deletion: {e}")

@@ -69,7 +69,10 @@ def get_user_activities_by_cycle(db: Session, cycle_date: Optional[datetime] = N
         cycle_date = get_cycle_date(now_jst_naive())
     return get_user_activities(db, user_id=None, cycle_date=cycle_date, skip=skip, limit=limit)
 
-# --- Google Calendar Upsert ---
+# --- Google Calendar Sync & Token ---
+def get_user_google_token(db: Session, user_id: int) -> Optional[models.UserGoogleToken]:
+    return db.query(models.UserGoogleToken).filter(models.UserGoogleToken.user_id == user_id).first()
+
 def upsert_user_google_token(db: Session, user_id: int, access_token: str, refresh_token: Optional[str] = None, expires_at: Optional[datetime] = None, calendar_id: Optional[str] = None):
     token = db.query(models.UserGoogleToken).filter(models.UserGoogleToken.user_id == user_id).first()
     if token:
@@ -88,3 +91,65 @@ def upsert_user_google_token(db: Session, user_id: int, access_token: str, refre
 def delete_user_google_token(db: Session, user_id: int):
     db.query(models.UserGoogleToken).filter(models.UserGoogleToken.user_id == user_id).delete()
     db.commit()
+
+def get_task_google_sync(db: Session, user_id: int, task_id: int) -> Optional[models.TaskGoogleSync]:
+    return db.query(models.TaskGoogleSync).filter(
+        models.TaskGoogleSync.user_id == user_id,
+        models.TaskGoogleSync.task_id == task_id
+    ).first()
+
+def set_task_google_sync(db: Session, user_id: int, task_id: int, google_event_id: str):
+    sync = db.query(models.TaskGoogleSync).filter(
+        models.TaskGoogleSync.user_id == user_id,
+        models.TaskGoogleSync.task_id == task_id
+    ).first()
+    if sync:
+        sync.google_event_id = google_event_id
+        sync.updated_at = now_jst_naive()
+    else:
+        sync = models.TaskGoogleSync(user_id=user_id, task_id=task_id, google_event_id=google_event_id)
+        db.add(sync)
+    db.commit()
+    db.refresh(sync)
+    return sync
+
+def delete_task_google_sync(db: Session, user_id: int, task_id: int):
+    db.query(models.TaskGoogleSync).filter(
+        models.TaskGoogleSync.user_id == user_id,
+        models.TaskGoogleSync.task_id == task_id
+    ).delete()
+    db.commit()
+
+def get_synced_task_ids_for_user(db: Session, user_id: int) -> List[int]:
+    return [s.task_id for s in db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.user_id == user_id).all() if s.google_event_id]
+
+def get_event_google_sync(db: Session, user_id: int, event_id: int) -> Optional[models.EventGoogleSync]:
+    return db.query(models.EventGoogleSync).filter(
+        models.EventGoogleSync.user_id == user_id,
+        models.EventGoogleSync.event_id == event_id
+    ).first()
+
+def set_event_google_sync(db: Session, user_id: int, event_id: int, google_event_id: str):
+    sync = db.query(models.EventGoogleSync).filter(
+        models.EventGoogleSync.user_id == user_id,
+        models.EventGoogleSync.event_id == event_id
+    ).first()
+    if sync:
+        sync.google_event_id = google_event_id
+        sync.updated_at = now_jst_naive()
+    else:
+        sync = models.EventGoogleSync(user_id=user_id, event_id=event_id, google_event_id=google_event_id)
+        db.add(sync)
+    db.commit()
+    db.refresh(sync)
+    return sync
+
+def delete_event_google_sync(db: Session, user_id: int, event_id: int):
+    db.query(models.EventGoogleSync).filter(
+        models.EventGoogleSync.user_id == user_id,
+        models.EventGoogleSync.event_id == event_id
+    ).delete()
+    db.commit()
+
+def get_synced_event_ids_for_user(db: Session, user_id: int) -> List[int]:
+    return [s.event_id for s in db.query(models.EventGoogleSync).filter(models.EventGoogleSync.user_id == user_id).all() if s.google_event_id]

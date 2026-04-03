@@ -195,19 +195,14 @@ export const mockDataApi = {
   },
 };
 
-// --- モックデータ管理API ---
+// --- データ取得API ---
 
 /**
  * 全てのモックデータ（ユーザー、プロジェクト、タスク等）をエクスポートします。
- * 要管理者権限。
+ * 要管理者権ライ。
  */
 export const exportMockData = async (): Promise<MockDataImport> => {
-  try {
-    const response = await api.post<MockDataImport>('/admin/mock-data/export');
-    return response.data;
-  } catch (error) {
-    throw error; // エラーを呼び出し元に伝える
-  }
+  return await mockDataApi.exportMockData();
 };
 
 /**
@@ -216,39 +211,14 @@ export const exportMockData = async (): Promise<MockDataImport> => {
  * @param data インポートするデータ (MockDataImport形式)
  */
 export const importMockData = async (data: MockDataImport): Promise<any> => {
-  try {
-    // バリデーションは辞書ベースを要求するため、変換せずそのまま送信
-    const response = await api.post('/admin/mock-data/import', data);
-    return response.data;
-  } catch (error) {
-    throw error;
-  }
+  return await mockDataApi.importMockData(data);
 };
 
-export async function fetchUsers() {
-  const response = await api.get('/api/users');
-  return response.data;
-}
-
-export async function fetchTasks() {
-  const response = await api.get('/tasks');
-  return response.data;
-}
-
-export async function fetchProjects() {
-  const response = await api.get('/projects');
-  return response.data;
-}
-
-export async function fetchGroups() {
-  const response = await api.get('/api/groups');
-  return response.data;
-}
-
-export async function fetchEvents() {
-  const response = await api.get('/calendar/events');
-  return response.data;
-}
+export const fetchUsers = async () => (await api.get('/api/users')).data;
+export const fetchTasks = async () => (await api.get('/tasks')).data;
+export const fetchProjects = async () => (await api.get('/projects')).data;
+export const fetchGroups = async () => (await api.get('/api/groups')).data;
+export const fetchEvents = async () => (await api.get('/calendar/events')).data;
 
 export default api;
 

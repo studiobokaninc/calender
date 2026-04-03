@@ -1,15 +1,16 @@
-from passlib.context import CryptContext
-
 import os
-from typing import Annotated, Optional
+from typing import Annotated, Optional, Union
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from .database import get_db
-from . import crud, models
+from .database import get_db, engine
+from . import models
+from .timezone import now_jst_aware
 
 # main.py から pwd_context の定義を移動
 pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
@@ -32,6 +33,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 _SECRET_DEFAULT = "your_very_secret_key_that_is_long_and_secure"
 SECRET_KEY = os.getenv("SECRET_KEY", _SECRET_DEFAULT)
 ALGORITHM = "HS256"
+# トークンの有効期限を24時間に設定（5:00でのみログアウトするため）
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))  # 24時間 = 1440分
 
 # docs 用の tokenUrl。実際の通信は Vite proxy の設定に依存する。
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
@@ -56,6 +59,7 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    from . import crud
     user = crud.get_user_by_email(db, email=username)
     if user is None:
         raise credentials_exception
@@ -68,5 +72,48 @@ async def get_current_active_admin(
 ) -> models.User:
     """管理者のみ許可"""
     if getattr(current_user, "role", None) != "admin":
-        raise HTTPException(status_code=403, detail="Not enough permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="管理者権限が必要です",
+        )
     return current_user
+
+
+def authenticate_user(db: Session, username: str, password: str) -> Union[models.User, bool]:
+    """ユーザー名とパスワードで認証し、成功すれば User オブジェクトを返す"""
+    from . import crud
+    db_user = crud.get_user_by_email(db, email=username)
+    if not db_user:
+        return False
+    if not verify_password(password, db_user.hashed_password):
+        return False
+    return db_user
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """
+    JWTアクセストークンを作成。
+    期限は「次の午前5時 (JST)」に設定。
+    """
+    to_encode = data.copy()
+    
+    # 日本時間 (JST) での現在時刻を取得
+    now_jst = now_jst_aware()
+    
+    # 「次の午前5時」を計算
+    # 5時前なら今日の5時、5時過ぎなら明日の5時
+    if now_jst.hour < 5:
+        target_5am_jst = now_jst.replace(hour=5, minute=0, second=0, microsecond=0)
+    else:
+        target_5am_jst = (now_jst + timedelta(days=1)).replace(hour=5, minute=0, second=0, microsecond=0)
+    
+    # JWT の exp クレーム用には UTC 形式の datetime を渡す (python-jose が処理)
+    expire = target_5am_jst.astimezone(timezone.utc).replace(tzinfo=None)
+    
+    # 開発用などの明示的な期限指定がある場合はそちらを優先
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt

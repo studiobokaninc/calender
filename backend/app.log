@@ -1,2 +1,416 @@
 2026-04-03 12:19:46,247 - app.main - WARNING - CORS_ALLOW_ALL=true が設定されています。すべてのオリジンからのアクセスを許可します。
 2026-04-03 12:53:37,719 - app.main - WARNING - CORS_ALLOW_ALL=true が設定されています。すべてのオリジンからのアクセスを許可します。
+2026-04-03 12:57:54,508 - app.main - WARNING - CORS_ALLOW_ALL=true が設定されています。すべてのオリジンからのアクセスを許可します。
+2026-04-03 13:09:08,379 - app.main - WARNING - CORS_ALLOW_ALL=true が設定されています。すべてのオリジンからのアクセスを許可します。
+2026-04-03 13:22:56,294 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 65, in get_tasks_endpoint
+    task['dependsOnTasks'] = [tasks_map[int(did)] for did in depends_on if int(did) in tasks_map]
+                                                                           ^^^^^^^^
+ValueError: invalid literal for int() with base 10: 'c60Anim'
+2026-04-03 13:22:56,714 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 65, in get_tasks_endpoint
+    task['dependsOnTasks'] = [tasks_map[int(did)] for did in depends_on if int(did) in tasks_map]
+                                                                           ^^^^^^^^
+ValueError: invalid literal for int() with base 10: 'c60Anim'
+2026-04-03 13:29:20,111 - app.google_calendar - ERROR - Google token refresh failed: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "E:\calender\backend\app\google_calendar.py", line 90, in refresh_access_token
+    r.raise_for_status()
+  File "E:\calender\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:29:20,769 - app.google_calendar - ERROR - Google token refresh failed: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "E:\calender\backend\app\google_calendar.py", line 90, in refresh_access_token
+    r.raise_for_status()
+  File "E:\calender\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:29:21,217 - app.google_calendar - ERROR - Google token refresh failed: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "E:\calender\backend\app\google_calendar.py", line 90, in refresh_access_token
+    r.raise_for_status()
+  File "E:\calender\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:29:21,692 - app.google_calendar - ERROR - Google token refresh failed: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "E:\calender\backend\app\google_calendar.py", line 90, in refresh_access_token
+    r.raise_for_status()
+  File "E:\calender\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:30:16,108 - app.google_calendar - ERROR - Google token refresh failed: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "E:\calender\backend\app\google_calendar.py", line 90, in refresh_access_token
+    r.raise_for_status()
+  File "E:\calender\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:30:16,557 - app.google_calendar - ERROR - Google token refresh failed: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "E:\calender\backend\app\google_calendar.py", line 90, in refresh_access_token
+    r.raise_for_status()
+  File "E:\calender\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:30:17,037 - app.google_calendar - ERROR - Google token refresh failed: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+Traceback (most recent call last):
+  File "E:\calender\backend\app\google_calendar.py", line 90, in refresh_access_token
+    r.raise_for_status()
+  File "E:\calender\backend\venv\Lib\site-packages\httpx\_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:37:48,728 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:37:48,732 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:37:57,628 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:37:57,631 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:37:58,204 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:37:58,207 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:37:58,640 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:37:58,643 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:40:29,068 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:40:29,073 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:40:29,562 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:40:29,565 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:40:30,030 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:40:30,033 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:40:30,524 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:40:30,527 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:40:31,003 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:40:31,007 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:40:31,458 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:40:31,461 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:26,386 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:26,389 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:26,394 - app.services.google_sync - ERROR - Failed to refresh Google token for user 30. Stopping sync attempt.
+2026-04-03 13:46:26,400 - app.services.google_sync - WARNING - Google token for user 30 is invalid. Triggering automatic disconnect.
+2026-04-03 13:46:26,881 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:26,884 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:26,887 - app.services.google_sync - ERROR - Failed to refresh Google token for user 30. Stopping sync attempt.
+2026-04-03 13:46:27,400 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:27,403 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:27,406 - app.services.google_sync - ERROR - Failed to refresh Google token for user 30. Stopping sync attempt.
+2026-04-03 13:46:27,407 - app.services.google_sync - WARNING - Token is invalid for user 30. Skipping Google-side deletion but proceeding with DB cleanup.
+2026-04-03 13:46:27,860 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:27,863 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:28,306 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:28,310 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:28,756 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:28,758 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:29,183 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:29,186 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:29,615 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:29,619 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:30,045 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:30,055 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:30,582 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:30,586 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:31,054 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:31,058 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:31,505 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:31,508 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:31,950 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:31,953 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:32,409 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:32,412 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:32,856 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:32,858 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:33,325 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:33,328 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:33,774 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:33,777 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:34,200 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:34,203 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:34,654 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:34,656 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:35,102 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:35,105 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:35,561 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:35,564 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:36,002 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:36,005 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:36,453 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:36,455 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:36,920 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:36,922 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:37,385 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:37,388 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:37,821 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:37,824 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:38,287 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:38,290 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:38,740 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:38,743 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:39,189 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:45,421 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:45,894 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:45,897 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:46,330 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:46,333 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:46,783 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:46,786 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:47,242 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:47,244 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:46:47,695 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:46:47,699 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:50:36,632 - app.google_calendar - ERROR - Google token refresh failed. Status: 400, Body: {
+  "error": "invalid_grant",
+  "error_description": "Bad Request"
+}
+2026-04-03 13:50:36,635 - app.google_calendar - ERROR - Google token refresh failed with exception: Client error '400 Bad Request' for url 'https://oauth2.googleapis.com/token'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400
+2026-04-03 13:50:36,638 - app.services.google_sync - ERROR - Failed to refresh Google token for user 30. Automatically clearing invalid token.
+2026-04-03 13:50:36,643 - app.services.google_sync - WARNING - Google token for user 30 is invalid. Triggering automatic disconnect.
+2026-04-03 13:50:36,648 - app.services.google_sync - WARNING - Google sync cleanup for user 30: Token/Calendar is missing. Proceeding with DB-only cleanup.
+2026-04-03 13:50:36,652 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event mc0h20qls2idtn7thrsr8jtqmo: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,654 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event ocsdrq6n7pd6qii1tfk8khg588: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,656 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event imdp8ttpen4alfu7pj679cgsbg: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,658 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event b0issq5o19bgnmpr4e1tnc9trc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,661 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 28ar9fjfhf1amki16natprg444: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,663 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event ih53iumn1nrv33sq7mjtrii9p0: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,666 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event mt2lmno4s35h9luq1tnp4tphk0: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,682 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event iel124td1fn3ls0nm8rd797tq8: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,688 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event nq6cf9eeq0s1k9c1bimq5mh114: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,691 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event rle7cq75vpl13vp6aa9o4sqkdo: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,695 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 6qnqgajb1mk0ed0bu700ecb2v4: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,697 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event t2pp7v3se9035gpmf46phpao20: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,700 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event b9ca38c9gmcqifhv8kr216qq18: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,702 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event ls8m9hleomjgolcpn07a1pacls: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,704 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event mgeu8onm51odla32ai6up66qok: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,706 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event s6kpoj05vknp42mvgvugpm6vjg: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,707 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event nnc3p9lvn6509ld9i0q9df44b8: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,711 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 4plb3d1qnj252fb9o65cm7spoo: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,713 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event ipr0n99ftoa9a7820g8n31a29s: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,714 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event ssi938h121h5u8aqsfffkf1mmc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,716 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event nr56tf6kd6qv41e0tdg4n478h4: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,717 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 58pru2fupvs62o0afoberdrsmg: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,721 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 26hve7vbah439h1j0a0maerdog: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,723 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 5fegbfqmjjkm3rkjq4449t95og: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,725 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event v697fo6qclvnjk8qf4jfgb5bkg: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,727 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event iehfsmb9l2hefvbmuua3ce1mdc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,730 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 5t6s3h9jqjp3jvt6ku4nq91skc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,732 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event tiqgprii69apgmu2g02v5e83u8: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,734 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 4hae8igp1930pantsubivgae8g: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,736 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event hlv8eoi7a32en5fse8uuqt3rl8: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,738 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event hb9ecesajl76ufkc91ijk2eir0: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,741 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event vg76ep7dlvqdip4e7b7ek6cjqc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,744 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 36n7msjskjmrvri33juf28ddi4: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,745 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 5pma6t6ei9k9ij6h5d8c96tc70: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,747 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 23c7dkp3gh46q4pkg5un3v28qs: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,748 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event o248v1g1c8mipm7rb91c2d68f8: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,750 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 3nsrhuhe19hn7tv8m0m1oonpr8: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,754 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event ovd3r1t06j5o1autb1n6pgp7gk: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,757 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event lr99itib97cv5ek474mcpgev70: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,758 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event p4ctjpu914j85kfnir9nlt4flk: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,760 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event pral309cmpherk0alqqspcshio: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,762 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event lmibai0cphkivgedvv8ucnbjvk: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,764 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event nbrb33bsd0jkrdl8rego7e7vj0: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,766 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 95qsf64mu5h43j83o2p5phf1gg: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,767 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event oak8m7bf9apf10kqi2u2mjdoo4: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,769 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event ov4s56orqi5op1djftirfnehqc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,771 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 3md64oimdnqdauuoodj7jt4qdk: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,775 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event r34qv29tjmd3ug398lmp5u1n64: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,776 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event fdvrjpirdhlt9q17i73a6nodqc: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,778 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event mk6fi818u3ln9mt2c5tvckjj9s: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,780 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event groc8n06ppe8cgb32sn8p8cm1c: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,781 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event m6h79nte7djvafq9hinqv3qu7g: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,785 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event 7tn26f0gjljfc3v4n2lujmhe90: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,787 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event rejle2e0ini5ofjhqhmgi0l1b0: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,789 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event v4bh3gd84pm7me46i86fst97ok: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,790 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event j7pvuitq0roh8hp40dpc97aamo: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,793 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event dtv7thk8o4jjg3t9hpmpffkof8: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,796 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event qdnc25t4vn7fepgfe82oe8pfp4: 'NoneType' object has no attribute 'refresh_token'
+2026-04-03 13:50:36,797 - app.services.google_sync - ERROR - Cleanup: Failed to delete task event fqfmn5p5v09er985k5if2ihkmc: 'NoneType' object has no attribute 'refresh_token'

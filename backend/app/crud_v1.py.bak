@@ -1,0 +1,1980 @@
+from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
+from datetime import datetime, timedelta, date
+import math
+from .timezone import now_jst_naive
+from typing import List, Optional
+from sqlalchemy.orm import selectinload
+from sqlalchemy import func, or_, and_
+import logging
+from fastapi import HTTPException, status
+import json
+
+logger = logging.getLogger(__name__)
+
+from . import models
+from . import schemas
+from .security import pwd_context
+from .task_utils import normalize_task_type
+
+# --- Helper Functions ---
+
+def _parse_datetime(date_val: str | datetime | None) -> datetime | None:
+    """日付文字列またはdatetimeオブジェクトをdatetimeオブジェクトに変換"""
+    logger.debug("[_parse_datetime] Received date value: %r", date_val)
+    if date_val is None or date_val == '':
+        logger.debug("[_parse_datetime] Input is None or empty string, returning None.")
+        return None
+    if isinstance(date_val, datetime):
+        logger.debug("[_parse_datetime] Input is already datetime, returning as is.")
+        return date_val
+    if not isinstance(date_val, str):
+        logger.debug("[_parse_datetime] Input is not a string or datetime: %s. Returning None.", type(date_val))
+        return None
+    try:
+        # YYYY-MM-DD形式の文字列をdatetimeに変換
+        parsed_dt = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+        logger.debug("[_parse_datetime] Parsed successfully: %s", parsed_dt)
+        return parsed_dt
+    except (ValueError, TypeError) as e:
+        logger.debug("[_parse_datetime] Failed to parse date string '%s'. Error: %s", date_val, e)
+        return None
+
+def _parse_int_safe(value: str | None) -> int | None:
+    """文字列を安全に整数に変換。失敗したら None を返す"""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        print(f"Warning: Could not parse string to int: {value}")
+        return None
+
+def _perform_task_auto_update(db: Session, task: models.Task, current_time: datetime, day_start_time: datetime) -> bool:
+    """共通の自動更新ロジック。更新があった場合は True を返す。"""
+    updated = False
+    
+    # 1. 期日超過チェック (遅延を最優先)
+    # 期日を過ぎている、かつ未完了・未レビューである、かつ自動遅延フラグが立っていない場合
+    is_overdue = (task.due_date and task.due_date < day_start_time and 
+                  task.status not in [models.TaskStatus.COMPLETED, models.TaskStatus.REVIEW] and 
+                  not task.auto_delayed)
+    
+    if is_overdue:
+        if task.status != models.TaskStatus.DELAYED:
+            task.status = models.TaskStatus.DELAYED
+            db.add(models.TaskStatusHistory(
+                task_id=task.id,
+                status=models.TaskStatus.DELAYED,
+                changed_at=current_time,
+                changed_by=None
+            ))
+            logger.info(f"Task {task.id} auto-updated to DELAYED (due: {task.due_date})")
+        
+        task.auto_delayed = True
+        task.updated_at = current_time
+        updated = True
+
+    # 2. 開始日超過チェック (遅延になっていない場合のみ)
+    if not is_overdue:
+        is_start_passed = (task.start_date and task.start_date < day_start_time and 
+                           task.status == models.TaskStatus.TODO and 
+                           not task.auto_started)
+        
+        if is_start_passed:
+            task.status = models.TaskStatus.IN_PROGRESS
+            db.add(models.TaskStatusHistory(
+                task_id=task.id,
+                status=models.TaskStatus.IN_PROGRESS,
+                changed_at=current_time,
+                changed_by=None
+            ))
+            task.auto_started = True
+            task.updated_at = current_time
+            logger.info(f"Task {task.id} auto-updated to IN_PROGRESS (start: {task.start_date})")
+            updated = True
+            
+    return updated
+
+def auto_update_task_statuses(db: Session) -> int:
+    """
+    期日または開始日を過ぎたタスクのステータスを自動更新する。
+    同一の期日/開始日設定に対して一度だけ実行されるようフラグ(auto_delayed/auto_started)を使用する。
+    """
+    now = now_jst_naive()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # 更新候補を一括で取得（条件：期日超過または開始日超過）
+    candidates = db.query(models.Task).filter(
+        or_(
+            and_(
+                models.Task.due_date.isnot(None),
+                models.Task.due_date < today_start,
+                models.Task.status.notin_([models.TaskStatus.COMPLETED, models.TaskStatus.REVIEW]),
+                models.Task.auto_delayed == False
+            ),
+            and_(
+                models.Task.start_date.isnot(None),
+                models.Task.start_date < today_start,
+                models.Task.status == models.TaskStatus.TODO,
+                models.Task.auto_started == False
+            )
+        )
+    ).all()
+
+    updated_count = sum(1 for task in candidates if _perform_task_auto_update(db, task, now, today_start))
+
+    if updated_count > 0:
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to commit auto-updates: {e}")
+            
+    return updated_count
+
+def _check_and_update_overdue_task(db: Session, db_task: models.Task, auto_commit: bool = True) -> bool:
+    """
+    単一タスクの自動更新チェック。
+    auto_commit が True の場合はコミットを実行する（デフォルト）。
+    """
+    now = now_jst_naive()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    changed = _perform_task_auto_update(db, db_task, now, today_start)
+
+    if changed and auto_commit:
+        db.commit()
+    return changed
+
+# --- User CRUD ---
+
+def get_user(db: Session, user_id: int) -> models.User | None:
+    """ID でユーザーを取得"""
+    return db.query(models.User).filter(models.User.id == user_id).first()
+
+def get_user_by_email(db: Session, email: str) -> models.User | None:
+    """Email でユーザーを取得"""
+    return db.query(models.User).filter(models.User.email == email).first()
+
+def get_users(db: Session, skip: int = 0, limit: int = 100) -> list[models.User]:
+    """ユーザーリストを取得 (ページネーション対応)"""
+    return db.query(models.User).offset(skip).limit(limit).all()
+
+def create_user(db: Session, user: schemas.UserCreate) -> models.User:
+    """新規ユーザーを作成"""
+    hashed_password = pwd_context.hash(user.password)
+    print(f"[DEBUG crud.create_user] Received user.name: {repr(user.name)}")
+    db_user = models.User(
+        email=user.email,
+        username=user.username,
+        name=user.name,
+        hashed_password=hashed_password,
+        role=user.role,
+        base_load_hours_per_week=getattr(user, 'base_load_hours_per_week', None) or 0.0,
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_user)
+    db.commit()
+    print(f"[DEBUG crud.create_user] After commit, db_user.name: {repr(db_user.name)}")
+    db.refresh(db_user)
+    return db_user
+
+def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) -> models.User:
+    """ユーザー情報を更新"""
+    update_data = user_in.dict(exclude_unset=True)
+    
+    if "password" in update_data and update_data["password"]:
+        hashed_password = pwd_context.hash(update_data["password"])
+        db_user.hashed_password = hashed_password
+    if "full_name" in update_data:
+         db_user.name = update_data["full_name"]
+    if "email" in update_data:
+        db_user.email = update_data["email"]
+    if "role" in update_data:
+        db_user.role = update_data["role"]
+    if "base_load_hours_per_week" in update_data:
+        db_user.base_load_hours_per_week = update_data["base_load_hours_per_week"] or 0.0
+    db_user.updated_at = now_jst_naive()
+    
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def delete_user(db: Session, db_user: models.User) -> models.User:
+    """ユーザーを削除"""
+    db.delete(db_user)
+    db.commit()
+    return db_user
+
+# --- Project CRUD ---
+
+def get_project(db: Session, project_id: int) -> models.Project | None:
+    """ID でプロジェクトを取得"""
+    return db.query(models.Project).filter(models.Project.id == project_id).first()
+
+def get_projects(db: Session, skip: int = 0, limit: int = 100, display_status_in: Optional[List[str]] = None) -> list[models.Project]:
+    """プロジェクトリストを取得 (ページネーション対応、表示ステータスでのフィルタリング対応)"""
+    query = db.query(models.Project)
+    if display_status_in is not None and display_status_in:
+        query = query.filter(models.Project.display_status.in_(display_status_in))
+    return query.offset(skip).limit(limit).all()
+
+def create_project(db: Session, project: schemas.ProjectCreate) -> models.Project:
+    """新規プロジェクトを作成"""
+    db_project = models.Project(
+        name=project.name,
+        description=project.description,
+        status=project.status,
+        display_status=project.display_status,
+        start_date=_parse_datetime(project.start_date),
+        end_date=_parse_datetime(project.end_date),
+        color=project.color,
+    )
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+def update_project(db: Session, db_project: models.Project, project_in: schemas.ProjectUpdate) -> models.Project: # 型ヒント修正
+    """プロジェクト情報を更新"""
+    update_data = project_in.dict(exclude_unset=True)
+    
+    for key, value in update_data.items():
+        db_key = key
+        parsed_value = value
+        if key == "startDate":
+            db_key = "start_date"
+            parsed_value = _parse_datetime(value)
+        elif key == "endDate":
+            db_key = "end_date"
+            parsed_value = _parse_datetime(value)
+        elif key == "display_status" and value not in ['online', 'offline', 'archived']:
+            continue
+
+        if hasattr(db_project, db_key):
+            setattr(db_project, db_key, parsed_value)
+            
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+def delete_project(db: Session, db_project: models.Project) -> models.Project:
+    """プロジェクトを削除"""
+    db.delete(db_project)
+    db.commit()
+    return db_project
+
+def get_project_by_name(db: Session, name: str) -> Optional[models.Project]:
+    """プロジェクト名からプロジェクトを取得"""
+    return db.query(models.Project).filter(models.Project.name == name).first()
+
+
+def complete_tasks_for_project(db: Session, project_id: int) -> int:
+    """プロジェクトに属する未完了タスクをすべて完了にする。完了にしたタスク数を返す。"""
+    tasks_to_complete = db.query(models.Task).filter(
+        models.Task.project_id == project_id,
+        models.Task.status != models.TaskStatus.COMPLETED,
+    ).all()
+    now = now_jst_naive()
+    for task in tasks_to_complete:
+        task.status = models.TaskStatus.COMPLETED
+        task.updated_at = now
+        db.add(models.TaskStatusHistory(
+            task_id=task.id,
+            status=models.TaskStatus.COMPLETED,
+            changed_at=now,
+            changed_by=task.assigned_to,
+        ))
+    if tasks_to_complete:
+        db.commit()
+    return len(tasks_to_complete)
+
+
+# --- Task CRUD ---
+
+
+def get_task(db: Session, task_id: int) -> models.Task | None:
+    """ID でタスクを取得"""
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if db_task:
+        _check_and_update_overdue_task(db, db_task)
+    return db_task
+
+def _task_row_to_dict(row, history_map: dict) -> dict:
+    """SQL結果の1行をタスク辞書に変換するヘルパー（安全なパース処理を含む）"""
+    
+    # 1. ステータスの正規化 (Enum検証回避のための大文字->小文字変換)
+    task_status = 'todo'
+    if hasattr(row, 'status') and row.status:
+        status_map = {
+            'TODO': 'todo', 'IN_PROGRESS': 'in-progress', 'REVIEW': 'review', 
+            'COMPLETED': 'completed', 'DELAYED': 'delayed'
+        }
+        raw_status = row.status
+        task_status = status_map.get(raw_status, raw_status.lower().replace('_', '-'))
+
+    # 2. JSONフィールドの安全なパース
+    def safe_json_load(field_name):
+        value = getattr(row, field_name, None)
+        if not value: return []
+        if isinstance(value, list): return value
+        try: return json.loads(value)
+        except: return []
+
+    depends_on = safe_json_load('dependsOn')
+    phases = safe_json_load('phases')
+    check_items = safe_json_load('check_items')
+    
+    # 3. 日付フィールドを安全に isoformat 変換
+    def safe_isoformat(val):
+        dt = _parse_datetime(val)
+        return dt.isoformat() if dt else None
+    
+    # 4. その他フィールドの安全な取得
+    priority_value = row.priority if (hasattr(row, 'priority') and row.priority != '') else None
+    
+    return {
+        'id': row.id,
+        'project_id': row.project_id,
+        'name': row.name,
+        'description': row.description,
+        'assigned_to': row.assigned_to,
+        'due_date': safe_isoformat(getattr(row, 'due_date', None)),
+        'status': task_status,
+        'priority': priority_value,
+        'type': row.type,
+        'start_date': safe_isoformat(getattr(row, 'start_date', None)),
+        'progress': getattr(row, 'progress', 0),
+        'cost': getattr(row, 'cost', 0),
+        'dependsOn': depends_on,
+        'shotID': getattr(row, 'shotID', None),
+        'seqID': getattr(row, 'seqID', None),
+        'created_at': safe_isoformat(getattr(row, 'created_at', None)),
+        'display_status': getattr(row, 'display_status', 'offline'),
+        'updated_at': safe_isoformat(getattr(row, 'updated_at', None)),
+        'phases': phases,
+        'check_items': check_items,
+        'deliverables': getattr(row, 'deliverables', ""),
+        'status_history': history_map.get(row.id, [])
+    }
+
+def get_tasks(db: Session, project_id: int | None = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None) -> list[dict]:
+    """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)"""
+    try:
+        # 自動ステータス更新を実行
+        auto_update_task_statuses(db)
+
+        # SQLAlchemy を使わず、直接 SQL 文でデータ取得（Enum 検証を回避）
+        from sqlalchemy import text
+        
+        query_parts = ["SELECT * FROM tasks"]
+        conditions = []
+        params = {"limit": limit, "skip": skip}
+        
+        if project_id is not None:
+            conditions.append("project_id = :project_id")
+            params["project_id"] = project_id
+        
+        if display_status_in:
+            placeholders = ','.join([f":status{i}" for i in range(len(display_status_in))])
+            conditions.append(f"display_status IN ({placeholders})")
+            for i, val in enumerate(display_status_in):
+                params[f"status{i}"] = val
+        
+        if conditions:
+            query_parts.append("WHERE " + " AND ".join(conditions))
+        
+        query_parts.append("LIMIT :limit OFFSET :skip")
+        
+        rows = db.execute(text(" ".join(query_parts)), params).fetchall()
+        task_ids = [row.id for row in rows]
+        
+        # ステータス履歴を一括取得
+        history_map = {tid: [] for tid in task_ids}
+        if task_ids:
+            try:
+                # SQLite のプレースホルダ制限 (999) を考慮してチャンク分け
+                for i in range(0, len(task_ids), 900):
+                    chunk = task_ids[i:i + 900]
+                    history_entries = db.query(models.TaskStatusHistory).filter(
+                        models.TaskStatusHistory.task_id.in_(chunk)
+                    ).order_by(models.TaskStatusHistory.changed_at).all()
+                    
+                    for entry in history_entries:
+                        history_map[entry.task_id].append({
+                            'id': entry.id,
+                            'task_id': entry.task_id,
+                            'status': entry.status.value if hasattr(entry.status, "value") else str(entry.status),
+                            'timestamp': entry.changed_at.isoformat() if entry.changed_at else None,
+                            'changed_at': entry.changed_at.isoformat() if entry.changed_at else None,
+                            'changed_by': entry.changed_by
+                        })
+            except Exception as e:
+                logger.warning(f"ステータス履歴の一括取得に失敗: {e}")
+        
+        return [_task_row_to_dict(row, history_map) for row in rows]
+        
+    except Exception as e:
+        logger.error(f"タスクの取得に失敗: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"タスクの取得に失敗しました: {e}"
+        )
+
+def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
+    """新規タスクを作成"""
+    task_start_date = task.start_date
+    if task_start_date is None:
+        task_start_date = task.due_date
+
+    db_task = models.Task(
+        name=task.name,
+        description=task.description,
+        project_id=task.project_id,
+        assigned_to=task.assigned_to,
+        status=task.status,
+        display_status=task.display_status,
+        priority=task.priority,
+        start_date=task_start_date,
+        due_date=task.due_date,
+        cost=task.cost,
+        dependsOn=task.dependsOn,
+        shotID=task.shotID,
+        seqID=task.seqID,
+        type=normalize_task_type(task.type),
+        phases=task.phases,
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+
+    if db_task.status is not None:
+        initial_history = models.TaskStatusHistory(
+            task_id=db_task.id,
+            status=db_task.status,
+            changed_at=db_task.created_at or now_jst_naive(),
+            changed_by=task.assigned_to  # タスクの担当者を設定
+        )
+        db.add(initial_history)
+        db.commit()
+
+    return db_task
+
+def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) -> models.Task:
+    """タスク情報を更新"""
+    update_data = task_in.dict(exclude_unset=True)
+    original_status = db_task.status
+
+    # フィールド名のマッピング定義
+    field_map = {
+        "title": ("name", None),
+        "taskStatus": ("status", None),
+        "taskCost": ("cost", None),
+        "projectId": ("project_id", _parse_int_safe),
+        "taskAssigneeId": ("assigned_to", _parse_int_safe),
+        "taskStartDate": ("start_date", _parse_datetime),
+        "taskDueDate": ("due_date", _parse_datetime),
+        "type": ("type", normalize_task_type),
+    }
+
+    for key, value in update_data.items():
+        # 特殊なバリデーションが必要なケース
+        if key == "display_status" and value not in ['online', 'offline', 'archived']:
+            continue
+            
+        # マッピングからDBキーと変換関数を取得
+        db_key, converter = field_map.get(key, (key, None))
+        parsed_value = converter(value) if converter else value
+        
+        # 特定のフィールドが None のまま飛ばすべきケース (int 変換失敗など)
+        if db_key in ["project_id", "assigned_to"] and parsed_value is None and value is not None:
+            continue
+
+        if hasattr(db_task, db_key):
+            # 日付が変更された場合、自動更新済フラグをリセットする
+            if db_key == "start_date" and db_task.start_date != parsed_value:
+                db_task.auto_started = False
+            if db_key == "due_date" and db_task.due_date != parsed_value:
+                db_task.auto_delayed = False
+
+            setattr(db_task, db_key, parsed_value)
+            if db_key in ["phases", "check_items", "deliverables", "dependsOn"]:
+                flag_modified(db_task, db_key)
+
+    db_task.updated_at = now_jst_naive()
+
+    # ステータス変更時の履歴追加
+    new_status = db_task.status
+    if new_status and new_status != original_status:
+        db.add(models.TaskStatusHistory(
+            task_id=db_task.id,
+            status=new_status,
+            changed_at=db_task.updated_at,
+            changed_by=db_task.assigned_to
+        ))
+
+    db.commit()
+    db.refresh(db_task)
+    
+    # 期日超過チェックを非コミット（副作用防止）で行う
+    _check_and_update_overdue_task(db, db_task, auto_commit=True)
+    return db_task
+
+
+def bulk_update_tasks(db: Session, task_ids: List[int], updates: dict) -> int:
+    """複数タスクに同じ更新を適用。更新したタスク数を返す。"""
+    updated = 0
+    for task_id in task_ids:
+        db_task = get_task(db=db, task_id=task_id)
+        if db_task is None:
+            continue
+        task_in = schemas.TaskUpdate(**updates)
+        update_task(db=db, db_task=db_task, task_in=task_in)
+        updated += 1
+    return updated
+
+
+def delete_task(db: Session, db_task: models.Task) -> models.Task:
+    """タスクを削除"""
+    db.delete(db_task)
+    db.commit()
+    return db_task
+
+def get_task_by_name(db: Session, name: str) -> Optional[models.Task]:
+    """タスク名からタスクを取得"""
+    return db.query(models.Task).filter(models.Task.name == name).first()
+
+# --- Event CRUD ---
+
+def get_event(db: Session, event_id: int) -> models.Event | None:
+    """ID でイベントを取得"""
+    return db.query(models.Event).filter(models.Event.id == event_id).first()
+
+def get_events(
+    db: Session, 
+    skip: int = 0, 
+    limit: int = 100, 
+    status: str | None = None,
+    project_id: int | None = None
+) -> list[models.Event]:
+    """イベントリストを取得 (ステータス・プロジェクトIDフィルタ、ページネーション対応)"""
+    print(f"[crud.get_events] Called with: status={status}, project_id={project_id}, skip={skip}, limit={limit}")
+    query = db.query(models.Event)
+    if status is not None:
+        print(f"[crud.get_events] Filtering by status: {status}")
+        query = query.filter(models.Event.status == status)
+    if project_id is not None:
+        print(f"[crud.get_events] Filtering by project_id: {project_id}")
+        query = query.filter(models.Event.project_id == project_id)
+    
+    db_events = query.offset(skip).limit(limit).all()
+    print(f"[crud.get_events] Query returned {len(db_events)} events.")
+    # print(f"[crud.get_events] First few events from DB: {db_events[:3]}") # 内容も確認する場合
+    return db_events
+
+
+from sqlalchemy import cast, String
+
+def search_projects(db: Session, q: str, limit: int = 10) -> List[models.Project]:
+    """検索文字列でプロジェクトを検索（name, description, 関連タスクの名称や担当者名）"""
+    if not q or len(q.strip()) == 0:
+        return []
+    term = f"%{q.strip()}%"
+    return (
+        db.query(models.Project)
+        .outerjoin(models.Task, models.Project.id == models.Task.project_id)
+        .outerjoin(models.User, models.Task.assigned_to == models.User.id)
+        .filter(models.Project.display_status != 'offline')
+        .filter(
+            or_(
+                models.Project.name.ilike(term),
+                models.Project.description.ilike(term),
+                models.Task.name.ilike(term),
+                models.Task.description.ilike(term),
+                models.User.name.ilike(term),
+                models.User.username.ilike(term),
+                models.User.full_name.ilike(term),
+            )
+        )
+        .distinct()
+        .limit(limit)
+        .all()
+    )
+
+
+def search_tasks(db: Session, q: str, limit: int = 10) -> List[models.Task]:
+    """検索文字列でタスクを検索（name, description, 担当者名, プロジェクト名/説明）"""
+    if not q or len(q.strip()) == 0:
+        return []
+    term = f"%{q.strip()}%"
+    return (
+        db.query(models.Task)
+        .outerjoin(models.User, models.Task.assigned_to == models.User.id)
+        .outerjoin(models.Project, models.Task.project_id == models.Project.id)
+        .filter(or_(models.Task.project_id == None, models.Project.display_status != 'offline'))
+        .filter(
+            or_(
+                models.Task.name.ilike(term),
+                models.Task.description.ilike(term),
+                models.User.name.ilike(term),
+                models.User.username.ilike(term),
+                models.User.full_name.ilike(term),
+                models.Project.name.ilike(term),
+                models.Project.description.ilike(term),
+            )
+        )
+        .distinct()
+        .limit(limit)
+        .all()
+    )
+
+
+def search_events(db: Session, q: str, limit: int = 10) -> List[models.Event]:
+    """検索文字列でイベントを検索（title, description, location, 参加者, 関連プロジェクト）"""
+    if not q or len(q.strip()) == 0:
+        return []
+    term = f"%{q.strip()}%"
+    return (
+        db.query(models.Event)
+        .outerjoin(models.Project, models.Event.project_id == models.Project.id)
+        .filter(or_(models.Event.project_id == None, models.Project.display_status != 'offline'))
+        .filter(
+            or_(
+                models.Event.title.ilike(term),
+                models.Event.description.ilike(term),
+                models.Event.location.ilike(term),
+                cast(models.Event.participants, String).ilike(term),
+                models.Project.name.ilike(term),
+                models.Project.description.ilike(term),
+            )
+        )
+        .distinct()
+        .limit(limit)
+        .all()
+    )
+
+
+def get_labor_report(
+    db: Session,
+    group_by: str,
+    from_date: Optional[datetime] = None,
+    to_date: Optional[datetime] = None,
+    include_offline: bool = False,
+    include_completed: bool = False,
+) -> List[dict]:
+    """工数集計: group_by が 'user' のとき担当者別、'project' のときプロジェクト別。due_date で期間フィルタ可能。include_offlineがFalseの場合、オフラインのプロジェクトを除外。include_completedがFalseの場合、完了タスクを除外。"""
+    from collections import defaultdict
+
+    query = db.query(models.Task)
+    if from_date is not None:
+        query = query.filter(models.Task.due_date >= from_date)
+    if to_date is not None:
+        query = query.filter(models.Task.due_date <= to_date)
+    
+    # オフラインを含めない場合、オフラインのプロジェクトに属するタスクを除外
+    if not include_offline:
+        offline_project_ids = [
+            p.id for p in db.query(models.Project).filter(models.Project.display_status == 'offline').all()
+        ]
+        if offline_project_ids:
+            query = query.filter(~models.Task.project_id.in_(offline_project_ids))
+    
+    # 完了タスクを含めない場合、完了タスクを除外
+    if not include_completed:
+        query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    
+    tasks = query.all()
+
+    groups: dict = defaultdict(lambda: {"total_cost": 0.0, "task_count": 0})
+    for t in tasks:
+        key = t.assigned_to if group_by == "user" else t.project_id
+        key = key if key is not None else 0
+        groups[key]["total_cost"] += float(t.cost or 0)
+        groups[key]["task_count"] += 1
+
+    result = []
+    if group_by == "user":
+        user_ids = [k for k in groups if k != 0]
+        users_map = {}
+        if user_ids:
+            for u in db.query(models.User).filter(models.User.id.in_(user_ids)).all():
+                users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+        for gid, data in sorted(groups.items(), key=lambda x: -x[1]["total_cost"]):
+            name = users_map.get(gid, "未割り当て") if gid != 0 else "未割り当て"
+            result.append({"group_id": gid, "group_name": name, "total_cost": round(data["total_cost"], 2), "task_count": data["task_count"]})
+    else:
+        project_ids = [k for k in groups if k != 0]
+        projects_map = {}
+        if project_ids:
+            project_query = db.query(models.Project).filter(models.Project.id.in_(project_ids))
+            # オフラインを含めない場合、オフラインのプロジェクトを除外
+            if not include_offline:
+                project_query = project_query.filter(models.Project.display_status != 'offline')
+            for p in project_query.all():
+                projects_map[p.id] = p.name or f"Project {p.id}"
+        # オフラインを含めない場合、オフラインのプロジェクトのタスクを除外
+        for gid, data in sorted(groups.items(), key=lambda x: -x[1]["total_cost"]):
+            if gid == 0:
+                name = "プロジェクトなし"
+            elif gid in projects_map:
+                name = projects_map[gid]
+            else:
+                # オフラインを含めない場合、プロジェクトが見つからない（オフライン）場合はスキップ
+                if not include_offline:
+                    continue
+                name = f"Project {gid}"
+            result.append({"group_id": gid, "group_name": name, "total_cost": round(data["total_cost"], 2), "task_count": data["task_count"]})
+    return result
+
+
+# 週次・日次工数・余裕時間（1日=8時間、週=5営業日=40時間）
+# コスト/8＝タスク完了までのおおよその日数。開始日・期日は管理者が設定。依存タスクは依存先が完了/進捗するまで着手不可。
+# 計算対象は未完了タスクのみ。基準日は「今日」で経過平日・経過労働時間・残りコストを算出。
+HOURS_PER_DAY = 8
+WORKING_DAYS_PER_WEEK = 5
+MAX_HOURS_PER_WEEK = HOURS_PER_DAY * WORKING_DAYS_PER_WEEK  # 40
+
+
+def _count_weekdays(start_d: date, end_d: date) -> int:
+    """start_d から end_d まで（両端含む）の平日（月〜金）の日数を返す"""
+    if start_d > end_d:
+        return 0
+    n = 0
+    d = start_d
+    while d <= end_d:
+        if d.weekday() < 5:  # 0=月 .. 4=金
+            n += 1
+        d += timedelta(days=1)
+    return n
+
+
+def _parse_depends_on_ids(depends_on) -> List[int]:
+    """dependsOn（JSONのリスト、要素はstrまたはint）をタスクIDのリストに変換"""
+    if not depends_on or not isinstance(depends_on, list):
+        return []
+    ids = []
+    for x in depends_on:
+        try:
+            ids.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+def _is_task_unblocked_on_date(task, d: date, tasks_by_id: dict, to_date) -> bool:
+    """
+    指定日 d の時点で、そのタスクに着手可能か。
+    依存先がすべて「完了」または「期日が d 以前」（その日までに終わっている想定）なら True。
+    """
+    dep_ids = _parse_depends_on_ids(getattr(task, "dependsOn", None) or getattr(task, "depends_on", None))
+    if not dep_ids:
+        return True
+    for dep_id in dep_ids:
+        dep = tasks_by_id.get(dep_id)
+        if dep is None:
+            continue  # 参照先が無い場合はブロックしない
+        status = getattr(dep, "status", None)
+        if status == models.TaskStatus.COMPLETED or (str(status).lower() if status else "") == "completed":
+            continue
+        dep_due = to_date(getattr(dep, "due_date", None))
+        if dep_due is not None and dep_due <= d:
+            continue  # 期日が d 以前ならその日までに終わっているとみなす
+        return False  # 未完了かつ期日が d より後 → ブロック
+    return True
+
+
+def _convert_cost_to_hours(cost_value) -> float:
+    """
+    コスト値を時間（float）に変換する。
+    S/M/L形式の文字列の場合は標準時間に変換、数値の場合はそのまま返す。
+    S=2h, M=8h, L=24h
+    """
+    if cost_value is None:
+        return 0.0
+    if isinstance(cost_value, str):
+        cost_str = cost_value.strip().upper()
+        if cost_str == 'S':
+            return 2.0
+        elif cost_str == 'M':
+            return 8.0
+        elif cost_str == 'L':
+            return 24.0
+        else:
+            # 数値文字列の場合は変換を試みる
+            try:
+                return float(cost_value)
+            except (ValueError, TypeError):
+                return 0.0
+    try:
+        return float(cost_value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _task_calendar_range(task, to_date):
+    """タスクのカレンダー上の開始日・終了日（date）とコスト（時間）を返す。(task_start, task_end, cost) または (None, None, 0)"""
+    cost_raw = getattr(task, "cost", None)
+    cost = _convert_cost_to_hours(cost_raw)
+    if cost <= 0:
+        return None, None, 0
+    start_d = to_date(getattr(task, "start_date", None))
+    end_d = to_date(getattr(task, "due_date", None))
+    if start_d is None and end_d is None:
+        return None, None, 0
+    if start_d is None:
+        days_span = max(1, math.ceil(cost / HOURS_PER_DAY))
+        task_start = end_d - timedelta(days=days_span - 1)
+        task_end = end_d
+    elif end_d is None:
+        days_span = max(1, math.ceil(cost / HOURS_PER_DAY))
+        task_start = start_d
+        task_end = start_d + timedelta(days=days_span - 1)
+    else:
+        task_start = min(start_d, end_d)
+        task_end = max(start_d, end_d)
+    return task_start, task_end, cost
+
+
+def get_weekly_workload(
+    db: Session,
+    week_start: date,
+    reference_date: Optional[date] = None,
+    include_offline: bool = False,
+    include_completed: bool = False,
+    consider_dependencies: bool = True,
+) -> List[dict]:
+    """
+    指定週のユーザー別工数（時間）を計算する。計算対象は未完了タスクのみ。
+    基準日（reference_date、省略時は今日）から見て、開始日からの経過平日・経過労働時間・残りコストを考慮。
+    残りコストを「基準日以降の平日」に按分して割り当て。余裕時間 = 40 - 割り当て工数。
+    """
+    from collections import defaultdict
+
+    if reference_date is None:
+        reference_date = date.today()
+    week_end = week_start + timedelta(days=6)  # 月〜日
+
+    def to_date(d):
+        if d is None:
+            return None
+        if hasattr(d, "date"):
+            return d.date()
+        if isinstance(d, str):
+            try:
+                return datetime.strptime(d[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        return None
+
+    # タスクを取得（担当者あり）。プロジェクト未設定のタスクも含める。
+    query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None))
+    # include_completedがFalseの場合のみ、完了タスクを除外
+    if not include_completed:
+        query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    # 完了タスクの完了日時を取得するために status_history を読み込む
+    if include_completed:
+        query = query.options(selectinload(models.Task.status_history))
+    if not include_offline:
+        offline_project_ids = [
+            p.id for p in db.query(models.Project).filter(models.Project.display_status == "offline").all()
+        ]
+        if offline_project_ids:
+            # オフラインプロジェクトは除外するが、project_id が NULL（プロジェクト未設定）のタスクは含める
+            query = query.filter(
+                or_(
+                    models.Task.project_id.is_(None),
+                    ~models.Task.project_id.in_(offline_project_ids),
+                )
+            )
+    tasks = list(query.all())
+
+    dependency_ids = set()
+    for t in tasks:
+        dependency_ids.update(_parse_depends_on_ids(getattr(t, "dependsOn", None)))
+    if dependency_ids:
+        dep_tasks = db.query(models.Task).filter(models.Task.id.in_(list(dependency_ids))).all()
+        tasks_by_id = {t.id: t for t in list(tasks) + list(dep_tasks)}
+    else:
+        tasks_by_id = {t.id: t for t in tasks}
+
+    user_hours: dict = defaultdict(float)
+    user_daily_hours: dict = defaultdict(float)
+    user_labor_passed: dict = defaultdict(float)
+    user_remaining_cost: dict = defaultdict(float)
+    user_weekdays_passed: dict = defaultdict(int)
+    user_tasks: dict = defaultdict(list)
+
+    for t in tasks:
+        task_start, task_end, cost = _task_calendar_range(t, to_date)
+        if task_start is None or cost <= 0:
+            continue
+        total_weekdays = _count_weekdays(task_start, task_end)
+        if total_weekdays <= 0:
+            total_weekdays = 1
+        
+        # 完了タスクの場合の処理
+        is_completed = t.status == models.TaskStatus.COMPLETED
+        if is_completed:
+            # 完了タスクの場合、完了日時（または期日）を基準日として使用
+            # 完了日時は status_history から取得、なければ updated_at、それもなければ期日
+            completed_date = None
+            if hasattr(t, 'status_history') and t.status_history:
+                # 完了になった最新の履歴を取得
+                completed_history = [h for h in t.status_history if h.status == models.TaskStatus.COMPLETED]
+                if completed_history:
+                    latest_completed = max(completed_history, key=lambda h: h.changed_at)
+                    completed_date = to_date(latest_completed.changed_at)
+            if completed_date is None and hasattr(t, 'updated_at') and t.updated_at:
+                completed_date = to_date(t.updated_at)
+            if completed_date is None:
+                completed_date = task_end
+            
+            # 完了タスクの場合、完了日時を基準日として使用
+            effective_reference_date = completed_date if completed_date else reference_date
+            # 完了タスクの場合、残りコストは0
+            if effective_reference_date < task_start:
+                weekdays_passed = 0
+                labor_passed = 0
+                remaining = 0
+            elif effective_reference_date > task_end:
+                weekdays_passed = total_weekdays
+                labor_passed = cost
+                remaining = 0
+            else:
+                end_for_passed = min(effective_reference_date, task_end)
+                weekdays_passed = _count_weekdays(task_start, end_for_passed)
+                weekdays_passed = min(weekdays_passed, total_weekdays)
+                labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
+                labor_passed = round(labor_passed, 2)
+                remaining = 0  # 完了タスクは残りコスト0
+        else:
+            # 未完了タスクの場合の処理（従来通り）
+            # 基準日までに経過した平日・経過労働時間・残りコスト（タスクごと）
+            # 経過労働 = 経過平日×8（1日8時間）。コストを超えないよう min(cost, 経過平日×8)
+            if reference_date < task_start:
+                weekdays_passed = 0
+                labor_passed = 0
+                remaining = cost
+            elif reference_date > task_end:
+                weekdays_passed = total_weekdays
+                labor_passed = cost
+                remaining = 0
+            else:
+                end_for_passed = min(reference_date, task_end)
+                weekdays_passed = _count_weekdays(task_start, end_for_passed)
+                weekdays_passed = min(weekdays_passed, total_weekdays)
+                labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
+                labor_passed = round(labor_passed, 2)
+                remaining = max(0, round(cost - labor_passed, 2))
+        # 開始日〜期日までの平日数でコストを按分した「1日あたりの時間」
+        hours_per_weekday = round(cost / total_weekdays, 2) if total_weekdays else 0
+        # 今週に「期間がかかっている」タスクか（今週内に1日でも平日が重なる）
+        _in_week_start = max(task_start, week_start)
+        _in_week_end = min(task_end, week_end)
+        overlaps_week = _count_weekdays(_in_week_start, _in_week_end) > 0
+        user_tasks[t.assigned_to].append({
+            "task_id": t.id,
+            "task_name": t.name or "",
+            "cost": round(cost, 2),
+            "start_date": task_start.isoformat() if task_start else None,
+            "due_date": task_end.isoformat() if task_end else None,
+            "total_weekdays": total_weekdays,
+            "hours_per_weekday": hours_per_weekday,
+            "overlaps_week": overlaps_week,
+            "weekdays_passed": weekdays_passed,
+            "labor_hours_passed": round(labor_passed, 2),
+            "remaining_cost_hours": round(remaining, 2),
+        })
+        user_labor_passed[t.assigned_to] += labor_passed
+        user_remaining_cost[t.assigned_to] += remaining
+        user_weekdays_passed[t.assigned_to] = max(user_weekdays_passed[t.assigned_to], weekdays_passed)
+        # 週内日別: 「開始日〜期日」の平日に、コストを等分して割り当てる（週を跨ぐ場合も全期間で按分）。
+        # 例: 月開始・火期日・コスト4（平日2日）→ 月2, 火2
+        # 例: 火開始・木期日・コスト18（平日3日）→ 火6, 水6, 木6（週内の月・金は0）
+        in_week_start = max(task_start, week_start)
+        in_week_end = min(task_end, week_end)
+        weekdays_in_week = _count_weekdays(in_week_start, in_week_end)
+        if weekdays_in_week <= 0:
+            continue
+        per_day_in_week = hours_per_weekday  # cost / total_weekdays
+        d = week_start
+        while d <= week_end:
+            if not (in_week_start <= d <= in_week_end):
+                d += timedelta(days=1)
+                continue
+            if d.weekday() >= 5:
+                d += timedelta(days=1)
+                continue
+            if consider_dependencies and not _is_task_unblocked_on_date(t, d, tasks_by_id, to_date):
+                d += timedelta(days=1)
+                continue
+            user_hours[t.assigned_to] += per_day_in_week
+            user_daily_hours[(t.assigned_to, d)] += per_day_in_week
+            d += timedelta(days=1)
+
+    all_user_ids = {u.id for u in db.query(models.User).all()}
+    for uid in user_hours:
+        all_user_ids.add(uid)
+    for uid in user_labor_passed:
+        all_user_ids.add(uid)
+    users_map = {}
+    user_base_loads = {}  # ユーザーID -> ベースロード（週あたり時間）
+    for u in db.query(models.User).filter(models.User.id.in_(all_user_ids)).all():
+        users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+        user_base_loads[u.id] = float(u.base_load_hours_per_week or 0.0)
+
+    result = []
+    for uid in sorted(all_user_ids):
+        base_load = user_base_loads.get(uid, 0.0)
+        task_assigned = round(user_hours.get(uid, 0), 2)
+        # ベースロードを考慮した総割当工数
+        assigned = round(task_assigned + base_load, 2)
+        free = max(0, MAX_HOURS_PER_WEEK - assigned)
+        daily_breakdown = []
+        # ベースロードを平日に按分（週5日で割る）
+        base_load_per_day = base_load / 5.0 if base_load > 0 else 0.0
+        d = week_start
+        while d <= week_end:
+            task_day_assigned = round(user_daily_hours.get((uid, d), 0), 2)
+            # 平日のみベースロードを追加
+            if d.weekday() < 5:
+                day_assigned = round(task_day_assigned + base_load_per_day, 2)
+                day_free = round(max(0, HOURS_PER_DAY - day_assigned), 2)
+            else:
+                day_assigned = task_day_assigned
+                day_free = 0
+            daily_breakdown.append({
+                "date": d.isoformat(),
+                "assigned_hours": day_assigned,
+                "free_hours": day_free,
+            })
+            d += timedelta(days=1)
+        task_list = user_tasks.get(uid, [])
+        total_cost_hours = round(sum(x["cost"] for x in task_list), 2)
+        result.append({
+            "user_id": uid,
+            "user_name": users_map.get(uid, ""),
+            "total_cost_hours": total_cost_hours,
+            "assigned_hours": assigned,
+            "free_hours": round(free, 2),
+            "base_load_hours_per_week": round(base_load, 2),
+            "task_assigned_hours": round(task_assigned, 2),
+            "labor_hours_passed": round(user_labor_passed.get(uid, 0), 2),
+            "remaining_cost_hours": round(user_remaining_cost.get(uid, 0), 2),
+            "weekdays_passed": user_weekdays_passed.get(uid, 0),
+            "tasks": task_list,
+            "daily_breakdown": daily_breakdown,
+        })
+    result.sort(key=lambda x: (-x["free_hours"], x["user_name"] or str(x["user_id"])))
+    return result
+
+
+def get_daily_workload(
+    db: Session,
+    target_date: date,
+    include_offline: bool = False,
+    include_completed: bool = False,
+    consider_dependencies: bool = True,
+) -> List[dict]:
+    """
+    指定日のユーザー別工数（時間）を計算する。計算対象は未完了タスクのみ。
+    基準日は target_date（今日から見た情報）。開始日からの経過平日・経過労働時間・残りコストを返す。
+    その日の割り当ては残りコストを基準日以降の平日に按分したうちの対象日分。1日=8時間上限。
+    """
+    from collections import defaultdict
+
+    def to_date(d):
+        if d is None:
+            return None
+        if hasattr(d, "date"):
+            return d.date()
+        if isinstance(d, str):
+            try:
+                return datetime.strptime(d[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        return None
+
+    query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None))
+    query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    if not include_offline:
+        offline_project_ids = [
+            p.id for p in db.query(models.Project).filter(models.Project.display_status == "offline").all()
+        ]
+        if offline_project_ids:
+            query = query.filter(~models.Task.project_id.in_(offline_project_ids))
+    tasks = list(query.all())
+
+    dependency_ids = set()
+    for t in tasks:
+        dependency_ids.update(_parse_depends_on_ids(getattr(t, "dependsOn", None)))
+    if dependency_ids:
+        dep_tasks = db.query(models.Task).filter(models.Task.id.in_(list(dependency_ids))).all()
+        tasks_by_id = {t.id: t for t in list(tasks) + list(dep_tasks)}
+    else:
+        tasks_by_id = {t.id: t for t in tasks}
+
+    user_hours: dict = defaultdict(float)
+    user_labor_passed: dict = defaultdict(float)
+    user_remaining_cost: dict = defaultdict(float)
+    user_weekdays_passed: dict = defaultdict(int)
+
+    for t in tasks:
+        task_start, task_end, cost = _task_calendar_range(t, to_date)
+        if task_start is None or cost <= 0:
+            continue
+        total_weekdays = _count_weekdays(task_start, task_end)
+        if total_weekdays <= 0:
+            total_weekdays = 1
+        if target_date < task_start:
+            weekdays_passed = 0
+            labor_passed = 0
+            remaining = cost
+        elif target_date > task_end:
+            weekdays_passed = total_weekdays
+            labor_passed = cost
+            remaining = 0
+        else:
+            end_for_passed = min(target_date, task_end)
+            weekdays_passed = _count_weekdays(task_start, end_for_passed)
+            weekdays_passed = min(weekdays_passed, total_weekdays)
+            labor_passed = min(cost, weekdays_passed * HOURS_PER_DAY)
+            labor_passed = round(labor_passed, 2)
+            remaining = max(0, round(cost - labor_passed, 2))
+        effective_start = max(task_start, target_date)
+        remaining_weekdays = _count_weekdays(effective_start, task_end)
+        overlaps_today = task_start <= target_date <= task_end
+        if overlaps_today and consider_dependencies and not _is_task_unblocked_on_date(t, target_date, tasks_by_id, to_date):
+            user_labor_passed[t.assigned_to] += labor_passed
+            user_remaining_cost[t.assigned_to] += remaining
+            user_weekdays_passed[t.assigned_to] = max(user_weekdays_passed[t.assigned_to], weekdays_passed)
+            continue
+        if overlaps_today and remaining_weekdays > 0 and target_date.weekday() < 5:
+            user_hours[t.assigned_to] += remaining / remaining_weekdays
+        user_labor_passed[t.assigned_to] += labor_passed
+        user_remaining_cost[t.assigned_to] += remaining
+        user_weekdays_passed[t.assigned_to] = max(user_weekdays_passed[t.assigned_to], weekdays_passed)
+
+    all_user_ids = {u.id for u in db.query(models.User).all()}
+    for uid in user_hours:
+        all_user_ids.add(uid)
+    for uid in user_labor_passed:
+        all_user_ids.add(uid)
+    users_map = {}
+    user_base_loads = {}  # ユーザーID -> ベースロード（週あたり時間）
+    for u in db.query(models.User).filter(models.User.id.in_(all_user_ids)).all():
+        users_map[u.id] = u.username or u.full_name or u.name or f"User {u.id}"
+        user_base_loads[u.id] = float(u.base_load_hours_per_week or 0.0)
+
+    result = []
+    for uid in sorted(all_user_ids):
+        base_load = user_base_loads.get(uid, 0.0)
+        task_assigned = round(user_hours.get(uid, 0), 2)
+        # 平日のみベースロードを追加（週5日で按分）
+        if target_date.weekday() < 5:
+            base_load_per_day = base_load / 5.0
+            assigned = round(task_assigned + base_load_per_day, 2)
+            free = max(0, HOURS_PER_DAY - assigned)
+        else:
+            assigned = task_assigned
+            free = 0
+        base_load = user_base_loads.get(uid, 0.0)
+        base_load_per_day = base_load / 5.0 if target_date.weekday() < 5 else 0.0
+        task_assigned = round(user_hours.get(uid, 0), 2)
+        result.append({
+            "user_id": uid,
+            "user_name": users_map.get(uid, ""),
+            "assigned_hours": assigned,
+            "free_hours": round(free, 2),
+            "base_load_hours_per_week": round(base_load, 2),
+            "base_load_hours_per_day": round(base_load_per_day, 2),
+            "task_assigned_hours": round(task_assigned, 2),
+            "labor_hours_passed": round(user_labor_passed.get(uid, 0), 2),
+            "remaining_cost_hours": round(user_remaining_cost.get(uid, 0), 2),
+            "weekdays_passed": user_weekdays_passed.get(uid, 0),
+        })
+    result.sort(key=lambda x: (-x["free_hours"], x["user_name"] or str(x["user_id"])))
+    return result
+
+
+def create_event(db: Session, event: schemas.EventCreate) -> models.Event: # 型ヒント修正
+    """新規イベントを作成"""
+    project_id_int = _parse_int_safe(event.project_id) # project_id は Optional なので None かもしれない
+
+    db_event = models.Event(
+        title=event.title,
+        description=event.description,
+        start_time=_parse_datetime(event.start_time),
+        end_time=_parse_datetime(event.end_time),
+        location=event.location,      # Base から継承された Optional な属性
+        type=event.type,
+        allDay=event.allDay,          # Base から継承された Optional な属性
+        project_id=project_id_int,    # パース済み or None
+        status='online', # 新規作成時は常に online とする
+        participants=event.participants # 追加: スキーマから participants を渡す
+    )
+    db.add(db_event)
+    db.commit()
+    db.refresh(db_event)
+    # ★★★ デバッグログ追加: 保存後の participants を確認 ★★★
+    print(f"[DEBUG crud.create_event] Saved event with participants: {db_event.participants}")
+    return db_event
+
+def update_event(db: Session, db_event: models.Event, event_in: schemas.EventUpdate) -> models.Event: # 型ヒント修正
+    """イベント情報を更新"""
+    update_data = event_in.dict(exclude_unset=True)
+
+    for key, value in update_data.items():
+        db_key = key
+        parsed_value = value
+        if key == "project_id":
+            parsed_value = _parse_int_safe(value)
+            if parsed_value is None and value is not None: continue
+        elif key == "start_time" or key == "end_time":
+            parsed_value = _parse_datetime(value)
+        elif key == "status":
+            if value not in ['online', 'offline']:
+                continue
+
+        if hasattr(db_event, db_key):
+             setattr(db_event, db_key, parsed_value)
+
+    db.commit()
+    db.refresh(db_event)
+    return db_event
+
+def delete_event(db: Session, db_event: models.Event) -> models.Event:
+    """イベントを削除"""
+    db.delete(db_event)
+    db.commit()
+    return db_event
+
+# --- Group CRUD ---
+
+def get_group(db: Session, group_id: int) -> models.Group | None:
+    """ID でグループを取得"""
+    return db.query(models.Group).filter(models.Group.id == group_id).first()
+
+def get_groups(db: Session, skip: int = 0, limit: int = 100) -> list[models.Group]:
+    """グループリストを取得 (ページネーション対応)"""
+    return db.query(models.Group).offset(skip).limit(limit).all()
+
+def create_group(db: Session, group: schemas.GroupCreate) -> models.Group: # 型ヒント修正
+    """新規グループを作成"""
+    db_group = models.Group(
+        name=group.name,
+        description=group.description,
+    )
+    db.add(db_group)
+    db.commit()
+    db.refresh(db_group)
+    return db_group
+
+def update_group(db: Session, db_group: models.Group, group_in: schemas.GroupUpdate) -> models.Group:
+    """グループ情報を更新"""
+    update_data = group_in.dict(exclude_unset=True)
+    
+    for key, value in update_data.items():
+        if hasattr(db_group, key):
+            setattr(db_group, key, value)
+            
+    db.commit()
+    db.refresh(db_group)
+    return db_group
+
+def delete_group(db: Session, db_group: models.Group) -> models.Group:
+    """グループを削除"""
+    db.delete(db_group)
+    db.commit()
+    return db_group
+
+# --- UserGroup CRUD ---
+
+def get_user_group(db: Session, user_id: int, group_id: int) -> models.UserGroup | None:
+    """ユーザーIDとグループIDで関連を取得"""
+    return db.query(models.UserGroup).filter(
+        models.UserGroup.user_id == user_id, 
+        models.UserGroup.group_id == group_id
+    ).first()
+
+def get_user_groups_by_user(db: Session, user_id: int, skip: int = 0, limit: int = 100) -> list[models.UserGroup]:
+    """特定のユーザーが所属するグループ関連のリストを取得"""
+    return db.query(models.UserGroup).filter(models.UserGroup.user_id == user_id).offset(skip).limit(limit).all()
+
+def get_user_groups_by_group(db: Session, group_id: int, skip: int = 0, limit: int = 100) -> list[models.UserGroup]:
+    """特定のグループに所属するユーザー関連のリストを取得"""
+    return db.query(models.UserGroup).filter(models.UserGroup.group_id == group_id).offset(skip).limit(limit).all()
+
+def add_user_to_group(db: Session, user_group: schemas.UserGroupCreate) -> models.UserGroup | None: # 型ヒント修正
+    """ユーザーをグループに追加"""
+    user_id_int = _parse_int_safe(user_group.user_id)
+    group_id_int = _parse_int_safe(user_group.group_id)
+
+    if user_id_int is None or group_id_int is None:
+        print("Warning: Invalid user_id or group_id provided for UserGroup creation.")
+        return None
+
+    db_user_group = models.UserGroup(
+        user_id=user_id_int,
+        group_id=group_id_int,
+        role=user_group.role
+    )
+    db.add(db_user_group)
+    db.commit()
+    db.refresh(db_user_group)
+    return db_user_group
+
+def remove_user_from_group(db: Session, user_id: int, group_id: int) -> models.UserGroup | None:
+    """ユーザーをグループから削除"""
+    db_user_group = get_user_group(db, user_id, group_id)
+    if db_user_group:
+        db.delete(db_user_group)
+        db.commit()
+    return db_user_group
+
+# update_user_group_role なども必要に応じて追加
+
+def create_status_history(db: Session, task_id: int, status_history: schemas.StatusHistoryCreate) -> models.TaskStatusHistory:
+    """タスクのステータス履歴を記録"""
+    db_status_history = models.TaskStatusHistory(
+        task_id=task_id,
+        status=status_history.status,
+        changed_at=status_history.changed_at or now_jst_naive(),
+        changed_by=status_history.changed_by
+    )
+    db.add(db_status_history)
+    db.commit()
+    db.refresh(db_status_history)
+    return db_status_history
+
+def get_task_status_history(db: Session, task_id: int) -> List[models.TaskStatusHistory]:
+    """タスクのステータス履歴を取得"""
+    try:
+        return db.query(models.TaskStatusHistory).filter(
+            models.TaskStatusHistory.task_id == task_id
+        ).order_by(models.TaskStatusHistory.changed_at).all()
+    except Exception as e:
+        logger.error(f"ステータス履歴の取得に失敗: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"ステータス履歴の取得に失敗しました: {str(e)}"
+        )
+
+def get_status_change_metrics(
+    db: Session,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    project_id: Optional[int] = None
+) -> List[dict]:
+    """ステータス変更のメトリクスを取得"""
+    query = db.query(
+        models.TaskStatusHistory.changed_at.label('date'),
+        models.TaskStatusHistory.status,
+        func.count(models.TaskStatusHistory.id).label('count'),
+        models.Task.project_id,
+        models.Project.name.label('project_name')
+    ).join(
+        models.Task,
+        models.TaskStatusHistory.task_id == models.Task.id
+    ).join(
+        models.Project,
+        models.Task.project_id == models.Project.id
+    )
+
+    if start_date:
+        query = query.filter(models.TaskStatusHistory.changed_at >= start_date)
+    if end_date:
+        query = query.filter(models.TaskStatusHistory.changed_at <= end_date)
+    if project_id:
+        query = query.filter(models.Task.project_id == project_id)
+
+    return query.group_by(
+        models.TaskStatusHistory.changed_at,
+        models.TaskStatusHistory.status,
+        models.Task.project_id,
+        models.Project.name
+    ).all()
+
+# --- Note CRUD ---
+
+def get_note(db: Session, note_id: int) -> models.Note | None:
+    """ID でメモを取得"""
+    return db.query(models.Note).filter(models.Note.id == note_id).first()
+
+def get_notes(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    created_by: int | None = None,
+    project_id: int | None = None
+) -> list[models.Note]:
+    """メモリストを取得 (ページネーション対応、作成者・プロジェクトフィルタ可能)
+    
+    project_idがNoneの場合:
+    - フロントエンドからproject_idパラメータが送られてこない場合 → フィルタリングしない（全件取得）
+    - フロントエンドからproject_id=nullが明示的に送られてきた場合 → project_id IS NULLでフィルタリング
+    """
+    from sqlalchemy import or_
+    query = db.query(models.Note)
+    if created_by is not None:
+        query = query.filter(models.Note.created_by == created_by)
+    # project_idはOptional[int]なので、Noneの場合はフィルタリングしない
+    # ただし、明示的にnullを指定したい場合は別の方法が必要
+    # 現在の実装では、project_idがNoneの場合はフィルタリングしない
+    if project_id is not None:
+        query = query.filter(models.Note.project_id == project_id)
+    return query.order_by(models.Note.created_at.desc()).offset(skip).limit(limit).all()
+
+def create_note(db: Session, note: schemas.NoteCreate, created_by: int) -> models.Note:
+    """新規メモを作成"""
+    db_note = models.Note(
+        title=note.title,
+        content=note.content,
+        image_urls=note.image_urls or [],
+        pdf_urls=getattr(note, 'pdf_urls', None) or [],
+        project_id=note.project_id,
+        created_by=created_by,
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_note)
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+def update_note(db: Session, db_note: models.Note, note_in: schemas.NoteUpdate, upload_dir: str = None) -> models.Note:
+    """メモ情報を更新（削除された画像ファイルも削除）"""
+    import os
+    
+    # 画像URLが更新される場合、削除された画像ファイルを削除
+    if 'image_urls' in note_in.dict(exclude_unset=True) and upload_dir:
+        old_image_urls = set(db_note.image_urls or [])
+        new_image_urls = set(note_in.image_urls or [])
+        deleted_urls = old_image_urls - new_image_urls
+        
+        # 削除された画像ファイルを物理的に削除
+        for image_url in deleted_urls:
+            if image_url and image_url.startswith('/static/uploads/'):
+                filename = os.path.basename(image_url)
+                file_path = os.path.join(upload_dir, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"画像ファイルを削除しました: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"画像ファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
+    # PDF URLが更新される場合、削除されたPDFファイルを削除
+    if 'pdf_urls' in note_in.dict(exclude_unset=True) and upload_dir:
+        old_pdf_urls = set(db_note.pdf_urls or [])
+        new_pdf_urls = set(note_in.pdf_urls or [])
+        deleted_pdf_urls = old_pdf_urls - new_pdf_urls
+        
+        for pdf_url in deleted_pdf_urls:
+            if pdf_url and pdf_url.startswith('/static/uploads/'):
+                filename = os.path.basename(pdf_url)
+                file_path = os.path.join(upload_dir, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logger.info(f"PDFファイルを削除しました: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"PDFファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
+    update_data = note_in.dict(exclude_unset=True)
+    
+    for key, value in update_data.items():
+        if hasattr(db_note, key):
+            setattr(db_note, key, value)
+    
+    db_note.updated_at = now_jst_naive()
+    db.commit()
+    db.refresh(db_note)
+    return db_note
+
+def delete_note(db: Session, db_note: models.Note, upload_dir: str = None) -> models.Note:
+    """メモを削除（画像ファイルも削除）"""
+    import os
+    
+    # 画像ファイルを削除
+    if db_note.image_urls and upload_dir:
+        for image_url in db_note.image_urls:
+            if image_url and image_url.startswith('/static/uploads/'):
+                # URLからファイル名を抽出
+                filename = os.path.basename(image_url)
+                file_path = os.path.join(upload_dir, filename)
+                
+                # ファイルが存在する場合のみ削除
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        logger.warning(f"画像ファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
+    # PDFファイルを削除
+    if db_note.pdf_urls and upload_dir:
+        for pdf_url in db_note.pdf_urls:
+            if pdf_url and pdf_url.startswith('/static/uploads/'):
+                filename = os.path.basename(pdf_url)
+                file_path = os.path.join(upload_dir, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        logger.warning(f"PDFファイルの削除に失敗しました: {file_path}, エラー: {str(e)}")
+    
+    db.delete(db_note)
+    db.commit()
+    return db_note
+
+# --- UserActivity CRUD ---
+
+def get_cycle_date(dt: datetime) -> datetime:
+    """5:00~28:59（翌日の4:59まで）の周期を計算し、その周期の開始日（5:00）を返す"""
+    # 現在時刻が5:00より前なら、前日の5:00を周期開始日とする
+    if dt.hour < 5:
+        # 前日の5:00を周期開始日とする
+        cycle_start = dt.replace(hour=5, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    else:
+        # 当日の5:00を周期開始日とする
+        cycle_start = dt.replace(hour=5, minute=0, second=0, microsecond=0)
+    return cycle_start
+
+def create_user_activity(db: Session, user_id: int, active_at: Optional[datetime] = None) -> models.UserActivity:
+    """ユーザーのアクティビティを記録"""
+    if active_at is None:
+        active_at = now_jst_naive()
+    
+    cycle_date = get_cycle_date(active_at)
+    
+    db_activity = models.UserActivity(
+        user_id=user_id,
+        active_at=active_at,
+        cycle_date=cycle_date,
+        created_at=now_jst_naive()
+    )
+    db.add(db_activity)
+    db.commit()
+    db.refresh(db_activity)
+    return db_activity
+
+def get_user_activities(
+    db: Session,
+    user_id: Optional[int] = None,
+    cycle_date: Optional[datetime] = None,
+    skip: int = 0,
+    limit: int = 10000
+) -> List[models.UserActivity]:
+    """ユーザーアクティビティを取得"""
+    from sqlalchemy import func, cast, Date
+    
+    query = db.query(models.UserActivity)
+    
+    if user_id is not None:
+        query = query.filter(models.UserActivity.user_id == user_id)
+    
+    if cycle_date is not None:
+        # 周期日の日付部分のみで比較（時刻を無視）
+        cycle_date_only = cycle_date.date()
+        query = query.filter(func.date(models.UserActivity.cycle_date) == cycle_date_only)
+    
+    return query.order_by(models.UserActivity.active_at.desc()).offset(skip).limit(limit).all()
+
+def get_user_activities_by_cycle(
+    db: Session,
+    cycle_date: Optional[datetime] = None,
+    skip: int = 0,
+    limit: int = 10000
+) -> List[models.UserActivity]:
+    """周期日でアクティビティを取得（全ユーザー）"""
+    if cycle_date is None:
+        cycle_date = get_cycle_date(now_jst_naive())
+    
+    return get_user_activities(db, user_id=None, cycle_date=cycle_date, skip=skip, limit=limit)
+
+
+# --- Google Calendar 連携 ---
+
+def get_user_google_token(db: Session, user_id: int) -> Optional[models.UserGoogleToken]:
+    """ユーザーの Google トークンを取得"""
+    return db.query(models.UserGoogleToken).filter(models.UserGoogleToken.user_id == user_id).first()
+
+
+def upsert_user_google_token(
+    db: Session,
+    user_id: int,
+    access_token: str,
+    refresh_token: Optional[str] = None,
+    expires_at: Optional[datetime] = None,
+    calendar_id: Optional[str] = None,
+) -> models.UserGoogleToken:
+    """Google トークンを保存（存在すれば更新）"""
+    now = now_jst_naive()
+    row = get_user_google_token(db, user_id)
+    if row:
+        row.access_token = access_token
+        row.refresh_token = refresh_token or row.refresh_token
+        row.expires_at = expires_at
+        if calendar_id:
+            row.calendar_id = calendar_id
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.UserGoogleToken(
+        user_id=user_id,
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_at=expires_at,
+        calendar_id=calendar_id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def delete_user_google_token(db: Session, user_id: int) -> bool:
+    """ユーザーの Google トークンを削除"""
+    row = get_user_google_token(db, user_id)
+    if not row:
+        return False
+    db.delete(row)
+    db.commit()
+    return True
+
+
+def get_task_google_sync(db: Session, user_id: int, task_id: int) -> Optional[models.TaskGoogleSync]:
+    """ユーザー・タスクの Google 同期レコードを取得"""
+    return (
+        db.query(models.TaskGoogleSync)
+        .filter(models.TaskGoogleSync.user_id == user_id, models.TaskGoogleSync.task_id == task_id)
+        .first()
+    )
+
+
+def get_synced_task_ids_for_user(db: Session, user_id: int) -> List[int]:
+    """ユーザーが「Googleに表示」をONにしているタスクIDのリスト（実際にGoogle側にイベントがあるもののみ）"""
+    rows = db.query(models.TaskGoogleSync.task_id).filter(
+        models.TaskGoogleSync.user_id == user_id,
+        models.TaskGoogleSync.google_event_id != ""
+    ).all()
+    return [r[0] for r in rows]
+
+def get_synced_event_ids_for_user(db: Session, user_id: int) -> List[int]:
+    """ユーザーが「Googleに表示」をONにしているイベントIDのリスト"""
+    rows = db.query(models.EventGoogleSync.event_id).filter(
+        models.EventGoogleSync.user_id == user_id,
+        models.EventGoogleSync.google_event_id != ""
+    ).all()
+    return [r[0] for r in rows]
+
+
+def set_task_google_sync(
+    db: Session, user_id: int, task_id: int, google_event_id: str
+) -> models.TaskGoogleSync:
+    """タスクの Google 同期を登録"""
+    now = now_jst_naive()
+    row = get_task_google_sync(db, user_id, task_id)
+    if row:
+        row.google_event_id = google_event_id
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.TaskGoogleSync(
+        user_id=user_id,
+        task_id=task_id,
+        google_event_id=google_event_id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def delete_task_google_sync(db: Session, user_id: int, task_id: int) -> bool:
+    """タスクの Google 同期を削除"""
+    row = get_task_google_sync(db, user_id, task_id)
+    if not row:
+        return False
+    db.delete(row)
+    db.commit()
+    return True
+
+
+def get_task_google_syncs_for_task(db: Session, task_id: int) -> List[models.TaskGoogleSync]:
+    """あるタスクを同期している全ユーザーのレコード"""
+    return db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.task_id == task_id).all()
+
+
+def get_project_google_sync(db: Session, user_id: int, project_id: int) -> Optional[models.ProjectGoogleSync]:
+    return db.query(models.ProjectGoogleSync).filter(
+        models.ProjectGoogleSync.user_id == user_id, models.ProjectGoogleSync.project_id == project_id
+    ).first()
+
+def set_project_google_sync(db: Session, user_id: int, project_id: int, google_event_id: str) -> models.ProjectGoogleSync:
+    now = now_jst_naive()
+    row = get_project_google_sync(db, user_id, project_id)
+    if row:
+        row.google_event_id = google_event_id
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.ProjectGoogleSync(
+        user_id=user_id, project_id=project_id, google_event_id=google_event_id, created_at=now, updated_at=now
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def delete_project_google_sync(db: Session, user_id: int, project_id: int) -> bool:
+    row = get_project_google_sync(db, user_id, project_id)
+    if not row: return False
+    db.delete(row)
+    db.commit()
+    return True
+
+def get_project_google_syncs_for_project(db: Session, project_id: int) -> List[models.ProjectGoogleSync]:
+    return db.query(models.ProjectGoogleSync).filter(models.ProjectGoogleSync.project_id == project_id).all()
+
+
+def get_event_google_sync(db: Session, user_id: int, event_id: int) -> Optional[models.EventGoogleSync]:
+    return db.query(models.EventGoogleSync).filter(
+        models.EventGoogleSync.user_id == user_id, models.EventGoogleSync.event_id == event_id
+    ).first()
+
+def set_event_google_sync(db: Session, user_id: int, event_id: int, google_event_id: str) -> models.EventGoogleSync:
+    now = now_jst_naive()
+    row = get_event_google_sync(db, user_id, event_id)
+    if row:
+        row.google_event_id = google_event_id
+        row.updated_at = now
+        db.commit()
+        db.refresh(row)
+        return row
+    row = models.EventGoogleSync(
+        user_id=user_id, event_id=event_id, google_event_id=google_event_id, created_at=now, updated_at=now
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def delete_event_google_sync(db: Session, user_id: int, event_id: int) -> bool:
+    row = get_event_google_sync(db, user_id, event_id)
+    if not row: return False
+    db.delete(row)
+    db.commit()
+    return True
+
+def get_event_google_syncs_for_event(db: Session, event_id: int) -> List[models.EventGoogleSync]:
+    return db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id == event_id).all()
+
+
+# --- Meeting CRUD ---
+
+def get_meeting(db: Session, meeting_id: int) -> models.Meeting | None:
+    return db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+
+def get_meetings_by_project(db: Session, project_id: int, skip: int = 0, limit: int = 100) -> List[models.Meeting]:
+    return db.query(models.Meeting).filter(models.Meeting.project_id == project_id).order_by(models.Meeting.date.desc()).offset(skip).limit(limit).all()
+
+def create_meeting(db: Session, meeting: schemas.MeetingCreate) -> models.Meeting:
+    db_meeting = models.Meeting(
+        title=meeting.title,
+        project_id=meeting.project_id,
+        date=meeting.date or now_jst_naive(),
+        version_group=meeting.version_group,
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_meeting)
+    db.commit()
+    db.refresh(db_meeting)
+    return db_meeting
+
+def update_meeting(db: Session, db_meeting: models.Meeting, updates: dict) -> models.Meeting:
+    for key, value in updates.items():
+        if hasattr(db_meeting, key):
+            setattr(db_meeting, key, value)
+    db_meeting.updated_at = now_jst_naive()
+    db.commit()
+    db.refresh(db_meeting)
+    return db_meeting
+
+def delete_meeting(db: Session, db_meeting: models.Meeting) -> models.Meeting:
+    db.delete(db_meeting)
+    db.commit()
+    return db_meeting
+
+# --- Decision CRUD ---
+
+def create_decision(db: Session, decision: schemas.DecisionCreate) -> models.Decision:
+    db_decision = models.Decision(
+        meeting_id=decision.meeting_id,
+        content=decision.content,
+        date=decision.date or now_jst_naive(),
+        superseded=decision.superseded,
+        project_id=decision.project_id
+    )
+    db.add(db_decision)
+    db.commit()
+    db.refresh(db_decision)
+    return db_decision
+
+def get_decisions(db: Session, project_id: Optional[int] = None, meeting_id: Optional[int] = None, superseded: Optional[bool] = None) -> List[models.Decision]:
+    query = db.query(models.Decision)
+    if project_id is not None:
+        query = query.filter(models.Decision.project_id == project_id)
+    if meeting_id is not None:
+        query = query.filter(models.Decision.meeting_id == meeting_id)
+    if superseded is not None:
+        query = query.filter(models.Decision.superseded == superseded)
+    return query.order_by(models.Decision.date.desc()).all()
+
+def get_latest_meeting(db: Session, project_id: Optional[int] = None) -> Optional[models.Meeting]:
+    """最新（日付が最後）の完了済み議事録を1件取得"""
+    query = db.query(models.Meeting).filter(models.Meeting.status == "completed")
+    if project_id:
+        query = query.filter(models.Meeting.project_id == project_id)
+    return query.order_by(models.Meeting.date.desc()).first()
+
+def update_decision(db: Session, db_decision: models.Decision, updates: dict) -> models.Decision:
+    for key, value in updates.items():
+        if hasattr(db_decision, key):
+            setattr(db_decision, key, value)
+    db.commit()
+    db.refresh(db_decision)
+    return db_decision
+
+def get_all_meeting_summaries(db: Session, project_id: Optional[int] = None) -> str:
+    """会議の全タイトルと抽出項目の要約を結合して返す（AIのコンテキスト用）"""
+    query = db.query(models.Meeting).filter(models.Meeting.status == "completed")
+    if project_id:
+        query = query.filter(models.Meeting.project_id == project_id)
+    items = query.order_by(models.Meeting.date.desc()).all()
+    
+    if not items:
+        return "利用可能な議事録はありません。"
+        
+    context = ""
+    for item in items:
+        date_str = item.date.strftime("%Y-%m-%d") if item.date else "不明"
+        context += f"- 【会議：{item.title}】 (ID: {item.id}, 日付: {date_str}, グループ: {item.version_group or 'なし'})\n"
+        if item.decisions:
+            # 増やしてより多くのコンテキストを提供
+            context += f"  決定事項: {', '.join(item.decisions[:10])}\n"
+        if item.tasks:
+            context += f"  タスク: {', '.join(item.tasks[:5])}...\n"
+    return context
+
+# --- Chat Message CRUD ---
+
+def create_chat_message(db: Session, conversation_id: str, role: str, content: str, user_id: Optional[int] = None) -> models.ChatMessage:
+    """会話メッセージを保存"""
+    db_msg = models.ChatMessage(
+        conversation_id=conversation_id,
+        role=role,
+        content=content,
+        user_id=user_id,
+        created_at=now_jst_naive()
+    )
+    db.add(db_msg)
+    db.commit()
+    db.refresh(db_msg)
+    return db_msg
+
+def get_chat_messages(db: Session, conversation_id: str, limit: int = 50) -> List[models.ChatMessage]:
+    """会話履歴を取得 (新しい順に取得して逆順で返す)"""
+    messages = db.query(models.ChatMessage).filter(
+        models.ChatMessage.conversation_id == conversation_id
+    ).order_by(models.ChatMessage.created_at.desc()).limit(limit).all()
+    return list(reversed(messages))
+
+def delete_conversation_messages(db: Session, conversation_id: str):
+    """特定の会話の全メッセージを削除"""
+    db.query(models.ChatMessage).filter(
+        models.ChatMessage.conversation_id == conversation_id
+    ).delete()
+    db.commit()
+
+
+# --- Knowledge Base CRUD ---
+
+def get_knowledge_item(db: Session, item_id: int) -> models.KnowledgeItem | None:
+    return db.query(models.KnowledgeItem).filter(models.KnowledgeItem.id == item_id).first()
+
+def get_knowledge_items(db: Session, project_id: Optional[int] = None, skip: int = 0, limit: int = 100) -> List[models.KnowledgeItem]:
+    query = db.query(models.KnowledgeItem)
+    if project_id is not None:
+        query = query.filter(models.KnowledgeItem.project_id == project_id)
+    return query.order_by(models.KnowledgeItem.created_at.desc()).offset(skip).limit(limit).all()
+
+def create_knowledge_item(db: Session, item: schemas.KnowledgeItemCreate) -> models.KnowledgeItem:
+    db_item = models.KnowledgeItem(
+        title=item.title,
+        project_id=item.project_id,
+        file_name=item.file_name,
+        file_path=item.file_path,
+        file_type=item.file_type,
+        created_by=item.created_by,
+        status="pending",
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def update_knowledge_item(db: Session, db_item: models.KnowledgeItem, updates: dict) -> models.KnowledgeItem:
+    for key, value in updates.items():
+        if hasattr(db_item, key):
+            setattr(db_item, key, value)
+    db_item.updated_at = now_jst_naive()
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def delete_knowledge_item(db: Session, db_item: models.KnowledgeItem) -> None:
+    db.delete(db_item)
+    db.commit()
+
+def add_knowledge_tag(db: Session, item_id: int, tag_name: str) -> models.KnowledgeTag:
+    db_tag = models.KnowledgeTag(knowledge_item_id=item_id, name=tag_name)
+    db.add(db_tag)
+    db.commit()
+    db.refresh(db_tag)
+    return db_tag
+
+def get_all_knowledge_summaries(db: Session, project_id: Optional[int] = None) -> str:
+    """知識項目の全タイトルと要約を結合して返す（AIのコンテキスト用）"""
+    query = db.query(models.KnowledgeItem).filter(models.KnowledgeItem.status == "completed")
+    if project_id:
+        query = query.filter(models.KnowledgeItem.project_id == project_id)
+    items = query.all()
+    
+    if not items:
+        return "利用可能な知識ベースの資料はありません。"
+        
+    context = ""
+    for item in items:
+        tags = ", ".join([t.name for t in item.tags])
+        project_name = item.project.name if item.project else "全般"
+        context += f"- 【資料：{item.title}】 (ID: {item.id}, プロジェクト: {project_name}, タグ: [{tags}])\n"
+        if item.summary:
+            context += f"  内容要約: {item.summary}\n"
+        else:
+            # 要約がない場合は冒頭を少し出す
+            snippet = (item.content_text or "")[:200].replace("\n", " ")
+            context += f"  プレビュー: {snippet}...\n"
+    return context

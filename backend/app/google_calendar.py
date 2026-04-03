@@ -87,10 +87,12 @@ def refresh_access_token(refresh_token: str) -> Optional[dict]:
     try:
         with httpx.Client() as client:
             r = client.post(TOKEN_URL, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=15.0)
+            if r.status_code != 200:
+                logger.error(f"Google token refresh failed. Status: {r.status_code}, Body: {r.text}")
             r.raise_for_status()
             return r.json()
     except Exception as e:
-        logger.exception("Google token refresh failed: %s", e)
+        logger.error("Google token refresh failed with exception: %s", e)
         return None
 
 

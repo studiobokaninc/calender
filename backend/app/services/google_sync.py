@@ -120,7 +120,16 @@ def _ensure_token_updated(db: Session, token_row: models.UserGoogleToken) -> Opt
         db.commit()
         db.refresh(token_row)
         return token_row.access_token
-    return token_row.access_token
+    
+    # 完全に失効している場合はアクセストークンを返さず None を返す（無限リトライ防止）
+    logger.error(f"Failed to refresh Google token for user {token_row.user_id}. Automatically clearing invalid token.")
+    # ここでトークンを削除。cleanup_all_google_events_bg が後で呼ばれる可能性があるが、
+    # 先にトークンを消しておくことで他の並列プロセスが API を叩くのを即座に停止できる。
+    user_id = token_row.user_id
+    db.delete(token_row)
+    db.commit()
+    logger.info(f"Token for user {user_id} deleted due to refresh failure.")
+    return None
 
 def _ensure_calendar_id(db: Session, token_row: models.UserGoogleToken) -> str | None:
     access_token = _ensure_token_updated(db, token_row)
@@ -142,6 +151,10 @@ def sync_task_to_google(db: Session, task: models.Task, token_row: models.UserGo
     """単一のタスクを同期。権限とプロジェクトステータスをチェックする。"""
     access_token = _ensure_token_updated(db, token_row)
     if not access_token:
+        # トークンが失効している場合、自動的に連携解除プロセスを開始する
+        logger.warning(f"Google token for user {user_id} is invalid. Triggering automatic disconnect.")
+        import threading
+        threading.Thread(target=cleanup_all_google_events_bg, args=(user_id,)).start()
         return
 
     sync_row = crud.get_task_google_sync(db, user_id, task.id)
@@ -249,6 +262,10 @@ def sync_event_to_google(db: Session, event: models.Event, token_row: models.Use
     """単一のイベント（会議）を同期。"""
     access_token = _ensure_token_updated(db, token_row)
     if not access_token:
+        # トークンが失効している場合、自動的に連携解除プロセスを開始する
+        logger.warning(f"Google token for user {user_id} is invalid. Triggering automatic disconnect.")
+        import threading
+        threading.Thread(target=cleanup_all_google_events_bg, args=(user_id,)).start()
         return
 
     sync_row = crud.get_event_google_sync(db, user_id, event.id)
@@ -347,25 +364,30 @@ def initial_sync_for_user_bg(user_id: int, db: Session = None):
 def cleanup_all_google_events(db: Session, user_id: int):
     """連携解除時の全件削除。"""
     token_row = crud.get_user_google_token(db, user_id)
-    if not token_row:
-        return
-    access_token = _ensure_token_updated(db, token_row)
-    cal_id = _ensure_calendar_id(db, token_row)
-    if not cal_id or not access_token:
-        return
+    access_token = None
+    cal_id = None
+    if token_row:
+        access_token = _ensure_token_updated(db, token_row)
+        cal_id = _ensure_calendar_id(db, token_row)
+    
+    # トークンが死んでいる、または既になくなっていても、DB側の同期レコードは削除を進める必要がある（無限ループ/表示不整合防止）
+    if not token_row or not cal_id or not access_token:
+        logger.warning(f"Google sync cleanup for user {user_id}: Token/Calendar is missing. Proceeding with DB-only cleanup.")
     
     # 登録済みの全同期レコードを取得
     task_syncs = db.query(models.TaskGoogleSync).filter(models.TaskGoogleSync.user_id == user_id).all()
     for s in task_syncs:
         if s.google_event_id:
             try:
-                google_calendar.delete_calendar_event(
-                    access_token=access_token,
-                    refresh_token=token_row.refresh_token,
-                    expires_at=token_row.expires_at,
-                    event_id=s.google_event_id,
-                    calendar_id=cal_id
-                )
+                # トークン情報が揃っている場合のみ Google API を叩く
+                if token_row and access_token and cal_id:
+                    google_calendar.delete_calendar_event(
+                        access_token=access_token,
+                        refresh_token=token_row.refresh_token,
+                        expires_at=token_row.expires_at,
+                        event_id=s.google_event_id,
+                        calendar_id=cal_id
+                    )
             except Exception as e:
                 logger.error(f"Cleanup: Failed to delete task event {s.google_event_id}: {e}")
             s.google_event_id = ""
@@ -374,13 +396,14 @@ def cleanup_all_google_events(db: Session, user_id: int):
     for s in event_syncs:
         if s.google_event_id:
             try:
-                google_calendar.delete_calendar_event(
-                    access_token=access_token,
-                    refresh_token=token_row.refresh_token,
-                    expires_at=token_row.expires_at,
-                    event_id=s.google_event_id,
-                    calendar_id=cal_id
-                )
+                if token_row and access_token and cal_id:
+                    google_calendar.delete_calendar_event(
+                        access_token=access_token,
+                        refresh_token=token_row.refresh_token,
+                        expires_at=token_row.expires_at,
+                        event_id=s.google_event_id,
+                        calendar_id=cal_id
+                    )
             except Exception as e:
                 logger.error(f"Cleanup: Failed to delete meeting event {s.google_event_id}: {e}")
             s.google_event_id = ""

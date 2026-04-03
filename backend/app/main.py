@@ -111,7 +111,7 @@ app.include_router(users_router.router)
 app.include_router(groups_router.router)
 app.include_router(notes_router.router)
 app.include_router(activities_router.router)
-app.include_router(admin_router.router, prefix="/api")
+app.include_router(admin_router.router)
 
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])

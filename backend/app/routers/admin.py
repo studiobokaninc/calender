@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from .. import crud, models, schemas, security
-from ..database import get_db
+from ..database import get_db, DATABASE_FILE_PATH
+from fastapi.responses import FileResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -98,3 +99,27 @@ async def import_csv_data(
     decoded = content.decode("utf-8")
     # CSVのパースと投入処理
     return {"message": "CSV import received"}
+
+@router.get("/backup-db")
+def backup_db_file(
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """データベースファイル (.db) を直接ダウンロード"""
+    if not DATABASE_FILE_PATH.exists():
+        logger.error(f"Database file not found at {DATABASE_FILE_PATH}")
+        raise HTTPException(status_code=404, detail="データベースファイルが見つかりません")
+    
+    return FileResponse(
+        path=str(DATABASE_FILE_PATH),
+        filename=os.path.basename(DATABASE_FILE_PATH),
+        media_type="application/octet-stream"
+    )
+
+@router.get("/backup")
+def backup_json_data(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """全データをJSON形式でバックアップとして取得"""
+    # エクスポートロジックを流用（または共通化）
+    return export_mock_data(db=db, current_user=current_user)

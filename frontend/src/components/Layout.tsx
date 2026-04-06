@@ -50,6 +50,7 @@ import {
   Search as SearchIcon,
   Description as DescriptionIcon,
   LibraryBooks as KnowledgeIcon,
+  ViewModule as TrackerIcon,
 } from '@mui/icons-material'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
@@ -139,6 +140,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const allMenuItems: MenuItemType[] = [
     { text: 'チャット', icon: <ChatIcon />, path: '/chat' },
     { text: 'ダッシュボード', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: '進捗トラッカー', icon: <TrackerIcon />, path: '/production-tracker', isAdmin: true },
     { text: 'カレンダー', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },

@@ -193,6 +193,16 @@ export const mockDataApi = {
       throw error;
     }
   },
+
+  // ショット進捗トラッカーデータの取得
+  getProductionTracker: async (projectId: number) => {
+    try {
+      const response = await api.get(`/projects/${projectId}/production-tracker`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
 // --- データ取得API ---

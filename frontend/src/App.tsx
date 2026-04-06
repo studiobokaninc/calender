@@ -26,6 +26,7 @@ import ChatPage from './pages/ChatPage';
 import UserActivityPage from './pages/UserActivityPage';
 import MeetingMinutesPage from './pages/MeetingMinutesPage';
 import KnowledgePage from './pages/KnowledgePage';
+import ProductionTrackerPage from './pages/ProductionTrackerPage';
 
 // ★★★ PrivateRoute component ★★★
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -98,6 +99,7 @@ const App: React.FC = () => {
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="events" element={<AdminRoute><Navigate to="/metrics?tab=events" replace /></AdminRoute>} />
             <Route path="projects/:projectId" element={<AdminRoute><ProjectDetailPage /></AdminRoute>} />
+            <Route path="production-tracker" element={<AdminRoute><ProductionTrackerPage /></AdminRoute>} />
             <Route path="admin/users" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
 
             {/* Admin Block contents merged here */}

@@ -131,16 +131,18 @@ async def import_csv_data(
     # (project_id, task_name) -> db_task
     tasks_to_resolve_deps = [] # List of (db_task, deps_str_list)
 
-    # --- Helper: Get User ID by Name or Email ---
     def find_user_id(identifier: str) -> Optional[int]:
         if not identifier: return None
-        first_name = identifier.split("/")[0].split(",")[0].strip()
+        # "/" や "," で区切られている可能性も考慮
+        clean_id = identifier.split("/")[0].split(",")[0].strip()
+        
+        # username -> full_name -> name -> email の順で検索
         u = db.query(models.User).filter(
             or_(
-                models.User.full_name == first_name,
-                models.User.email == first_name,
-                models.User.name == first_name,
-                models.User.username == first_name
+                models.User.username == clean_id,
+                models.User.full_name == clean_id,
+                models.User.name == clean_id,
+                models.User.email == clean_id
             )
         ).first()
         return u.id if u else None
@@ -225,16 +227,23 @@ async def import_csv_data(
             shot_id = row[7].strip() if len(row) > 7 else None
             deps_raw = row[8].strip() if len(row) > 8 else ""
             
-            # --- 開始日の自動計算 (8コスト=1日) ---
-            # start_date = due_date - ((cost-1)//8) days
+            # --- 開始日の自動計算 (8コスト=1日, 土日スキップ) ---
             start_date = None
             if due_date and cost > 0:
                 days_needed = int((max(0.1, cost) - 0.1) // 8)
-                start_date = due_date - timedelta(days=days_needed)
+                current_d = due_date
+                count = 0
+                while count < days_needed:
+                    current_d -= timedelta(days=1)
+                    # 土日(5, 6)はカウント対象外
+                    if current_d.weekday() >= 5:
+                        continue
+                    count += 1
+                start_date = current_d
             
             user_id = find_user_id(assignee)
             
-            # 既存タスクがあるか確認（プロジェクト内での重複を避ける）
+            # 既存タスクがあるか確認
             task_obj = db.query(models.Task).filter(
                 models.Task.project_id == project.id,
                 models.Task.name == name
@@ -248,6 +257,10 @@ async def import_csv_data(
                 )
                 db.add(task_obj)
                 imported_tasks += 1
+            else:
+                # 既存タスクがある場合も「更新」としてカウントする場合
+                # imported_tasks += 1
+                pass
 
             # プロパティ更新
             task_obj.due_date = due_date
@@ -335,9 +348,10 @@ def get_csv_template(
     
     # タスク情報セクション
     writer.writerow(["タスク情報", "", "", "", "", "", "", "", ""])
-    writer.writerow(["タスク名", "期日", "説明", "担当者", "コスト", "タイプ", "seqID", "shotID", "依存タスク"])
-    writer.writerow(["タスク1", "2026/04/15", "タスクの詳細内容", "admin", "16", "Task", "SEQ001", "SHOT001", ""])
-    writer.writerow(["タスク2", "2026/04/20", "別のタスク", "admin", "8", "Task", "SEQ001", "SHOT001", "タスク1"])
+    writer.writerow(["タスク名", "期日", "説明", "担当者", "コスト", "タイプ(推奨:development,design,documentation,testing,review,meeting,fx,asset,animation,lighting,comp)", "seqID", "shotID", "依存タスク(複数ある場合はカンマ区切り)"])
+    writer.writerow(["タスク1", "2026/04/15", "タスクの詳細内容", "username", "16", "design", "SEQ001", "SHOT001", ""])
+    writer.writerow(["タスク2", "2026/04/20", "土日を考慮した開始日逆算が行われます", "username", "8", "development", "SEQ001", "SHOT002", "タスク1"])
+    writer.writerow(["タスク3", "2026/04/25", "複数の依存関係を設定可能", "username", "24", "testing", "SEQ001", "SHOT003", "タスク1, タスク2"])
     
     return Response(
         content=output.getvalue(),

@@ -130,6 +130,9 @@ class Task(Base):
     display_status: Mapped[str] = mapped_column(String, default='online', index=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column()
 
+    assignee: Mapped[Optional["User"]] = relationship("User")
+    project: Mapped[Optional["Project"]] = relationship("Project")
+
     status_history: Mapped[List["TaskStatusHistory"]] = relationship(
         back_populates="task",
         order_by="TaskStatusHistory.changed_at",

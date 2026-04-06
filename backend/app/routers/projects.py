@@ -128,3 +128,73 @@ def delete_project_endpoint(
     except Exception as e:
         logger.exception("Error deleting project")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.get("/{project_id}/production-tracker")
+def get_production_tracker_endpoint(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """シーケンス軸での進捗マトリックスデータを取得"""
+    from sqlalchemy import or_
+    
+    from sqlalchemy.orm import joinedload
+    from typing import Dict, Any
+    
+    # すべてのタスクを取得（seqID/shotID がないものも「Other」として扱うため）
+    tasks = db.query(models.Task).options(joinedload(models.Task.assignee)).filter(
+        models.Task.project_id == project_id
+    ).all()
+    
+    # シーケンスをキーとした構造
+    seq_dict: Dict[str, Any] = {}
+    all_types = set()
+    
+    # 推奨順序
+    priority_types = ["design", "asset", "animation", "fx", "lighting", "comp", "review", "testing"]
+    
+    for t in tasks:
+        # シーケンス名をメインキーにする
+        qid = str(t.seqID or "Other")
+        
+        if qid not in seq_dict:
+            seq_dict[qid] = {
+                "seqID": qid,
+                "tasks": {} # type -> task_info list
+            }
+        
+        target_seq = seq_dict[qid]
+        task_type = t.type or "NONE"
+        all_types.add(task_type)
+        
+        # 担当者名（フルネーム優先、なければユーザー名）
+        assignee_name = None
+        if t.assignee:
+            assignee_name = t.assignee.full_name or t.assignee.username
+            
+        task_info = {
+            "id": t.id,
+            "status": t.status.value if t.status else "todo",
+            "name": t.name,
+            "shotID": t.shotID,
+            "assignee": assignee_name,
+            "due_date": t.due_date.isoformat() if t.due_date else None
+        }
+        
+        if task_type not in target_seq["tasks"]:
+            target_seq["tasks"][task_type] = []
+        target_seq["tasks"][task_type].append(task_info)
+            
+    # シーケンス名でソート
+    sorted_qid = sorted(seq_dict.keys())
+    sequences = [seq_dict[q] for q in sorted_qid]
+    
+    # 工程のソート
+    found_priority = [pt for pt in priority_types if pt in all_types]
+    others = sorted(list(all_types - set(priority_types)))
+    sorted_types = found_priority + others
+    
+    return {
+        "sequences": sequences,
+        "types": sorted_types
+    }

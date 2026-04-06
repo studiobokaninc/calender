@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -15,7 +16,9 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemIcon
+  ListItemIcon,
+  Breadcrumbs,
+  Link,
 } from '@mui/material';
 import {
   FileDownload as FileDownloadIcon,
@@ -38,6 +41,7 @@ import CsvParser from './CsvParser';
 import { transformImportData } from '../utils/transformImportData';
 
 const MockDataConsole: React.FC = () => {
+  const navigate = useNavigate();
   // 状態管理
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportedData, setExportedData] = useState<MockDataImport | null>(null);
@@ -52,12 +56,12 @@ const MockDataConsole: React.FC = () => {
 
   // メッセージを一定時間後に消すヘルパー
   const showTemporaryMessage = (
-      setMessage: React.Dispatch<React.SetStateAction<string | null>>,
-      message: string,
-      duration: number = 5000
+    setMessage: React.Dispatch<React.SetStateAction<string | null>>,
+    message: string,
+    duration: number = 5000
   ) => {
-      setMessage(message);
-      setTimeout(() => setMessage(null), duration);
+    setMessage(message);
+    setTimeout(() => setMessage(null), duration);
   };
 
   // 全データのエクスポート
@@ -85,23 +89,23 @@ const MockDataConsole: React.FC = () => {
     if (!exportedData) return;
 
     try {
-        const dataStr = JSON.stringify(exportedData, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
+      const dataStr = JSON.stringify(exportedData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
 
-        const link = document.createElement('a');
-        link.href = url;
-        const filename = `mock_data_export_${new Date().toISOString().split('T')[0]}.json`;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url); // メモリ解放
+      const link = document.createElement('a');
+      link.href = url;
+      const filename = `mock_data_export_${new Date().toISOString().split('T')[0]}.json`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url); // メモリ解放
 
-        setIsExportDialogOpen(false);
+      setIsExportDialogOpen(false);
     } catch (error) {
-        console.error("Download error:", error);
-        showTemporaryMessage(setErrorMessage, "ダウンロード用ファイルの生成に失敗しました。");
+      console.error("Download error:", error);
+      showTemporaryMessage(setErrorMessage, "ダウンロード用ファイルの生成に失敗しました。");
     }
   };
 
@@ -125,12 +129,12 @@ const MockDataConsole: React.FC = () => {
       try {
         const fileContent = e.target?.result as string;
         const rawData = JSON.parse(fileContent);
-	const jsonData = transformImportData(rawData); // ← 変換を適用
+        const jsonData = transformImportData(rawData); // ← 変換を適用
 
         // 簡単なバリデーション (各キーが存在するか)
         if (!jsonData || typeof jsonData !== 'object' ||
-            !jsonData.users || !jsonData.projects || !jsonData.tasks || !jsonData.events) {
-             throw new Error('ファイル形式が無効です。必要なキー (users, projects, tasks, events) が含まれていません。');
+          !jsonData.users || !jsonData.projects || !jsonData.tasks || !jsonData.events) {
+          throw new Error('ファイル形式が無効です。必要なキー (users, projects, tasks, events) が含まれていません。');
         }
 
         setIsLoading(true);
@@ -151,10 +155,10 @@ const MockDataConsole: React.FC = () => {
           groups: response?.groups_added_count || 0,
           user_groups: response?.user_groups_added_count || 0
         };
-        
+
         setImportSummary(summary);
         setImportErrors(response?.errors || []);
-        
+
         if (response?.errors && response.errors.length > 0) {
           showTemporaryMessage(setErrorMessage, `インポート中に${response.errors.length}件のエラーが発生しました。詳細はリストを確認してください。`, 10000);
         } else {
@@ -165,9 +169,9 @@ const MockDataConsole: React.FC = () => {
         console.error('Import processing error:', error);
         let errMsg = 'データのインポート処理に失敗しました。';
         if (error instanceof SyntaxError) {
-            errMsg += ' JSON形式が無効です。';
+          errMsg += ' JSON形式が無効です。';
         } else if (error.message) {
-            errMsg += ` ${error.message}`;
+          errMsg += ` ${error.message}`;
         }
         showTemporaryMessage(setErrorMessage, errMsg);
       } finally {
@@ -188,24 +192,44 @@ const MockDataConsole: React.FC = () => {
 
   // アイコンを返すヘルパー
   const getIconForDataType = (type: string) => {
-      switch (type) {
-          case 'users': return <PeopleIcon />;
-          case 'projects': return <ProjectIcon />;
-          case 'tasks': return <TaskIcon />;
-          case 'events': return <EventIcon />;
-          case 'groups': return <GroupIcon />;
-          case 'user_groups': return <LinkIcon />;
-          default: return <StorageIcon />;
-      }
+    switch (type) {
+      case 'users': return <PeopleIcon />;
+      case 'projects': return <ProjectIcon />;
+      case 'tasks': return <TaskIcon />;
+      case 'events': return <EventIcon />;
+      case 'groups': return <GroupIcon />;
+      case 'user_groups': return <LinkIcon />;
+      default: return <StorageIcon />;
+    }
   }
 
   return (
-    <Box sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', gap: 3, overflow: 'auto' }}>
+    <Box sx={{ p: { xs: 1.5, sm: 3 }, height: '100%', display: 'flex', flexDirection: 'column', gap: 3, overflow: 'auto' }}>
       {/* タイトル */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        <StorageIcon sx={{ mr: 1.5, fontSize: '2rem' }} color="primary" />
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>
-          データ管理コンソール
+      <Box sx={{ mb: 1 }}>
+        <Breadcrumbs sx={{ mb: 1.5 }}>
+          <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+            App
+          </Link>
+          <Typography color="text.primary" sx={{ fontWeight: 500 }}>Data</Typography>
+        </Breadcrumbs>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <StorageIcon sx={{ fontSize: '2rem', color: '#9C27B0' }} />
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 800,
+              background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: { xs: '1.75rem', sm: '2.25rem' }
+            }}
+          >
+            Data Management
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.95rem' }}>
+          データベースのバックアップ、エクスポート、およびインポートを管理します。
         </Typography>
       </Box>
 
@@ -292,7 +316,7 @@ const MockDataConsole: React.FC = () => {
                   },
                   withCredentials: true,
                 });
-                
+
                 const response = await backupApi.get('/admin/backup-db', {
                   responseType: 'blob',
                 });
@@ -390,7 +414,7 @@ const MockDataConsole: React.FC = () => {
                 <ListItemIcon sx={{ minWidth: '40px' }}>
                   {getIconForDataType(key)}
                 </ListItemIcon>
-                <ListItemText 
+                <ListItemText
                   primary={`${key.charAt(0).toUpperCase() + key.slice(1)}: ${value} 件`}
                   primaryTypographyProps={{ variant: 'body1' }}
                 />
@@ -409,17 +433,17 @@ const MockDataConsole: React.FC = () => {
               インポートエラー詳細 ({importErrors.length}件)
             </Typography>
           </Box>
-          <List 
-            dense 
-            sx={{ 
+          <List
+            dense
+            sx={{
               ml: 4.5,
-              maxHeight: 300, 
-              overflow: 'auto', 
-              border: '1px solid', 
+              maxHeight: 300,
+              overflow: 'auto',
+              border: '1px solid',
               borderColor: 'error.light',
-              borderRadius: 1, 
-              p: 1, 
-              backgroundColor: 'rgba(211, 47, 47, 0.08)' 
+              borderRadius: 1,
+              p: 1,
+              backgroundColor: 'rgba(211, 47, 47, 0.08)'
             }}
           >
             {importErrors.map((errorMsg, index) => (
@@ -427,8 +451,8 @@ const MockDataConsole: React.FC = () => {
                 <ListItemIcon sx={{ minWidth: '30px', color: 'error.main' }}>
                   <ErrorIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText 
-                  primary={errorMsg} 
+                <ListItemText
+                  primary={errorMsg}
                   primaryTypographyProps={{ variant: 'body2', color: 'text.primary' }}
                 />
               </ListItem>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Box,
     Typography,
@@ -15,6 +16,8 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    Breadcrumbs,
+    Link,
 } from '@mui/material';
 import {
     CloudUpload as UploadIcon,
@@ -27,6 +30,7 @@ import {
     Audiotrack as AudioIcon,
     Refresh as RefreshIcon,
     ExpandMore as ExpandMoreIcon,
+    LibraryBooks as KnowledgeIcon,
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -49,6 +53,7 @@ interface KnowledgeItem {
 }
 
 const KnowledgePage: React.FC = () => {
+    const navigate = useNavigate();
     const [items, setItems] = useState<KnowledgeItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -149,12 +154,29 @@ const KnowledgePage: React.FC = () => {
     return (
         <Box sx={{ p: { xs: 2, sm: 3 }, height: '100%', overflow: 'auto' }}>
             <Box sx={{ mb: 4 }}>
-                <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
-                    ナレッジ基盤
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
+                <Breadcrumbs sx={{ mb: 1.5 }}>
+                    <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+                        App
+                    </Link>
+                    <Typography color="text.primary" sx={{ fontWeight: 500 }}>Knowledge</Typography>
+                </Breadcrumbs>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <KnowledgeIcon sx={{ fontSize: '2rem', color: '#4CAF50' }} />
+                    <Typography
+                        variant="h4"
+                        sx={{
+                            fontWeight: 800,
+                            background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            fontSize: { xs: '1.75rem', sm: '2.25rem' }
+                        }}
+                    >
+                        Knowledge Base
+                    </Typography>
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
                     PDF、Excel、音声、画像などをアップロードしてAIに整理・検索させることができます。
-                    チャットでの回答精度が向上します。
                 </Typography>
             </Box>
 

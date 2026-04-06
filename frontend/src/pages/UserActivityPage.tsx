@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -16,7 +17,9 @@ import {
   Card,
   CardContent,
   useMediaQuery,
-  useTheme
+  useTheme,
+  Breadcrumbs,
+  Link
 } from '@mui/material';
 import {
   AccessTime as AccessTimeIcon,
@@ -60,6 +63,7 @@ function getTodayCycleDateString(): string {
 }
 
 const UserActivityPage: React.FC = () => {
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -396,14 +400,32 @@ const UserActivityPage: React.FC = () => {
     setSelectedCycleDate('');
   };
 
-
-
   return (
     <Box sx={{ p: isMobile ? 1.5 : 3, pb: isMobile ? 10 : 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <AccessTimeIcon sx={{ mr: 1, color: 'primary.main' }} />
-        <Typography variant={isMobile ? "h6" : "h5"} component="div" sx={{ fontWeight: 'bold' }}>
-          ユーザーアクティビティ管理
+      <Box sx={{ mb: 4 }}>
+        <Breadcrumbs sx={{ mb: 1.5 }}>
+          <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+            App
+          </Link>
+          <Typography color="text.primary" sx={{ fontWeight: 500 }}>User Activities</Typography>
+        </Breadcrumbs>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <AccessTimeIcon sx={{ fontSize: '2rem', color: '#9C27B0' }} />
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 800,
+              background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: { xs: '1.75rem', sm: '2.25rem' }
+            }}
+          >
+            User Activity Log
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.95rem' }}>
+          プロジェクトメンバーのシステム利用状況とアクティブ時間を確認できます。
         </Typography>
       </Box>
 
@@ -589,7 +611,6 @@ const UserActivityPage: React.FC = () => {
                           verticalAlign="top"
                           height={36}
                         />
-                        {/* 現在時刻を示す線（今日のデータを表示している場合のみ） */}
                         {isShowingToday && currentTimeLabel.cycleHour >= 5 && currentTimeLabel.cycleHour < 29 && (
                           <ReferenceLine
                             x={currentTimeLabel.timeLabel}

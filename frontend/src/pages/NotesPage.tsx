@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -18,6 +19,8 @@ import {
   Button,
   useTheme,
   useMediaQuery,
+  Breadcrumbs,
+  Link,
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -27,6 +30,7 @@ import {
   PictureAsPdf as PdfIcon,
   Visibility as VisibilityIcon,
   Audiotrack as AudioIcon,
+  Note as NoteIcon,
 } from '@mui/icons-material';
 import { notesApi } from '../services/api';
 import api from '../services/api';
@@ -70,6 +74,7 @@ interface AudioItem {
 }
 
 const NotesPage: React.FC = () => {
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { pageStates, updatePageState, isInitialLoad } = usePageState();
@@ -1094,7 +1099,33 @@ const NotesPage: React.FC = () => {
   }, [textBoxes, images, pdfs, selectedProjectId, currentNote?.id]);
 
   return (
-    <Box sx={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', p: 2 }}>
+    <Box sx={{ height: 'calc(100vh - 70px)', display: 'flex', flexDirection: 'column', p: { xs: 1.5, sm: 3 } }}>
+      <Box sx={{ mb: 4 }}>
+        <Breadcrumbs sx={{ mb: 1.5 }}>
+          <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+            App
+          </Link>
+          <Typography color="text.primary" sx={{ fontWeight: 500 }}>Notes</Typography>
+        </Breadcrumbs>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <NoteIcon sx={{ fontSize: '2rem', color: '#4CAF50' }} />
+          <Typography
+            variant="h4"
+            sx={{
+              fontWeight: 800,
+              background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: { xs: '1.75rem', sm: '2.25rem' }
+            }}
+          >
+            Project Notes
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
+          プロジェクトに関連するアイデア、画像、資料を自由なキャンバスに集約します。
+        </Typography>
+      </Box>
       <Box sx={{
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',

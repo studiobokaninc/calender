@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import {
@@ -19,6 +20,8 @@ import {
   Tooltip,
   IconButton,
   InputAdornment,
+  Breadcrumbs,
+  Link,
 } from '@mui/material'
 import {
   Assignment as AssignmentIcon,
@@ -29,6 +32,7 @@ import {
   Stop as StopIcon,
   VolumeUp as VolumeUpIcon,
   HelpOutline as HelpIcon,
+  QuestionAnswer as QuestionAnswerIcon,
 } from '@mui/icons-material'
 import { VoiceHelpDialog } from '../components/VoiceHelpDialog'
 import api from '../services/api'
@@ -84,6 +88,7 @@ interface PendingAction {
 }
 
 const ChatPage: React.FC = () => {
+  const navigate = useNavigate()
   const { token: authToken, user: currentUser } = useAuth()
   const { refreshGlobalData, globalData } = usePageState()
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([CHAT_WELCOME_MESSAGE])
@@ -872,51 +877,74 @@ const ChatPage: React.FC = () => {
       mx: 'auto',
       width: '100%'
     }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-            チャット
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>自動読み上げ</Typography>
-            <Chip
-              size="small"
-              label={autoSpeak ? 'ON' : 'OFF'}
-              color={autoSpeak ? 'primary' : 'default'}
-              onClick={() => setAutoSpeak(!autoSpeak)}
-              sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
-            />
+      <Box sx={{ mb: 4 }}>
+        <Breadcrumbs sx={{ mb: 1.5 }}>
+          <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+            App
+          </Link>
+          <Typography color="text.primary" sx={{ fontWeight: 500 }}>Chat</Typography>
+        </Breadcrumbs>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <QuestionAnswerIcon sx={{ fontSize: '2rem', color: '#9C27B0' }} />
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 800,
+                  background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: { xs: '1.75rem', sm: '2.25rem' }
+                }}
+              >
+                AI Assistant Chat
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
+              AIアシスタントと対話して、タスクの作成や更新、スケジュールの確認ができます。
+            </Typography>
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>話しかけモード</Typography>
-            <Chip
-              size="small"
-              label={autoSend ? 'ON' : 'OFF'}
-              color={autoSend ? 'primary' : 'default'}
-              onClick={() => {
-                setAutoSend(!autoSend)
-                if (!autoSend && !isListening) {
-                  toggleVoiceInput()
-                }
-              }}
-              sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
-            />
-          </Box>
-          <Tooltip title="音声機能の設定方法">
-            <IconButton size="small" onClick={() => setOpenVoiceHelp(true)} sx={{ ml: -0.5 }}>
-              <HelpIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-            </IconButton>
-          </Tooltip>
-          <Button size="small" variant="outlined" onClick={handleNewConversation}>
-            新しい会話
-          </Button>
-          {isSpeaking && (
-            <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ height: 32 }}>
-              停止
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: { xs: 1, sm: 0 }, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>自動読み上げ</Typography>
+              <Chip
+                size="small"
+                label={autoSpeak ? 'ON' : 'OFF'}
+                color={autoSpeak ? 'primary' : 'default'}
+                onClick={() => setAutoSpeak(!autoSpeak)}
+                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>話しかけモード</Typography>
+              <Chip
+                size="small"
+                label={autoSend ? 'ON' : 'OFF'}
+                color={autoSend ? 'primary' : 'default'}
+                onClick={() => {
+                  setAutoSend(!autoSend)
+                  if (!autoSend && !isListening) {
+                    toggleVoiceInput()
+                  }
+                }}
+                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+              />
+            </Box>
+            <Tooltip title="音声機能の設定方法">
+              <IconButton size="small" onClick={() => setOpenVoiceHelp(true)} sx={{ ml: -0.5 }}>
+                <HelpIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+              </IconButton>
+            </Tooltip>
+            <Button size="small" variant="outlined" onClick={handleNewConversation}>
+              新しい会話
             </Button>
-          )}
+            {isSpeaking && (
+              <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ height: 32 }}>
+                停止
+              </Button>
+            )}
+          </Box>
         </Box>
       </Box>
 

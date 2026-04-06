@@ -138,29 +138,51 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }
 
   const allMenuItems: MenuItemType[] = [
-    { text: 'チャット', icon: <ChatIcon />, path: '/chat' },
     { text: 'ダッシュボード', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: '進捗トラッカー', icon: <TrackerIcon />, path: '/production-tracker', isAdmin: true },
     { text: 'カレンダー', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
-    { text: '議事録', icon: <DescriptionIcon />, path: '/meetings' },
-    { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
-    { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
     { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users', isAdmin: true },
+    { text: '進捗トラッカー', icon: <TrackerIcon />, path: '/production-tracker', isAdmin: true },
+    { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
+    { text: '議事録', icon: <DescriptionIcon />, path: '/meetings' },
+    { text: 'ナレッジベース', icon: <KnowledgeIcon />, path: '/knowledge' },
+    { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
-    { text: 'ナレッジ基盤', icon: <KnowledgeIcon />, path: '/knowledge' },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
+    { text: 'チャット', icon: <ChatIcon />, path: '/chat' },
   ]
+
+  const [currentTitleColor, setCurrentTitleColor] = useState('inherit')
+
+  const getGroupColor = (path: string) => {
+    if (path === '/dashboard' || path === '/calendar') return 'inherit'
+
+    // Group 2: Projects, Tasks, Users, Production Tracker
+    if (['/projects', '/tasks', '/admin/users', '/production-tracker'].some(p => path.startsWith(p))) {
+      return '#2196F3' // Blue
+    }
+    // Group 3: Notes, Meetings, Knowledge Base
+    if (['/notes', '/meetings', '/knowledge'].some(p => path.startsWith(p))) {
+      return '#4CAF50' // Green
+    }
+    // Group 4: Event Management, Group Management, Data Management, User Activity, Metrics, Chat
+    if (['/event-management', '/admin/groups', '/admin/data', '/admin/user-activities', '/metrics', '/chat'].some(p => path.startsWith(p))) {
+      return '#9C27B0' // Purple
+    }
+    return 'inherit'
+  }
 
   useEffect(() => {
     const currentItem = allMenuItems.find(item => location.pathname.startsWith(item.path))
     if (currentItem) {
       setCurrentTitle(currentItem.text)
+      setCurrentTitleColor(getGroupColor(location.pathname))
     } else {
       setCurrentTitle('スケジュール管理')
+      setCurrentTitleColor('inherit')
     }
   }, [location.pathname])
 
@@ -291,14 +313,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [user?.id, user?.role])
 
-  // 一般ユーザーはカレンダー、チャット、メモのみ表示。管理者はチャット以外を表示。
-  const adminMenuItems = allMenuItems.filter(item => item.isAdmin)
-  const menuItems = user?.role === 'admin'
-    ? allMenuItems.filter(item => !item.isAdmin && item.path !== '/chat')
-    : allMenuItems.filter(item => ['/calendar', '/chat', '/notes', '/knowledge'].includes(item.path))
+  const menuItems = allMenuItems.filter(item => {
+    if (user?.role === 'admin') {
+      // 管理者はチャット以外をすべて表示（指定の順序通り）
+      return item.path !== '/chat'
+    } else {
+      // 一般ユーザーは特定の項目のみ表示
+      return ['/calendar', '/chat', '/notes', '/knowledge'].includes(item.path)
+    }
+  })
 
-  // モバイル用の下部ナビゲーション項目（全てのメニュー項目）
-  const bottomNavItems = [...menuItems, ...adminMenuItems]
+  const bottomNavItems = menuItems
 
   // 下部ナビゲーションの現在のアクティブインデックス
   const activeBottomNavIndex = bottomNavItems.findIndex(item => location.pathname.startsWith(item.path))
@@ -338,59 +363,33 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <Divider />
       <List>
         {menuItems.map((item) => (
-          <ListItem
-            button
-            key={item.text}
-            onClick={() => {
-              navigate(item.path)
-            }}
-            selected={location.pathname.startsWith(item.path)}
-            sx={{
-              px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
-              minHeight: { xs: 56, sm: 48 },
-              py: { xs: 1.5, sm: 0 },
-            }}
-          >
-            <Tooltip title={isDrawerCollapsed ? item.text : ""} placement="right">
-              <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : { xs: 48, sm: 40 } }}>
-                {item.icon}
-              </ListItemIcon>
-            </Tooltip>
-            {!isDrawerCollapsed && <ListItemText primary={item.text} sx={{ '& .MuiTypography-root': { fontSize: { xs: '0.95rem', sm: '0.875rem' } } }} />}
-          </ListItem>
+          <React.Fragment key={item.text}>
+            <ListItem
+              button
+              onClick={() => {
+                navigate(item.path)
+              }}
+              selected={location.pathname.startsWith(item.path)}
+              sx={{
+                px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
+                minHeight: { xs: 56, sm: 48 },
+                py: { xs: 1.5, sm: 0 },
+              }}
+            >
+              <Tooltip title={isDrawerCollapsed ? item.text : ""} placement="right">
+                <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : { xs: 48, sm: 40 } }}>
+                  {item.icon}
+                </ListItemIcon>
+              </Tooltip>
+              {!isDrawerCollapsed && <ListItemText primary={item.text} sx={{ '& .MuiTypography-root': { fontSize: { xs: '0.95rem', sm: '0.875rem' } } }} />}
+            </ListItem>
+            {/* カレンダー、進捗トラッカー、ナレッジベースの後に仕切り線を入れる */}
+            {['/calendar', '/production-tracker', '/knowledge'].includes(item.path) && (
+              <Divider sx={{ my: 1 }} />
+            )}
+          </React.Fragment>
         ))}
       </List>
-      {/* 管理者用項目 */}
-      {user?.role === 'admin' && (
-        <>
-          <Divider />
-          <List>
-            {adminMenuItems.map((item: MenuItemType) => (
-              <ListItem
-                button
-                key={item.text}
-                onClick={() => {
-                  console.log(`Navigating to: ${item.path}`);
-                  navigate(item.path)
-                }}
-                selected={location.pathname.startsWith(item.path)}
-                sx={{
-                  px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
-                  minHeight: { xs: 56, sm: 48 },
-                  py: { xs: 1.5, sm: 0 },
-                }}
-              >
-                <Tooltip title={isDrawerCollapsed ? item.text : ""} placement="right">
-                  <ListItemIcon sx={{ minWidth: isDrawerCollapsed ? 'auto' : { xs: 48, sm: 40 } }}>
-                    {item.icon}
-                  </ListItemIcon>
-                </Tooltip>
-                {!isDrawerCollapsed && <ListItemText primary={item.text} sx={{ '& .MuiTypography-root': { fontSize: { xs: '0.95rem', sm: '0.875rem' } } }} />}
-              </ListItem>
-            ))}
-          </List>
-        </>
-      )}
       <Divider />
       <List>
         <ListItem
@@ -543,7 +542,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Toolbar sx={{ minHeight: { xs: '56px !important', sm: '40px !important' }, display: 'flex', justifyContent: 'space-between', px: { xs: 1, sm: 2 } }}>
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
             <>
-              <Typography variant="h6" noWrap component="div" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <Typography variant="h6" noWrap component="div" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, overflow: 'hidden', textOverflow: 'ellipsis', color: currentTitleColor }}>
                 {currentTitle}
               </Typography>
             </>

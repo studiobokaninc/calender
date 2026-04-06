@@ -2735,6 +2735,7 @@ const CalendarPage: React.FC = () => {
                     : 'grey.50',
             })}
         >
+
             {/* Google風トップバー: 作成ボタン（PCのみ） */}
             {!isMobile && (
                 <Box

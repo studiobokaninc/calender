@@ -1471,12 +1471,7 @@ const Dashboard: React.FC = () => {
         width: '100%',
       }}
     >
-      <Typography
-        variant="h5"
-        sx={{ fontWeight: 600, color: 'text.primary', mb: { xs: 2, sm: 3 }, fontSize: { xs: '1.1rem', sm: '1.5rem' } }}
-      >
-        ダッシュボード
-      </Typography>
+
 
       {/* サマリーカード（ユーザー・タスク・プロジェクト） */}
       <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>

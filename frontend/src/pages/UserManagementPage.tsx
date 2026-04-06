@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Button, CircularProgress, Paper,
   IconButton, Avatar, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, FormControl, InputLabel, Select, MenuItem, Snackbar, Alert, Card,
   CardContent, Chip, Grid, Tooltip,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme,
+  Breadcrumbs, Link
 } from '@mui/material';
 import { User, Task, Project, UserGroup, Group, CalendarEvent } from '../types';
 import api from '../services/api';
 import {
   Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon,
   Assignment as AssignmentIcon,
+  People as PeopleIcon,
   Person as PersonIcon,
   Today as TodayIcon, Warning as WarningIcon, Schedule as ScheduleIcon,
   Group as GroupIcon
@@ -78,6 +81,7 @@ interface UserTaskInfo {
 }
 
 const UserManagementPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
 
@@ -611,20 +615,51 @@ const UserManagementPage: React.FC = () => {
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, mb: 3, flexDirection: { xs: 'column', sm: 'row' }, gap: { xs: 1.5, sm: 0 } }}>
-        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-          ユーザー
-        </Typography>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Breadcrumbs sx={{ mb: 1.5 }}>
+            <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+              App
+            </Link>
+            <Typography color="text.primary" sx={{ fontWeight: 500 }}>Users</Typography>
+          </Breadcrumbs>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <PeopleIcon sx={{ fontSize: '2rem', color: '#2196F3' }} />
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: { xs: '1.75rem', sm: '2.25rem' }
+              }}
+            >
+              User Management
+            </Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
+            チームメンバーの権限設定、タスク負荷の状況、グループ所属を管理します。
+          </Typography>
+        </Box>
         {isAdmin && (
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddUserClick}
-              size={isNarrow ? "small" : "medium"}
-              sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, flex: { xs: '1 1 auto', sm: 'none' } }}
+              sx={{
+                textTransform: 'none',
+                borderRadius: 2,
+                px: 3,
+                fontWeight: 600,
+                boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                '&:hover': {
+                  boxShadow: '0 6px 16px rgba(33, 150, 243, 0.4)',
+                }
+              }}
             >
-              {isNarrow ? '追加' : 'ユーザー追加'}
+              ユーザー追加
             </Button>
             <Button
               variant="outlined"
@@ -632,10 +667,13 @@ const UserManagementPage: React.FC = () => {
               startIcon={<DeleteIcon />}
               onClick={handleOpenDeleteDialog}
               disabled={users.length === 0}
-              size={isNarrow ? "small" : "medium"}
-              sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, flex: { xs: '1 1 auto', sm: 'none' } }}
+              sx={{
+                textTransform: 'none',
+                borderRadius: 2,
+                fontWeight: 600
+              }}
             >
-              {isNarrow ? '削除' : 'ユーザー削除'}
+              ユーザー削除
             </Button>
           </Box>
         )}

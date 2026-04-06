@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link } from '@mui/material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon } from '@mui/icons-material';
 import api from '../services/api';
 import { Project, Task } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -65,6 +66,7 @@ const displayStatusOptions = [
 ];
 
 const ProjectsPage: React.FC = () => {
+    const navigate = useNavigate();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isDark = theme.palette.mode === 'dark';
@@ -573,19 +575,51 @@ const ProjectsPage: React.FC = () => {
                 pb: isMobile ? 10 : 2, // Bottom nav space
             }}
         >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, mb: 2 }}>
-                <Typography variant="h5" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                    プロジェクト
-                </Typography>
+            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+                <Box>
+                    <Breadcrumbs sx={{ mb: 1.5 }}>
+                        <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+                            App
+                        </Link>
+                        <Typography color="text.primary" sx={{ fontWeight: 500 }}>Projects</Typography>
+                    </Breadcrumbs>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <FolderIcon sx={{ fontSize: '2rem', color: '#2196F3' }} />
+                        <Typography
+                            variant="h4"
+                            sx={{
+                                fontWeight: 800,
+                                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                fontSize: { xs: '1.75rem', sm: '2.25rem' }
+                            }}
+                        >
+                            Projects
+                        </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
+                        進行中のプロジェクトの状況とリソース配分を管理します。
+                    </Typography>
+                </Box>
                 {isAdmin && (
                     <Button
                         variant="contained"
                         size={isMobile ? "small" : "medium"}
                         startIcon={<AddIcon />}
                         onClick={handleAddProject}
-                        sx={{ textTransform: 'none', borderRadius: 2 }}
+                        sx={{
+                            textTransform: 'none',
+                            borderRadius: 2,
+                            px: 3,
+                            fontWeight: 600,
+                            boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                            '&:hover': {
+                                boxShadow: '0 6px 16px rgba(33, 150, 243, 0.4)',
+                            }
+                        }}
                     >
-                        新規
+                        新規プロジェクト作成
                     </Button>
                 )}
             </Box>

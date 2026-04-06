@@ -27,6 +27,7 @@ import {
 import {
     Refresh as RefreshIcon,
     Error as ErrorIcon,
+    ViewModule as ViewModuleIcon,
 } from '@mui/icons-material';
 import { mockDataApi, fetchProjects } from '../services/api';
 import { Project } from '../types';
@@ -184,9 +185,12 @@ const ProductionTrackerPage: React.FC = () => {
                         <Link color="inherit" href="/dashboard" sx={{ cursor: 'pointer' }}>Dashboard</Link>
                         <Typography color="text.primary">Production Tracker</Typography>
                     </Breadcrumbs>
-                    <Typography variant="h4" sx={{ fontWeight: 800, background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                        Production Tracker
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <ViewModuleIcon sx={{ fontSize: '2rem', color: '#2196F3' }} />
+                        <Typography variant="h4" sx={{ fontWeight: 800, background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                            Production Tracker
+                        </Typography>
+                    </Box>
                     <Typography variant="body2" color="text.secondary">
                         シーケンス・ショット進捗管理
                     </Typography>

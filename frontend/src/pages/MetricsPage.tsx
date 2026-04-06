@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'; //Reactとは、フロントエンドのUIを作成するためのライブラリです。
-import { Box, Typography, Paper, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Tab, Tabs, Button, TextField, Autocomplete, FormControlLabel, Checkbox, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Tooltip, Snackbar, Alert as MuiAlert, IconButton, useMediaQuery, useTheme, Card, CardContent, Chip, Divider, Grid, Drawer } from '@mui/material';
+import { Box, Typography, Paper, CircularProgress, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent, Tab, Tabs, Button, TextField, Autocomplete, FormControlLabel, Checkbox, Table, TableBody, TableCell, TableHead, TableRow, TableContainer, Tooltip, Snackbar, Alert as MuiAlert, IconButton, useMediaQuery, useTheme, Card, CardContent, Chip, Divider, Grid, Drawer, Breadcrumbs, Link } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import TodayIcon from '@mui/icons-material/Today';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import api from '../services/api'; //apiとは、バックエンドのAPIを呼び出すためのライブラリです。
 import { Project, Task, User } from '../types'; //Projectとは、プロジェクトの情報を管理する型です。Taskとは、タスクの情報を管理する型です。Userとは、ユーザーの情報を管理する型です。
 import ProjectProgressChart from '../components/ProjectProgressChart'; //ProjectProgressChartとは、プロジェクトの進捗を表示するコンポーネントです。
@@ -563,79 +563,104 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
         })
       }}
     >
-      <Box sx={{ flexShrink: 0, width: '100%', mb: { xs: 1, sm: 1.5 } }}>
-        <Paper sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderRadius: { xs: 1, sm: 2 } }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'center', sm: 'center' }, mb: { xs: 1, sm: 1.5 }, flexDirection: { xs: 'row', sm: 'row' }, gap: { xs: 1, sm: 0 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1 }}>
-              <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1rem' }, fontWeight: 600 }}>プロジェクトメトリクス</Typography>
-              {isMobile && (
-                <IconButton
-                  onClick={() => setMobileFilterOpen(true)}
-                  sx={{ minWidth: 48, minHeight: 48 }}
-                  color="primary"
-                >
-                  <FilterListIcon />
-                </IconButton>
+      <Box sx={{ mb: 2 }}>
+        <Breadcrumbs sx={{ mb: 1.5 }}>
+          <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+            App
+          </Link>
+          <Typography color="text.primary" sx={{ fontWeight: 500 }}>Metrics</Typography>
+        </Breadcrumbs>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <BarChartIcon sx={{ fontSize: '2rem', color: '#9C27B0' }} />
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 800,
+                  background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: { xs: '1.75rem', sm: '2.25rem' }
+                }}
+              >
+                System Metrics
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.95rem' }}>
+              プロジェクトの進捗、メンバーの負荷、および工数集計を分析します。
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleClearFilters}
+            sx={{
+              borderRadius: 2,
+              px: 2,
+              py: 0.5,
+              fontWeight: 600,
+              textTransform: 'none'
+            }}
+          >
+            {isMobile ? "クリア" : "フィルターをクリア"}
+          </Button>
+        </Box>
+      </Box>
+      {/* PC用フィルター */}
+      {!isMobile && (
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, gap: { xs: 1.5, sm: 3 }, borderBottom: 1, borderColor: 'divider', pb: { xs: 1.5, sm: 1.5 }, mb: { xs: 1.5, sm: 1.5 }, width: '100%' }}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', alignItems: 'stretch', gap: { xs: 1.5, sm: 2 }, flex: 1, minWidth: 0, width: { xs: '100%', sm: 'auto' } }}>
+            <FormControl size="small" sx={{ minWidth: 180, flex: '1 1 160px' }}>
+              <InputLabel id="date-range-label">期間</InputLabel>
+              <Select labelId="date-range-label" value={dateRange} label="期間" onChange={handleDateRangeChange}>
+                <MenuItem value="all">全期間</MenuItem>
+                <MenuItem value="week">直近1週間</MenuItem>
+                <MenuItem value="month">直近1ヶ月</MenuItem>
+                <MenuItem value="quarter">直近3ヶ月</MenuItem>
+              </Select>
+            </FormControl>
+            <Autocomplete
+              size="small"
+              options={projectFilterOptions}
+              getOptionLabel={(p) => p.name}
+              value={projectFilterOptions.find(p => p.name === projectNameFilter) ?? null}
+              onChange={(_e, newValue) => setProjectNameFilter(newValue?.name ?? null)}
+              sx={{ minWidth: 220, flex: '2 1 200px' }}
+              renderInput={(params) => <TextField {...params} label="プロジェクト名" />}
+              renderOption={(props, project) => (
+                <li {...props} key={project.id}>
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                    <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: project.display_status === 'online' ? '#4CAF50' : '#9E9E9E', flexShrink: 0 }} />
+                    {project.name}
+                  </Box>
+                </li>
               )}
-            </Box>
-            <Button variant="outlined" size="small" onClick={handleClearFilters} sx={{ alignSelf: 'auto', minHeight: { xs: 32, sm: 36 }, fontSize: { xs: '0.75rem', sm: '0.875rem' }, py: 0.5 }}>{isMobile ? "クリア" : "フィルターをクリア"}</Button>
+            />
+            <FormControl size="small" sx={{ minWidth: 180, flex: '1 1 160px' }}>
+              <InputLabel id="project-status-label">プロジェクト状態</InputLabel>
+              <Select labelId="project-status-label" value={statusFilter} label="プロジェクト状態" onChange={handleStatusFilterChange}>
+                <MenuItem value="all">すべて</MenuItem>
+                {projectStatusOptions.map(status => (<MenuItem key={status} value={status}>{status}</MenuItem>))}
+              </Select>
+            </FormControl>
           </Box>
-          {/* PC用フィルター */}
-          {!isMobile && (
-            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, gap: { xs: 1.5, sm: 3 }, borderBottom: 1, borderColor: 'divider', pb: { xs: 1.5, sm: 1.5 }, mb: { xs: 1.5, sm: 1.5 }, width: '100%' }}>
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', alignItems: 'stretch', gap: { xs: 1.5, sm: 2 }, flex: 1, minWidth: 0, width: { xs: '100%', sm: 'auto' } }}>
-                <FormControl size="small" sx={{ minWidth: 180, flex: '1 1 160px' }}>
-                  <InputLabel id="date-range-label">期間</InputLabel>
-                  <Select labelId="date-range-label" value={dateRange} label="期間" onChange={handleDateRangeChange}>
-                    <MenuItem value="all">全期間</MenuItem>
-                    <MenuItem value="week">直近1週間</MenuItem>
-                    <MenuItem value="month">直近1ヶ月</MenuItem>
-                    <MenuItem value="quarter">直近3ヶ月</MenuItem>
-                  </Select>
-                </FormControl>
-                <Autocomplete
-                  size="small"
-                  options={projectFilterOptions}
-                  getOptionLabel={(p) => p.name}
-                  value={projectFilterOptions.find(p => p.name === projectNameFilter) ?? null}
-                  onChange={(_e, newValue) => setProjectNameFilter(newValue?.name ?? null)}
-                  sx={{ minWidth: 220, flex: '2 1 200px' }}
-                  renderInput={(params) => <TextField {...params} label="プロジェクト名" />}
-                  renderOption={(props, project) => (
-                    <li {...props} key={project.id}>
-                      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                        <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: project.display_status === 'online' ? '#4CAF50' : '#9E9E9E', flexShrink: 0 }} />
-                        {project.name}
-                      </Box>
-                    </li>
-                  )}
-                />
-                <FormControl size="small" sx={{ minWidth: 180, flex: '1 1 160px' }}>
-                  <InputLabel id="project-status-label">プロジェクト状態</InputLabel>
-                  <Select labelId="project-status-label" value={statusFilter} label="プロジェクト状態" onChange={handleStatusFilterChange}>
-                    <MenuItem value="all">すべて</MenuItem>
-                    {projectStatusOptions.map(status => (<MenuItem key={status} value={status}>{status}</MenuItem>))}
-                  </Select>
-                </FormControl>
-              </Box>
-            </Box>
-          )}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' }, gap: { xs: 1, sm: 3 }, width: '100%' }}>
-            {[
-              { val: totalProjects, label: 'プロジェクト', color: '#1976d2' },
-              { val: totalTasks, label: 'タスク総数', color: '#1976d2' },
-              { val: completedTasks, label: '完了タスク', color: '#9e9e9e' },
-              { val: inProgressTasks, label: '進行中タスク', color: '#ff9800' },
-              { val: delayedTasks, label: '遅延タスク', color: '#f44336' },
-              { val: totalUsers, label: 'メンバー', color: '#9e9e9e' }
-            ].map(({ val, label, color }) => (
-              <Box key={label} sx={{ textAlign: 'center', minWidth: 0 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color, fontSize: { xs: '1rem', sm: '1.375rem' }, lineHeight: 1.2 }}>{val}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, whiteSpace: 'nowrap', display: 'block' }}>{label}</Typography>
-              </Box>
-            ))}
+        </Box>
+      )}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(6, 1fr)' }, gap: { xs: 1, sm: 3 }, width: '100%' }}>
+        {[
+          { val: totalProjects, label: 'プロジェクト', color: '#1976d2' },
+          { val: totalTasks, label: 'タスク総数', color: '#1976d2' },
+          { val: completedTasks, label: '完了タスク', color: '#9e9e9e' },
+          { val: inProgressTasks, label: '進行中タスク', color: '#ff9800' },
+          { val: delayedTasks, label: '遅延タスク', color: '#f44336' },
+          { val: totalUsers, label: 'メンバー', color: '#9e9e9e' }
+        ].map(({ val, label, color }) => (
+          <Box key={label} sx={{ textAlign: 'center', minWidth: 0 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color, fontSize: { xs: '1rem', sm: '1.375rem' }, lineHeight: 1.2 }}>{val}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' }, whiteSpace: 'nowrap', display: 'block' }}>{label}</Typography>
           </Box>
-        </Paper>
+        ))}
       </Box>
       <Box
         sx={{
@@ -1718,7 +1743,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
           </Button>
         </Box>
       </Drawer>
-    </Box>
+    </Box >
   );
 };
 

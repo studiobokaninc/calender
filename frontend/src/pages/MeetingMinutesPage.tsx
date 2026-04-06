@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Box,
     Typography,
@@ -18,13 +19,13 @@ import {
 import {
     Description as DescriptionIcon,
     Folder as FolderIcon,
-    NavigateNext as NavigateNextIcon,
 } from '@mui/icons-material';
 import { Project } from '../types';
 import api from '../services/api';
 import ProjectMeetings from '../components/ProjectMeetings';
 
 const MeetingMinutesPage: React.FC = () => {
+    const navigate = useNavigate();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const [projects, setProjects] = useState<Project[]>([]);
@@ -61,21 +62,36 @@ const MeetingMinutesPage: React.FC = () => {
 
     return (
         <Box sx={{ p: isMobile ? 2 : 3, pb: isMobile ? 10 : 3 }}>
-            <Box sx={{ mb: 3 }}>
-                {!isMobile && (
-                    <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} aria-label="breadcrumb">
-                        <Link color="inherit" href="/" onClick={(e) => e.preventDefault()}>
-                            ダッシュボード
-                        </Link>
-                        <Typography color="text.primary">議事録管理</Typography>
-                    </Breadcrumbs>
-                )}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: isMobile ? 0 : 2 }}>
-                    <Typography variant={isMobile ? "h5" : "h4"} sx={{ fontWeight: 'bold' }}>
-                        議事録管理
-                    </Typography>
+            <Box sx={{ mb: 4 }}>
+                <Breadcrumbs sx={{ mb: 1.5 }}>
+                    <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+                        App
+                    </Link>
+                    <Typography color="text.primary" sx={{ fontWeight: 500 }}>Meetings</Typography>
+                </Breadcrumbs>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+                    <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <DescriptionIcon sx={{ fontSize: '2rem', color: '#4CAF50' }} />
+                            <Typography
+                                variant="h4"
+                                sx={{
+                                    fontWeight: 800,
+                                    background: 'linear-gradient(45deg, #4CAF50 30%, #8BC34A 90%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    fontSize: { xs: '1.75rem', sm: '2.25rem' }
+                                }}
+                            >
+                                Meetings & Minutes
+                            </Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
+                            録音データからのAI解析、決定事項、タスクの抽出を一元管理します。
+                        </Typography>
+                    </Box>
                     <Button
-                        variant="outlined"
+                        variant="contained"
                         startIcon={<DescriptionIcon />}
                         onClick={async () => {
                             if (window.confirm('Xドライブのスキャンを開始しますか？')) {
@@ -88,17 +104,22 @@ const MeetingMinutesPage: React.FC = () => {
                                 }
                             }
                         }}
-                        sx={{ borderRadius: 2 }}
+                        sx={{
+                            textTransform: 'none',
+                            borderRadius: 2,
+                            px: 3,
+                            fontWeight: 600,
+                            boxShadow: '0 4px 12px rgba(255, 82, 82, 0.2)',
+                            bgcolor: '#FF5252',
+                            '&:hover': {
+                                bgcolor: '#FF1744',
+                                boxShadow: '0 6px 16px rgba(255, 82, 82, 0.3)',
+                            }
+                        }}
                     >
                         ネットワークドライブをスキャン
                     </Button>
                 </Box>
-                {!isMobile && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        プロジェクトを選択して、AI解析結果を確認できます。
-                        （参照先: <span style={{ fontFamily: 'monospace', color: theme.palette.primary.main, fontWeight: 'bold' }}>X:\cg\proj\kikaku\MTG_audio</span>）
-                    </Typography>
-                )}
             </Box>
 
             <Grid container spacing={isMobile ? 2 : 3}>
@@ -196,7 +217,7 @@ const MeetingMinutesPage: React.FC = () => {
                     </Grid>
                 )}
             </Grid>
-        </Box>
+        </Box >
     );
 };
 

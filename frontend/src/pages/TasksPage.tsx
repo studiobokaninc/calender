@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Box, Typography, CircularProgress, Paper, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
     Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme, Drawer, useMediaQuery,
-    Card, CardContent, CardActionArea, Avatar
+    Card, CardContent, CardActionArea, Avatar, Breadcrumbs, Link
 } from '@mui/material';
 import {
     Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon,
     FilterList as FilterListIcon, Close as CloseIcon,
     CalendarToday as CalendarIcon, Folder as FolderIcon, PriorityHigh as PriorityIcon,
-    Add as AddIcon
+    Add as AddIcon, Task as TaskIcon
 } from '@mui/icons-material';
 import { IconButton, Fab } from '@mui/material';
 import api from '../services/api';
@@ -118,6 +119,7 @@ interface StatusHistory {
 
 
 const TasksPage: React.FC = () => {
+    const navigate = useNavigate();
     const { user: currentUser } = useAuth();
     const isAdmin = currentUser?.role === 'admin';
 
@@ -1170,6 +1172,32 @@ const TasksPage: React.FC = () => {
                 width: '100%',
             }}
         >
+            <Box sx={{ mb: 4 }}>
+                <Breadcrumbs sx={{ mb: 1.5 }}>
+                    <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+                        App
+                    </Link>
+                    <Typography color="text.primary" sx={{ fontWeight: 500 }}>Tasks</Typography>
+                </Breadcrumbs>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <TaskIcon sx={{ fontSize: '2rem', color: '#2196F3' }} />
+                    <Typography
+                        variant="h4"
+                        sx={{
+                            fontWeight: 800,
+                            background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            fontSize: { xs: '1.75rem', sm: '2.25rem' }
+                        }}
+                    >
+                        Tasks
+                    </Typography>
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
+                    プロジェクトの個別タスクと担当者、期日を一元管理します。
+                </Typography>
+            </Box>
             <Paper
                 elevation={0}
                 sx={{
@@ -1181,10 +1209,7 @@ const TasksPage: React.FC = () => {
                     borderColor: 'divider',
                 }}
             >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 0 }, flexDirection: { xs: 'row', sm: 'row' } }}>
-                    <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' }, fontWeight: 600, display: { xs: 'block', sm: 'none' } }}>
-                        タスク
-                    </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: { xs: 1, sm: 0 } }}>
                     {isMobile && (
                         <IconButton
                             onClick={() => setMobileFilterOpen(true)}

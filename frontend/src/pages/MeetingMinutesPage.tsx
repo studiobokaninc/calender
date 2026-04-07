@@ -90,35 +90,45 @@ const MeetingMinutesPage: React.FC = () => {
                             録音データからのAI解析、決定事項、タスクの抽出を一元管理します。
                         </Typography>
                     </Box>
-                    <Button
-                        variant="contained"
-                        startIcon={<DescriptionIcon />}
-                        onClick={async () => {
-                            if (window.confirm('Xドライブのスキャンを開始しますか？')) {
-                                try {
-                                    await api.post('/meetings/scan');
-                                    alert('スキャンを開始しました。新しい会議が順次追加されます。');
-                                } catch (err) {
-                                    console.error('Scan failed:', err);
-                                    alert('スキャンに失敗しました。');
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 2, borderLeft: '4px solid', borderColor: 'primary.main', minWidth: 'fit-content' }}>
+                            <Typography variant="caption" color="text.primary" sx={{ display: 'block', fontWeight: 'bold', mb: 0.5 }}>
+                                [ネットワークドライブ]
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
+                                X:\cg\proj\kikaku\MTG_audio
+                            </Typography>
+                        </Box>
+                        <Button
+                            variant="contained"
+                            startIcon={<DescriptionIcon />}
+                            onClick={async () => {
+                                if (window.confirm('Xドライブのスキャンを開始しますか？')) {
+                                    try {
+                                        await api.post('/meetings/scan');
+                                        alert('スキャンを開始しました。新しい会議が順次追加されます。');
+                                    } catch (err) {
+                                        console.error('Scan failed:', err);
+                                        alert('スキャンに失敗しました。');
+                                    }
                                 }
-                            }
-                        }}
-                        sx={{
-                            textTransform: 'none',
-                            borderRadius: 2,
-                            px: 3,
-                            fontWeight: 600,
-                            boxShadow: '0 4px 12px rgba(255, 82, 82, 0.2)',
-                            bgcolor: '#FF5252',
-                            '&:hover': {
-                                bgcolor: '#FF1744',
-                                boxShadow: '0 6px 16px rgba(255, 82, 82, 0.3)',
-                            }
-                        }}
-                    >
-                        ネットワークドライブをスキャン
-                    </Button>
+                            }}
+                            sx={{
+                                textTransform: 'none',
+                                borderRadius: 2,
+                                px: 3,
+                                fontWeight: 600,
+                                boxShadow: '0 4px 12px rgba(255, 82, 82, 0.2)',
+                                bgcolor: '#FF5252',
+                                '&:hover': {
+                                    bgcolor: '#FF1744',
+                                    boxShadow: '0 6px 16px rgba(255, 82, 82, 0.3)',
+                                }
+                            }}
+                        >
+                            ネットワークドライブをスキャン
+                        </Button>
+                    </Box>
                 </Box>
             </Box>
 
@@ -217,7 +227,7 @@ const MeetingMinutesPage: React.FC = () => {
                     </Grid>
                 )}
             </Grid>
-        </Box >
+        </Box>
     );
 };
 

@@ -20,9 +20,7 @@ import {
     Link,
     useTheme,
     alpha,
-    Card,
-    Stack,
-    Avatar
+    Stack
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
@@ -36,14 +34,18 @@ interface TaskInfo {
     id: number;
     status: string;
     name: string;
-    shotID: string | null;
     assignee: string | null;
     due_date: string | null;
 }
 
+interface ShotData {
+    shotID: string;
+    tasks: { [type: string]: TaskInfo[] };
+}
+
 interface SequenceData {
     seqID: string;
-    tasks: { [type: string]: TaskInfo[] };
+    shots: ShotData[];
 }
 
 const ProductionTrackerPage: React.FC = () => {
@@ -58,7 +60,6 @@ const ProductionTrackerPage: React.FC = () => {
         const loadProjects = async () => {
             try {
                 const data = await fetchProjects();
-                // 表示ステータスが 'online' のプロジェクトのみを抽出
                 const onlineProjects = data.filter((p: Project) => (p.display_status ?? 'online') === 'online');
                 setProjects(onlineProjects);
                 if (onlineProjects.length > 0) {
@@ -118,58 +119,48 @@ const ProductionTrackerPage: React.FC = () => {
         if (!tasks || tasks.length === 0) return <Box sx={{ opacity: 0.1, py: 1 }}>-</Box>;
 
         return (
-            <Stack spacing={1.25} sx={{ py: 1 }}>
+            <Stack spacing={0.5} sx={{ py: 0.5 }}>
                 {tasks.map((task) => {
                     const color = getStatusColor(task.status);
                     const label = getStatusLabel(task.status);
 
                     return (
                         <Tooltip key={task.id} title={`${task.name}${task.assignee ? ` (担当: ${task.assignee})` : ''}${task.due_date ? ` [〆: ${task.due_date}]` : ''}`} arrow>
-                            <Card
-                                variant="outlined"
+                            <Box
                                 sx={{
-                                    p: 1.5,
+                                    p: 0.75,
+                                    borderRadius: 1,
+                                    border: `1px solid ${alpha(color, 0.3)}`,
+                                    borderLeft: `4px solid ${color}`,
+                                    backgroundColor: alpha(color, 0.05),
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: 0.5,
-                                    borderLeft: `5px solid ${color}`,
-                                    backgroundColor: alpha(color, 0.06),
-                                    transition: 'all 0.2s',
-                                    minWidth: 180,
+                                    gap: 0.25,
+                                    minWidth: 140,
+                                    transition: 'all 0.15s',
                                     '&:hover': {
                                         backgroundColor: alpha(color, 0.1),
-                                        boxShadow: `0 6px 16px ${alpha(theme.palette.common.black, 0.15)}`,
-                                        transform: 'translateY(-2px)',
+                                        transform: 'scale(1.02)',
+                                        zIndex: 1,
+                                        boxShadow: 2,
                                         cursor: 'pointer'
                                     }
                                 }}
                             >
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 900, color: color, lineHeight: 1, letterSpacing: 0.5 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: color, letterSpacing: 0.5 }}>
                                         {label}
                                     </Typography>
-                                    {task.shotID && (
-                                        <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, px: 0.75, py: 0.1, borderRadius: 0.5, bgcolor: alpha(theme.palette.text.primary, 0.1), color: theme.palette.text.primary }}>
-                                            {task.shotID}
+                                    {task.assignee && (
+                                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: 'text.secondary', opacity: 0.8 }}>
+                                            {task.assignee}
                                         </Typography>
                                     )}
                                 </Box>
-
-                                <Typography variant="body2" sx={{ fontSize: '0.95rem', fontWeight: 700, lineHeight: 1.3, color: theme.palette.text.primary, mb: 0.75 }}>
+                                <Typography variant="caption" noWrap sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
                                     {task.name}
                                 </Typography>
-
-                                {task.assignee && (
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, pt: 0.5, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-                                        <Avatar sx={{ width: 20, height: 20, fontSize: '0.7rem', fontWeight: 800, bgcolor: theme.palette.primary.main }}>
-                                            {task.assignee.charAt(0).toUpperCase()}
-                                        </Avatar>
-                                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: theme.palette.text.secondary }}>
-                                            {task.assignee}
-                                        </Typography>
-                                    </Box>
-                                )}
-                            </Card>
+                            </Box>
                         </Tooltip>
                     );
                 })}
@@ -192,7 +183,7 @@ const ProductionTrackerPage: React.FC = () => {
                         </Typography>
                     </Box>
                     <Typography variant="body2" color="text.secondary">
-                        シーケンス・ショット進捗管理
+                        ショット・シーケンス進捗管理（カット袋ベース）
                     </Typography>
                 </Box>
 
@@ -203,7 +194,7 @@ const ProductionTrackerPage: React.FC = () => {
                             value={selectedProjectId}
                             onChange={(e) => setSelectedProjectId(e.target.value as number)}
                             label="プロジェクト選択"
-                            sx={{ borderRadius: 2, bgcolor: alpha(theme.palette.background.paper, 0.8), backdropFilter: 'blur(8px)' }}
+                            sx={{ borderRadius: 2, bgcolor: alpha(theme.palette.background.paper, 0.8) }}
                         >
                             {projects.map((p) => (
                                 <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
@@ -220,15 +211,11 @@ const ProductionTrackerPage: React.FC = () => {
                 component={Paper}
                 sx={{
                     flexGrow: 1,
-                    borderRadius: 4,
-                    boxShadow: `0 8px 32px 0 ${alpha(theme.palette.common.black, 0.15)}`,
-                    bgcolor: alpha(theme.palette.background.paper, 0.6),
-                    backdropFilter: 'blur(16px)',
-                    border: `1px solid ${alpha(theme.palette.common.white, 0.1)}`,
+                    borderRadius: 3,
+                    boxShadow: 3,
+                    bgcolor: alpha(theme.palette.background.paper, 0.8),
                     position: 'relative',
                     overflow: 'auto',
-                    '&::-webkit-scrollbar': { width: 10, height: 10 },
-                    '&::-webkit-scrollbar-thumb': { bgcolor: alpha(theme.palette.primary.main, 0.3), borderRadius: 5 },
                 }}
             >
                 {loading && (
@@ -245,28 +232,18 @@ const ProductionTrackerPage: React.FC = () => {
                 )}
 
                 {!loading && !error && trackerData && (
-                    <Table stickyHeader size="medium" sx={{ minWidth: 1400, tableLayout: 'auto' }}>
+                    <Table stickyHeader size="small" sx={{ minWidth: 1200 }}>
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={{
-                                    fontWeight: 900,
-                                    width: 220,
-                                    bgcolor: alpha(theme.palette.background.paper, 0.98),
-                                    zIndex: 11,
-                                    fontSize: '0.95rem',
-                                    letterSpacing: 2,
-                                    borderRight: `2px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                    textTransform: 'uppercase'
-                                }}>
-                                    SEQUENCE
-                                </TableCell>
+                                <TableCell sx={{ fontWeight: 900, width: 120, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SEQ</TableCell>
+                                <TableCell sx={{ fontWeight: 900, width: 120, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SHOT</TableCell>
                                 {(trackerData?.types ?? []).map((t) => (
                                     <TableCell key={t} sx={{
                                         fontWeight: 900,
                                         textTransform: 'uppercase',
-                                        fontSize: '0.85rem',
-                                        letterSpacing: 2,
-                                        bgcolor: alpha(theme.palette.background.paper, 0.98),
+                                        fontSize: '0.75rem',
+                                        letterSpacing: 1,
+                                        bgcolor: alpha(theme.palette.background.paper, 0.95),
                                         textAlign: 'center'
                                     }}>
                                         {t}
@@ -275,36 +252,50 @@ const ProductionTrackerPage: React.FC = () => {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {(trackerData?.sequences?.length ?? 0) === 0 ? (
+                            {trackerData.sequences.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={(trackerData?.types?.length ?? 0) + 1} align="center" sx={{ py: 10 }}>
-                                        <Typography variant="h6" color="text.secondary">データが見つかりませんでした。</Typography>
+                                    <TableCell colSpan={trackerData.types.length + 2} align="center" sx={{ py: 10 }}>
+                                        <Typography color="text.secondary">データが見つかりませんでした。</Typography>
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                trackerData?.sequences?.map((seq, idx) => (
-                                    <TableRow key={idx} sx={{ '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.04) } }}>
-                                        <TableCell sx={{
-                                            fontWeight: 900,
-                                            color: theme.palette.primary.main,
-                                            borderRight: `2px solid ${alpha(theme.palette.divider, 0.1)}`,
-                                            bgcolor: alpha(theme.palette.background.paper, 0.15),
-                                            fontSize: '1.2rem',
-                                            py: 3,
-                                            px: 2
-                                        }}>
-                                            {seq.seqID}
-                                        </TableCell>
-                                        {(trackerData?.types ?? []).map((type) => (
-                                            <TableCell key={type} sx={{
-                                                verticalAlign: 'top',
-                                                borderRight: `1px solid ${alpha(theme.palette.divider, 0.05)}`,
-                                                px: 2
-                                            }}>
-                                                {renderTaskCell(seq.tasks[type])}
-                                            </TableCell>
+                                trackerData.sequences.map((seq) => (
+                                    <React.Fragment key={seq.seqID}>
+                                        {seq.shots.map((shot, shotIdx) => (
+                                            <TableRow key={`${seq.seqID}-${shot.shotID}`} hover>
+                                                {shotIdx === 0 && (
+                                                    <TableCell
+                                                        rowSpan={seq.shots.length}
+                                                        sx={{
+                                                            fontWeight: 900,
+                                                            color: theme.palette.primary.main,
+                                                            bgcolor: alpha(theme.palette.primary.main, 0.05),
+                                                            borderRight: `1px solid ${theme.palette.divider}`,
+                                                            fontSize: '1rem',
+                                                            textAlign: 'center',
+                                                            verticalAlign: 'top',
+                                                            pt: 2
+                                                        }}
+                                                    >
+                                                        {seq.seqID}
+                                                    </TableCell>
+                                                )}
+                                                <TableCell sx={{
+                                                    fontWeight: 800,
+                                                    fontSize: '0.85rem',
+                                                    borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
+                                                    bgcolor: alpha(theme.palette.background.paper, 0.3)
+                                                }}>
+                                                    {shot.shotID}
+                                                </TableCell>
+                                                {trackerData.types.map((type) => (
+                                                    <TableCell key={type} sx={{ verticalAlign: 'top', minWidth: 160, borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                                                        {renderTaskCell(shot.tasks[type])}
+                                                    </TableCell>
+                                                ))}
+                                            </TableRow>
                                         ))}
-                                    </TableRow>
+                                    </React.Fragment>
                                 ))
                             )}
                         </TableBody>
@@ -312,16 +303,16 @@ const ProductionTrackerPage: React.FC = () => {
                 )}
             </TableContainer>
 
-            <Box sx={{ mt: 2, display: 'flex', gap: 3, flexWrap: 'wrap', opacity: 0.9 }}>
+            <Box sx={{ mt: 2, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                 {[
                     { key: 'todo', label: '未着手' },
                     { key: 'in-progress', label: '進行中' },
-                    { key: 'review', label: 'レビュー中' },
+                    { key: 'review', label: 'レビュー' },
                     { key: 'delayed', label: '遅延' },
                     { key: 'completed', label: '完了' }
                 ].map((s) => (
-                    <Typography key={s.key} variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.6, fontWeight: 600 }}>
-                        <Box sx={{ width: 10, height: 10, borderRadius: '2px', bgcolor: getStatusColor(s.key) }} />
+                    <Typography key={s.key} variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 700 }}>
+                        <Box sx={{ width: 12, height: 12, borderRadius: '2px', bgcolor: getStatusColor(s.key) }} />
                         {s.label}
                     </Typography>
                 ))}

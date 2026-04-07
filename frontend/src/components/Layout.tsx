@@ -157,21 +157,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const [currentTitleColor, setCurrentTitleColor] = useState('inherit')
 
-  const getGroupColor = (path: string) => {
-    if (path === '/dashboard' || path === '/calendar') return 'inherit'
-
-    // Group 2: Projects, Tasks, Users, Production Tracker
-    if (['/projects', '/tasks', '/admin/users', '/production-tracker'].some(p => path.startsWith(p))) {
-      return '#2196F3' // Blue
-    }
-    // Group 3: Notes, Meetings, Knowledge Base
-    if (['/notes', '/meetings', '/knowledge'].some(p => path.startsWith(p))) {
-      return '#4CAF50' // Green
-    }
-    // Group 4: Event Management, Group Management, Data Management, User Activity, Metrics, Chat
-    if (['/event-management', '/admin/groups', '/admin/data', '/admin/user-activities', '/metrics', '/chat'].some(p => path.startsWith(p))) {
-      return '#9C27B0' // Purple
-    }
+  const getGroupColor = (_path: string) => {
     return 'inherit'
   }
 

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, List, ListItem, ListItemText,
-    IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-    TextField, CircularProgress,
+    IconButton, CircularProgress,
     Accordion, AccordionSummary, AccordionDetails,
-    Alert, Snackbar, Grid, Chip, Link, useMediaQuery, useTheme
+    Alert, Snackbar, Grid, Chip, useMediaQuery, useTheme
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -71,14 +70,7 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
         }
     };
 
-    const handleOpenExplorer = async (path: string) => {
-        try {
-            await api.post('/meetings/open-explorer', { path });
-        } catch (err) {
-            console.error('Failed to open explorer:', err);
-            setSnackbar({ open: true, message: 'エクスプローラーを開けませんでした', severity: 'error' });
-        }
-    };
+
 
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -159,45 +151,7 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                             <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                                                 実施日: {new Date(meeting.date).toLocaleDateString('ja-JP')}
                                             </Typography>
-                                            {meeting.audio_url && (
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-                                                    <Typography
-                                                        variant="caption"
-                                                        color="text.secondary"
-                                                        sx={{
-                                                            display: 'inline-block',
-                                                            maxWidth: isMobile ? '150px' : '400px',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis',
-                                                            whiteSpace: 'nowrap',
-                                                            fontFamily: 'monospace'
-                                                        }}
-                                                        title={meeting.audio_url}
-                                                    >
-                                                        {meeting.audio_url}
-                                                    </Typography>
-                                                    {(meeting.audio_url.startsWith('X:') || meeting.audio_url.includes('\\')) && (
-                                                        <Button
-                                                            size="small"
-                                                            variant="text"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenExplorer(meeting.audio_url!);
-                                                            }}
-                                                            sx={{
-                                                                minWidth: 'auto',
-                                                                p: 0,
-                                                                fontSize: '0.65rem',
-                                                                textTransform: 'none',
-                                                                color: 'primary.main',
-                                                                '&:hover': { textDecoration: 'underline' }
-                                                            }}
-                                                        >
-                                                            [開く]
-                                                        </Button>
-                                                    )}
-                                                </Box>
-                                            )}
+
                                         </Box>
                                     </Box>
                                     {meeting.status === 'failed' ? (

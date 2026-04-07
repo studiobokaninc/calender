@@ -135,59 +135,66 @@ def get_production_tracker_endpoint(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
-    """シーケンス軸での進捗マトリックスデータを取得"""
-    from sqlalchemy import or_
-    
+    """シーケンス・ショット軸での進捗マトリックスデータを取得"""
     from sqlalchemy.orm import joinedload
-    from typing import Dict, Any
+    from typing import Dict, Any, List
     
-    # すべてのタスクを取得（seqID/shotID がないものも「Other」として扱うため）
+    # すべてのタスクを取得
     tasks = db.query(models.Task).options(joinedload(models.Task.assignee)).filter(
-        models.Task.project_id == project_id
+        models.Task.project_id == project_id,
+        models.Task.display_status == 'online'
     ).all()
     
-    # シーケンスをキーとした構造
-    seq_dict: Dict[str, Any] = {}
+    # 構造: seqID -> shotID -> type -> tasks
+    tree: Dict[str, Dict[str, Dict[str, List[Dict]]]] = {}
     all_types = set()
     
     # 推奨順序
     priority_types = ["design", "asset", "animation", "fx", "lighting", "comp", "review", "testing"]
     
     for t in tasks:
-        # シーケンス名をメインキーにする
-        qid = str(t.seqID or "Other")
+        sid = str(t.seqID or "Other")
+        hid = str(t.shotID or "Global") # Global means no specific shot
         
-        if qid not in seq_dict:
-            seq_dict[qid] = {
-                "seqID": qid,
-                "tasks": {} # type -> task_info list
-            }
-        
-        target_seq = seq_dict[qid]
+        if sid not in tree:
+            tree[sid] = {}
+        if hid not in tree[sid]:
+            tree[sid][hid] = {}
+            
         task_type = t.type or "NONE"
         all_types.add(task_type)
         
-        # 担当者名（フルネーム優先、なければユーザー名）
+        if task_type not in tree[sid][hid]:
+            tree[sid][hid][task_type] = []
+            
+        # 担当者名
         assignee_name = None
         if t.assignee:
             assignee_name = t.assignee.full_name or t.assignee.username
             
-        task_info = {
+        tree[sid][hid][task_type].append({
             "id": t.id,
             "status": t.status.value if t.status else "todo",
             "name": t.name,
-            "shotID": t.shotID,
             "assignee": assignee_name,
             "due_date": t.due_date.isoformat() if t.due_date else None
-        }
-        
-        if task_type not in target_seq["tasks"]:
-            target_seq["tasks"][task_type] = []
-        target_seq["tasks"][task_type].append(task_info)
+        })
             
+    # フォーマット成形
+    sequences_list = []
     # シーケンス名でソート
-    sorted_qid = sorted(seq_dict.keys())
-    sequences = [seq_dict[q] for q in sorted_qid]
+    for sid in sorted(tree.keys()):
+        shots_list = []
+        # ショット名でソート
+        for hid in sorted(tree[sid].keys()):
+            shots_list.append({
+                "shotID": hid,
+                "tasks": tree[sid][hid]
+            })
+        sequences_list.append({
+            "seqID": sid,
+            "shots": shots_list
+        })
     
     # 工程のソート
     found_priority = [pt for pt in priority_types if pt in all_types]
@@ -195,6 +202,6 @@ def get_production_tracker_endpoint(
     sorted_types = found_priority + others
     
     return {
-        "sequences": sequences,
+        "sequences": sequences_list,
         "types": sorted_types
     }

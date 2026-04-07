@@ -887,12 +887,12 @@ const ChatPage: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <QuestionAnswerIcon sx={{ fontSize: '2rem', color: '#9C27B0' }} />
+              <QuestionAnswerIcon sx={{ fontSize: '2rem', color: '#00BCD4' }} />
               <Typography
                 variant="h4"
                 sx={{
                   fontWeight: 800,
-                  background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)',
+                  background: 'linear-gradient(45deg, #00BCD4 30%, #3F51B5 90%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   fontSize: { xs: '1.75rem', sm: '2.25rem' }

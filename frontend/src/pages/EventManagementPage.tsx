@@ -16,12 +16,12 @@ const EventManagementPage: React.FC = () => {
           <Typography color="text.primary" sx={{ fontWeight: 500 }}>Events</Typography>
         </Breadcrumbs>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <EventNoteIcon sx={{ fontSize: '2rem', color: '#9C27B0' }} />
+          <EventNoteIcon sx={{ fontSize: '2rem', color: '#00BCD4' }} />
           <Typography
             variant="h4"
             sx={{
               fontWeight: 800,
-              background: 'linear-gradient(45deg, #9C27B0 30%, #E91E63 90%)',
+              background: 'linear-gradient(45deg, #00BCD4 30%, #3F51B5 90%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               fontSize: { xs: '1.75rem', sm: '2.25rem' }

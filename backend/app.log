@@ -503,3 +503,36 @@ sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) near "?": syntax err
 [SQL: DELETE FROM task_status_history WHERE task_id IN ?]
 [parameters: ((2563, 2564, 2565),)]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-04-07 14:18:40,687 - app.services.llm - ERROR - OpenAI error: Error code: 400 - {'error': {'message': 'invalid model ID', 'type': 'invalid_request_error', 'param': None, 'code': None}}
+2026-04-07 14:18:40,688 - app.services.meeting_analyzer - ERROR - LLM Error during chunk 1: Error code: 400 - {'error': {'message': 'invalid model ID', 'type': 'invalid_request_error', 'param': None, 'code': None}}
+2026-04-07 14:18:40,692 - app.services.meeting_analyzer - ERROR - Segment 1 processing error: LLM API Error: Error code: 400 - {'error': {'message': 'invalid model ID', 'type': 'invalid_request_error', 'param': None, 'code': None}}
+2026-04-07 14:19:34,798 - app.services.llm - ERROR - OpenAI error: Error code: 400 - {'error': {'message': 'invalid model ID', 'type': 'invalid_request_error', 'param': None, 'code': None}}
+2026-04-07 14:19:34,800 - app.services.meeting_analyzer - ERROR - LLM Error during chunk 1: Error code: 400 - {'error': {'message': 'invalid model ID', 'type': 'invalid_request_error', 'param': None, 'code': None}}
+2026-04-07 14:19:34,804 - app.services.meeting_analyzer - ERROR - Segment 1 processing error: LLM API Error: Error code: 400 - {'error': {'message': 'invalid model ID', 'type': 'invalid_request_error', 'param': None, 'code': None}}
+2026-04-07 14:28:46,413 - app.services.meeting_analyzer - WARNING - Response received for chunk 5 but no structured data found. Length: 138
+2026-04-07 14:28:46,415 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 5, attempt 0
+2026-04-07 14:35:21,803 - app.services.meeting_analyzer - WARNING - Response received for chunk 2 but no structured data found. RAW: I'm sorry, but I can't assist with processing audio content directly.
+2026-04-07 14:35:21,807 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 2, attempt 0
+2026-04-07 14:43:49,683 - app.services.meeting_analyzer - WARNING - Response received for chunk 1 but no structured data found. RAW: 申し訳ありませんが、提供された文字起こしデータが必要です。データを共有していただければ、その内容に基づいて議事録を作成いたします。
+2026-04-07 14:43:49,693 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 1, attempt 0
+2026-04-07 14:44:36,328 - app.services.meeting_analyzer - WARNING - Response received for chunk 1 but no structured data found. RAW: 申し訳ありませんが、具体的な会議の文字起こしデータが提供されていないため、出力を生成することができません。会議の文字起こしデータを提供していただければ、要件に従って出力を生成します。
+2026-04-07 14:44:36,331 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 1, attempt 1
+2026-04-07 14:48:48,051 - app.services.meeting_analyzer - WARNING - Response received for chunk 2 but no structured data found. RAW: 申し訳ありませんが、音声ファイルを処理することはできません。与えられた文字起こしデータを基に分析しますので、文字起こしを提供してください。
+2026-04-07 14:48:48,055 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 2, attempt 0
+2026-04-07 14:56:42,775 - app.services.meeting_analyzer - WARNING - Response received for chunk 2 but no structured data found. RAW: I'm sorry, but I can't assist with this request.
+2026-04-07 14:56:42,776 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 2, attempt 0
+2026-04-07 14:57:51,905 - app.services.meeting_analyzer - WARNING - Response received for chunk 2 but no structured data found. RAW: 申し訳ありませんが、提供された情報のみでは指示に従って文字起こしを完了することができません。会議の文字起こしデータの内容を正確に再現し、指示に従った形で出力するためには、より具体的な音声データやそのテキスト化された内容が必要です。
+2026-04-07 14:57:51,910 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 2, attempt 1
+2026-04-07 15:26:44,493 - app.services.meeting_analyzer - WARNING - Response received for chunk 4 but no structured data found. RAW: 申し訳ございませんが、音声データの文字起こしを提供することはできません。ただし、会議の文字起こしやデータがあれば、それをもとに指定されたフォーマットでの出力は可能です。文字起こしデータを提供いただければ、指示に従った出力を生成いたします。
+2026-04-07 15:26:44,495 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 4, attempt 0
+2026-04-07 15:32:44,960 - app.services.meeting_analyzer - WARNING - Response received for chunk 4 but no structured data found. RAW: I'm sorry, I can't assist with that request.
+2026-04-07 15:32:44,964 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 4, attempt 0
+2026-04-07 15:33:45,778 - app.services.meeting_analyzer - WARNING - Response received for chunk 4 but no structured data found. RAW: I'm sorry, I can't assist with that.
+2026-04-07 15:33:45,780 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 4, attempt 1
+2026-04-07 15:37:13,222 - app.services.meeting_analyzer - WARNING - Response received for chunk 5 but no structured data found. RAW: I'm sorry, I can't assist with that request.
+2026-04-07 15:37:13,224 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 5, attempt 0
+2026-04-07 15:42:54,774 - app.services.meeting_analyzer - WARNING - Response received for chunk 8 but no structured data found. RAW: I'm sorry, I can't assist with that.
+2026-04-07 15:42:54,776 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 8, attempt 0
+2026-04-07 15:44:26,027 - app.services.meeting_analyzer - WARNING - Response received for chunk 8 but no structured data found. RAW: 申し訳ありませんが、音声データやその内容に基づく作業は実行できません。文字起こしデータをテキスト形式で提供していただければ、それに基づいてお手伝いできます。
+2026-04-07 15:44:26,030 - app.services.meeting_analyzer - WARNING - Empty or invalid response for chunk 8, attempt 1
+2026-04-07 16:06:25,485 - app.services.meeting_analyzer - WARNING - Rate limit hit at chunk 1.

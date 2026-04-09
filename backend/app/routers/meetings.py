@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
+import asyncio
 import uuid
 import shutil
 import subprocess
@@ -79,12 +80,15 @@ async def upload_meeting_audio(
         db.refresh(db_meeting)
         
         # 4. バックグラウンドでAI解析を開始
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            logger.error("GOOGLE_API_KEY is not set. Background analysis will not start.")
+        openai_key = os.getenv("OPENAI_API_KEY", "")
+        google_key = os.getenv("GOOGLE_API_KEY", "")
+        selected_key = openai_key if openai_key.startswith("sk-") else google_key
+        
+        if not selected_key:
+            logger.error("LLM API Key is not set. Background analysis will not start.")
         else:
             import asyncio
-            asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), api_key))
+            asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), selected_key))
         
         return db_meeting
     except Exception as e:

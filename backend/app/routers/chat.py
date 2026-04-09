@@ -51,11 +51,15 @@ def get_llm_client():
     env_path = Path(__file__).resolve().parent.parent / ".env"
     load_dotenv(dotenv_path=str(env_path), override=True)
 
-    current_api_key = os.getenv("GOOGLE_API_KEY", "")
+    # OpenAI優先
+    current_openai_key = os.getenv("OPENAI_API_KEY", "")
+    current_google_key = os.getenv("GOOGLE_API_KEY", "")
+    
+    selected_key = current_openai_key if current_openai_key.startswith("sk-") else current_google_key
 
-    if llm_client is None or _cached_api_key != current_api_key:
-        _cached_api_key = current_api_key
-        llm_client = LLMClient(api_key=current_api_key)
+    if llm_client is None or _cached_api_key != selected_key:
+        _cached_api_key = selected_key
+        llm_client = LLMClient(api_key=selected_key)
 
     return llm_client
 
@@ -137,17 +141,11 @@ async def stream_chat(
             # ブラウザの自動再接続を抑止
             yield b"retry: 0\n\n"
             
-            # チャット開始時にタスクリスト（toDatatable形式CSV）を送信 (FrontendのDify対応ロジックに合わせる)
+            # チャット開始時にタスクリスト（toDatatable形式CSV）を送信
             try:
-                if "csv" in inputs:
-                    task_list_payload = json.dumps(
-                        {"type": "task_list", "csv": inputs["csv"]},
-                        ensure_ascii=False,
-                    )
-                    yield (
-                        "event: task_list\n"
-                        f"data: {task_list_payload}\n\n"
-                    ).encode("utf-8")
+                if inputs.get("csv"):
+                    task_list_payload = json.dumps({"type": "task_list", "csv": inputs["csv"]}, ensure_ascii=False)
+                    yield f"event: task_list\ndata: {task_list_payload}\n\n".encode("utf-8")
             except Exception as e:
                 logger.warning("[SSE] task_list generation failed: %s", e)
 

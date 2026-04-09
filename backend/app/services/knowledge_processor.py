@@ -177,7 +177,7 @@ class KnowledgeProcessor:
         if not extracted_text or len(extracted_text) < 10:
              return {"summary": "Error: Could not extract content.", "content": ""}
 
-        prompt = f"Analyze the following content extracted from a {file_type} file and provide a structured summary in Japanese emphasizing key points and data structures.\n\n{extracted_text[:30000]}"
+        prompt = f"以下の{file_type}ファイルから抽出された内容を分析し、重要なポイントやデータ構造を強調した構造化された要約を【日本語で】作成してください。\n\n{extracted_text[:30000]}"
         inputs = {"mode": "utility", "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_proc_{uuid.uuid4()}", inputs):
@@ -186,7 +186,7 @@ class KnowledgeProcessor:
         return {"summary": response_text, "content": extracted_text}
 
     async def _ocr_pdf_via_gemini(self, file_path: str, is_summary: bool = False) -> str:
-        prompt = "Summarize this PDF in Japanese." if is_summary else "Transcription all text from this PDF to Markdown."
+        prompt = "このPDFの内容を【日本語で】要約してください。" if is_summary else "このPDFのすべてのテキストをMarkdown形式で【日本語で】書き起こしてください。"
         inputs = {"mode": "admin", "attachments": [file_path], "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_pdf_{uuid.uuid4()}", inputs):
@@ -195,7 +195,7 @@ class KnowledgeProcessor:
         return response_text
 
     async def _ocr_image(self, file_path: str) -> str:
-        prompt = "Transcribe all text from this image accurately. If there are tables or structures, represent them as Markdown."
+        prompt = "この画像からすべてのテキストを正確に【日本語で】書き起こしてください。表や構造がある場合は、Markdownで表現してください。"
         inputs = {"mode": "admin", "attachments": [file_path], "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_ocr_{uuid.uuid4()}", inputs):
@@ -204,7 +204,7 @@ class KnowledgeProcessor:
         return response_text
 
     async def _generate_summary_from_text(self, text: str) -> str:
-        prompt = f"Summarize the following text concisely:\n\n{text}"
+        prompt = f"以下のテキストを【日本語で】簡潔に要約してください：\n\n{text}"
         inputs = {"mode": "utility", "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_sum_{uuid.uuid4()}", inputs):
@@ -213,7 +213,7 @@ class KnowledgeProcessor:
         return response_text
 
     async def _generate_summary_from_file_content(self, file_path: str, file_type: str) -> str:
-        prompt = f"Summarize the content of this {file_type} file."
+        prompt = f"この{file_type}ファイルの内容を【日本語で】要約してください。"
         inputs = {"mode": "admin", "attachments": [file_path], "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_sum_file_{uuid.uuid4()}", inputs):
@@ -223,7 +223,7 @@ class KnowledgeProcessor:
 
     async def _generate_tags(self, text: str) -> List[str]:
         if not text: return []
-        prompt = f"Extract 3-5 relevant keywords (tags) for the following content. Output as a comma-separated list only.\n\n{text}"
+        prompt = f"以下のコンテンツに関連するキーワード（タグ）を3〜5個、【日本語で】抽出してください。カンマ区切りのリスト形式でのみ出力してください。\n\n{text}"
         inputs = {"mode": "admin", "no_actions": True}
         response_text = ""
         async for chunk in self.llm_client.stream_chat(prompt, f"kb_tags_{uuid.uuid4()}", inputs):

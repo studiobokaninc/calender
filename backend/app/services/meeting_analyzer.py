@@ -23,11 +23,8 @@ ANALYZE_SEMAPHORE = asyncio.Semaphore(2)
 class MeetingAnalyzer:
     def __init__(self, api_key: str):
         if not api_key:
-            logger.warning("GOOGLE_API_KEY is not set for MeetingAnalyzer")
+            logger.warning("No API Key provided to MeetingAnalyzer")
         self.llm_client = LLMClient(api_key=api_key)
-        # 確実に安定しているモデルを使用
-        self.llm_client.model_name = "models/gemini-2.0-flash" 
-
     async def _get_duration(self, audio_path: str) -> float:
         """ffprobeを使用して音声の長さを取得する（Windows対応・堅牢性強化）"""
         abs_path = os.path.abspath(audio_path)
@@ -231,19 +228,33 @@ class MeetingAnalyzer:
             try:
                 segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
                 
+                segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
+                
+                # プロバイダー（Gemini vs OpenAI/Whisper）に応じた指示の微調整
+                is_openai = (self.llm_client.provider == "openai")
+                
+                # 指示：Geminiは直接聴けるが、OpenAIはWhisper後のテキストを受け取る前提
+                action_instr = "提供された会議の文字起こしデータを詳細に分析し、" if is_openai else "提供された会議音声を詳細に分析し、"
+                transcript_instr = "1. 詳細な全文文字起こし（整形・補完）:" if is_openai else "1. 全文を詳細に文字起こし:"
+                transcript_sub_instr = (
+                    "提供された文字起こしデータの【全内容】を、意味を損なうことなく、読みやすく整形して出力してください。"
+                    if is_openai else "日本語で全文を一字一句漏らさず（不要な相槌を除く）文字起こししてください。"
+                )
+
                 prompt = f"""
-あなたは、会議音声を詳細に分析し、重要な情報を一切漏らさない精密な議事録を作成するプロフェッショナルAIエディターです。
-現在、会議音声の{segment_info}を処理しています。
+あなたは、{action_instr}重要な情報を一切漏らさない精密な議事録を作成するプロフェッショナルAIエディターです。
+現在、会議のセグメント{segment_info}を処理しています。
 
 以下の【要件】に厳密に従って、出力を生成してください。
 
 【要件】
-1. 逐次、詳細な文字起こし:
-   - 日本語で全文を文字起こししてください。
+{transcript_instr}
+   - {transcript_sub_instr}
+   - **重要：情報を一切省略せず、元々の発言内容をすべて残してください。要約はしないでください。**
    - 発言者（A, B, C... または会話から推測される名前）を特定し、発言ごとに以下のタグを先頭に付与してください。
      [議題] [提案] [決定] [タスク] [質問] [雑談]
-   - 相槌（「あー」「うん」「はい」等）や言い直しを適宜削り、読みやすく整形してください。
-   - **要約するのではなく、具体的に誰が何を言ったかを詳細に残すこと**を最優先してください。
+   - **重要：知らない人の名前を勝手に捏造しないでください。** 名前が不明な場合は、一貫して「話者A」「話者B」のように記号で区別してください。
+   - 文脈から明らかに不要な相槌（「あー」「えー」等）や、意味のない言い直しのみを削り、発言の真意がすべて伝わるように整形してください。
 
 2. 重要情報の抽出（各セグメントの最後に出力されます）:
    - 決定事項: 会議で合意された、または決定した方針。
@@ -252,8 +263,7 @@ class MeetingAnalyzer:
    - スケジュール: 具体的日程、期限、次回の予定。
 
 【出力順序について】
-文字起こしが非常に長くなる可能性があるため、まずは「文字起こし全文」を出力し、その直後に重要情報を出力してください。
-もし文字起こしが長すぎて制限に達しそうな場合は、重要情報を優先的に出力してください。
+まずは「文字起こし全文」を丁寧に出力し、その直後に構造化した重要情報を出力してください。
 
 【出力フォーマット】（以下のキーワードをセクション区切りとして使用し、それ以外の説明は不要です）
 ===DECISIONS===
@@ -272,7 +282,7 @@ class MeetingAnalyzer:
 ===TRANSCRIPT===
 （タグ付き文字起こし全文）
 """
-                inputs = {"mode": "admin", "attachments": [path], "no_actions": True}
+                inputs = {"mode": "utility", "attachments": [path], "no_actions": True}
                 response_text = ""
                 
                 # 指数バックオフ
@@ -300,7 +310,7 @@ class MeetingAnalyzer:
                     if parsed.get("transcript") or parsed.get("decisions") or parsed.get("tasks"):
                         return parsed
                     else:
-                        logger.warning(f"Response received for chunk {index} but no structured data found. Length: {len(response_text)}")
+                        logger.warning(f"Response received for chunk {index} but no structured data found. RAW: {response_text[:500]}")
                 
                 logger.warning(f"Empty or invalid response for chunk {index}, attempt {attempt}")
 

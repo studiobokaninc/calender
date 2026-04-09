@@ -14,9 +14,13 @@ tabulate
 requests
 httpx
 google-genai
+openai
 llama-index
 chromadb
+pypdf
 llama-index-llms-google-genai
 llama-index-embeddings-google-genai
+llama-index-llms-openai
+llama-index-embeddings-openai
 llama-index-vector-stores-chroma
 edge-tts

@@ -128,15 +128,15 @@ const ProductionTrackerPage: React.FC = () => {
                         <Tooltip key={task.id} title={`${task.name}${task.assignee ? ` (担当: ${task.assignee})` : ''}${task.due_date ? ` [〆: ${task.due_date}]` : ''}`} arrow>
                             <Box
                                 sx={{
-                                    p: 0.75,
-                                    borderRadius: 1,
+                                    p: 1,
+                                    borderRadius: 1.5,
                                     border: `1px solid ${alpha(color, 0.3)}`,
-                                    borderLeft: `4px solid ${color}`,
+                                    borderLeft: `5px solid ${color}`,
                                     backgroundColor: alpha(color, 0.05),
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: 0.25,
-                                    minWidth: 140,
+                                    gap: 0.5,
+                                    minWidth: 180,
                                     transition: 'all 0.15s',
                                     '&:hover': {
                                         backgroundColor: alpha(color, 0.1),
@@ -148,16 +148,16 @@ const ProductionTrackerPage: React.FC = () => {
                                 }}
                             >
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: color, letterSpacing: 0.5 }}>
+                                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: color, letterSpacing: 0.5 }}>
                                         {label}
                                     </Typography>
                                     {task.assignee && (
-                                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: 'text.secondary', opacity: 0.8 }}>
+                                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: 'text.secondary', opacity: 0.8 }}>
                                             {task.assignee}
                                         </Typography>
                                     )}
                                 </Box>
-                                <Typography variant="caption" noWrap sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                                <Typography variant="caption" noWrap sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
                                     {task.name}
                                 </Typography>
                             </Box>
@@ -182,13 +182,13 @@ const ProductionTrackerPage: React.FC = () => {
                             Production Tracker
                         </Typography>
                     </Box>
-                    <Typography variant="body2" color="text.secondary">
-                        ショット・シーケンス進捗管理（カット袋ベース）
+                    <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        ショット・シーケンス進捗管理
                     </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <FormControl variant="outlined" size="small" sx={{ minWidth: 250 }}>
+                    <FormControl variant="outlined" size="medium" sx={{ minWidth: 300 }}>
                         <InputLabel>プロジェクト選択</InputLabel>
                         <Select
                             value={selectedProjectId}
@@ -232,16 +232,16 @@ const ProductionTrackerPage: React.FC = () => {
                 )}
 
                 {!loading && !error && trackerData && (
-                    <Table stickyHeader size="small" sx={{ minWidth: 1200 }}>
+                    <Table stickyHeader size="medium" sx={{ minWidth: 1500 }}>
                         <TableHead>
                             <TableRow>
-                                <TableCell sx={{ fontWeight: 900, width: 120, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SEQ</TableCell>
-                                <TableCell sx={{ fontWeight: 900, width: 120, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SHOT</TableCell>
+                                <TableCell sx={{ fontWeight: 900, fontSize: '1rem', width: 140, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SEQ</TableCell>
+                                <TableCell sx={{ fontWeight: 900, fontSize: '1rem', width: 140, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SHOT</TableCell>
                                 {(trackerData?.types ?? []).map((t) => (
                                     <TableCell key={t} sx={{
                                         fontWeight: 900,
                                         textTransform: 'uppercase',
-                                        fontSize: '0.75rem',
+                                        fontSize: '0.95rem',
                                         letterSpacing: 1,
                                         bgcolor: alpha(theme.palette.background.paper, 0.95),
                                         textAlign: 'center'
@@ -271,10 +271,10 @@ const ProductionTrackerPage: React.FC = () => {
                                                             color: theme.palette.primary.main,
                                                             bgcolor: alpha(theme.palette.primary.main, 0.05),
                                                             borderRight: `1px solid ${theme.palette.divider}`,
-                                                            fontSize: '1rem',
+                                                            fontSize: '1.2rem',
                                                             textAlign: 'center',
                                                             verticalAlign: 'top',
-                                                            pt: 2
+                                                            pt: 3
                                                         }}
                                                     >
                                                         {seq.seqID}
@@ -282,14 +282,14 @@ const ProductionTrackerPage: React.FC = () => {
                                                 )}
                                                 <TableCell sx={{
                                                     fontWeight: 800,
-                                                    fontSize: '0.85rem',
+                                                    fontSize: '1.1rem',
                                                     borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
                                                     bgcolor: alpha(theme.palette.background.paper, 0.3)
                                                 }}>
                                                     {shot.shotID}
                                                 </TableCell>
                                                 {trackerData.types.map((type) => (
-                                                    <TableCell key={type} sx={{ verticalAlign: 'top', minWidth: 160, borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+                                                    <TableCell key={type} sx={{ verticalAlign: 'top', minWidth: 200, borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
                                                         {renderTaskCell(shot.tasks[type])}
                                                     </TableCell>
                                                 ))}
@@ -311,8 +311,8 @@ const ProductionTrackerPage: React.FC = () => {
                     { key: 'delayed', label: '遅延' },
                     { key: 'completed', label: '完了' }
                 ].map((s) => (
-                    <Typography key={s.key} variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 700 }}>
-                        <Box sx={{ width: 12, height: 12, borderRadius: '2px', bgcolor: getStatusColor(s.key) }} />
+                    <Typography key={s.key} variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 700 }}>
+                        <Box sx={{ width: 16, height: 16, borderRadius: '4px', bgcolor: getStatusColor(s.key) }} />
                         {s.label}
                     </Typography>
                 ))}

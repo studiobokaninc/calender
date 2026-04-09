@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
+import asyncio
 import uuid
 import shutil
 from pathlib import Path
@@ -64,12 +65,14 @@ async def upload_knowledge_item(
     db_item = crud.create_knowledge_item(db, item=item_in)
     
     # Start processing in background
-    api_key = os.getenv("GOOGLE_API_KEY")
-    processor = KnowledgeProcessor(api_key=api_key)
+    openai_key = os.getenv("OPENAI_API_KEY", "")
+    google_key = os.getenv("GOOGLE_API_KEY", "")
+    selected_key = openai_key if openai_key else google_key
+    
+    processor = KnowledgeProcessor(api_key=selected_key)
     
     # BackgroundTasks is better for short-lived tasks, but parsing might be long.
     # However, for consistency with meetings, we use background_tasks or create_task.
-    import asyncio
     asyncio.create_task(processor.process_knowledge_item(db_item.id))
     
     return db_item

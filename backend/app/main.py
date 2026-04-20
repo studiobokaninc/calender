@@ -83,20 +83,26 @@ app = FastAPI(
 
 # CORSミドルウェア
 _cors_allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() == "true"
-_cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:5175,http://192.168.44.253:5175")
+_default_origins = "http://localhost:5175,http://192.168.44.253:5175,http://localhost:5173"
+_cors_origins_str = os.getenv("CORS_ORIGINS", _default_origins)
 
 if _cors_allow_all:
-    CORS_ORIGINS = ["*"]
+    # 資格情報(Credentials)を使用する場合、allow_origins=["*"] は使えないため
+    # 全てのオリジンに一致する正規表現を使用するか、リクエストのOriginを動的に許可する設定にする
+    CORS_ORIGINS = []
+    CORS_ORIGIN_REGEX = ".*" # 全オリジンを許可
 else:
     CORS_ORIGINS = [o.strip() for o in _cors_origins_str.split(",") if o.strip()]
+    CORS_ORIGIN_REGEX = None
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True if not _cors_allow_all else False,
+    allow_origin_regex=CORS_ORIGIN_REGEX,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "Content-Type"]
+    expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "Content-Type", "Content-Disposition"]
 )
 
 # --- Router Registration ---

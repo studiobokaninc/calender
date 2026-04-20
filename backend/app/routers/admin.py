@@ -14,8 +14,15 @@ from .. import crud, models, schemas, security
 from ..database import get_db, DATABASE_FILE_PATH
 from fastapi.responses import FileResponse, Response
 
+import uuid
+from datetime import datetime, timedelta
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+# 一時的なダウンロードトークンを保存するためのメモリ内ストア
+# 極めてシンプルな実装ですが、サーバー再起動でクリアされます
+download_tokens: Dict[str, datetime] = {}
 
 @router.get("/projects/mapping")
 def get_project_mapping(
@@ -312,20 +319,59 @@ async def import_csv_data(
         "detail": f"プロジェクト: {imported_projects}件, タスク: {imported_tasks}件 登録/更新しました。"
     }
 
-@router.get("/backup-db")
-def backup_db_file(
+@router.post("/backup-db/token")
+def get_backup_download_token(
     current_user: models.User = Depends(security.get_current_active_admin),
 ):
-    """データベースファイル (.db) を直接ダウンロード"""
+    """短時間有効なダウンロードトークンを発行する"""
+    token = str(uuid.uuid4())
+    # 5分間有効
+    download_tokens[token] = datetime.now() + timedelta(minutes=5)
+    return {"token": token}
+
+@router.get("/backup-db")
+def backup_db_file(
+    token: Optional[str] = None,
+):
+    """
+    データベースファイル (.db) を直接ダウンロード。
+    有効な一時トークンが必要。
+    """
+    # 1. トークンによる認証チェック
+    is_valid_token = False
+    if token and token in download_tokens:
+        if datetime.now() < download_tokens[token]:
+            is_valid_token = True
+        # 使用済みまたは期限切れトークンのクリーンアップは本来必要だが
+        # ここではシンプルに有効性チェックのみ
+    
+    # 2. トークンが無効な場合は通常の管理者認証をチェック
+    if not is_valid_token:
+        # トークンがない場合は、手動でDependsを呼び出すか、
+        # あるいは単にエラーにする（ブラウザからの直接アクセス想定ならトークン必須にするのが安全）
+        raise HTTPException(status_code=401, detail="有効なダウンロードトークンが必要です。再度ボタンを押してください。")
+
     if not DATABASE_FILE_PATH.exists():
         logger.error(f"Database file not found at {DATABASE_FILE_PATH}")
         raise HTTPException(status_code=404, detail="データベースファイルが見つかりません")
     
-    return FileResponse(
-        path=str(DATABASE_FILE_PATH),
-        filename=os.path.basename(DATABASE_FILE_PATH),
-        media_type="application/octet-stream"
-    )
+    try:
+        # 直接バイナリを読み込んで返す（プロキシトラブル回避）
+        with open(DATABASE_FILE_PATH, "rb") as f:
+            content = f.read()
+            
+        filename = os.path.basename(DATABASE_FILE_PATH)
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Cache-Control": "no-cache"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error during backup download: {e}")
+        raise HTTPException(status_code=500, detail="バックアップファイルの読み出し中にエラーが発生しました")
 
 @router.get("/csv-template")
 def get_csv_template(

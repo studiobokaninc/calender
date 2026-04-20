@@ -35,7 +35,6 @@ import {
   Backup as BackupIcon,
 } from '@mui/icons-material';
 import api, { exportMockData, importMockData } from '../services/api'; // API関数をインポート
-import axios from 'axios';
 import { MockDataImport } from '../types'; // 型をインポート
 import CsvParser from './CsvParser';
 import { transformImportData } from '../utils/transformImportData';
@@ -305,32 +304,30 @@ const MockDataConsole: React.FC = () => {
               setErrorMessage(null);
               setSuccessMessage(null);
               try {
-                // タイムアウトを延長したaxiosインスタンスを作成
-                const token = localStorage.getItem('token');
-                const backupApi = axios.create({
-                  baseURL: '/api',
-                  timeout: 120000, // 2分に延長
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                  },
-                  withCredentials: true,
-                });
+                console.log('Requesting backup download token...');
 
-                const response = await backupApi.get('/admin/backup-db', {
-                  responseType: 'blob',
-                });
-                const blob = new Blob([response.data], { type: 'application/octet-stream' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-                a.download = `project_management_backup_${timestamp}.db`;
-                a.click();
-                URL.revokeObjectURL(url);
-                showTemporaryMessage(setSuccessMessage, 'データベースファイル（.db）をダウンロードしました');
+                // 1. 一時的なダウンロードトークンを取得 (これは通常の認証が必要)
+                const tokenResponse = await api.post<{ token: string }>('/admin/backup-db/token');
+                const token = tokenResponse.data.token;
+
+                if (!token) {
+                  throw new Error('ダウンロードトークンの取得に失敗しました');
+                }
+
+                console.log('Download token received, triggering direct download...');
+
+                // 2. ブラウザの標準ダウンロード機能を使用
+                // これにより Axios/Blob 処理によるメモリ不足やCORSのバイナリ制限を完全に回避できる
+                const downloadUrl = `/api/admin/backup-db?token=${token}`;
+
+                // 直接リンクへ遷移（ブラウザがストリームとして処理する）
+                window.location.href = downloadUrl;
+
+                showTemporaryMessage(setSuccessMessage, 'データベースファイルのダウンロードを開始しました');
               } catch (err: any) {
-                showTemporaryMessage(setErrorMessage, `データベースファイルの取得に失敗しました: ${err?.response?.data?.detail || err?.message || '不明なエラー'}`);
+                console.error('Database backup error:', err);
+                const detail = err?.response?.data?.detail || err?.message || '不明なエラー';
+                showTemporaryMessage(setErrorMessage, `ダウンロードの準備に失敗しました: ${detail}`);
               } finally {
                 setIsLoading(false);
               }

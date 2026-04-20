@@ -6,7 +6,7 @@ import {
   TextField, FormControl, InputLabel, Select, MenuItem, Snackbar, Alert, Card,
   CardContent, Chip, Grid, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme,
-  Breadcrumbs, Link
+  Breadcrumbs, Link, Drawer
 } from '@mui/material';
 import { User, Task, Project, UserGroup, Group, CalendarEvent } from '../types';
 import api from '../services/api';
@@ -16,10 +16,12 @@ import {
   People as PeopleIcon,
   Person as PersonIcon,
   Today as TodayIcon, Warning as WarningIcon, Schedule as ScheduleIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import UserAddModal, { NewUserData } from '../components/UserAddModal';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
+import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import PhaseEditModal from '../components/PhaseEditModal';
 import { SelectChangeEvent } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
@@ -106,9 +108,13 @@ const UserManagementPage: React.FC = () => {
     message: '',
     severity: 'success'
   });
+  const [phaseEventToEdit, setPhaseEventToEdit] = useState<CalendarEvent | null>(null);
   const [taskEditId, setTaskEditId] = useState<number | null>(null);
   const [isPhaseEditModalOpen, setIsPhaseEditModalOpen] = useState(false);
-  const [phaseEventToEdit, setPhaseEventToEdit] = useState<CalendarEvent | null>(null);
+
+  // タスク詳細ドロワー用
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
 
   useEffect(() => {
     fetchAllData();
@@ -491,6 +497,35 @@ const UserManagementPage: React.FC = () => {
       return;
     }
     setTaskEditId(task.id);
+  };
+
+  const handleTaskClick = (task: Task) => {
+    // 段階目標の場合は現時点ではドロワー非対応（ダイアログのみ）
+    if ((task as any).isPhase) {
+      handleTaskDoubleClick(task);
+      return;
+    }
+    setSelectedTaskForDetail(task);
+    setIsDrawerOpen(true);
+  };
+
+  const handleEditTaskFull = (task: Task) => {
+    setTaskEditId(task.id);
+    setIsDrawerOpen(false); // ドロワーを閉じてダイアログを見やすくする
+  };
+
+  const handleUpdateTaskQuick = async (taskId: number, updates: Partial<Task>) => {
+    try {
+      await api.put(`/tasks/${taskId}`, updates);
+      // ローカルStateの更新
+      if (selectedTaskForDetail && selectedTaskForDetail.id === taskId) {
+        setSelectedTaskForDetail({ ...selectedTaskForDetail, ...updates });
+      }
+      // 全データを再取得して画面全体に反映
+      await fetchAllData();
+    } catch (err) {
+      console.error('Failed to update task:', err);
+    }
   };
 
   const handleSavePhase = async (phaseUpdateData: { taskId: number; phaseIndex: number; newName: string; newDate: string | null; isCompleted: boolean }) => {
@@ -902,7 +937,8 @@ const UserManagementPage: React.FC = () => {
                                             WebkitTouchCallout: 'none',
                                             touchAction: 'manipulation',
                                           }}
-                                          onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          onClick={(e) => { e.stopPropagation(); handleTaskClick(t); }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                         />
                                       </Tooltip>
                                     );
@@ -929,7 +965,8 @@ const UserManagementPage: React.FC = () => {
                                             WebkitTouchCallout: 'none',
                                             touchAction: 'manipulation',
                                           }}
-                                          onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          onClick={(e) => { e.stopPropagation(); handleTaskClick(t); }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                         />
                                       </Tooltip>
                                     );
@@ -956,7 +993,8 @@ const UserManagementPage: React.FC = () => {
                                             WebkitTouchCallout: 'none',
                                             touchAction: 'manipulation',
                                           }}
-                                          onClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
+                                          onClick={(e) => { e.stopPropagation(); handleTaskClick(t); }}
+                                          onDoubleClick={(e) => { e.stopPropagation(); handleTaskDoubleClick(t); }}
                                         />
                                       </Tooltip>
                                     );
@@ -1341,24 +1379,45 @@ const UserManagementPage: React.FC = () => {
               color="error"
               disabled={!selectedDeleteUserId}
             >
-              削除する
+              削除実行
             </Button>
           </DialogActions>
         </Dialog>
       )}
 
+      {/* タスク詳細ドロワー */}
+      <Drawer
+        anchor="right"
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        PaperProps={{
+          sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>タスク詳細</Typography>
+          <IconButton onClick={() => setIsDrawerOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        {selectedTaskForDetail && (
+          <TaskQuickDetail
+            task={selectedTaskForDetail}
+            projects={projects}
+            users={users}
+            onUpdate={handleUpdateTaskQuick}
+            onEditFull={handleEditTaskFull}
+          />
+        )}
+      </Drawer>
+
       {/* 操作結果の通知 */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={5000}
+        autoHideDuration={6000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
           {snackbar.message}
         </Alert>
       </Snackbar>

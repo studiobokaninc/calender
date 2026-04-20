@@ -11,6 +11,7 @@ import { format, parseISO, isValid } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
+import EditIcon from '@mui/icons-material/Edit';
 
 
 interface TaskQuickDetailProps {
@@ -18,6 +19,7 @@ interface TaskQuickDetailProps {
     projects: Project[];
     users: User[];
     onUpdate: (taskId: number, updates: Partial<Task>) => Promise<void>;
+    onEditFull?: (task: Task) => void;
 }
 
 const getTaskStatusColor = (status?: string | null) => {
@@ -51,7 +53,7 @@ const formatDate = (dateInput: string | null | undefined): string => {
     } catch { return '日付エラー'; }
 };
 
-export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects, users, onUpdate }) => {
+export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects, users, onUpdate, onEditFull }) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const project = projects.find(p => p.id === task.project_id);
@@ -368,6 +370,30 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
             </Box>
 
 
+            {onEditFull && (
+                <Box sx={{ mt: 1 }}>
+                    <Divider sx={{ mb: 2 }} />
+                    <Button
+                        fullWidth
+                        variant="outlined"
+                        startIcon={<EditIcon />}
+                        onClick={() => onEditFull(task)}
+                        sx={{
+                            py: 1.2,
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            borderColor: theme.palette.divider,
+                            '&:hover': {
+                                borderColor: theme.palette.primary.main,
+                                bgcolor: 'rgba(25, 118, 210, 0.04)'
+                            }
+                        }}
+                    >
+                        詳細編集を開く
+                    </Button>
+                </Box>
+            )}
         </Box>
     );
 };

@@ -20,15 +20,19 @@ import {
     Link,
     useTheme,
     alpha,
-    Stack
+    Stack,
+    Drawer
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
     Error as ErrorIcon,
     ViewModule as ViewModuleIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
-import { mockDataApi, fetchProjects } from '../services/api';
-import { Project } from '../types';
+import api, { mockDataApi, fetchProjects, fetchUsers } from '../services/api';
+import { Project, Task, User } from '../types';
+import { TaskQuickDetail } from '../components/TaskQuickDetail';
+import { TaskEditDialog } from '../components/SearchEditDialogs';
 
 interface TaskInfo {
     id: number;
@@ -51,26 +55,40 @@ interface SequenceData {
 const ProductionTrackerPage: React.FC = () => {
     const theme = useTheme();
     const [projects, setProjects] = useState<Project[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
     const [trackerData, setTrackerData] = useState<{ sequences: SequenceData[]; types: string[] } | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // タスク詳細用State
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [isTaskLoading, setIsTaskLoading] = useState(false);
+    const [editTaskId, setEditTaskId] = useState<number | null>(null);
+
     useEffect(() => {
-        const loadProjects = async () => {
+        const loadInitialData = async () => {
             try {
-                const data = await fetchProjects();
-                const onlineProjects = data.filter((p: Project) => (p.display_status ?? 'online') === 'online');
+                // プロジェクトとユーザーを同時に取得
+                const [projectsData, usersData] = await Promise.all([
+                    fetchProjects(),
+                    fetchUsers()
+                ]);
+
+                const onlineProjects = projectsData.filter((p: Project) => (p.display_status ?? 'online') === 'online');
                 setProjects(onlineProjects);
+                setUsers(usersData);
+
                 if (onlineProjects.length > 0) {
                     setSelectedProjectId(onlineProjects[0].id);
                 }
             } catch (err) {
-                console.error('Failed to fetch projects', err);
-                setError('プロジェクト一覧の取得に失敗しました');
+                console.error('Failed to fetch initial data', err);
+                setError('データの取得に失敗しました');
             }
         };
-        loadProjects();
+        loadInitialData();
     }, []);
 
     useEffect(() => {
@@ -115,6 +133,49 @@ const ProductionTrackerPage: React.FC = () => {
         }
     };
 
+    const handleTaskClick = async (taskId: number) => {
+        setIsTaskLoading(true);
+        try {
+            // フルタスク情報を取得
+            const response = await api.get<Task>(`/tasks/${taskId}`);
+            setSelectedTask(response.data);
+            setIsDrawerOpen(true);
+        } catch (err) {
+            console.error('Failed to fetch task details', err);
+        } finally {
+            setIsTaskLoading(false);
+        }
+    };
+
+    const handleUpdateTaskQuick = async (taskId: number, updates: Partial<Task>) => {
+        try {
+            await api.put(`/tasks/${taskId}`, updates);
+            // 選択中のタスクを更新
+            if (selectedTask && selectedTask.id === taskId) {
+                setSelectedTask({ ...selectedTask, ...updates });
+            }
+            // トラッカーデータを再読込して反映（効率は落ちるが確実）
+            if (selectedProjectId !== '') {
+                const data = await mockDataApi.getProductionTracker(selectedProjectId as number);
+                setTrackerData(data);
+            }
+        } catch (err) {
+            console.error('Failed to update task:', err);
+        }
+    };
+
+    const handleEditTaskFull = (task: Task) => {
+        setEditTaskId(task.id);
+        setIsDrawerOpen(false);
+    };
+
+    const handleTaskDialogSaved = () => {
+        setEditTaskId(null);
+        if (selectedProjectId !== '') {
+            loadTrackerData(selectedProjectId as number);
+        }
+    };
+
     const renderTaskCell = (tasks: TaskInfo[] | undefined) => {
         if (!tasks || tasks.length === 0) return <Box sx={{ opacity: 0.1, py: 1 }}>-</Box>;
 
@@ -138,14 +199,15 @@ const ProductionTrackerPage: React.FC = () => {
                                     gap: 0.5,
                                     minWidth: 180,
                                     transition: 'all 0.15s',
+                                    cursor: 'pointer',
                                     '&:hover': {
                                         backgroundColor: alpha(color, 0.1),
                                         transform: 'scale(1.02)',
                                         zIndex: 1,
                                         boxShadow: 2,
-                                        cursor: 'pointer'
                                     }
                                 }}
+                                onClick={() => handleTaskClick(task.id)}
                             >
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: color, letterSpacing: 0.5 }}>
@@ -317,6 +379,46 @@ const ProductionTrackerPage: React.FC = () => {
                     </Typography>
                 ))}
             </Box>
+
+            {/* タスク詳細ドロワー */}
+            <Drawer
+                anchor="right"
+                open={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                PaperProps={{
+                    sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
+                }}
+            >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>タスク詳細</Typography>
+                    <IconButton onClick={() => setIsDrawerOpen(false)}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+                {selectedTask ? (
+                    <TaskQuickDetail
+                        task={selectedTask}
+                        projects={projects}
+                        users={users}
+                        onUpdate={handleUpdateTaskQuick}
+                        onEditFull={handleEditTaskFull}
+                    />
+                ) : (
+                    isTaskLoading && (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+                            <CircularProgress />
+                        </Box>
+                    )
+                )}
+            </Drawer>
+
+            {/* 詳細編集用ダイアログ */}
+            <TaskEditDialog
+                open={editTaskId !== null}
+                taskId={editTaskId}
+                onClose={() => setEditTaskId(null)}
+                onSaved={handleTaskDialogSaved}
+            />
         </Box>
     );
 };

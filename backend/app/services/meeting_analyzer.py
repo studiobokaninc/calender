@@ -169,7 +169,7 @@ class MeetingAnalyzer:
                     if db_meeting:
                         crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed"})
                         
-                        # RAGに追加
+                        # RAGメタデータの準備
                         ref_date = db_meeting.date or now_jst_naive()
                         rag_metadata = {
                             "meeting_id": meeting_id, 
@@ -179,13 +179,27 @@ class MeetingAnalyzer:
                             "type": "meeting",
                             "date": ref_date.isoformat()
                         }
-                        
+
+                        # 1. 統合された議事録サマリーをRAGに追加
                         rag_text = f"TITLE: {db_meeting.title}\n"
                         rag_text += f"DECISIONS: {', '.join(final_minutes.get('decisions', []))}\n"
                         rag_text += f"TASKS: {', '.join(final_minutes.get('tasks', []))}\n"
                         rag_text += f"--- TRANSCRIPT ---\n{final_minutes.get('transcript', '')}"
                         
                         await rag_service.add_text(rag_text, metadata=rag_metadata)
+
+                        # 2. 個別のセグメント（チャンク）もRAGに追加（チャンク分散型のRAG）
+                        # これにより、長い会議の特定部分だけをピンポイントで取得しやすくなる
+                        if len(all_results) > 1:
+                            for idx, segment in enumerate(all_results):
+                                seg_transcript = segment.get("transcript")
+                                if seg_transcript:
+                                    seg_metadata = rag_metadata.copy()
+                                    seg_metadata["segment_index"] = idx
+                                    seg_metadata["type"] = "meeting_segment"
+                                    # 検索時に文脈がわかるようタイトルを含める
+                                    seg_text = f"--- [Segment {idx+1}/{len(all_results)}] {db_meeting.title} ---\n{seg_transcript}"
+                                    await rag_service.add_text(seg_text, metadata=seg_metadata)
 
                         if db_meeting.version_group:
                             db.query(models.Decision).filter(

@@ -136,6 +136,22 @@ class LLMClient:
             async for chunk in self._stream_openai(query, conversation_id, inputs, history):
                 yield chunk
 
+    async def oneshot_chat(
+        self,
+        query: str,
+        inputs: Dict[str, Any] = {},
+        history: List[Dict[str, Any]] = []
+    ) -> str:
+        """ストリーミングなしで一括で応答を取得する（内部処理用）"""
+        response_text = ""
+        # 履歴と入力を元にストリームを回して結合する
+        async for chunk in self.stream_chat(query, "internal_oneshot", inputs, history=history):
+            if chunk.get("event") == "message":
+                response_text += chunk.get("answer", "")
+            elif chunk.get("event") == "error":
+                raise Exception(chunk.get("message"))
+        return response_text
+
     async def _stream_gemini(self, query: str, conversation_id: str, inputs: Dict[str, Any], history: List[Dict[str, Any]]):
         system_prompt = self.generate_system_prompt(inputs)
         history_contents = self._convert_history(history)
@@ -171,7 +187,7 @@ class LLMClient:
             response_stream = await chat.send_message_stream(query_parts)
             full_text = ""
             async for chunk in response_stream:
-                if chunk.text:
+                if chunk and hasattr(chunk, "text") and chunk.text:
                     full_text += chunk.text
                     yield {"event": "message", "answer": chunk.text, "conversation_id": conversation_id}
             

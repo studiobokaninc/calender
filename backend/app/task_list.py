@@ -343,6 +343,45 @@ def build_users_list_for_chat(db: Session) -> str:
         return ""
 
 
+def get_high_attention_tasks(db: Session, tasks: list[dict] = None) -> list[dict]:
+    """
+    「注意が必要なタスク」を抽出する（遅延、高優先度、期限間近）。
+    LLMへのコンテキスト注入量を抑制しつつ、重要な情報を優先するために使用。
+    """
+    if tasks is None:
+        tasks = crud.get_tasks(db, limit=100000)
+    
+    today = date.today()
+    soon = today + timedelta(days=3)
+    
+    high_attention = []
+    for t in tasks:
+        status = (t.get("status") or "").lower()
+        if status == "completed" or (t.get("status") or "").strip().lower() == "completed":
+            continue
+        
+        priority = str(t.get("priority") or "").upper()
+        is_delayed = status == "delayed"
+        is_high_prio = priority in ["HIGH", "CRITICAL", "URGENT"]
+        
+        due_soon = False
+        due_str = t.get("due_date")
+        if due_str:
+            try:
+                # due_date が '2025-11-04' のような形式の場合に対応
+                d_str = due_str.split('T')[0] if 'T' in due_str else due_str
+                due_date = datetime.strptime(d_str, "%Y-%m-%d").date()
+                if due_date <= soon:
+                    due_soon = True
+            except:
+                pass
+        
+        if is_delayed or is_high_prio or due_soon:
+            high_attention.append(t)
+            
+    return high_attention
+
+
 def build_task_list_for_chat(db: Session) -> str:
     """
     アプリ内DBからタスク・プロジェクト・ユーザーを取得し、

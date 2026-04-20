@@ -22,27 +22,48 @@ class ChatContextService:
         """管理者向けフルコンテキストの取得"""
         t0 = time.time()
         
-        # 1. 基本ダッシュボード情報の取得 (タスク, プロジェクト, ユーザー, メモ)
+        # 1. 基本情報の取得とフィルタリング
         inputs: Dict[str, Any] = {}
         try:
-            full_context = task_list_module.get_dashboard_context(db, current_user.id)
+            from ..task_list import get_dashboard_context, get_high_attention_tasks, build_tasks_csv_text
             
-            # クエリに応じてタスク詳細を絞り込むか判断
-            task_keywords = [
-                "タスク", "期限", "予定", "進捗", "誰が", "担当", "いつ", "スケジュール", "遅れ", "進んでる", "やること",
-                "案件", "プロジェクト", "状況", "どう", "ワーク", "作業",
-                "task", "status", "due", "who", "schedule", "plan", "project"
-            ]
+            # 会話履歴の取得（プロジェクト推論に使用）
+            db_history = crud.get_chat_messages(db, conversation_id, limit=3)
+            focused_project_id = ChatContextService._infer_project_id(db, query, db_history)
+            
+            # 全体のダッシュボード情報を一旦取得（ただしCSV生成は後で制御）
+            full_context = get_dashboard_context(db, current_user.id)
+            
+            # クエリの意図を分析
             query_lower = query.lower()
-            needs_tasks = any(kw in query_lower for kw in task_keywords)
+            task_keywords = ["タスク", "期限", "予定", "進捗", "誰が", "担当", "いつ", "遅れ", "進んでる", "やること", "作業", "status", "due", "plan"]
+            is_task_query = any(kw in query_lower for kw in task_keywords)
+            is_broad_query = any(kw in query_lower for kw in ["全体", "サマリー", "状況", "どう", "案件", "プロジェクト"])
             
-            task_csv = ""
-            if needs_tasks:
-                task_csv = str(full_context.get("csv", ""))
+            # --- タスクのフィルタリング（Pruning）策略 ---
+            # 1. 特定のプロジェクトに関心がある場合 -> そのプロジェクトのタスク全件 + 全体の注意項目
+            if focused_project_id:
+                proj_tasks = crud.get_tasks(db, project_id=focused_project_id, limit=1000)
+                # 完了済みは直近のものだけに絞る等の前処理（task_list.py側で適用されている前提）
+                high_attention = get_high_attention_tasks(db)
+                # 重複を避けて結合
+                seen_ids = {t["id"] for t in proj_tasks if "id" in t}
+                combined = list(proj_tasks)
+                for t in high_attention:
+                    if t.get("id") not in seen_ids:
+                        combined.append(t)
+                task_csv = build_tasks_csv_text(combined)
+            
+            # 2. 漠然としたタスク質問、または全体状況の質問の場合 -> 注意項目のみ（High Attention）
+            elif is_task_query or is_broad_query:
+                high_attention = get_high_attention_tasks(db)
+                task_csv = build_tasks_csv_text(high_attention)
+                if not high_attention:
+                    task_csv = "--- No urgent or delayed tasks found currently. ---"
+            
+            # 3. それ以外（特にタスクに関心がない場合） -> ヘッダのみ
             else:
-                lines = str(full_context.get("csv", "")).splitlines()
-                task_count = len(lines) - 1 if len(lines) > 0 else 0
-                task_csv = f"--- Task Summary --- \nTotal {task_count} active tasks across projects."
+                task_csv = "Task summary omitted for context size. Ask about 'tasks' to see details."
 
             inputs = {
                 "csv": task_csv, 
@@ -52,13 +73,13 @@ class ChatContextService:
                 "mode": "admin", 
                 "user_name": current_user.name or current_user.username or "Admin",
                 "notes": full_context.get("notes", ""),
-                "active_project_id": None 
+                "active_project_id": focused_project_id
             }
         except Exception as e:
-            logger.warning("[ChatContextService] get_dashboard_context failed: %s", e)
+            logger.warning("[ChatContextService] get_admin_context failed: %s", e)
             inputs = {"csv": "", "proj": "", "user_list": "", "mode": "admin", "notes": ""}
             
-        logger.info(f"[PROFILER] get_dashboard_context took {time.time() - t0:.2f}s")
+        logger.info(f"[PROFILER] get_dashboard_context & pruning took {time.time() - t0:.2f}s")
         
         # 2. プロジェクトの推論とRAG/会議録コンテキストの統合
         try:

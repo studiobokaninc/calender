@@ -167,6 +167,17 @@ class ChatContextService:
             decs = crud.get_decisions(db, meeting_id=latest_mtg.id)
             dec_text = ", ".join([str(d.content) for d in decs]) if decs else "N/A"
             ts_context += f"CURRENT DECISIONS: {dec_text}\n"
+            
+            if latest_mtg.discussion_points:
+                pts = ", ".join(latest_mtg.discussion_points)
+                ts_context += f"DISCUSSION POINTS: {pts}\n"
+            if latest_mtg.tasks:
+                tasks_text = ", ".join(latest_mtg.tasks)
+                ts_context += f"ACTION ITEMS: {tasks_text}\n"
+            if latest_mtg.deadlines:
+                deadlines_text = ", ".join(latest_mtg.deadlines)
+                ts_context += f"DEADLINES: {deadlines_text}\n"
+
             ts_context += f"FULL TRANSCRIPT: {str(latest_mtg.transcript or '')[:4000]}...\n\n"
 
         # 2. 現在有効な決定事項（全プロジェクトから横断）

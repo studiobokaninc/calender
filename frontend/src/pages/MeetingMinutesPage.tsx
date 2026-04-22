@@ -135,15 +135,36 @@ const MeetingMinutesPage: React.FC = () => {
             <Grid container spacing={isMobile ? 2 : 3}>
                 {/* 左側：プロジェクト選択 */}
                 {(!isMobile || !selectedProjectId) && (
-                    <Grid item xs={12} md={4}>
-                        <Paper sx={{ p: 2, borderRadius: 3 }}>
+                    <Grid item xs={12} md={4} sx={{ position: { md: 'sticky' }, top: { md: 24 }, alignSelf: { md: 'flex-start' } }}>
+                        <Paper sx={{
+                            p: 2,
+                            borderRadius: 3,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            maxHeight: { md: 'calc(100vh - 160px)' }, // Paper自体の高さを制限し、画面内に収まるように調整
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                        }}>
                             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', fontSize: isMobile ? '1rem' : '1.25rem' }}>
                                 <FolderIcon sx={{ mr: 1, color: 'primary.main' }} />
                                 プロジェクト選択
                             </Typography>
                             <Divider sx={{ mb: 2 }} />
 
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Box sx={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 1,
+                                overflowY: 'auto',
+                                pr: 1,
+                                pb: 2, // 下部が絶対に見切れないよう十分な余白を確保
+                                '&::-webkit-scrollbar': {
+                                    width: '6px',
+                                },
+                                '&::-webkit-scrollbar-thumb': {
+                                    backgroundColor: 'rgba(0,0,0,0.1)',
+                                    borderRadius: '3px',
+                                }
+                            }}>
                                 {projects.length === 0 ? (
                                     <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
                                         プロジェクトがありません。
@@ -159,7 +180,10 @@ const MeetingMinutesPage: React.FC = () => {
                                                 bgcolor: selectedProjectId === project.id
                                                     ? (theme) => theme.palette.mode === 'dark' ? 'rgba(33, 150, 243, 0.2)' : 'primary.50'
                                                     : 'inherit',
-                                                transition: '0.2s'
+                                                transition: '0.2s',
+                                                '&:hover': {
+                                                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
+                                                }
                                             }}
                                         >
                                             <CardActionArea onClick={() => handleProjectChange(project.id)}>

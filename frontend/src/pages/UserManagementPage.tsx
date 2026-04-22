@@ -500,13 +500,7 @@ const UserManagementPage: React.FC = () => {
   };
 
   const handleTaskClick = (task: Task) => {
-    // 段階目標の場合は現時点ではドロワー非対応（ダイアログのみ）
-    if ((task as any).isPhase) {
-      handleTaskDoubleClick(task);
-      return;
-    }
-    setSelectedTaskForDetail(task);
-    setIsDrawerOpen(true);
+    handleTaskDoubleClick(task);
   };
 
   const handleEditTaskFull = (task: Task) => {

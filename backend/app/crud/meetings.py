@@ -104,5 +104,9 @@ def get_all_meeting_summaries(db: Session, project_id: Optional[int] = None) -> 
         if item.decisions:
             context += f"  決定事項: {', '.join(item.decisions[:10])}\n"
         if item.tasks:
-            context += f"  タスク: {', '.join(item.tasks[:5])}...\n"
+            context += f"  タスク: {', '.join(item.tasks[:5])}\n"
+        if item.discussion_points:
+            context += f"  議論事項: {', '.join(item.discussion_points[:5])}\n"
+        if item.deadlines:
+            context += f"  期限: {', '.join(item.deadlines[:5])}\n"
     return context

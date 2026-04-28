@@ -39,6 +39,7 @@ from .routers import (
     groups as groups_router,
     notes as notes_router,
     activities as activities_router,
+    meeting_tasks as meeting_tasks_router,
     admin as admin_router
 )
 print("Main: ルーター読み込み完了")
@@ -123,6 +124,7 @@ app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])
 app.include_router(meetings_router.root_router, tags=["Meetings (All)"])
 app.include_router(knowledge_router.router, tags=["Knowledge Base"])
+app.include_router(meeting_tasks_router.router, tags=["Meeting Tasks"])
 app.include_router(tts_router.router, prefix="/tts", tags=["TTS"])
 
 @app.get("/tts_debug")

@@ -209,7 +209,6 @@ class MeetingAnalyzer:
                             ).join(models.Meeting).filter(
                                 models.Meeting.version_group == db_meeting.version_group
                             ).update({"superseded": True}, synchronize_session=False)
-
                         for dec_content in final_minutes.get('decisions', []):
                             crud.create_decision(db, schemas.DecisionCreate(
                                 meeting_id=meeting_id,
@@ -217,6 +216,38 @@ class MeetingAnalyzer:
                                 date=ref_date,
                                 project_id=db_meeting.project_id
                             ))
+                        
+                        # 3. 検出されたタスクを MeetingTask テーブルに保存
+                        import re
+                        for task_str in final_minutes.get('tasks', []):
+                            # 解析ロジック: [タイプ] 担当者：内容（期限）
+                            m_type = re.search(r'\[(.*?)\]', task_str)
+                            task_type = m_type.group(1) if m_type else None
+                            
+                            remaining = task_str
+                            if m_type: remaining = remaining.replace(m_type.group(0), "").strip()
+                            
+                            assignee = None
+                            if "：" in remaining:
+                                parts = remaining.split("：", 1)
+                                assignee = parts[0].strip()
+                                remaining = parts[1].strip()
+                                # 先頭のリストマーカーを除去
+                                assignee = assignee.lstrip('-*• ').strip()
+                            
+                            m_date = re.search(r'\((.*?)\)', remaining)
+                            if m_date:
+                                # 内容から期限表記を除去
+                                remaining = remaining.replace(m_date.group(0), "").strip()
+                            
+                            crud.create_meeting_task(db, schemas.MeetingTaskCreate(
+                                meeting_id=meeting_id,
+                                content=remaining.lstrip('-*• ').strip(),
+                                type=task_type,
+                                assignee_suggestion=assignee,
+                                status="detected"
+                            ))
+
                         db.commit()
                         logger.info(f"Meeting {meeting_id} analysis completed.")
                 finally:

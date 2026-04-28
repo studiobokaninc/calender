@@ -23,6 +23,21 @@ def get_task_endpoint(
     return db_task
 
 
+@router.get("/{task_id}/status-history", response_model=List[schemas.StatusHistoryResponse])
+def get_task_status_history_endpoint(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    """特定のタスクのステータス変更履歴を取得"""
+    db_task = crud.get_task(db=db, task_id=task_id)
+    if db_task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="タスクが見つかりません")
+    
+    history = crud.get_task_status_history(db=db, task_id=task_id)
+    return history
+
+
 @router.get("", response_model=List[schemas.TaskResponse])
 def get_tasks_endpoint(
     project_id: Optional[int] = None,

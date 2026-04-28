@@ -137,20 +137,48 @@ class ChatContextService:
     def _infer_project_id(db: Session, query: str, db_history: List[models.ChatMessage]) -> Optional[int]:
         """クエリや会話履歴から関連するプロジェクトIDを推論する"""
         try:
-            active_projects = crud.get_projects(db, skip=0, limit=100)
+            # オンラインのプロジェクトのみ推論対象とする
+            active_projects = crud.get_projects(db, skip=0, limit=100, display_status_in=["online"])
+            # 名前が長い順に評価し、誤検知を防ぐ（例: "A" より "A B" を先にマッチ）
+            active_projects.sort(key=lambda p: len(p.name or ""), reverse=True)
             query_lower = query.lower()
             
-            # A) クエリから直接探す
+            def match_exact(p_name: str, text: str) -> bool:
+                return p_name.lower() in text
+                
+            def match_partial(p_name: str, text: str) -> bool:
+                p_name_lower = p_name.lower()
+                parts = p_name_lower.replace("　", " ").replace("-", " ").replace("_", " ").split()
+                if not parts:
+                    return False
+                first_word = parts[0]
+                if len(first_word) >= 2 and first_word in text:
+                    return True
+                for part in parts:
+                    if len(part) >= 4 and part in text:
+                        return True
+                return False
+
+            # A) クエリから完全/部分一致を探す
             for p in active_projects:
-                if p.name and p.name.lower() in query_lower:
+                if p.name and match_exact(p.name, query_lower):
+                    return int(p.id)
+            for p in active_projects:
+                if p.name and match_partial(p.name, query_lower):
                     return int(p.id)
             
-            # B) 会話履歴（直近3件）から探す
+            # B) 会話履歴から完全/部分一致を探す
             for m in reversed(db_history):
                 msg_content = str(m.content or "").lower()
                 for p in active_projects:
-                    if p.name and p.name.lower() in msg_content:
+                    if p.name and match_exact(p.name, msg_content):
                         return int(p.id)
+            for m in reversed(db_history):
+                msg_content = str(m.content or "").lower()
+                for p in active_projects:
+                    if p.name and match_partial(p.name, msg_content):
+                        return int(p.id)
+                        
         except Exception as e:
             logger.warning("[ChatContextService] _infer_project_id failed: %s", e)
         return None
@@ -165,20 +193,29 @@ class ChatContextService:
         if latest_mtg:
             ts_context += f"--- [LATEST MEETING: {latest_mtg.title}] (Date: {latest_mtg.date}) ---\n"
             decs = crud.get_decisions(db, meeting_id=latest_mtg.id)
-            dec_text = ", ".join([str(d.content) for d in decs]) if decs else "N/A"
-            ts_context += f"CURRENT DECISIONS: {dec_text}\n"
+            if decs:
+                ts_context += "CURRENT DECISIONS:\n"
+                for d in decs:
+                    ts_context += f"  - {d.content}\n"
+            else:
+                ts_context += "CURRENT DECISIONS: N/A\n"
             
             if latest_mtg.discussion_points:
-                pts = ", ".join(latest_mtg.discussion_points)
-                ts_context += f"DISCUSSION POINTS: {pts}\n"
+                ts_context += "DISCUSSION POINTS:\n"
+                for dp in latest_mtg.discussion_points:
+                    ts_context += f"  - {dp}\n"
+                    
             if latest_mtg.tasks:
-                tasks_text = ", ".join(latest_mtg.tasks)
-                ts_context += f"ACTION ITEMS: {tasks_text}\n"
+                ts_context += "ACTION ITEMS:\n"
+                for t in latest_mtg.tasks:
+                    ts_context += f"  - {t}\n"
+                    
             if latest_mtg.deadlines:
-                deadlines_text = ", ".join(latest_mtg.deadlines)
-                ts_context += f"DEADLINES: {deadlines_text}\n"
+                ts_context += "DEADLINES:\n"
+                for dl in latest_mtg.deadlines:
+                    ts_context += f"  - {dl}\n"
 
-            ts_context += f"FULL TRANSCRIPT: {str(latest_mtg.transcript or '')[:4000]}...\n\n"
+            ts_context += f"FULL TRANSCRIPT (Excerpt): {str(latest_mtg.transcript or '')[:3000]}...\n\n"
 
         # 2. 現在有効な決定事項（全プロジェクトから横断）
         active_decs = crud.get_decisions(db, project_id=project_id, superseded=False)
@@ -207,7 +244,17 @@ class ChatContextService:
                 search_query = f"{proj.name} {query}"
         
         top_k = 40 if is_summary_query else 25
-        rag_context = await rag_service.query_context(search_query, project_id=project_id, top_k=top_k)
+        
+        # オフラインプロジェクトのIDを取得して除外対象に指定
+        offline_projects = crud.get_projects(db, display_status_in=["offline"])
+        offline_ids = [p.id for p in offline_projects]
+        
+        rag_context = await rag_service.query_context(
+            search_query, 
+            project_id=project_id, 
+            top_k=top_k,
+            exclude_project_ids=offline_ids
+        )
         if rag_context:
             ts_context += "\n--- Knowledge Base & Historical Meeting Excerpts (RAG) ---\n"
             ts_context += str(rag_context) + "\n"
@@ -223,11 +270,15 @@ class ChatContextService:
             for item in kb_items:
                 # status check and title check
                 if item.status == "completed" and item.title:
+                    # プロジェクトが「オフライン」の場合はスキップ
+                    if item.project and item.project.display_status == "offline":
+                        continue
+                        
                     item_title = str(item.title)
                     item_id_str = f"ID:{item.id}"
                     if item_title in query or item_id_str in query:
-                        # 全文を載せる（ただしトークン制限配慮で 30,000文字程度まで）
-                        content_limit = 30000 
+                        # 全文を載せる（ただしトークン制限配慮で 30,000 -> 5,000文字程度まで縮小）
+                        content_limit = 5000 
                         text = str(item.content_text or "")
                         spotlight_context += f"\n\n--- [SPOTLIGHT DOCUMENT: {item_title} (ID: {item.id})] ---\n"
                         spotlight_context += text[:content_limit]

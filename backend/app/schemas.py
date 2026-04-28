@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr, validator, root_validator
+from pydantic import BaseModel, Field, EmailStr, validator, root_validator, computed_field
 from typing import Optional, List, Dict, Any, ForwardRef
 from datetime import datetime, date, timezone
 from . import models # models をインポート
@@ -350,6 +350,40 @@ class MeetingUpdate(BaseModel):
     deadlines: Optional[List[str]] = None
     version_group: Optional[str] = None
 
+
+class MeetingTaskBase(BaseModel):
+    content: str
+    type: Optional[str] = None
+    assignee_suggestion: Optional[str] = None
+    due_date_suggestion: Optional[datetime] = None
+    status: Optional[str] = "detected"
+    meeting_id: int
+    task_id: Optional[int] = None
+
+class MeetingTaskCreate(MeetingTaskBase):
+    pass
+
+class MeetingTaskUpdate(BaseModel):
+    content: Optional[str] = None
+    type: Optional[str] = None
+    assignee_suggestion: Optional[str] = None
+    due_date_suggestion: Optional[datetime] = None
+    status: Optional[str] = None
+    task_id: Optional[int] = None
+
+class MeetingTaskResponse(MeetingTaskBase):
+    id: int
+    created_at: Optional[datetime] = None
+    project_id: Optional[int] = None
+    project_name: Optional[str] = None
+    meeting_date: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
 class MeetingResponse(MeetingBase):
     id: int
     status: str
@@ -360,6 +394,7 @@ class MeetingResponse(MeetingBase):
     discussion_points: Optional[List[str]] = None
     deadlines: Optional[List[str]] = None
     version_group: Optional[str] = None
+    detected_tasks: List[MeetingTaskResponse] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

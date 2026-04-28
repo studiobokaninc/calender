@@ -208,8 +208,8 @@ def build_projects_list_for_chat(db: Session) -> str:
     キャンセル・完了済み（cancelled, completed）のプロジェクトは除外する。
     """
     try:
-        projects = crud.get_projects(db, skip=0, limit=100000, display_status_in=None)
-        # キャンセル・完了済みを除外（チャットでは進行中・計画中などのみ送る）
+        # オンラインのみ取得（および完了・キャンセル済みを除外）
+        projects = crud.get_projects(db, skip=0, limit=100000, display_status_in=["online"])
         projects = [p for p in projects if _project_status_value(p) not in ("cancelled", "completed")]
         if not projects:
             return ""
@@ -349,7 +349,8 @@ def get_high_attention_tasks(db: Session, tasks: list[dict] = None) -> list[dict
     LLMへのコンテキスト注入量を抑制しつつ、重要な情報を優先するために使用。
     """
     if tasks is None:
-        tasks = crud.get_tasks(db, limit=100000)
+        # オンラインのみ取得
+        tasks = crud.get_tasks(db, limit=100000, display_status_in=["online"])
     
     today = date.today()
     soon = today + timedelta(days=3)
@@ -401,7 +402,7 @@ def build_task_list_for_chat(db: Session) -> str:
         users = crud.get_users(db, skip=0, limit=100000)
         id_to_username = {u.id: (u.username or u.email or str(u.id)) for u in (users or [])}
 
-        tasks = crud.get_tasks(db, limit=100000)
+        tasks = crud.get_tasks(db, limit=100000, display_status_in=["online"])
         if not tasks:
             return build_tasks_csv_text([])
 
@@ -658,7 +659,8 @@ def build_events_list_for_chat(db: Session, user_id: int = None) -> str:
         
         events = db.query(models.Event).filter(
             models.Event.start_time >= start_range,
-            models.Event.start_time <= end_range
+            models.Event.start_time <= end_range,
+            models.Event.status != 'offline'
         ).all()
         
         if not events:
@@ -734,6 +736,10 @@ def build_notes_list_for_chat(db: Session, user_id: int) -> str:
         buffer = io.StringIO()
         
         for note in notes:
+            # プロジェクトが紐付いている場合、そのプロジェクトが「オフライン」ならスキップ
+            if note.project and note.project.display_status == "offline":
+                continue
+                
             buffer.write(f"--- Note ID: {note.id} ---\n")
             if note.title:
                 buffer.write(f"Title: {note.title}\n")
@@ -794,7 +800,8 @@ def get_personal_context(db: Session, user_id: int) -> dict:
     my_active_tasks = []
     for t in my_tasks:
         status = (t.get("status") or "").lower()
-        if status != "completed":
+        display_status = (t.get("display_status") or "online").lower()
+        if status != "completed" and display_status != "offline":
             my_active_tasks.append(t)
     
     # プロジェクト名・ユーザー名解決用マップ
@@ -831,9 +838,9 @@ def get_personal_context(db: Session, user_id: int) -> dict:
     
     filtered_projects = []
     for p in projects:
-        # 自分がタスクを持っている、または進行中のプロジェクト
+        # 自分がタスクを持っている、または進行中のプロジェクト。かつ「オフライン」ではないもの。
         status_val = _project_status_value(p)
-        if p.id in my_project_ids or status_val not in ["completed", "cancelled"]:
+        if (p.id in my_project_ids or status_val not in ["completed", "cancelled"]) and p.display_status != "offline":
             filtered_projects.append(p)
             
     # プロジェクトCSV生成（簡易実装：build_projects_list_for_chat の中身を展開）
@@ -880,10 +887,10 @@ def get_dashboard_context(db: Session, user_id: int = None) -> dict:
     # ユーザーリスト（全件）
     inputs["user_list"] = build_users_list_for_chat(db)
     
-    # タスク：全データ（完了済みも直近のものは含める）
-    all_tasks = crud.get_tasks(db, limit=100000)
+    # タスク：全データ（オンラインのみ、完了済みも直近のものは含める）
+    all_tasks = crud.get_tasks(db, limit=100000, display_status_in=["online"])
     
-    projects = crud.get_projects(db, limit=10000)
+    projects = crud.get_projects(db, limit=10000, display_status_in=["online"])
     id_to_project_name = {p.id: p.name for p in projects}
     
     users = crud.get_users(db, limit=10000)

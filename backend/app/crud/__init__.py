@@ -35,7 +35,8 @@ from .analytics import (
 )
 from .meetings import (
     get_meeting, get_meetings_by_project, create_meeting, update_meeting, delete_meeting,
-    create_decision, get_decisions, get_latest_meeting, update_decision, get_all_meeting_summaries
+    create_decision, get_decisions, get_latest_meeting, update_decision, get_all_meeting_summaries,
+    create_meeting_task, get_meeting_tasks, update_meeting_task
 )
 from .knowledge import (
     get_knowledge_item, get_knowledge_items, create_knowledge_item, update_knowledge_item,

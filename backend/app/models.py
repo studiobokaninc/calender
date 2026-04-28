@@ -286,6 +286,7 @@ class Meeting(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
     project: Mapped["Project"] = relationship("Project")
+    detected_tasks: Mapped[List["MeetingTask"]] = relationship("MeetingTask", back_populates="meeting", cascade="all, delete-orphan")
 
 
 class Decision(Base):
@@ -301,6 +302,39 @@ class Decision(Base):
     meeting: Mapped[Optional["Meeting"]] = relationship("Meeting")
     project: Mapped[Optional["Project"]] = relationship("Project")
 
+class MeetingTask(Base):
+    __tablename__ = "meeting_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    meeting_id: Mapped[int] = mapped_column(ForeignKey("meetings.id"), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    assignee_suggestion: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    due_date_suggestion: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="detected") # detected, adopted, dismissed
+    task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+    meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="detected_tasks")
+    task: Mapped[Optional["Task"]] = relationship("Task")
+
+    @property
+    def project_id(self) -> Optional[int]:
+        if self.meeting:
+            return self.meeting.project_id
+        return None
+
+    @property
+    def project_name(self) -> str:
+        if self.meeting and self.meeting.project:
+            return self.meeting.project.name
+        return "不明"
+
+    @property
+    def meeting_date(self) -> Optional[datetime]:
+        if self.meeting:
+            return self.meeting.date
+        return None
 
 class KnowledgeItem(Base):
     __tablename__ = "knowledge_items"

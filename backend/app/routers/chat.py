@@ -155,7 +155,7 @@ async def stream_chat(
             logger.info(f"[PROFILER] Calling client.stream_chat now...")
             
             t_first_chunk = None
-            async for event_data in client.stream_chat(query, conversation_id, inputs, history=history_for_llm, user=current_user.username):
+            async for event_data in client.stream_chat(query, conversation_id, inputs, history=history_for_llm, user=current_user.username, db_session=db):
                 if t_first_chunk is None:
                     t_first_chunk = time.time()
                     logger.info(f"[PROFILER] First yield from stream_chat arrived.")
@@ -282,7 +282,7 @@ async def stream_chat_user(
 
             message_buffer = ""
 
-            async for event_data in client.stream_chat(query, conversation_id, inputs, user_email, history=history_for_llm):
+            async for event_data in client.stream_chat(query, conversation_id, inputs, user_email, history=history_for_llm, db_session=db):
                 json_str = json.dumps(event_data, ensure_ascii=False)
                 yield f"data: {json_str}\n\n".encode("utf-8")
                 

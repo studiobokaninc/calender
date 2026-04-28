@@ -243,3 +243,8 @@ def delete_task(db: Session, db_task: models.Task) -> None:
 def get_task_by_name(db: Session, name: str) -> Optional[models.Task]:
     """タスク名からタスクを取得"""
     return db.query(models.Task).filter(models.Task.name == name).first()
+
+def get_task_status_history(db: Session, task_id: int) -> List[models.TaskStatusHistory]:
+    """特定のタスクのステータス変更履歴を取得"""
+    return db.query(models.TaskStatusHistory).filter(models.TaskStatusHistory.task_id == task_id).order_by(models.TaskStatusHistory.changed_at.asc()).all()
+

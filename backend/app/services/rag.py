@@ -116,7 +116,7 @@ class RAGService:
                 return True
             except: return False
 
-    async def query_context(self, query_text: str, project_id: Optional[int] = None, top_k: int = 20, metadata_filters: Optional[Dict[str, Any]] = None, recency_weight: float = 0.3) -> str:
+    async def query_context(self, query_text: str, project_id: Optional[int] = None, top_k: int = 20, metadata_filters: Optional[Dict[str, Any]] = None, recency_weight: float = 0.3, exclude_project_ids: Optional[List[int]] = None) -> str:
         await self._ensure_initialized()
         if not self.index: return ""
         try:
@@ -128,8 +128,10 @@ class RAGService:
                 for k, v in metadata_filters.items():
                     filters_list.append(MetadataFilter(key=k, value=v, operator=FilterOperator.EQ))
             
+            # exclude_project_ids がある場合、NE フィルタを追加（LlamaIndexの制限により複数は難しい場合があるため検索後にフィルタ）
+            
             def _retrieve():
-                retriever = self.index.as_retriever(similarity_top_k=top_k, filters=MetadataFilters(filters=filters_list) if filters_list else None)
+                retriever = self.index.as_retriever(similarity_top_k=top_k * 2, filters=MetadataFilters(filters=filters_list) if filters_list else None)
                 return retriever.retrieve(query_text)
             
             nodes = await asyncio.to_thread(_retrieve)
@@ -139,8 +141,14 @@ class RAGService:
             now = datetime.now()
             scored_nodes = []
             for node in nodes:
+                m = node.metadata
+                
+                # オフラインプロジェクトの除外
+                if exclude_project_ids and m.get("project_id") in exclude_project_ids:
+                    continue
+
                 similarity = node.score or 0.5
-                date_str = node.metadata.get('date')
+                date_str = m.get('date')
                 recency_score = 0.0
                 if date_str:
                     try:
@@ -164,7 +172,7 @@ class RAGService:
             context = "Knowledge Base excerpts:\n"
             for node in top_nodes:
                 m = node.metadata
-                context += f"\n--- [{m.get('type','doc').upper()}: {m.get('title','?')}] ({m.get('date','?')}) ---\n{node.text}\n"
+                context += f"\n--- [{m.get('type','doc').upper()}: {m.get('title','?')} (ID: {m.get('item_id', '不明')})] ({m.get('date','?')}) ---\n{node.text}\n"
             return context
         except Exception as e:
             logger.error(f"RAG query error: {e}")

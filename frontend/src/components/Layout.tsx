@@ -51,6 +51,7 @@ import {
   Description as DescriptionIcon,
   LibraryBooks as KnowledgeIcon,
   ViewModule as TrackerIcon,
+  SmartToy as AIRecommendedIcon,
 } from '@mui/icons-material'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import LightModeIcon from '@mui/icons-material/LightMode'
@@ -146,6 +147,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: '進捗トラッカー', icon: <TrackerIcon />, path: '/production-tracker', isAdmin: true },
     { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
     { text: '議事録', icon: <DescriptionIcon />, path: '/meetings' },
+    { text: 'AI推薦タスク', icon: <AIRecommendedIcon />, path: '/ai-tasks', isAdmin: true },
     { text: 'ナレッジベース', icon: <KnowledgeIcon />, path: '/knowledge' },
     { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box,
     Typography,
@@ -21,7 +21,8 @@ import {
     useTheme,
     alpha,
     Stack,
-    Drawer
+    Drawer,
+    LinearProgress
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
@@ -66,6 +67,43 @@ const ProductionTrackerPage: React.FC = () => {
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [isTaskLoading, setIsTaskLoading] = useState(false);
     const [editTaskId, setEditTaskId] = useState<number | null>(null);
+
+    const stats = useMemo(() => {
+        if (!trackerData) return null;
+        let totalTasks = 0;
+        let completedTasks = 0;
+        let delayedTasks = 0;
+
+        const seqStats: Record<string, { total: number, completed: number, delayed: number }> = {};
+        const shotStats: Record<string, { total: number, completed: number, delayed: number }> = {};
+
+        trackerData.sequences.forEach(seq => {
+            seqStats[seq.seqID] = { total: 0, completed: 0, delayed: 0 };
+            seq.shots.forEach(shot => {
+                const shotKey = `${seq.seqID}-${shot.shotID}`;
+                shotStats[shotKey] = { total: 0, completed: 0, delayed: 0 };
+                Object.values(shot.tasks).forEach(tasks => {
+                    tasks.forEach(t => {
+                        totalTasks++;
+                        seqStats[seq.seqID].total++;
+                        shotStats[shotKey].total++;
+                        if (t.status === 'completed') {
+                            completedTasks++;
+                            seqStats[seq.seqID].completed++;
+                            shotStats[shotKey].completed++;
+                        }
+                        if (t.status === 'delayed') {
+                            delayedTasks++;
+                            seqStats[seq.seqID].delayed++;
+                            shotStats[shotKey].delayed++;
+                        }
+                    });
+                });
+            });
+        });
+
+        return { totalTasks, completedTasks, delayedTasks, seqStats, shotStats };
+    }, [trackerData]);
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -269,6 +307,41 @@ const ProductionTrackerPage: React.FC = () => {
                 </Box>
             </Box>
 
+            {stats && (
+                <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
+                    <Paper sx={{ p: 2.5, flex: 1, borderRadius: 3, display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.8), boxShadow: 2 }}>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700 }}>プロジェクト全体進捗</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mt: 1.5 }}>
+                            <Box sx={{ flexGrow: 1 }}>
+                                <LinearProgress
+                                    variant="determinate"
+                                    value={stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0}
+                                    sx={{ height: 12, borderRadius: 6, bgcolor: alpha(theme.palette.primary.main, 0.1) }}
+                                />
+                            </Box>
+                            <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette.primary.main }}>
+                                {stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%
+                            </Typography>
+                        </Box>
+                    </Paper>
+                    <Paper sx={{ p: 2.5, minWidth: 160, borderRadius: 3, display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.8), boxShadow: 2 }}>
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700 }}>完了タスク</Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 900, mt: 1 }}>
+                            {stats.completedTasks} <Typography component="span" variant="body1" color="text.secondary">/ {stats.totalTasks}</Typography>
+                        </Typography>
+                    </Paper>
+                    <Paper sx={{ p: 2.5, minWidth: 160, borderRadius: 3, display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.error.main, 0.05), border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`, boxShadow: 2 }}>
+                        <Typography variant="subtitle2" color="error" sx={{ fontWeight: 700 }}>遅延タスク</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                            <ErrorIcon color="error" />
+                            <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette.error.main }}>
+                                {stats.delayedTasks}
+                            </Typography>
+                        </Box>
+                    </Paper>
+                </Box>
+            )}
+
             <TableContainer
                 component={Paper}
                 sx={{
@@ -340,15 +413,46 @@ const ProductionTrackerPage: React.FC = () => {
                                                         }}
                                                     >
                                                         {seq.seqID}
+                                                        {stats && stats.seqStats[seq.seqID].total > 0 && (
+                                                            <Box sx={{ mt: 2, px: 2, textAlign: 'center' }}>
+                                                                <LinearProgress
+                                                                    variant="determinate"
+                                                                    value={(stats.seqStats[seq.seqID].completed / stats.seqStats[seq.seqID].total) * 100}
+                                                                    sx={{ height: 8, borderRadius: 4 }}
+                                                                />
+                                                                <Typography variant="caption" sx={{ mt: 1, display: 'block', fontWeight: 800, opacity: 0.8 }}>
+                                                                    {Math.round((stats.seqStats[seq.seqID].completed / stats.seqStats[seq.seqID].total) * 100)}%
+                                                                </Typography>
+                                                            </Box>
+                                                        )}
                                                     </TableCell>
                                                 )}
                                                 <TableCell sx={{
-                                                    fontWeight: 800,
-                                                    fontSize: '1.1rem',
+                                                    verticalAlign: 'top',
+                                                    pt: 3,
                                                     borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
                                                     bgcolor: alpha(theme.palette.background.paper, 0.3)
                                                 }}>
-                                                    {shot.shotID}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                                                        <Typography sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{shot.shotID}</Typography>
+                                                        {stats && stats.shotStats[`${seq.seqID}-${shot.shotID}`].delayed > 0 && (
+                                                            <Tooltip title={`${stats.shotStats[`${seq.seqID}-${shot.shotID}`].delayed}件の遅延タスクがあります`}>
+                                                                <ErrorIcon color="error" fontSize="small" />
+                                                            </Tooltip>
+                                                        )}
+                                                    </Box>
+                                                    {stats && stats.shotStats[`${seq.seqID}-${shot.shotID}`].total > 0 && (
+                                                        <Box sx={{ width: '100%', mt: 1 }}>
+                                                            <LinearProgress
+                                                                variant="determinate"
+                                                                value={(stats.shotStats[`${seq.seqID}-${shot.shotID}`].completed / stats.shotStats[`${seq.seqID}-${shot.shotID}`].total) * 100}
+                                                                sx={{ height: 6, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.1) }}
+                                                            />
+                                                            <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: 'right', fontWeight: 700, opacity: 0.7 }}>
+                                                                {Math.round((stats.shotStats[`${seq.seqID}-${shot.shotID}`].completed / stats.shotStats[`${seq.seqID}-${shot.shotID}`].total) * 100)}%
+                                                            </Typography>
+                                                        </Box>
+                                                    )}
                                                 </TableCell>
                                                 {trackerData.types.map((type) => (
                                                     <TableCell key={type} sx={{ verticalAlign: 'top', minWidth: 200, borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>

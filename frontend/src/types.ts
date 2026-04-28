@@ -314,10 +314,26 @@ export interface Meeting {
   transcript?: string | null;
   decisions?: string[] | null;
   tasks?: string[] | null;
+  detected_tasks?: MeetingTask[] | null; // ★★★ 追加: 検出された構造化タスク ★★★
   discussion_points?: string[] | null;
   deadlines?: string[] | null;
   created_at?: string | null;
   updated_at?: string | null;
+}
+
+export interface MeetingTask {
+  id: number;
+  meeting_id: number;
+  project_id?: number | null;
+  project_name?: string | null;
+  meeting_date?: string | null;
+  content: string;
+  type?: string | null;
+  assignee_suggestion?: string | null;
+  due_date_suggestion?: string | null;
+  status: 'detected' | 'adopted' | 'dismissed';
+  task_id?: number | null;
+  created_at?: string | null;
 }
 
 export interface NoteUpdate {

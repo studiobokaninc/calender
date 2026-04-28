@@ -97,7 +97,7 @@ const Dashboard: React.FC = () => {
   const { dashboardState, updateDashboardState, isInitialLoad } = useDashboardPageState();
   const { refreshGlobalData, globalData } = usePageState();
 
-  // 状態を分離（初期化時はページ状態から取得）
+  // 状態を分離
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [stateRestored, setStateRestored] = useState(false)
@@ -284,7 +284,6 @@ const Dashboard: React.FC = () => {
     const interval = setInterval(checkStatus, 5000) // 5秒おきにチェック (15秒から短縮)
     return () => clearInterval(interval)
   }, [])
-
 
   // 音声認識の初期化（Web Speech API）
   useEffect(() => {
@@ -721,7 +720,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, isGenerating])
 
   // チャット状態の変更をページ状態に反映（状態復元が完了した後のみ）
   useEffect(() => {
@@ -1286,8 +1285,8 @@ const Dashboard: React.FC = () => {
                     })
                   }, 50)
                 }
-              } else if (data.type === 'error') {
-                const errorMsg = `ストリーミングエラー: ${data.detail || '不明なエラー'}`
+              } else if (data.event === 'error') {
+                const errorMsg = `ストリーミングエラー: ${data.message || data.detail || '不明なエラー'}`
                 setMessages((prev) => [...prev, { role: 'assistant', content: errorMsg }])
               }
             } else if (eventType === 'action_executed') {
@@ -2126,6 +2125,12 @@ const Dashboard: React.FC = () => {
                 100% { opacity: 0.4; }
               }
             `}</style>
+            {isGenerating && (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, gap: 1.5, color: 'text.secondary' }}>
+                <CircularProgress size={20} color="inherit" />
+                <Typography variant="body2">AIが考え中または情報収集しています...</Typography>
+              </Box>
+            )}
             <div ref={listEndRef} />
           </Box>
 
@@ -2173,7 +2178,6 @@ const Dashboard: React.FC = () => {
                         color={isListening ? 'error' : 'default'}
                         onClick={toggleVoiceInput}
                         disabled={sending || isGenerating || isSystemBusy}
-
                         aria-label={isListening ? '音声入力を停止' : '音声で入力'}
                       >
                         {isListening ? <StopIcon /> : <MicIcon />}

@@ -27,6 +27,7 @@ import UserActivityPage from './pages/UserActivityPage';
 import MeetingMinutesPage from './pages/MeetingMinutesPage';
 import KnowledgePage from './pages/KnowledgePage';
 import ProductionTrackerPage from './pages/ProductionTrackerPage';
+import AIRecommendedTasksPage from './pages/AIRecommendedTasksPage';
 
 // ★★★ PrivateRoute component ★★★
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -95,6 +96,7 @@ const App: React.FC = () => {
             <Route path="projects" element={<AdminRoute><ProjectsPage /></AdminRoute>} />
             <Route path="tasks" element={<AdminRoute><TasksPage /></AdminRoute>} />
             <Route path="notes" element={<NotesPage />} />
+            <Route path="ai-tasks" element={<AdminRoute><AIRecommendedTasksPage /></AdminRoute>} />
             <Route path="meetings" element={<AdminRoute><MeetingMinutesPage /></AdminRoute>} />
             <Route path="knowledge" element={<KnowledgePage />} />
             <Route path="events" element={<AdminRoute><Navigate to="/metrics?tab=events" replace /></AdminRoute>} />

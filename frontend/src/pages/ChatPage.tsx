@@ -22,6 +22,7 @@ import {
   InputAdornment,
   Breadcrumbs,
   Link,
+  CircularProgress,
 } from '@mui/material'
 import {
   Assignment as AssignmentIcon,
@@ -396,7 +397,7 @@ const ChatPage: React.FC = () => {
   const scrollToBottom = () => {
     if (listEndRef.current) listEndRef.current.scrollIntoView({ behavior: 'smooth' })
   }
-  useEffect(() => { scrollToBottom() }, [messages])
+  useEffect(() => { scrollToBottom() }, [messages, isGenerating])
 
   // テーブル上でマウスホイールを横スクロールに変換（ダッシュボードと同じ）
   useEffect(() => {
@@ -708,8 +709,8 @@ const ChatPage: React.FC = () => {
                     })
                   }, 50)
                 }
-              } else if (data.type === 'error') {
-                setMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${data.detail || '不明'}` }])
+              } else if (data.event === 'error') {
+                setMessages(prev => [...prev, { role: 'assistant', content: `エラー: ${data.message || data.detail || '不明'}` }])
               }
             } else if (eventType === 'task_action') {
               if (data?.type === 'task_action_candidate') {
@@ -1047,6 +1048,12 @@ const ChatPage: React.FC = () => {
               100% { opacity: 0.4; }
             }
           `}</style>
+          {isGenerating && (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, gap: 1.5, color: 'text.secondary' }}>
+              <CircularProgress size={20} color="inherit" />
+              <Typography variant="body2">AIが考え中または情報収集しています...</Typography>
+            </Box>
+          )}
           <div ref={listEndRef} />
         </Box>
 

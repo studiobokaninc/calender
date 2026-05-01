@@ -102,6 +102,7 @@ const ChatPage: React.FC = () => {
   const [isExecutingAction, setIsExecutingAction] = useState(false)
   const [projectsForAction, setProjectsForAction] = useState<Array<{ id: number; name: string }>>([])
   const [selectedProjectIdForAction, setSelectedProjectIdForAction] = useState<number | ''>('')
+  const [isAdmin, setIsAdmin] = useState(false)
   const listEndRef = useRef<HTMLDivElement | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const hasReceivedTaskActionRef = useRef<boolean>(false)
@@ -269,7 +270,12 @@ const ChatPage: React.FC = () => {
   // 初回マウント時にタスク・プロジェクトを取得（レイアウト表示用）
   useEffect(() => {
     refreshGlobalData?.()
-  }, [refreshGlobalData])
+    if (currentUser?.role === 'admin') {
+      setIsAdmin(true)
+    } else {
+      setIsAdmin(false)
+    }
+  }, [refreshGlobalData, currentUser])
 
   // 重い処理（議事録解析）の状況を確認
   useEffect(() => {
@@ -640,7 +646,8 @@ const ChatPage: React.FC = () => {
     let accumulatedContent = ''
 
     try {
-      const response = await fetch('/api/chat/user/stream', {
+      const endpoint = isAdmin ? '/api/chat/stream' : '/api/chat/user/stream'
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -726,6 +733,16 @@ const ChatPage: React.FC = () => {
                   )
                   hasReceivedTaskActionRef.current = true
                 }
+              }
+            } else if (eventType === 'action_executed') {
+              // 管理者向け：自動実行結果の通知
+              if (data?.results && Array.isArray(data.results)) {
+                const results = data.results.map((r: any) =>
+                  r.success ? `✅ ${r.message || '実行完了'}` : `❌ ${r.error || '失敗'}`
+                ).join('\n')
+                // 累積コンテンツに追加するのではなく、別のメッセージとして出すか、末尾に追記するか
+                // バックエンドが[システム通知]を後で流すので、ここではログ出力のみ、またはトースト
+                console.log('Actions executed automatically:', data.results)
               }
             } else if (eventType === 'message_end') {
               streamEnded = true
@@ -885,8 +902,8 @@ const ChatPage: React.FC = () => {
           </Link>
           <Typography color="text.primary" sx={{ fontWeight: 500 }}>Chat</Typography>
         </Breadcrumbs>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
-          <Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <QuestionAnswerIcon sx={{ fontSize: '2rem', color: '#00BCD4' }} />
               <Typography
@@ -899,53 +916,55 @@ const ChatPage: React.FC = () => {
                   fontSize: { xs: '1.75rem', sm: '2.25rem' }
                 }}
               >
-                AI Assistant Chat
+                {isAdmin ? 'Admin Intelligence Chat' : 'AI Assistant Chat'}
               </Typography>
             </Box>
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
-              AIアシスタントと対話して、タスクの作成や更新、スケジュールの確認ができます。
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: { xs: 1, sm: 0 }, flexWrap: 'wrap' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>自動読み上げ</Typography>
-              <Chip
-                size="small"
-                label={autoSpeak ? 'ON' : 'OFF'}
-                color={autoSpeak ? 'primary' : 'default'}
-                onClick={() => setAutoSpeak(!autoSpeak)}
-                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
-              />
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>話しかけモード</Typography>
-              <Chip
-                size="small"
-                label={autoSend ? 'ON' : 'OFF'}
-                color={autoSend ? 'primary' : 'default'}
-                onClick={() => {
-                  setAutoSend(!autoSend)
-                  if (!autoSend && !isListening) {
-                    toggleVoiceInput()
-                  }
-                }}
-                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
-              />
-            </Box>
-            <Tooltip title="音声機能の設定方法">
-              <IconButton size="small" onClick={() => setOpenVoiceHelp(true)} sx={{ ml: -0.5 }}>
-                <HelpIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-              </IconButton>
-            </Tooltip>
-            <Button size="small" variant="outlined" onClick={handleNewConversation}>
-              新しい会話
-            </Button>
-            {isSpeaking && (
-              <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ height: 32 }}>
-                停止
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>自動読み上げ</Typography>
+                <Chip
+                  size="small"
+                  label={autoSpeak ? 'ON' : 'OFF'}
+                  color={autoSpeak ? 'primary' : 'default'}
+                  onClick={() => setAutoSpeak(!autoSpeak)}
+                  sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+                />
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>話しかけモード</Typography>
+                <Chip
+                  size="small"
+                  label={autoSend ? 'ON' : 'OFF'}
+                  color={autoSend ? 'primary' : 'default'}
+                  onClick={() => {
+                    setAutoSend(!autoSend)
+                    if (!autoSend && !isListening) {
+                      toggleVoiceInput()
+                    }
+                  }}
+                  sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
+                />
+              </Box>
+              <Tooltip title="音声機能の設定方法">
+                <IconButton size="small" onClick={() => setOpenVoiceHelp(true)} sx={{ ml: -0.5 }}>
+                  <HelpIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                </IconButton>
+              </Tooltip>
+              <Button size="small" variant="outlined" onClick={handleNewConversation}>
+                新しい会話
               </Button>
-            )}
+              {isSpeaking && (
+                <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ height: 32 }}>
+                  停止
+                </Button>
+              )}
+            </Box>
           </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem', mt: 0.5 }}>
+            {isAdmin
+              ? '管理者向けインテリジェンスチャットです。プロジェクト全域の状況把握、タスクの自動操作、分析が可能です。'
+              : 'AIアシスタントと対話して、個人のタスク作成や更新、スケジュールの確認ができます。'}
+          </Typography>
         </Box>
       </Box>
 
@@ -1113,8 +1132,8 @@ const ChatPage: React.FC = () => {
         </Box>
       </Paper>
 
-      {/* User Task List */}
-      {(myCategorizedTasks.delayed.length > 0 || myCategorizedTasks.today.length > 0 || myCategorizedTasks.dueSoon.length > 0 || myCategorizedTasks.other.length > 0) && (
+      {/* User Task List (Only for General Users) */}
+      {!isAdmin && (myCategorizedTasks.delayed.length > 0 || myCategorizedTasks.today.length > 0 || myCategorizedTasks.dueSoon.length > 0 || myCategorizedTasks.other.length > 0) && (
         <Paper sx={{ p: 2, mb: 2, overflowX: 'auto', border: 1, borderColor: 'divider' }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
             <AssignmentIcon fontSize="small" color="primary" />

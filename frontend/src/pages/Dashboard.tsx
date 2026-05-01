@@ -1,29 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Paper,
   Typography,
   CircularProgress,
-  TextField,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   IconButton,
-  InputAdornment,
-  Tooltip,
   Checkbox,
   Drawer,
   Divider,
-  Chip,
+  Button,
+  Tooltip,
 } from '@mui/material'
 import {
   People as PeopleIcon,
@@ -31,215 +18,40 @@ import {
   Folder as ProjectIcon,
   CalendarToday as CalendarTodayIcon,
   Event as EventIcon,
-  Mic as MicIcon,
-  Stop as StopIcon,
   Close as CloseIcon,
   Edit as EditIcon,
-  Warning as WarningIcon,
-  VolumeUp as VolumeUpIcon,
-  HelpOutline as HelpIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 import api from '../services/api'
 import { DashboardMetrics, BackendEvent, Task } from '../types'
-import { useDashboardPageState, usePageState, DASHBOARD_WELCOME_MESSAGE } from '../contexts/PageStateContext'
+import { usePageState } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
 import { TaskEditDialog, EventEditDialog } from '../components/SearchEditDialogs'
 import { TaskQuickDetail } from '../components/TaskQuickDetail'
-import { VoiceHelpDialog } from '../components/VoiceHelpDialog'
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
-  const { user, token: authToken } = useAuth()
+  const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [backendEvents, setBackendEvents] = useState<BackendEvent[]>([])
   const [eventsLoaded, setEventsLoaded] = useState(false)
-  const [chatInput, setChatInput] = useState('')
-  const [sending, setSending] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null)
-  const [currentMessageId, setCurrentMessageId] = useState<string | null>(null)
-  const messageIdRef = useRef<string | null>(null) // 直接参照用のref
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [isSystemBusy, setIsSystemBusy] = useState(false)
-
-
-  // アクション確認ダイアログ用の状態（単一・複数どちらも配列で保持）
-  interface PendingAction {
-    action_type: 'update_task' | 'create_task' | 'delete_task';
-    task_id?: number;
-    task_data?: any;
-    description: string;
-  }
-  const [pendingActions, setPendingActions] = useState<PendingAction[] | null>(null);
-  const [isExecutingAction, setIsExecutingAction] = useState(false);
-  const [projectsForAction, setProjectsForAction] = useState<Array<{ id: number; name: string }>>([]);
-  const [selectedProjectIdForAction, setSelectedProjectIdForAction] = useState<number | ''>('');
 
   // 編集ダイアログ用
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
   const [editEventId, setEditEventId] = useState<number | null>(null);
 
-  // 詳細パネル用（タスク）
+  // 詳細パネル用
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
-
-  // 詳細パネル用（イベント）
   const [selectedEventDetail, setSelectedEventDetail] = useState<BackendEvent | null>(null);
   const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
 
-
-  // ページ状態管理の使用
-  const { dashboardState, updateDashboardState, isInitialLoad } = useDashboardPageState();
   const { refreshGlobalData, globalData } = usePageState();
-
-  // 状態を分離
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([])
-  const [conversationId, setConversationId] = useState<string | null>(null)
-  const [stateRestored, setStateRestored] = useState(false)
-  const [openVoiceHelp, setOpenVoiceHelp] = useState(false)
-  const listEndRef = useRef<HTMLDivElement | null>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
-  const hasReceivedTaskActionRef = useRef<boolean>(false)
-
-  // 音声認識（Web Speech API）
-  const [isListening, setIsListening] = useState(false)
-  const [interimTranscript, setInterimTranscript] = useState('')
-  const recognitionRef = useRef<any>(null)
-  const [speechSupport, setSpeechSupport] = useState<boolean | null>(null)
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [currentlySpeakingText, setCurrentlySpeakingText] = useState<string | null>(null)
-  const [autoSpeak, setAutoSpeak] = useState(false)
-  const [autoSend, setAutoSend] = useState(false)
-  const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-  const autoSpeakRef = useRef(autoSpeak)
-  useEffect(() => { autoSpeakRef.current = autoSpeak }, [autoSpeak])
-
-  const autoSendRef = useRef(autoSend)
-  useEffect(() => { autoSendRef.current = autoSend }, [autoSend])
-
-  const isGeneratingRef = useRef(isGenerating)
-  useEffect(() => { isGeneratingRef.current = isGenerating }, [isGenerating])
-
-  const isSpeakingRef = useRef(isSpeaking)
-  useEffect(() => { isSpeakingRef.current = isSpeaking }, [isSpeaking])
-
-  const isSystemBusyRef = useRef(isSystemBusy)
-  useEffect(() => { isSystemBusyRef.current = isSystemBusy }, [isSystemBusy])
-
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-
-  const speakText = (text: string) => {
-    if (!text) return
-
-    // 以前の音声を停止
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current = null
-    }
-
-    // Markdownタグなどを除去してプレーンテキストにする
-    const plainText = text.replace(/```[\s\S]*?```/g, '').replace(/[#*`]/g, '')
-    if (!plainText) return
-
-    // バックエンドの高品質TTSエンドポイントを使用
-    const url = `/api/tts/generate?text=${encodeURIComponent(plainText)}`
-    const audio = new Audio(url)
-    audioRef.current = audio
-
-    audio.onplay = () => {
-      setIsSpeaking(true)
-    }
-    audio.onended = () => {
-      setIsSpeaking(false)
-      audioRef.current = null
-    }
-    audio.onerror = () => {
-      console.error('High quality TTS playback failed')
-      setIsSpeaking(false)
-      audioRef.current = null
-    }
-
-    audio.play().catch(err => {
-      console.error('Audio play error:', err)
-      setIsSpeaking(false)
-    })
-  }
-
-  // コンポーネントがアンマウントされる際（ページ遷移時など）に
-  // 再生中の音声を停止する
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
-      }
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel()
-      }
-    }
-  }, [])
-
-  const stopSpeaking = () => {
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current = null
-    }
-    setIsSpeaking(false)
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel()
-    }
-    setCurrentlySpeakingText(null)
-  }
-
-  const triggerManualSend = async (text: string) => {
-    if (text.trim().length === 0 || sending || isGenerating || isSystemBusy) return
-    if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
-    setChatInput('')
-    setMessages(prev => [...prev, { role: 'user', content: text }])
-    setSending(true)
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-    if (autoSpeakRef.current) {
-      // ブラウザの音声再生制限を解除するために無音を再生（プライミング）
-      speakText('')
-    }
-    handleStreamingMessage(text).catch(() => {
-      setSending(false)
-      setIsGenerating(false)
-    })
-  }
-
-  // ページ状態が復元されたらローカル状態を更新
-  useEffect(() => {
-    if (!isInitialLoad && dashboardState.messages.length > 0) {
-      // 状態復元中は状態更新を無効化
-      setStateRestored(false);
-
-      // メッセージの内容を完全に復元（深いコピー）
-      const restoredMessages = dashboardState.messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
-      setMessages(restoredMessages);
-      setConversationId(dashboardState.conversationId);
-
-      // currentMessageIdも復元
-      if (dashboardState.currentMessageId) {
-        setCurrentMessageId(dashboardState.currentMessageId);
-      }
-
-      // 状態復元が完了したことを示す
-      setStateRestored(true);
-    }
-  }, [dashboardState, isInitialLoad]);
 
   const handleUpdateTaskQuick = async (taskId: number, updates: any) => {
     try {
@@ -261,16 +73,13 @@ const Dashboard: React.FC = () => {
         setLoading(false)
       }
     }
-
     fetchMetrics()
   }, [])
 
-  // ダッシュボード表示用にタスク・プロジェクトを取得（ブラウザ更新直後など globalData が空のときも正しく表示するため）
   useEffect(() => {
     refreshGlobalData?.()
   }, [refreshGlobalData])
 
-  // 重い処理（議事録解析）の状況を確認
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -281,110 +90,11 @@ const Dashboard: React.FC = () => {
       }
     }
     checkStatus()
-    const interval = setInterval(checkStatus, 5000) // 5秒おきにチェック (15秒から短縮)
+    const interval = setInterval(checkStatus, 5000)
     return () => clearInterval(interval)
   }, [])
 
-  // 音声認識の初期化（Web Speech API）
-  useEffect(() => {
-    const win = typeof window !== 'undefined' ? window : null
-    const SR = win && ((win as any).SpeechRecognition || (win as any).webkitSpeechRecognition)
-    if (!SR) {
-      setSpeechSupport(false)
-      return
-    }
-    const recognition = new SR()
-    recognition.lang = 'ja-JP'
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.onresult = (event: any) => {
-      // 回答中、読み上げ中、またはシステムがビジーな場合は音声入力を完全に無視する
-      if (isGeneratingRef.current || isSpeakingRef.current || isSystemBusyRef.current) {
-        return
-      }
-
-      let final = ''
-      let interim = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          final += event.results[i][0].transcript
-        } else {
-          interim += event.results[i][0].transcript
-        }
-      }
-      if (final) {
-        setChatInput(prev => {
-          const newVal = (prev.trim() + ' ' + final.trim()).trim()
-          // 自動送信フラグがオンの場合、指定時間（2秒）無入力なら送信する
-          if (autoSendRef.current) {
-            if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
-            autoSendTimerRef.current = setTimeout(() => {
-              // 最新の入力内容で送信
-              triggerManualSend(newVal)
-            }, 2000)
-          }
-          return newVal
-        })
-      }
-      setInterimTranscript(interim)
-    }
-    recognition.onstart = () => {
-      console.log('Speech recognition started (Dashboard)')
-      setIsListening(true)
-    }
-    recognition.onend = () => {
-      setIsListening(false)
-      setInterimTranscript('')
-    }
-    recognition.onerror = (event: any) => {
-      console.error('Speech recognition error (Dashboard):', event.error)
-      if (event.error === 'not-allowed') {
-        alert('マイクの使用が許可されていません。ブラウザの設定から許可してください。')
-      }
-      setIsListening(false)
-      setInterimTranscript('')
-    }
-    recognitionRef.current = recognition
-    setSpeechSupport(true)
-
-    // セキュアコンテキストチェック
-    if (win && win.location.protocol !== 'https:' && win.location.hostname !== 'localhost' && !win.location.hostname.startsWith('127.')) {
-      console.warn('SpeechRecognition might not work on insecure origins (HTTP).')
-    }
-    return () => {
-      try {
-        if (recognitionRef.current) {
-          recognitionRef.current.abort?.()
-          recognitionRef.current.stop?.()
-        }
-      } catch { /* noop */ }
-      recognitionRef.current = null
-    }
-  }, [])
-
-  const toggleVoiceInput = React.useCallback(() => {
-    if (!recognitionRef.current) {
-      if (speechSupport === false) alert('お使いのブラウザは音声認識に対応していません。Chrome や Edge をご利用ください。')
-      return
-    }
-    if (isListening) {
-      try {
-        recognitionRef.current.stop()
-        setIsListening(false)
-      } catch (e) { console.error(e) }
-      return
-    }
-    try {
-      setInterimTranscript('')
-      recognitionRef.current.start()
-      setIsListening(true)
-    } catch (e) {
-      console.warn('Speech recognition start error:', e)
-      setIsListening(false)
-    }
-  }, [isListening, speechSupport])
-
-  const fetchEvents = React.useCallback(async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const res = await api.get<BackendEvent[]>('/calendar/events')
       setBackendEvents(res.data ?? [])
@@ -398,8 +108,6 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchEvents()
   }, [fetchEvents])
-
-  const canSend = useMemo(() => chatInput.trim().length > 0 && !sending && !isGenerating && !isSystemBusy, [chatInput, sending, isGenerating, isSystemBusy])
 
   const todayStr = useMemo(() => {
     const d = new Date()
@@ -429,15 +137,12 @@ const Dashboard: React.FC = () => {
       return u?.username || u?.full_name || u?.name || u?.email || `User ${userId}`
     }
 
-
     type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; phaseIdx?: number; }
-
     const eventList: TodayItem[] = []
 
-    // 1. イベントの処理
     backendEvents.forEach((ev: BackendEvent) => {
       const p = projects.find((x: any) => x.id === ev.project_id);
-      if (p && (p.status === 'completed' || p.status === 'cancelled')) return; // プロジェクト完了/キャンセルなら除外
+      if (p && (p.status === 'completed' || p.status === 'cancelled')) return;
 
       let startDate = '';
       if (ev.start_time) {
@@ -451,26 +156,16 @@ const Dashboard: React.FC = () => {
       if (ev.end_time) {
         const d = new Date(ev.end_time);
         if (!isNaN(d.getTime())) {
-          // 終了日が00:00ちょうど、または終日イベントの場合は、表示上の終了日を前日に戻す（終了日は排他扱いのため）
-          // ただし、これにより開始日より前になってしまう場合は開始日と同じにする（同日終了のケース）
           const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
           if (isMidnight || ev.allDay) {
             d.setDate(d.getDate() - 1);
           }
           endDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-          if (endDate < startDate) {
-            endDate = startDate;
-          }
+          if (endDate < startDate) endDate = startDate;
         }
       }
 
-      // デバッグ用: 今日の日付と範囲のログ出力（必要に応じて有効化）
-      // if (ev.title?.includes('テスト')) console.log(`Event: ${ev.title}, Start: ${startDate}, End: ${endDate}, Today: ${todayStr}, Show: ${todayStr >= startDate && todayStr <= endDate}`);
-
       if (!startDate) return;
-
-      // 今日の日付が期間内か
       if (todayStr >= startDate && todayStr <= endDate) {
         const evType = (ev.type ?? 'Generic').toString()
         eventList.push({
@@ -487,14 +182,11 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // 2. タスクとPhaseの処理
     const tasks = globalData?.tasks ?? [];
     const completedStatuses = ['completed', 'COMPLETED', 'cancelled', 'CANCELLED'];
 
     tasks.forEach((t: any) => {
       const isTaskCompleted = completedStatuses.includes(String(t.status ?? ''));
-
-      // タスク自体の締切判定
       if (!isTaskCompleted && t.due_date) {
         const due = new Date(t.due_date);
         const dueStr = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
@@ -505,28 +197,23 @@ const Dashboard: React.FC = () => {
             name: t.name,
             projectName: getProjectName(t.project_id ?? null),
             assigneeName: getAssigneeName(t.assigned_to ?? null),
-            timeLabel: '締切', // タスクは時間を持たないことが多いので「締切」等
+            timeLabel: '締切',
             kindLabel: 'タスク',
-            startTime: t.due_date, // ソート用
+            startTime: t.due_date,
             isPhase: false,
             rawId: t.id,
           });
         }
       }
-
-      // Phaseの判定 (タスクが未完了、かつPhaseも未完了と仮定)
-      // Phaseデータの構造: { name: string, date: string, is_completed?: boolean }
       if (!isTaskCompleted && t.phases && Array.isArray(t.phases)) {
         t.phases.forEach((p: any, idx: number) => {
-          if (p.is_completed) return; // 完了済みPhaseは除外
+          if (p.is_completed) return;
           if (!p.date) return;
-
           const pDate = new Date(p.date);
           const pDateStr = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}-${String(pDate.getDate()).padStart(2, '0')}`;
-
           if (pDateStr === todayStr) {
             eventList.push({
-              type: 'task', // アイコン等はタスクと同じ扱いで良いか、区別するか
+              type: 'task',
               id: `phase-${t.id}-${idx}`,
               name: `${t.name}: ${p.name}`,
               projectName: getProjectName(t.project_id ?? null),
@@ -535,7 +222,7 @@ const Dashboard: React.FC = () => {
               kindLabel: '段階目標',
               startTime: p.date,
               isPhase: true,
-              rawId: t.id, // Phaseでも親タスクのIDを保持
+              rawId: t.id,
               phaseIdx: idx
             });
           }
@@ -543,28 +230,23 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // 時間順にソート (終日が先、時刻ありは後)
     eventList.sort((a, b) => {
       if (a.timeLabel === '終日' && b.timeLabel !== '終日') return -1;
       if (a.timeLabel !== '終日' && b.timeLabel === '終日') return 1;
       return (a.startTime ?? '').localeCompare(b.startTime ?? '');
     });
-
     return eventList
   }, [globalData?.projects, globalData?.tasks, todayStr, backendEvents])
 
-  // 今週の締切（期日が今週で未完了のタスク）※プロジェクト名・担当者名も付与
   const weekDeadlineTasks = useMemo(() => {
     const tasks = globalData?.tasks ?? []
     const projects = globalData?.projects ?? []
     const users = globalData?.users ?? []
-
     const getProjectName = (projectId: number | null | undefined): string => {
       if (projectId == null) return '（プロジェクトなし）'
       const p = projects.find((x: any) => x.id === projectId)
       return p?.name ?? `ID:${projectId}`
     }
-
     const getAssigneeName = (userId: number | null | undefined): string => {
       if (userId == null) return ''
       const u = users.find((x: any) => x.id === userId)
@@ -583,27 +265,22 @@ const Dashboard: React.FC = () => {
 
     tasks.forEach((t: any) => {
       const isTaskCompleted = completed.includes(String(t.status ?? ''))
-
-      // 1. タスク自体の判定
       const due = t.due_date ? new Date(t.due_date) : null
       if (due && !isTaskCompleted && due >= startOfWeek && due <= endOfWeek) {
         expandedTasks.push({ ...t, isPhase: false })
       }
-
-      // 2. Phaseの判定（タスクが未完了の場合のみ）
       if (!isTaskCompleted && t.phases && Array.isArray(t.phases)) {
         t.phases.forEach((p: any, idx: number) => {
-          if (p.is_completed) return; // 完了済みPhaseは除外
+          if (p.is_completed) return;
           const phaseDate = p.date ? new Date(p.date) : null
-          // Phaseの日付が今週の範囲内なら追加
           if (phaseDate && phaseDate >= startOfWeek && phaseDate <= endOfWeek) {
             expandedTasks.push({
               ...t,
-              id: `phase-${t.id}-${idx}`, // IDを一意・文字列に
+              id: `phase-${t.id}-${idx}`,
               originalId: t.id,
-              phaseIdx: idx, // インデックスを保持
-              name: `${t.name}: ${p.name}`, // 名前を修飾
-              due_date: p.date, // 期日をPhaseの日付に
+              phaseIdx: idx,
+              name: `${t.name}: ${p.name}`,
+              due_date: p.date,
               isPhase: true
             })
           }
@@ -620,18 +297,15 @@ const Dashboard: React.FC = () => {
       }))
   }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
-  // 遅延タスク（期日が過去で未完了、または status が delayed）※プロジェクト名・担当者名も付与
   const delayedTasks = useMemo(() => {
     const tasks = globalData?.tasks ?? []
     const projects = globalData?.projects ?? []
     const users = globalData?.users ?? []
-
     const getProjectName = (projectId: number | null | undefined): string => {
       if (projectId == null) return '（プロジェクトなし）'
       const p = projects.find((x: any) => x.id === projectId)
       return p?.name ?? `ID:${projectId}`
     }
-
     const getAssigneeName = (userId: number | null | undefined): string => {
       if (userId == null) return ''
       const u = users.find((x: any) => x.id === userId)
@@ -646,8 +320,6 @@ const Dashboard: React.FC = () => {
     tasks.forEach((t: any) => {
       const isTaskCompleted = completed.includes(String(t.status ?? ''))
       if (isTaskCompleted) return
-
-      // 1. タスク自体の判定
       let isTaskDelayed = false
       if (String(t.status ?? '').toLowerCase() === 'delayed') {
         isTaskDelayed = true
@@ -658,24 +330,19 @@ const Dashboard: React.FC = () => {
           if (due < todayStart) isTaskDelayed = true
         }
       }
-      if (isTaskDelayed) {
-        expandedTasks.push({ ...t, isPhase: false })
-      }
-
-      // 2. Phaseの判定
+      if (isTaskDelayed) expandedTasks.push({ ...t, isPhase: false })
       if (t.phases && Array.isArray(t.phases)) {
         t.phases.forEach((p: any, idx: number) => {
-          if (p.is_completed) return; // 完了済みPhaseは除外
+          if (p.is_completed) return;
           const phaseDate = p.date ? new Date(p.date) : null
           if (phaseDate) {
             phaseDate.setHours(0, 0, 0, 0)
-            // Phaseの日付が過去なら遅延とみなす
             if (phaseDate < todayStart) {
               expandedTasks.push({
                 ...t,
                 id: `phase-${t.id}-${idx}`,
                 originalId: t.id,
-                phaseIdx: idx, // インデックスを保持
+                phaseIdx: idx,
                 name: `${t.name}: ${p.name}`,
                 due_date: p.date,
                 isPhase: true
@@ -685,7 +352,6 @@ const Dashboard: React.FC = () => {
         })
       }
     })
-
     return expandedTasks
       .sort((a: any, b: any) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())
       .map((t: any) => ({
@@ -695,7 +361,6 @@ const Dashboard: React.FC = () => {
       }))
   }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
-  // サマリー用：オフラインを除いたプロジェクト数・タスク数（globalData があるときのみ使用）
   const summaryCounts = useMemo(() => {
     const projects = globalData?.projects ?? []
     const tasks = globalData?.tasks ?? []
@@ -712,708 +377,6 @@ const Dashboard: React.FC = () => {
     }
   }, [globalData?.projects, globalData?.tasks])
 
-  const scrollToBottom = () => {
-    if (listEndRef.current) {
-      listEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, isGenerating])
-
-  // チャット状態の変更をページ状態に反映（状態復元が完了した後のみ）
-  useEffect(() => {
-    if (stateRestored) {
-      // メッセージの内容が実際に変更された場合のみ更新
-      const hasMessagesChanged = messages.length !== dashboardState.messages.length ||
-        messages.some((msg, index) => {
-          const savedMsg = dashboardState.messages[index];
-          return !savedMsg || msg.content !== savedMsg.content || msg.role !== savedMsg.role;
-        });
-
-      const hasConversationChanged = conversationId !== dashboardState.conversationId;
-
-      if (hasMessagesChanged || hasConversationChanged) {
-        // ストリーミング中は即座に更新、そうでなければデバウンス
-        const delay = sending ? 0 : 100;
-        const timeoutId = setTimeout(() => {
-          updateDashboardState({
-            messages: [...messages], // 新しい配列として保存
-            conversationId,
-            currentMessageId, // currentMessageIdも保存
-          });
-        }, delay);
-
-        return () => clearTimeout(timeoutId);
-      }
-    }
-  }, [messages, conversationId, stateRestored, updateDashboardState, dashboardState.messages, dashboardState.conversationId, sending]);
-
-  // テーブル上でマウスホイールを横スクロールに変換
-  useEffect(() => {
-    // イベントリスナーを設定する関数
-    const setupWheelHandlers = () => {
-      const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
-
-      containers.forEach((el) => {
-        // 既にイベントリスナーが設定されている場合はスキップ
-        if ((el as any)._wheelHandler) {
-          return
-        }
-
-        const onWheel = (e: WheelEvent) => {
-          // ピンチズームや修飾キー時は素通し
-          if (e.ctrlKey) return
-          // 横オーバーフローがない場合は素通し
-          if (el.scrollWidth <= el.clientWidth) return
-
-          // 横スクロールバーが出ている場合は、マウスホイールで横スクロール
-          if (e.deltaY !== 0) {
-            try {
-              e.preventDefault()
-            } catch (err) {
-              // preventDefaultが失敗した場合は無視
-            }
-            el.scrollLeft += e.deltaY
-          }
-        }
-
-        // より互換性の高いイベントリスナーの設定
-        try {
-          el.addEventListener('wheel', onWheel, { passive: false })
-        } catch (err) {
-          // 古いブラウザやpassive: falseが使えない場合のフォールバック
-          el.addEventListener('wheel', onWheel as any)
-        }
-        ; (el as any)._wheelHandler = onWheel
-      })
-    }
-
-    // 初回設定
-    const initialTimeoutId = setTimeout(setupWheelHandlers, 100)
-
-    // 定期的にチェックしてイベントリスナーを設定（新しいテーブルが追加された場合に対応）
-    const intervalId = setInterval(setupWheelHandlers, 500)
-
-    // クリーンアップ
-    return () => {
-      clearTimeout(initialTimeoutId)
-      clearInterval(intervalId)
-
-      // すべてのイベントリスナーを削除
-      const containers = Array.from(document.querySelectorAll('.message-content .table-scroll')) as HTMLDivElement[]
-      containers.forEach((el) => {
-        if ((el as any)._wheelHandler) {
-          el.removeEventListener('wheel', (el as any)._wheelHandler)
-          delete (el as any)._wheelHandler
-        }
-      })
-    }
-  }, [messages, stateRestored])
-
-  // Markdown -> HTML（GFMテーブル対応）
-  const renderMarkdown = (md: string) => {
-    marked.setOptions({ gfm: true, breaks: true })
-    const html = marked.parse(md || '') as string
-    const sanitized = DOMPurify.sanitize(html)
-    return enhanceTableDates(sanitized)
-  }
-
-  // 表セル内の日付を検出し、相対日数バッジを付与
-  const enhanceTableDates = (html: string): string => {
-    try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(html, 'text/html')
-      const tables = Array.from(doc.querySelectorAll('table'))
-      if (tables.length === 0) return html
-
-      const datePatterns: RegExp[] = [
-        /(\d{4})-(\d{1,2})-(\d{1,2})/g,     // YYYY-MM-DD
-        /(\d{4})\/(\d{1,2})\/(\d{1,2})/g, // YYYY/MM/DD
-        /(^|\s)(\d{1,2})\/(\d{1,2})(?=\s|$)/g, // MM/DD (今年)
-      ]
-
-      const today = new Date()
-      const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
-
-      const makeBadge = (diffDays: number): HTMLSpanElement => {
-        const span = doc.createElement('span')
-        span.className = 'date-badge ' + (diffDays < 0 ? 'past' : diffDays === 0 ? 'today' : 'future')
-        span.textContent = diffDays < 0 ? '過日' : diffDays === 0 ? '今日' : `${diffDays}日後`
-        return span
-      }
-
-      const toMidnight = (y: number, m: number, d: number) => new Date(y, m, d).getTime()
-
-      const processCell = (cell: HTMLElement) => {
-        // 既に処理済みならスキップ
-        if (cell.querySelector('.date-badge')) return
-        const walker = doc.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
-        const textNodes: Text[] = []
-        let n: Node | null
-        while ((n = walker.nextNode())) {
-          if (n.nodeType === Node.TEXT_NODE && n.nodeValue && n.nodeValue.trim() !== '') {
-            textNodes.push(n as Text)
-          }
-        }
-
-        for (const t of textNodes) {
-          let changed = false
-          let content = t.nodeValue || ''
-
-          // 累積フラグで複数パターンを順次適用
-          for (const re of datePatterns) {
-            re.lastIndex = 0
-            const frag = doc.createDocumentFragment()
-            let lastIndex = 0
-            let match: RegExpExecArray | null
-            let any = false
-            while ((match = re.exec(content))) {
-              any = true
-              // 追加: 直前テキスト
-              frag.appendChild(doc.createTextNode(content.slice(lastIndex, match.index)))
-
-              // 解析
-              let y: number, m: number, d: number
-              if (match.length >= 4 && re !== datePatterns[2]) {
-                // YYYY-.. または YYYY/..
-                y = parseInt(match[1], 10)
-                m = parseInt(match[2], 10) - 1
-                d = parseInt(match[3], 10)
-              } else {
-                // MM/DD（今年）
-                y = today.getFullYear()
-                m = parseInt(match[2], 10) - 1
-                d = parseInt(match[3], 10)
-              }
-              const target = toMidnight(y, m, d)
-              if (!isNaN(target)) {
-                const diffDays = Math.round((target - todayMid) / (1000 * 60 * 60 * 24))
-                frag.appendChild(doc.createTextNode(match[0]))
-                frag.appendChild(doc.createTextNode(' '))
-                frag.appendChild(makeBadge(diffDays))
-              } else {
-                frag.appendChild(doc.createTextNode(match[0]))
-              }
-              lastIndex = re.lastIndex
-            }
-
-            if (any) {
-              // 残りテキスト
-              frag.appendChild(doc.createTextNode(content.slice(lastIndex)))
-              t.parentNode?.replaceChild(frag, t)
-              changed = true
-              break // 同一ノードへの多重適用を避ける
-            }
-          }
-
-          if (changed) break
-        }
-      }
-
-      tables.forEach(tbl => {
-        const cells = tbl.querySelectorAll('td, th')
-        cells.forEach(c => processCell(c as HTMLElement))
-
-        // テーブルを横スクロール可能なラッパーで包む（重複包みを回避）
-        const parent = tbl.parentElement
-        if (!parent) return
-        if (parent.classList.contains('table-scroll')) return
-
-        const wrapper = doc.createElement('div')
-        wrapper.className = 'table-scroll'
-        parent.replaceChild(wrapper, tbl)
-        wrapper.appendChild(tbl)
-      })
-
-      return doc.body.innerHTML
-    } catch {
-      return html
-    }
-  }
-
-  const handleSend = async () => {
-    if (!canSend) return
-    triggerManualSend(chatInput)
-  }
-
-  const handleStopGeneration = async () => {
-    // Dify APIに停止リクエストを送信
-    if (currentTaskId) {
-      try {
-        await api.post(`/api/chat/stop/${currentTaskId}`, {
-          user: 'default_user' // 環境変数から取得するか、固定値を使用
-        })
-      } catch (error) {
-        // Stop request failed - silently handle
-        // エラーが発生してもローカルでの停止は実行
-      }
-    }
-
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-    setIsGenerating(false)
-    setSending(false)
-    setCurrentTaskId(null)
-  }
-
-
-  // アクションJSONを検出する関数（単一オブジェクトまたは配列を返す。配列の場合は複数アクション）
-  const detectActionFromContent = (content: string): any | any[] | null => {
-    const validTypes = ['update_task', 'create_task', 'delete_task'];
-    const isValidAction = (a: any) => a && typeof a === 'object' && validTypes.includes(a.action_type);
-
-    // 複数のコードブロックをすべて抽出（```json または ``` で囲まれた中身）
-    const extractAllCodeBlocks = (text: string): string[] => {
-      const blocks: string[] = [];
-      const regex = /```(?:json)?\s*([\s\S]*?)```/g;
-      let m: RegExpExecArray | null;
-      while ((m = regex.exec(text)) !== null) {
-        const inner = m[1].trim();
-        if (inner) blocks.push(inner);
-      }
-      return blocks;
-    };
-
-    // 1ブロックの文字列をパースして有効なアクションを配列で返す（0〜n件）
-    const parseBlockToActions = (block: string): any[] => {
-      try {
-        const parsed = JSON.parse(block);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isValidAction))
-          return parsed;
-        if (isValidAction(parsed)) return [parsed];
-      } catch (_) { /* ignore */ }
-      return [];
-    };
-
-    try {
-      // 検出対象テキスト（--- がある場合はその以降）
-      const searchContent = content.includes('---')
-        ? content.split('---').slice(1).join('---').trim()
-        : content;
-
-      const blocks = extractAllCodeBlocks(searchContent);
-      const collected: any[] = [];
-      for (const block of blocks) {
-        collected.push(...parseBlockToActions(block));
-      }
-      if (collected.length > 1) return collected;
-      if (collected.length === 1) return collected[0];
-
-      // パターン3: コードブロックなしで単一オブジェクトのJSONを直接検出
-      const singlePattern = /\{[\s\S]*?"action_type":\s*"(update_task|create_task|delete_task)"[\s\S]*?\}/;
-      const singleMatch = content.match(singlePattern);
-      if (singleMatch) {
-        try {
-          const action = JSON.parse(singleMatch[0]);
-          if (isValidAction(action)) return action;
-        } catch (_) { /* ignore */ }
-      }
-    } catch (e) {
-      console.debug('Action detection error:', e);
-    }
-    return null;
-  };
-
-  // アクションの説明を生成（タスク名・プロジェクト名を表示）
-  const generateActionDescription = (action: any): string => {
-    // タスクIDからタスク名を取得
-    const getTaskName = (taskId?: number): string => {
-      if (!taskId || !globalData?.tasks) return '';
-      const task = globalData.tasks.find((t: any) => t.id === taskId);
-      return task?.name || '';
-    };
-    // タスクIDからプロジェクト名を取得（タスクの project_id を参照）
-    const getProjectNameByTaskId = (taskId?: number): string => {
-      if (!taskId || !globalData?.tasks || !globalData?.projects) return '';
-      const task = globalData.tasks.find((t: any) => t.id === taskId);
-      const projectId = task?.project_id;
-      if (projectId == null) return '';
-      const project = globalData.projects.find((p: any) => p.id === projectId);
-      return project?.name || '';
-    };
-    // プロジェクトIDからプロジェクト名を取得
-    const getProjectNameById = (projectId?: number): string => {
-      if (projectId == null || !globalData?.projects) return '';
-      const project = globalData.projects.find((p: any) => p.id === projectId);
-      return project?.name || '';
-    };
-    // 「プロジェクト名 / タスク名」の表示用文字列を組み立て
-    const projectTaskLabel = (taskId: number | undefined, taskName: string, projectName: string): string => {
-      if (projectName && taskName) return `プロジェクト「${projectName}」のタスク「${taskName}」`;
-      if (taskName) return `タスク「${taskName}」`;
-      return `タスクID ${taskId}`;
-    };
-
-    switch (action.action_type) {
-      case 'update_task': {
-        const taskName = getTaskName(action.task_id);
-        const projectName = getProjectNameByTaskId(action.task_id);
-        const taskDisplay = projectTaskLabel(action.task_id, taskName, projectName);
-        const updates: string[] = [];
-        if (action.task_data?.status) updates.push(`ステータス: ${action.task_data.status}`);
-        if (action.task_data?.name) updates.push(`名前: ${action.task_data.name}`);
-        if (action.task_data?.due_date) updates.push(`期日: ${action.task_data.due_date}`);
-        if (action.task_data?.assigned_to) updates.push(`担当者ID: ${action.task_data.assigned_to}`);
-        if (action.task_data?.description) updates.push(`説明: ${action.task_data.description}`);
-        return `${taskDisplay} を更新します。\n変更内容: ${updates.length > 0 ? updates.join(', ') : 'その他の更新'}`;
-      }
-      case 'create_task': {
-        const details: string[] = [];
-        const createProjectName = getProjectNameById(action.task_data?.project_id);
-        if (createProjectName) details.push(`プロジェクト: ${createProjectName}`);
-        if (action.task_data?.name) details.push(`名前: ${action.task_data.name}`);
-        if (action.task_data?.description) details.push(`説明: ${action.task_data.description}`);
-        if (action.task_data?.status) details.push(`ステータス: ${action.task_data.status}`);
-        if (action.task_data?.due_date) details.push(`期日: ${action.task_data.due_date}`);
-        if (action.task_data?.assigned_to) details.push(`担当者ID: ${action.task_data.assigned_to}`);
-        return `新しいタスクを作成します。\n${details.length > 0 ? details.join('\n') : '詳細は未設定'}`;
-      }
-      case 'delete_task': {
-        const deleteTaskName = getTaskName(action.task_id);
-        const deleteProjectName = getProjectNameByTaskId(action.task_id);
-        const deleteTaskDisplay = projectTaskLabel(action.task_id, deleteTaskName, deleteProjectName);
-        return `${deleteTaskDisplay} を削除します。\nこの操作は取り消せません。`;
-      }
-      default:
-        return 'アクションを実行します。';
-    }
-  };
-
-  // アクション確認ダイアログ用に、タスク作成時のプロジェクト一覧を取得
-  const hasCreateTaskAction = pendingActions?.some(a => a.action_type === 'create_task') ?? false;
-  useEffect(() => {
-    const fetchProjectsForAction = async () => {
-      if (!hasCreateTaskAction) return;
-      try {
-        const res = await api.get('/projects');
-        if (Array.isArray(res.data)) {
-          const list = res.data.map((p: any) => ({ id: p.id, name: p.name }));
-          setProjectsForAction(list);
-        }
-      } catch (e) {
-        console.debug('プロジェクト一覧の取得に失敗しました', e);
-      }
-    };
-    fetchProjectsForAction();
-  }, [hasCreateTaskAction]);
-
-  // アクションを実行（複数件の場合は順に実行）
-  const executeAction = async (actionsToExecute?: PendingAction[]) => {
-    const actions = actionsToExecute || pendingActions;
-    if (!actions || actions.length === 0) return;
-
-    // タスク操作にはログインが必要（AuthContext のトークンを優先し、localStorage と同期）
-    const token = authToken ?? localStorage.getItem('token');
-    if (!token) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ タスク操作を行うにはログインが必要です。' }]);
-      setPendingActions(null);
-      return;
-    }
-    if (!localStorage.getItem('token')) {
-      localStorage.setItem('token', token);
-    }
-    setIsExecutingAction(true);
-    const results: string[] = [];
-    try {
-      for (const pa of actions) {
-        const payload: any = {
-          action_type: pa.action_type,
-          task_id: pa.task_id,
-          task_data: pa.task_data ? { ...pa.task_data } : {},
-        };
-        if (pa.action_type === 'create_task') {
-          payload.task_data = payload.task_data || {};
-          if (selectedProjectIdForAction !== '') {
-            payload.task_data.project_id = selectedProjectIdForAction;
-          }
-          // 実行した日付で開始日・終了日を設定
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
-          payload.task_data.start_date = todayStr;
-          payload.task_data.due_date = todayStr;
-        }
-        try {
-          const response = await api.post('/chat/actions/task', payload);
-          if (response.data.success) {
-            results.push(`✅ ${response.data.message}`);
-          } else {
-            results.push(`❌ ${response.data.error ?? 'エラー'}`);
-          }
-        } catch (err: any) {
-          const status = err.response?.status;
-          const data = err.response?.data;
-          const isAuthError = status === 401 || status === 403;
-          const msg = isAuthError
-            ? (data?.error || data?.detail || '認証が必要です。再度ログインしてください。')
-            : (data?.error || data?.detail || err.message || 'エラー');
-          results.push(`❌ ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
-        }
-      }
-      const message = results.length === 1 ? results[0] : results.join('\n');
-      setMessages(prev => [...prev, { role: 'assistant', content: message }]);
-      if (results.some(r => r.startsWith('✅')) && refreshGlobalData) {
-        await refreshGlobalData();
-      }
-    } finally {
-      setIsExecutingAction(false);
-      setPendingActions(null);
-      setSelectedProjectIdForAction('');
-    }
-  };
-
-  // アクションをキャンセル
-  const cancelAction = () => {
-    setPendingActions(null);
-    setSelectedProjectIdForAction('');
-  };
-
-  const handleStreamingMessage = async (text: string) => {
-    // EventSourceの代わりにfetch APIとReadableStreamを使用する (POSTリクエスト)
-    const token = authToken ?? localStorage.getItem('token')
-
-    // イベントソースの参照をクリア（もう使わないが念のため）
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
-      eventSourceRef.current = null
-    }
-
-    console.debug('[chat] send POST stream', { query: text, conversationId: conversationId || null })
-    hasReceivedTaskActionRef.current = false
-    setIsGenerating(true)
-
-    let streamEnded = false
-    let aiStarted = false
-    let accumulatedContent = ''
-
-    try {
-      const response = await fetch('/api/chat/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // 必要に応じてトークン付与
-        },
-        body: JSON.stringify({
-          query: text,
-          conversation_id: conversationId,
-          user: user?.email || 'user'
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('Response body is null')
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-
-        // SSEフォーマットのパース
-        // イベントブロックごとに処理 (\n\n で区切られる)
-        const parts = buffer.split('\n\n')
-        // 最後の部分は不完全な可能性があるのでバッファに残す
-        buffer = parts.pop() || ''
-
-        for (const part of parts) {
-          if (!part.trim()) continue
-
-          const lines = part.split('\n')
-          let eventType = 'message'
-          let dataStr = ''
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventType = line.substring(7).trim()
-            } else if (line.startsWith('data: ')) {
-              dataStr += line.substring(6)
-            }
-          }
-
-          if (!dataStr) continue
-
-          // イベント処理
-          if (eventType === 'retry') continue
-
-          try {
-            const data = JSON.parse(dataStr)
-
-            // --- ここから既存のロジックを流用 ---
-            if (eventType === 'message') {
-              if (data.task_id) setCurrentTaskId(data.task_id)
-
-              // message_idの取得
-              let foundMessageId = null
-              if (data.message_id) foundMessageId = data.message_id
-              else if (data.data?.message_id) foundMessageId = data.data.message_id
-
-              if (foundMessageId) {
-                setCurrentMessageId(foundMessageId)
-                messageIdRef.current = foundMessageId
-              }
-
-              if (data.conversation_id && !conversationId) {
-                setConversationId(data.conversation_id)
-              }
-
-              if (data.answer) {
-                accumulatedContent += data.answer
-
-                if (!aiStarted) {
-                  aiStarted = true
-                  setMessages((prev) => [...prev, { role: 'assistant' as const, content: accumulatedContent }])
-                } else {
-                  if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current)
-                  updateTimeoutRef.current = setTimeout(() => {
-                    setMessages((prev) => {
-                      if (prev.length === 0) return prev
-                      const lastIdx = prev.length - 1
-                      const last = prev[lastIdx]
-                      if (last.role !== 'assistant') return [...prev, { role: 'assistant' as const, content: accumulatedContent }]
-                      const updated = [...prev]
-                      updated[lastIdx] = { ...last, content: accumulatedContent }
-                      return updated
-                    })
-                  }, 50)
-                }
-              } else if (data.event === 'error') {
-                const errorMsg = `ストリーミングエラー: ${data.message || data.detail || '不明なエラー'}`
-                setMessages((prev) => [...prev, { role: 'assistant', content: errorMsg }])
-              }
-            } else if (eventType === 'action_executed') {
-              if (data.results && data.results.length > 0) {
-                if (refreshGlobalData) await refreshGlobalData()
-              }
-            } else if (eventType === 'task_action') {
-              if (data?.type === 'task_action_candidate') {
-                const rawList = data.actions ?? (data.action ? [data.action] : [])
-                if (Array.isArray(rawList) && rawList.length > 0) {
-                  const list: PendingAction[] = rawList.map((a: any) => ({
-                    action_type: a.action_type,
-                    task_id: a.task_id,
-                    task_data: a.task_data,
-                    description: generateActionDescription(a),
-                  }))
-                  // 自動実行（確認ダイアログなし）
-                  executeAction(list);
-                  hasReceivedTaskActionRef.current = true
-                }
-              }
-            } else if (eventType === 'message_end') {
-              streamEnded = true
-
-              // 最終メッセージID更新
-              if (data.message_id) {
-                setCurrentMessageId(data.message_id)
-                messageIdRef.current = data.message_id
-              }
-
-              // 残りの更新を即時反映
-              if (updateTimeoutRef.current) {
-                clearTimeout(updateTimeoutRef.current)
-                updateTimeoutRef.current = null
-              }
-              setMessages((prev) => {
-                if (prev.length === 0) return prev
-                const lastIdx = prev.length - 1
-                const last = prev[lastIdx]
-                if (last.role === 'assistant') {
-                  const updated = [...prev]
-                  updated[lastIdx] = { ...last, content: accumulatedContent }
-                  return updated
-                }
-                return prev
-              })
-
-              // アクション未受信時のフォールバック検出
-              if (!hasReceivedTaskActionRef.current) {
-                try {
-                  const detected = detectActionFromContent(accumulatedContent);
-                  if (detected != null) {
-                    const list = Array.isArray(detected) ? detected : [detected];
-                    const pendingList: PendingAction[] = list.map((a: any) => ({
-                      action_type: a.action_type,
-                      task_id: a.task_id,
-                      task_data: a.task_data,
-                      description: generateActionDescription(a),
-                    }));
-                    // 自動実行（確認ダイアログなし）
-                    executeAction(pendingList);
-                  }
-                } catch (e) { console.debug('Action detection error:', e) }
-              }
-              hasReceivedTaskActionRef.current = false
-            } else if (eventType === 'task_list') {
-              // task_listイベントの処理（必要なら）
-            }
-          } catch (e) {
-            console.error('JSON parse error', e)
-          }
-        }
-      }
-
-    } catch (e: any) {
-      console.error('Streaming error', e)
-      if (!streamEnded && !aiStarted) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: `エラーが発生しました: ${e.message}` }])
-      }
-    } finally {
-      setIsGenerating(false)
-      setSending(false)
-      setCurrentTaskId(null)
-      // Refを使用して最新のautoSpeak設定を確認
-      if (autoSpeakRef.current && accumulatedContent) {
-        speakText(accumulatedContent)
-      }
-    }
-  }
-
-
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
-    )
-  }
-
-  const handleNewConversation = () => {
-    if (eventSourceRef.current) {
-      try { eventSourceRef.current.close() } catch { }
-      eventSourceRef.current = null
-    }
-    setConversationId(null)
-    setCurrentMessageId(null) // currentMessageIdもリセット
-    messageIdRef.current = null // refもリセット
-    setSending(false)
-    setChatInput('')
-    setMessages([DASHBOARD_WELCOME_MESSAGE])
-
-    // 新しい会話開始時も状態を更新
-    updateDashboardState({
-      messages: [DASHBOARD_WELCOME_MESSAGE],
-      conversationId: null,
-      currentMessageId: null,
-    });
-  }
-
-  if (error) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography color="error">{error}</Typography>
-      </Box>
-    )
-  }
-
   const handleTogglePhase = async (taskId: number, phaseIdx: number, completed: boolean) => {
     try {
       const task = globalData?.tasks.find((t: any) => t.id === taskId);
@@ -1427,13 +390,28 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Typography color="error">{error}</Typography>
+      </Box>
+    )
+  }
+
   const statCards = [
     {
       title: 'ユーザー',
       value: metrics?.users || 0,
       subValue: '登録済みユーザー',
       icon: <PeopleIcon sx={{ fontSize: 40 }} />,
-      color: 'primary',
       bgGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       path: '/admin/users',
       requiresAdmin: false,
@@ -1443,7 +421,6 @@ const Dashboard: React.FC = () => {
       value: globalData?.lastFetched != null ? summaryCounts.tasks : (metrics?.tasks ?? 0),
       subValue: '登録済みタスク（オンラインのみ）',
       icon: <TaskIcon sx={{ fontSize: 40 }} />,
-      color: 'secondary',
       bgGradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
       path: '/tasks',
       requiresAdmin: false,
@@ -1453,7 +430,6 @@ const Dashboard: React.FC = () => {
       value: globalData?.lastFetched != null ? summaryCounts.projects : (metrics?.projects ?? 0),
       subValue: '登録済みプロジェクト（オンラインのみ）',
       icon: <ProjectIcon sx={{ fontSize: 40 }} />,
-      color: 'success',
       bgGradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
       path: '/projects',
       requiresAdmin: false,
@@ -1461,29 +437,9 @@ const Dashboard: React.FC = () => {
   ]
 
   return (
-    <Box
-      sx={{
-        p: { xs: 1, sm: 1.5, md: 2 },
-        pb: { xs: 12, sm: 3 }, // モバイル下部メニュー対応の余白
-        maxWidth: 1600,
-        mx: 'auto',
-        width: '100%',
-      }}
-    >
-
-
-      {/* サマリーカード（ユーザー・タスク・プロジェクト） */}
-      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>
-        サマリー
-      </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-          gap: { xs: 1.5, sm: 2 },
-          mb: { xs: 2, sm: 3 },
-        }}
-      >
+    <Box sx={{ p: { xs: 1, sm: 1.5, md: 2 }, pb: { xs: 12, sm: 3 }, maxWidth: 1600, mx: 'auto', width: '100%' }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>サマリー</Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
         {statCards.map((card, index) => {
           const canNavigate = !card.requiresAdmin || isAdmin
           return (
@@ -1491,79 +447,26 @@ const Dashboard: React.FC = () => {
               key={index}
               elevation={2}
               onClick={() => canNavigate && navigate(card.path)}
-              sx={{
-                p: { xs: 1.5, sm: 2 },
-                borderRadius: { xs: 1.5, sm: 2 },
-                position: 'relative',
-                overflow: 'hidden',
-                minHeight: { xs: 120, sm: 140 },
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                transition: 'all 0.2s ease',
-                cursor: canNavigate ? 'pointer' : 'default',
-                opacity: canNavigate ? 1 : 0.7,
-                '&:active': canNavigate ? { transform: 'scale(0.98)' } : {},
-                '&:hover': canNavigate ? { boxShadow: 4 } : {},
-              }}
+              sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 }, position: 'relative', overflow: 'hidden', minHeight: { xs: 120, sm: 140 }, display: 'flex', flexDirection: 'column', justifyContent: 'center', transition: 'all 0.2s ease', cursor: canNavigate ? 'pointer' : 'default', opacity: canNavigate ? 1 : 0.7, '&:active': canNavigate ? { transform: 'scale(0.98)' } : {}, '&:hover': canNavigate ? { boxShadow: 4 } : {} }}
             >
-              <Box
-                sx={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  width: 72,
-                  height: 72,
-                  background: card.bgGradient,
-                  borderRadius: '50%',
-                  transform: 'translate(20px, -20px)',
-                  opacity: 0.12,
-                }}
-              />
+              <Box sx={{ position: 'absolute', top: 0, right: 0, width: 72, height: 72, background: card.bgGradient, borderRadius: '50%', transform: 'translate(20px, -20px)', opacity: 0.12 }} />
               <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 <Box sx={{ display: 'inline-flex', p: { xs: 0.875, sm: 1.25 }, borderRadius: { xs: 1.25, sm: 1.5 }, background: card.bgGradient, mb: { xs: 0.75, sm: 1 }, boxShadow: 1 }}>
                   <Box sx={{ color: 'white', '& svg': { fontSize: { xs: 28, sm: 40 } } }}>{card.icon}</Box>
                 </Box>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: { xs: 0.25, sm: 0.5 }, fontWeight: 500, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                  {card.title}
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2, fontSize: { xs: '1.35rem', sm: '2rem' } }}>
-                  {typeof card.value === 'number' && card.value < 0 ? '-' : (card.value ?? 0).toLocaleString()}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>
-                  {card.subValue}
-                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: { xs: 0.25, sm: 0.5 }, fontWeight: 500, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>{card.title}</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.2, fontSize: { xs: '1.35rem', sm: '2rem' } }}>{(card.value ?? 0).toLocaleString()}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: { xs: '0.65rem', sm: '0.75rem' } }}>{card.subValue}</Typography>
               </Box>
             </Paper>
           )
         })}
       </Box>
 
-      {/* 今日の予定・今週の締切・遅延タスク */}
-      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>
-        今週の概要
-      </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-          gap: { xs: 1.5, sm: 2 },
-          mb: { xs: 2, sm: 3 },
-        }}
-      >
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>今週の概要</Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
         {/* 今日の予定 */}
-        <Paper
-          elevation={2}
-          sx={{
-            p: { xs: 1.5, sm: 2 },
-            borderRadius: { xs: 1.5, sm: 2 },
-            position: 'relative',
-            overflow: 'hidden',
-            minHeight: { xs: 240, sm: 260 },
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 }, position: 'relative', overflow: 'hidden', minHeight: { xs: 300, sm: 420 }, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
           <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
@@ -1572,73 +475,21 @@ const Dashboard: React.FC = () => {
               </Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今日の予定</Typography>
             </Box>
-            <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+            <Box sx={{ height: 350, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
               {!eventsLoaded && todayItems.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
-                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}><Typography variant="body2" color="text.secondary">読み込み中...</Typography></Box>
               ) : todayItems.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今日の予定はありません</Typography>
-                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}><Typography variant="body2" color="text.secondary">今日の予定はありません</Typography></Box>
               ) : (
                 todayItems.map((item) => (
-                  <Box
-                    key={`${item.type}-${item.id}`}
-                    onClick={(e) => {
-                      if ((e.target as any).type === 'checkbox') return;
-                      if (item.type === 'event') {
-                        const originalEvent = backendEvents.find(ev => ev.id === item.rawId);
-                        if (originalEvent) {
-                          setSelectedEventDetail(originalEvent);
-                          setIsEventDetailOpen(true);
-                        }
-                      } else {
-                        const originalTask = (globalData?.tasks ?? []).find((t: any) => t.id === item.rawId);
-                        if (originalTask) {
-                          setSelectedTaskDetail(originalTask);
-                          setIsTaskDetailOpen(true);
-                        }
-                      }
-                    }}
-                    sx={{
-                      py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), display: 'flex', alignItems: 'flex-start', gap: 1.25, '&:last-of-type': { mb: 0 },
-                      cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }
-                    }}
-                  >
-                    {item.isPhase && (
-                      <Checkbox
-                        size="small"
-                        sx={{ p: 0.5, mt: -0.5, ml: -0.5 }}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          if (item.phaseIdx !== undefined) {
-                            handleTogglePhase(item.rawId, item.phaseIdx, e.target.checked);
-                          }
-                        }}
-                      />
-                    )}
-                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : (item.isPhase ? 'secondary.light' : 'warning.light'), color: item.type === 'event' ? 'info.dark' : (item.isPhase ? 'secondary.dark' : 'warning.dark') }}>
-                      {item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}
-                    </Box>
+                  <Box key={`${item.type}-${item.id}`} onClick={() => { if (item.type === 'event') { const ev = backendEvents.find(e => e.id === item.rawId); if (ev) { setSelectedEventDetail(ev); setIsEventDetailOpen(true); } } else { const tk = (globalData?.tasks ?? []).find((t: any) => t.id === item.rawId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } } }} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), display: 'flex', alignItems: 'flex-start', gap: 1.25, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : (item.isPhase ? 'secondary.light' : 'warning.light'), color: item.type === 'event' ? 'info.dark' : (item.isPhase ? 'secondary.dark' : 'warning.dark') }}>{item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}</Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} title={item.name}>{item.name}</Typography>
-                        <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
-                        {item.timeLabel != null && <Typography component="span" variant="caption" sx={{ flexShrink: 0, px: 0.6, py: 0.15, borderRadius: 0.75, bgcolor: 'action.selected', color: 'text.secondary', fontSize: '0.7rem', fontWeight: 500 }}>{item.timeLabel}</Typography>}
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} noWrap>{item.name}</Typography>
+                        <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography>
-                      </Box>
-                      {item.assigneeName && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                            {item.assigneeName}
-                          </Typography>
-                        </Box>
-                      )}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography></Box>
                     </Box>
                   </Box>
                 ))
@@ -1648,107 +499,23 @@ const Dashboard: React.FC = () => {
         </Paper>
 
         {/* 今週の締切 */}
-        <Paper
-          elevation={2}
-          sx={{
-            p: { xs: 1.5, sm: 2 },
-            borderRadius: { xs: 1.5, sm: 2 },
-            position: 'relative',
-            overflow: 'hidden',
-            minHeight: { xs: 240, sm: 260 },
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 }, position: 'relative', overflow: 'hidden', minHeight: { xs: 300, sm: 420 }, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
           <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
-              <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', boxShadow: 2 }}>
-                <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
-              </Box>
+              <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', boxShadow: 2 }}><Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box></Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>今週の締切</Typography>
-              <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'grey.300', color: 'text.primary', fontWeight: 600 }}>
-                {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${weekDeadlineTasks.length}件`}
-              </Typography>
+              <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'grey.300', color: 'text.primary', fontWeight: 600 }}>{weekDeadlineTasks.length}件</Typography>
             </Box>
-            <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-              {(globalData?.lastFetched ?? 0) === 0 && weekDeadlineTasks.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
-                </Box>
-              ) : weekDeadlineTasks.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>今週の締切はありません</Typography>
-                </Box>
+            <Box sx={{ height: 350, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+              {weekDeadlineTasks.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}><Typography variant="body2" color="text.secondary">今週の締切はありません</Typography></Box>
               ) : (
                 weekDeadlineTasks.map((t: any) => (
-                  <Box
-                    key={t.id}
-                    onClick={(e) => {
-                      if ((e.target as any).type === 'checkbox') return;
-                      const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id);
-                      const originalTask = (globalData?.tasks ?? []).find((tk: any) => tk.id === taskId);
-                      if (originalTask) {
-                        setSelectedTaskDetail(originalTask);
-                        setIsTaskDetailOpen(true);
-                      }
-                    }}
-                    sx={{
-                      py: 1,
-                      px: 1.25,
-                      mb: 1,
-                      borderRadius: 1.5,
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderLeft: '4px solid',
-                      borderLeftColor: 'warning.main',
-                      '&:last-of-type': { mb: 0 },
-                      cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' },
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }}
-                  >
-                    {t.isPhase && (
-                      <Checkbox
-                        size="small"
-                        sx={{ p: 0.5 }}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          if (t.phaseIdx !== undefined) {
-                            handleTogglePhase(Number(t.originalId), t.phaseIdx, e.target.checked);
-                          }
-                        }}
-                      />
-                    )}
+                  <Box key={t.id} onClick={() => { const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id); const tk = (globalData?.tasks ?? []).find((x: any) => x.id === taskId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } }} sx={{ py: 1, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'warning.main', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: 'text.primary' }}
-                        noWrap
-                        title={t.name}
-                      >
-                        {t.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {t.projectName}
-                        </Typography>
-                      </Box>
-                      {t.assigneeName && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                            {t.assigneeName}
-                          </Typography>
-                        </Box>
-                      )}
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }} noWrap>{t.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}</Typography>
                     </Box>
                   </Box>
                 ))
@@ -1758,107 +525,23 @@ const Dashboard: React.FC = () => {
         </Paper>
 
         {/* 遅延タスク */}
-        <Paper
-          elevation={2}
-          sx={{
-            p: { xs: 1.5, sm: 2 },
-            borderRadius: { xs: 1.5, sm: 2 },
-            position: 'relative',
-            overflow: 'hidden',
-            minHeight: { xs: 240, sm: 260 },
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 }, position: 'relative', overflow: 'hidden', minHeight: { xs: 300, sm: 420 }, display: 'flex', flexDirection: 'column' }}>
           <Box sx={{ position: 'absolute', top: 0, right: 0, width: '120px', height: '120px', background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', borderRadius: '50%', transform: 'translate(36px, -36px)', opacity: 0.12 }} />
           <Box sx={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, flexShrink: 0 }}>
-              <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', boxShadow: 2 }}>
-                <Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box>
-              </Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク <Typography component="span" sx={{ color: 'error.main', fontSize: '0.75rem', fontWeight: 700, verticalAlign: 'middle' }}>(要確認)</Typography></Typography>
-              <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>
-                {(globalData?.lastFetched ?? 0) === 0 ? '...' : `${delayedTasks.length}件`}
-              </Typography>
+              <Box sx={{ display: 'inline-flex', p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)', boxShadow: 2 }}><Box sx={{ color: 'white' }}><TaskIcon sx={{ fontSize: 24 }} /></Box></Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', fontSize: '0.95rem' }}>遅延タスク</Typography>
+              <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.light', color: 'white', fontWeight: 600 }}>{delayedTasks.length}件</Typography>
             </Box>
-            <Box sx={{ height: 200, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
-              {(globalData?.lastFetched ?? 0) === 0 && delayedTasks.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>読み込み中...</Typography>
-                </Box>
-              ) : delayedTasks.length === 0 ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>遅延タスクはありません</Typography>
-                </Box>
+            <Box sx={{ height: 350, minHeight: 0, overflowY: 'auto', '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'action.hover' } }}>
+              {delayedTasks.length === 0 ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}><Typography variant="body2" color="text.secondary">遅延タスクはありません</Typography></Box>
               ) : (
                 delayedTasks.map((t: any) => (
-                  <Box
-                    key={t.id}
-                    onClick={(e) => {
-                      if ((e.target as any).type === 'checkbox') return;
-                      const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id);
-                      const originalTask = (globalData?.tasks ?? []).find((tk: any) => tk.id === taskId);
-                      if (originalTask) {
-                        setSelectedTaskDetail(originalTask);
-                        setIsTaskDetailOpen(true);
-                      }
-                    }}
-                    sx={{
-                      py: 1,
-                      px: 1.25,
-                      mb: 1,
-                      borderRadius: 1.5,
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderLeft: '4px solid',
-                      borderLeftColor: 'error.main',
-                      '&:last-of-type': { mb: 0 },
-                      cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' },
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1
-                    }}
-                  >
-                    {t.isPhase && (
-                      <Checkbox
-                        size="small"
-                        sx={{ p: 0.5 }}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          if (t.phaseIdx !== undefined) {
-                            handleTogglePhase(Number(t.originalId), t.phaseIdx, e.target.checked);
-                          }
-                        }}
-                      />
-                    )}
+                  <Box key={t.id} onClick={() => { const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id); const tk = (globalData?.tasks ?? []).find((x: any) => x.id === taskId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } }} sx={{ py: 1, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'error.main', cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: 'text.primary' }}
-                        noWrap
-                        title={t.name}
-                      >
-                        {t.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        {t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                        <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                          {t.projectName}
-                        </Typography>
-                      </Box>
-                      {t.assigneeName && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                          <PeopleIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
-                            {t.assigneeName}
-                          </Typography>
-                        </Box>
-                      )}
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }} noWrap>{t.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}</Typography>
                     </Box>
                   </Box>
                 ))
@@ -1868,539 +551,38 @@ const Dashboard: React.FC = () => {
         </Paper>
       </Box>
 
-      {/* チャット */}
-      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: { xs: 1, sm: 1.5 }, fontSize: { xs: '0.85rem', sm: '0.9rem' } }}>
-        チャット（管理者用）
-      </Typography>
-      <Paper sx={{ p: { xs: 1, sm: 1.5, md: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: { xs: 1, sm: 1.5 }, flexWrap: 'wrap', gap: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: { xs: '0.9rem', sm: '1rem' } }}>
-              会話
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, flexWrap: 'wrap' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>自動読み上げ</Typography>
-              <Chip
-                size="small"
-                label={autoSpeak ? 'ON' : 'OFF'}
-                color={autoSpeak ? 'primary' : 'default'}
-                onClick={() => setAutoSpeak(!autoSpeak)}
-                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
-              />
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>話しかけ</Typography>
-              <Chip
-                size="small"
-                label={autoSend ? 'ON' : 'OFF'}
-                color={autoSend ? 'primary' : 'default'}
-                onClick={() => {
-                  setAutoSend(!autoSend)
-                  if (!autoSend && !isListening) toggleVoiceInput()
-                }}
-                sx={{ cursor: 'pointer', fontWeight: 'bold', height: 24 }}
-              />
-            </Box>
-            <Tooltip title="音声機能の設定方法">
-              <IconButton size="small" onClick={() => setOpenVoiceHelp(true)} sx={{ ml: -0.5 }}>
-                <HelpIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-              </IconButton>
-            </Tooltip>
-            {isSpeaking && (
-              <Button size="small" variant="contained" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' }, height: 32 }}>
-                停止
-              </Button>
-            )}
-            <Button size="medium" variant="outlined" onClick={handleNewConversation} sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' }, minHeight: { xs: 40, sm: 36 } }}>
-              新しい会話
-            </Button>
-          </Box>
-        </Box>
-        <Box sx={{ position: 'relative', height: { xs: 350, sm: 420 } }}>
-          {/* メッセージ一覧 */}
-          <Box
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1.5,
-              p: { xs: 1, sm: 1.5 },
-              height: { xs: 290, sm: 360 },
-              overflow: 'auto',
-              backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.background.default : theme.palette.grey[50],
-              display: 'flex',
-              flexDirection: 'column',
-              gap: { xs: 1, sm: 1.25 },
-            }}
-          >
-            {messages.map((m, i) => (
-              <Box key={i} sx={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start', minWidth: 0 }}>
-                <Box sx={{
-                  maxWidth: m.role === 'assistant' ? { xs: '98%', sm: '95%' } : { xs: '85%', sm: '75%' },
-                  minWidth: 0,
-                  px: { xs: 1.5, sm: 2 },
-                  py: m.role === 'assistant' ? { xs: 0.75, sm: 1 } : { xs: 1, sm: 1.5 },
-                  bgcolor: m.role === 'user' ? 'primary.main' : 'background.paper',
-                  color: m.role === 'user' ? 'primary.contrastText' : 'text.primary',
-                  borderRadius: 2,
-                  borderTopRightRadius: m.role === 'user' ? 0 : 12,
-                  borderTopLeftRadius: m.role === 'user' ? 12 : 0,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  boxShadow: m.role === 'user' ? 2 : 1,
-                  border: m.role === 'assistant' ? '1px solid' : 'none',
-                  borderColor: m.role === 'assistant' ? 'divider' : 'transparent',
-                  overflow: 'hidden',
-                  '& .markdown-content': {
-                    lineHeight: 1.35,
-                    overflowX: 'auto',
-                    maxWidth: '100%',
-                    minWidth: 0,
-                    '& h1, & h2, & h3, & h4, & h5, & h6': {
-                      margin: '6px 0 2px 0',
-                      fontWeight: 600,
-                      color: 'text.primary',
-                    },
-                    '& h1': { fontSize: { xs: '1.1rem', sm: '1.25rem' } },
-                    '& h2': { fontSize: { xs: '1rem', sm: '1.125rem' } },
-                    '& h3': { fontSize: { xs: '0.9rem', sm: '1rem' } },
-                  },
-                  '& .markdown-content p': {
-                    margin: '2px 0',
-                    color: 'text.primary',
-                    fontSize: { xs: '0.85rem', sm: '0.875rem' },
-                  },
-                  '& .markdown-content ul, & .markdown-content ol': {
-                    margin: '4px 0 4px 1.25rem',
-                    paddingLeft: '0.5rem',
-                  },
-                  '& .markdown-content li': {
-                    margin: '1px 0',
-                    color: 'text.primary',
-                    fontSize: { xs: '0.85rem', sm: '0.875rem' },
-                  },
-                  '& .markdown-content strong, & .markdown-content b': {
-                    fontWeight: 600,
-                    color: 'text.primary',
-                  },
-                  '& .markdown-content em, & .markdown-content i': {
-                    fontStyle: 'italic',
-                    color: 'text.secondary',
-                  },
-                  '& .markdown-content code': {
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
-                    color: 'text.primary',
-                    padding: '2px 4px',
-                    borderRadius: '4px',
-                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                    fontFamily: 'monospace',
-                  },
-                  '& .markdown-content blockquote': {
-                    borderLeft: '4px solid',
-                    borderColor: 'primary.main',
-                    paddingLeft: '10px',
-                    margin: '6px 0',
-                    fontStyle: 'italic',
-                    color: 'text.secondary',
-                  },
-                  '& .markdown-content table': {
-                    borderCollapse: 'collapse',
-                    borderSpacing: 0,
-                    display: 'table',
-                    tableLayout: 'auto',
-                    fontSize: { xs: '0.8rem', sm: '0.95rem' },
-                    borderRadius: 8,
-                    overflow: 'hidden',
-                    boxShadow: 1,
-                    width: 'max-content',
-                    maxWidth: '100%',
-                  },
-                  '& .markdown-content .table-scroll': {
-                    overflowX: 'auto',
-                    overflowY: 'hidden',
-                    maxWidth: '100%',
-                    width: '100%',
-                    // 常時スクロールバー表示（プラットフォーム依存）
-                    scrollbarWidth: 'auto',
-                  },
-                  '& .markdown-content th, & .markdown-content td': {
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    padding: { xs: '3px 6px', sm: '4px 8px' },
-                    verticalAlign: 'top',
-                    whiteSpace: 'nowrap',
-                    boxSizing: 'border-box',
-                    color: 'text.primary',
-                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                  },
-                  '& .markdown-content th': {
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
-                    fontWeight: 600,
-                  },
-                  '& .markdown-content tbody tr:nth-of-type(odd) td': {
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.grey[50],
-                  },
-                  '& .markdown-content tbody tr:nth-of-type(even) td': {
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.background.paper,
-                  },
-                  '& .markdown-content tbody tr:hover td': {
-                    backgroundColor: 'action.hover',
-                  },
-                  '& .markdown-content thead': {
-                    position: 'static',
-                  },
-                  '& .markdown-content thead th': {
-                    position: 'static',
-                    backgroundColor: (theme) => theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200],
-                  },
-                  '& .markdown-content caption': {
-                    captionSide: 'bottom',
-                    textAlign: 'left',
-                    color: 'text.secondary',
-                    fontSize: '0.85rem',
-                    paddingTop: '4px',
-                  },
-                  '& .markdown-content .date-badge': {
-                    display: 'inline-block',
-                    padding: '0px 6px',
-                    borderRadius: 999,
-                    fontSize: { xs: '0.65rem', sm: '0.75rem' },
-                    lineHeight: 1.8,
-                    marginLeft: '4px',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                  },
-                  '& .markdown-content .date-badge.past': {
-                    backgroundColor: 'success.main',
-                    color: 'common.white',
-                    borderColor: 'success.main',
-                  },
-                  '& .markdown-content .date-badge.today': {
-                    backgroundColor: 'warning.main',
-                    color: 'grey.900',
-                    borderColor: 'warning.main',
-                  },
-                  '& .markdown-content .date-badge.future': {
-                    backgroundColor: 'info.main',
-                    color: 'common.white',
-                    borderColor: 'info.main',
-                  },
-                }}>
-                  {m.role === 'assistant' ? (
-                    <>
-                      <div
-                        className="message-content markdown-content"
-                        style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(m.content) }}
-                      />
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5 }}>
-                        {currentlySpeakingText === m.content ? (
-                          <Button size="small" variant="text" color="error" startIcon={<StopIcon />} onClick={stopSpeaking} sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}>停止</Button>
-                        ) : (
-                          <Button size="small" variant="text" color="primary" startIcon={<VolumeUpIcon />} onClick={() => speakText(m.content)} sx={{ fontSize: '0.7rem', fontWeight: 'bold' }}>読み上げる</Button>
-                        )}
-                      </Box>
-                    </>
-                  ) : (
-                    m.content
-                  )}
-                </Box>
-              </Box>
-            ))}
-            {isListening && interimTranscript && (
-              <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 1.5 }}>
-                <Paper sx={{ p: 1, bgcolor: 'action.hover', border: '1px dashed grey', opacity: 0.85, maxWidth: '90%', borderRadius: 1.5 }}>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.8 }}>
-                    <MicIcon fontSize="inherit" sx={{ animation: 'pulse-dash 1.5s infinite' }} />
-                    {interimTranscript}...
-                  </Typography>
-                </Paper>
-              </Box>
-            )}
-            <style>{`
-              @keyframes pulse-dash {
-                0% { opacity: 0.4; }
-                50% { opacity: 1; }
-                100% { opacity: 0.4; }
-              }
-            `}</style>
-            {isGenerating && (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2, gap: 1.5, color: 'text.secondary' }}>
-                <CircularProgress size={20} color="inherit" />
-                <Typography variant="body2">AIが考え中または情報収集しています...</Typography>
-              </Box>
-            )}
-            <div ref={listEndRef} />
-          </Box>
-
-          {/* 入力欄 */}
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              display: 'flex',
-              gap: 1,
-              pt: 1,
-              backgroundColor: 'background.paper',
-            }}
-          >
-            {isSystemBusy && (
-              <Box sx={{ position: 'absolute', top: -30, left: 0, right: 0 }}>
-                <Typography variant="caption" color="error" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <WarningIcon sx={{ fontSize: 14 }} /> 議事録をAI解析中のため、現在チャットは利用できません。
-                </Typography>
-              </Box>
-            )}
-            <TextField
-
-              fullWidth
-              size="medium"
-              placeholder="メッセージを入力...（マイクで音声入力も可能）"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault()
-                  handleSend()
-                }
-              }}
-              disabled={sending || isSystemBusy}
-
-              InputProps={{
-                endAdornment: speechSupport !== false && (
-                  <InputAdornment position="end">
-                    <Tooltip title={isListening ? '音声入力を停止' : '音声で入力'}>
-                      <IconButton
-                        size="small"
-                        color={isListening ? 'error' : 'default'}
-                        onClick={toggleVoiceInput}
-                        disabled={sending || isGenerating || isSystemBusy}
-                        aria-label={isListening ? '音声入力を停止' : '音声で入力'}
-                      >
-                        {isListening ? <StopIcon /> : <MicIcon />}
-                      </IconButton>
-                    </Tooltip>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                '& .MuiInputBase-root': {
-                  minHeight: { xs: 48, sm: 40 },
-                },
-                '& .MuiInputBase-input': {
-                  fontSize: { xs: '0.875rem', sm: '1rem' },
-                  py: { xs: 1.25, sm: 1 },
-                }
-              }}
-            />
-            <Button
-              variant="contained"
-              onClick={isGenerating ? handleStopGeneration : handleSend}
-              disabled={(!canSend || isSystemBusy) && !isGenerating}
-
-              color={isGenerating ? 'error' : 'primary'}
-              size="medium"
-              sx={{
-                fontSize: { xs: '0.8rem', sm: '0.875rem' },
-                px: { xs: 1.5, sm: 2 },
-                minWidth: { xs: 70, sm: 80 },
-                minHeight: { xs: 48, sm: 40 },
-              }}
-            >
-              {isGenerating ? '停止' : sending ? '送信中...' : '送信'}
-            </Button>
-          </Box>
-        </Box>
-      </Paper>
-
-      {/* アクション確認ダイアログ（単一・複数両対応） */}
-      <Dialog
-        open={pendingActions != null && pendingActions.length > 0}
-        onClose={cancelAction}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          {pendingActions != null && pendingActions.length > 0 && (() => {
-            const hasDelete = pendingActions.some(a => a.action_type === 'delete_task');
-            const hasCreate = pendingActions.some(a => a.action_type === 'create_task');
-            const label = hasDelete ? 'タスクの削除' : hasCreate ? 'タスクの作成' : 'タスクの更新';
-            const suffix = pendingActions.length > 1 ? `（${pendingActions.length}件）` : '';
-            return `${label}${suffix}`;
-          })()}
-        </DialogTitle>
-        <DialogContent>
-          {pendingActions != null && (
-            pendingActions.length === 1 ? (
-              <Typography variant="body1" sx={{ mb: 2, whiteSpace: 'pre-line' }}>
-                {pendingActions[0].description}
-              </Typography>
-            ) : (
-              <Typography component="div" variant="body1" sx={{ mb: 2 }}>
-                {pendingActions.map((pa, i) => (
-                  <Box key={i} sx={{ mb: 1.5 }}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      {i + 1}. {pa.action_type === 'update_task' ? '更新' : pa.action_type === 'create_task' ? '作成' : '削除'}
-                    </Typography>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-line', pl: 1 }}>
-                      {pa.description}
-                    </Typography>
-                  </Box>
-                ))}
-              </Typography>
-            )
-          )}
-          {hasCreateTaskAction && (
-            <Box sx={{ mt: 2 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel id="action-project-select-label">プロジェクト（任意）</InputLabel>
-                <Select
-                  labelId="action-project-select-label"
-                  value={selectedProjectIdForAction}
-                  label="プロジェクト（任意）"
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSelectedProjectIdForAction(
-                      typeof value === 'number' ? value : value === '' ? '' : Number(value)
-                    );
-                  }}
-                >
-                  <MenuItem value="">
-                    <em>未指定（プロジェクトに紐づけない）</em>
-                  </MenuItem>
-                  {projectsForAction.map((p) => (
-                    <MenuItem key={p.id} value={p.id}>
-                      {p.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-          )}
-          <Typography variant="body2" color="text.secondary">
-            この操作{pendingActions && pendingActions.length > 1 ? 'をすべて' : ''}実行しますか？
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={cancelAction} disabled={isExecutingAction}>
-            キャンセル
-          </Button>
-          <Button
-            onClick={() => executeAction()}
-            variant="contained"
-            color={pendingActions?.some(a => a.action_type === 'delete_task') ? 'error' : 'primary'}
-            disabled={isExecutingAction}
-          >
-            {isExecutingAction ? '実行中...' : '実行する'}
-          </Button>
-        </DialogActions>
-      </Dialog >
-
-
-      {/* 編集ダイアログ */}
-      < TaskEditDialog
-        open={editTaskId !== null}
-        taskId={editTaskId}
-        onClose={() => setEditTaskId(null)}
-        onSaved={() => {
-          refreshGlobalData?.();
-        }}
-      />
-
-      < EventEditDialog
-        open={editEventId !== null}
-        eventId={editEventId}
-        onClose={() => setEditEventId(null)}
-        onSaved={() => {
-          fetchEvents(); // イベントリスト再取得
-        }}
-      />
-
-      {/* タスク詳細ドロワー */}
-      <Drawer
-        anchor="right"
-        open={isTaskDetailOpen}
-        onClose={() => setIsTaskDetailOpen(false)}
-        PaperProps={{
-          sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
-        }}
-      >
+      {/* 編集ダイアログ・ドロワー類 */}
+      <TaskEditDialog open={editTaskId !== null} taskId={editTaskId} onClose={() => setEditTaskId(null)} onSaved={() => refreshGlobalData?.()} />
+      <EventEditDialog open={editEventId !== null} eventId={editEventId} onClose={() => setEditEventId(null)} onSaved={() => fetchEvents()} />
+      <Drawer anchor="right" open={isTaskDetailOpen} onClose={() => setIsTaskDetailOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: 400 } } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>タスク詳細</Typography>
-          <IconButton onClick={() => setIsTaskDetailOpen(false)}>
-            <CloseIcon />
-          </IconButton>
+          <Typography variant="h6">タスク詳細</Typography>
+          <IconButton onClick={() => setIsTaskDetailOpen(false)}><CloseIcon /></IconButton>
         </Box>
-        {selectedTaskDetail && (
-          <TaskQuickDetail
-            task={selectedTaskDetail}
-            projects={globalData?.projects ?? []}
-            users={globalData?.users ?? []}
-            onUpdate={handleUpdateTaskQuick}
-          />
-        )}
-        <Box sx={{ p: 2, mt: 'auto', display: 'flex', gap: 1 }}>
-          <Button
-            fullWidth
-            variant="outlined"
-            startIcon={<EditIcon />}
-            onClick={() => {
-              setIsTaskDetailOpen(false);
-              setEditTaskId(selectedTaskDetail!.id);
-            }}
-          >
-            詳細編集
-          </Button>
+        {selectedTaskDetail && <TaskQuickDetail task={selectedTaskDetail} projects={globalData?.projects ?? []} users={globalData?.users ?? []} onUpdate={handleUpdateTaskQuick} />}
+        <Box sx={{ p: 2, mt: 'auto' }}>
+          <Button fullWidth variant="outlined" startIcon={<EditIcon />} onClick={() => { setIsTaskDetailOpen(false); setEditTaskId(selectedTaskDetail!.id); }}>詳細編集</Button>
         </Box>
       </Drawer>
-
-      {/* イベント詳細ドロワー（必要に応じて） */}
-      <Drawer
-        anchor="right"
-        open={isEventDetailOpen}
-        onClose={() => setIsEventDetailOpen(false)}
-        PaperProps={{
-          sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
-        }}
-      >
+      <Drawer anchor="right" open={isEventDetailOpen} onClose={() => setIsEventDetailOpen(false)} PaperProps={{ sx: { width: { xs: '100%', sm: 400 } } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>イベント詳細</Typography>
-          <IconButton onClick={() => setIsEventDetailOpen(false)}>
-            <CloseIcon />
-          </IconButton>
+          <Typography variant="h6">イベント詳細</Typography>
+          <IconButton onClick={() => setIsEventDetailOpen(false)}><CloseIcon /></IconButton>
         </Box>
         <Box sx={{ p: 2 }}>
           {selectedEventDetail && (
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>{selectedEventDetail.title}</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {selectedEventDetail.start_time ? format(new Date(selectedEventDetail.start_time), 'yyyy/MM/dd HH:mm') : ''}
-              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{selectedEventDetail.start_time ? format(new Date(selectedEventDetail.start_time), 'yyyy/MM/dd HH:mm') : ''}</Typography>
               <Divider sx={{ my: 2 }} />
               <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{selectedEventDetail.description}</Typography>
-
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<EditIcon />}
-                sx={{ mt: 4 }}
-                onClick={() => {
-                  setIsEventDetailOpen(false);
-                  setEditEventId(selectedEventDetail.id);
-                }}
-              >
-                編集する
-              </Button>
+              <Button fullWidth variant="outlined" startIcon={<EditIcon />} sx={{ mt: 4 }} onClick={() => { setIsEventDetailOpen(false); setEditEventId(selectedEventDetail.id); }}>編集する</Button>
             </Box>
           )}
         </Box>
       </Drawer>
-      <VoiceHelpDialog open={openVoiceHelp} onClose={() => setOpenVoiceHelp(false)} />
     </Box>
   )
 }
 
-export default Dashboard 
+export default Dashboard

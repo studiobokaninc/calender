@@ -89,7 +89,7 @@ const App: React.FC = () => {
             {/* デフォルト: 管理者はカレンダー、一般ユーザーはチャット */}
             <Route index element={<DefaultRedirect />} />
             {/* 一般ユーザーのみアクセス可能: 管理者はカレンダーへリダイレクト */}
-            <Route path="chat" element={<UserOnlyRoute><ChatPage /></UserOnlyRoute>} />
+            <Route path="chat" element={<ChatPage />} />
             {/* 以下は管理者のみへのガードが必要なページ、または共通ページ */}
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />

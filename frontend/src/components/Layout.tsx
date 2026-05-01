@@ -140,6 +140,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const allMenuItems: MenuItemType[] = [
     { text: 'ダッシュボード', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'チャット', icon: <ChatIcon />, path: '/chat' },
     { text: 'カレンダー', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
@@ -154,7 +155,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
-    { text: 'チャット', icon: <ChatIcon />, path: '/chat' },
   ]
 
   const [currentTitleColor, setCurrentTitleColor] = useState('inherit')
@@ -303,8 +303,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = allMenuItems.filter(item => {
     if (user?.role === 'admin') {
-      // 管理者はチャット以外をすべて表示（指定の順序通り）
-      return item.path !== '/chat'
+      // 管理者もチャットを表示できるようにする
+      return true
     } else {
       // 一般ユーザーは特定の項目のみ表示
       return ['/calendar', '/chat', '/notes', '/knowledge'].includes(item.path)

@@ -269,23 +269,23 @@ const MockDataConsole: React.FC = () => {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ ml: 4.5 }}>
           <Button
             variant="contained"
+            color="success"
             startIcon={<BackupIcon />}
             onClick={async () => {
               setIsLoading(true);
               setErrorMessage(null);
               setSuccessMessage(null);
               try {
-                const res = await api.get<Record<string, unknown>>('/admin/backup');
-                const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-                showTemporaryMessage(setSuccessMessage, 'JSONバックアップをダウンロードしました');
+                // 1. トークン取得
+                const tokenResponse = await api.post<{ token: string }>('/admin/backup-db/token');
+                const token = tokenResponse.data.token;
+                if (!token) throw new Error('トークンの取得に失敗しました');
+
+                // 2. ダウンロード
+                window.location.href = `/api/admin/full-backup/download?token=${token}`;
+                showTemporaryMessage(setSuccessMessage, 'フルバックアップ(ZIP)の生成とダウンロードを開始しました');
               } catch (err: any) {
-                showTemporaryMessage(setErrorMessage, `バックアップの取得に失敗しました: ${err?.response?.data?.detail || err?.message || '不明なエラー'}`);
+                showTemporaryMessage(setErrorMessage, `バックアップに失敗しました: ${err?.response?.data?.detail || err?.message}`);
               } finally {
                 setIsLoading(false);
               }
@@ -293,10 +293,10 @@ const MockDataConsole: React.FC = () => {
             disabled={isLoading}
             sx={{ minWidth: 200 }}
           >
-            JSONバックアップをダウンロード
+            フルバックアップ（ZIP一括形式）
           </Button>
           <Button
-            variant="contained"
+            variant="outlined"
             color="secondary"
             startIcon={<BackupIcon />}
             onClick={async () => {
@@ -335,7 +335,34 @@ const MockDataConsole: React.FC = () => {
             disabled={isLoading}
             sx={{ minWidth: 200 }}
           >
-            データベースファイル（.db）をダウンロード
+            DBファイルのみ (.db)
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={async () => {
+              setIsLoading(true);
+              setErrorMessage(null);
+              setSuccessMessage(null);
+              try {
+                const res = await api.get<Record<string, unknown>>('/admin/backup');
+                const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `backup_${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showTemporaryMessage(setSuccessMessage, 'JSONバックアップをダウンロードしました');
+              } catch (err: any) {
+                showTemporaryMessage(setErrorMessage, `バックアップの取得に失敗しました: ${err?.response?.data?.detail || err?.message || '不明なエラー'}`);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            disabled={isLoading}
+            sx={{ minWidth: 200 }}
+          >
+            JSON形式 (テキストデータのみ)
           </Button>
         </Stack>
       </Paper>

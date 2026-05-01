@@ -4,6 +4,7 @@ import json
 import csv
 import io
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
@@ -12,7 +13,10 @@ from sqlalchemy import text
 
 from .. import crud, models, schemas, security
 from ..database import get_db, DATABASE_FILE_PATH
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
+import tempfile
+import zipfile
+import shutil
 
 import uuid
 from datetime import datetime, timedelta
@@ -413,3 +417,76 @@ def backup_json_data(
     """全データをJSON形式でバックアップとして取得"""
     # エクスポートロジックを流用（または共通化）
     return export_mock_data(db=db, current_user=current_user)
+@router.get("/full-backup/download")
+async def download_full_backup(
+    token: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """
+    データベースファイル一式とナレッジベース（RAGインデックス）をZIPにまとめてダウンロード。
+    """
+    # 1. トークン認証
+    is_valid = False
+    if token and token in download_tokens:
+        if datetime.now() < download_tokens[token]:
+            is_valid = True
+    
+    if not is_valid:
+        raise HTTPException(status_code=401, detail="有効なダウンロードトークンが必要です。再度ボタンを押してください。")
+
+    # 一時的なZIPファイルを作成
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    temp_zip_path = temp_zip.name
+    temp_zip.close()
+
+    try:
+        # DBのチェックポイントを走らせてWALを反映させる試み（必須ではないが望ましい）
+        try:
+            db.execute(text("PRAGMA wal_checkpoint(FULL)"))
+        except:
+            pass
+
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # 1. DBファイルの追加
+            db_dir = DATABASE_FILE_PATH.parent
+            base_name = DATABASE_FILE_PATH.name
+            for suffix in ["", "-wal", "-shm"]:
+                file_path = db_dir / (base_name + suffix)
+                if file_path.exists():
+                    zf.write(file_path, f"database/{file_path.name}")
+            
+            # 2. RAGインデックスの追加
+            # backend/app/routers/admin.py から backend/data へのパス
+            data_dir = Path(__file__).resolve().parent.parent.parent / "data"
+            if data_dir.exists():
+                for folder_name in ["rag_index", "rag_index_openai"]:
+                    folder_path = data_dir / folder_name
+                    if folder_path.exists():
+                        for root, _, files in os.walk(folder_path):
+                            for file in files:
+                                abs_path = Path(root) / file
+                                rel_path = abs_path.relative_to(data_dir)
+                                zf.write(abs_path, f"knowledge/{rel_path}")
+
+        # ZIPファイルをレスポンスとして返す
+        def iterfile():
+            with open(temp_zip_path, mode="rb") as f:
+                yield from f
+            # 送信完了後に一時ファイルを削除
+            try:
+                os.unlink(temp_zip_path)
+            except:
+                pass
+
+        filename = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        return StreamingResponse(
+            iterfile(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        logger.error(f"Full backup creation failed: {e}")
+        if os.path.exists(temp_zip_path):
+            os.unlink(temp_zip_path)
+        raise HTTPException(status_code=500, detail=f"バックアップ作成中にエラーが発生しました: {str(e)}")

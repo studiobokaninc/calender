@@ -52,6 +52,7 @@ const MockDataConsole: React.FC = () => {
 
   // ファイル入力用のref
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const restoreFileInputRef = useRef<HTMLInputElement>(null);
 
   // メッセージを一定時間後に消すヘルパー
   const showTemporaryMessage = (
@@ -178,6 +179,72 @@ const MockDataConsole: React.FC = () => {
         // ファイル選択をリセット
         if (fileInputRef.current) {
           fileInputRef.current.value = '';
+        }
+      }
+    };
+    reader.onerror = () => {
+      showTemporaryMessage(setErrorMessage, 'ファイルの読み込みに失敗しました');
+      setIsLoading(false);
+    };
+    reader.readAsText(file);
+  };
+
+
+  const handleOpenRestoreDialog = () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setImportSummary(null);
+    setImportErrors([]);
+    restoreFileInputRef.current?.click();
+  };
+
+  const handleRestoreFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const confirmRestore = window.confirm(
+      "【警告】データベースを丸ごと復元します。現在のデータベースにある全19テーブルの情報はすべて削除され、選択したJSONファイルの内容に置き換わります。\n\n本当に実行しますか？"
+    );
+    if (!confirmRestore) {
+      if (restoreFileInputRef.current) {
+        restoreFileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const fileContent = e.target?.result as string;
+        const jsonData = JSON.parse(fileContent);
+
+        setIsLoading(true);
+        setErrorMessage(null);
+        setSuccessMessage(null);
+        setImportSummary(null);
+        setImportErrors([]);
+
+        const response = await api.post('/admin/database/import-json', jsonData);
+        console.log('Restore response:', response);
+
+        const summary = response.data?.imported_records || {};
+        setImportSummary(summary);
+        showTemporaryMessage(setSuccessMessage, 'データベースを丸ごと正常に復元しました。');
+      } catch (error: any) {
+        console.error('Restore processing error:', error);
+        let errMsg = 'データベースの復元処理に失敗しました。';
+        if (error instanceof SyntaxError) {
+          errMsg += ' JSON形式が無効です。';
+        } else if (error.response?.data?.detail) {
+          errMsg += ` ${error.response.data.detail}`;
+        } else if (error.message) {
+          errMsg += ` ${error.message}`;
+        }
+        showTemporaryMessage(setErrorMessage, errMsg);
+      } finally {
+        setIsLoading(false);
+        if (restoreFileInputRef.current) {
+          restoreFileInputRef.current.value = '';
         }
       }
     };
@@ -378,17 +445,46 @@ const MockDataConsole: React.FC = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
           現在のデータベース内の全データ（ユーザー、プロジェクト、タスク、イベント等）をJSONファイルとしてエクスポートします。
         </Typography>
-        <Box sx={{ ml: 4.5 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ ml: 4.5 }}>
           <Button
-            variant="contained"
+            variant="outlined"
             startIcon={<FileDownloadIcon />}
             onClick={handleExport}
             disabled={isLoading}
             sx={{ minWidth: 200 }}
           >
-            全データをエクスポート
+            マックデータ形式エクスポート
           </Button>
-        </Box>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<FileDownloadIcon />}
+            onClick={async () => {
+              setIsLoading(true);
+              setErrorMessage(null);
+              setSuccessMessage(null);
+              try {
+                const res = await api.get('/admin/database/export-json');
+                const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `database_full_export_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showTemporaryMessage(setSuccessMessage, 'データベースの丸ごとJSONエクスポートに成功しました');
+              } catch (err: any) {
+                showTemporaryMessage(setErrorMessage, `エクスポートに失敗しました: ${err?.response?.data?.detail || err?.message}`);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            disabled={isLoading}
+            sx={{ minWidth: 200 }}
+          >
+            データベースを丸ごとエクスポート (JSON)
+          </Button>
+        </Stack>
       </Paper>
 
       {/* データのインポートセクション */}
@@ -402,7 +498,7 @@ const MockDataConsole: React.FC = () => {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
           エクスポートされた形式のJSONファイルを選択して、データをデータベースに追加します。既存のデータと重複する場合（例：同じメールアドレスのユーザー）はスキップされます。
         </Typography>
-        <Box sx={{ ml: 4.5 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ ml: 4.5 }}>
           <Button
             variant="outlined"
             startIcon={<FileUploadIcon />}
@@ -410,7 +506,17 @@ const MockDataConsole: React.FC = () => {
             disabled={isLoading}
             sx={{ minWidth: 200 }}
           >
-            ファイルを選択してインポート
+            マックデータ形式インポート
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<FileUploadIcon />}
+            onClick={handleOpenRestoreDialog}
+            disabled={isLoading}
+            sx={{ minWidth: 200 }}
+          >
+            データベースを丸ごと復元 (.json)
           </Button>
           <input
             type="file"
@@ -419,7 +525,14 @@ const MockDataConsole: React.FC = () => {
             accept=".json"
             style={{ display: 'none' }}
           />
-        </Box>
+          <input
+            type="file"
+            ref={restoreFileInputRef}
+            onChange={handleRestoreFileChange}
+            accept=".json"
+            style={{ display: 'none' }}
+          />
+        </Stack>
       </Paper>
 
       {/* インポート結果表示 */}

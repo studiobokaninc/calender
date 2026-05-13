@@ -38,7 +38,7 @@ import {
 import { VoiceHelpDialog } from '../components/VoiceHelpDialog'
 import api from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
-import { usePageState } from '../contexts/PageStateContext'
+import { usePageState, useDashboardPageState } from '../contexts/PageStateContext'
 import { format, startOfDay, parseISO, isBefore, addDays, isSameDay, isValid } from 'date-fns'
 import { Task } from '../types'
 
@@ -92,8 +92,10 @@ const ChatPage: React.FC = () => {
   const navigate = useNavigate()
   const { token: authToken, user: currentUser } = useAuth()
   const { refreshGlobalData, globalData } = usePageState()
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([CHAT_WELCOME_MESSAGE])
-  const [conversationId, setConversationId] = useState<string | null>(null)
+  const { dashboardState, updateDashboardState } = useDashboardPageState()
+  
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>(dashboardState.messages)
+  const [conversationId, setConversationId] = useState<string | null>(dashboardState.conversationId)
   const [chatInput, setChatInput] = useState('')
   const [sending, setSending] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -245,7 +247,10 @@ const ChatPage: React.FC = () => {
     if (text.trim().length === 0 || sending || isGenerating || isSystemBusy) return
     if (autoSendTimerRef.current) clearTimeout(autoSendTimerRef.current)
     setChatInput('')
-    setMessages(prev => [...prev, { role: 'user', content: text }])
+    const updatedMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [...messages, { role: 'user', content: text }]
+    setMessages(updatedMessages)
+    // ユーザー送信時に即座にグローバル状態に保存（不意のページ遷移対策）
+    updateDashboardState({ messages: updatedMessages, conversationId })
     setSending(true)
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -696,7 +701,11 @@ const ChatPage: React.FC = () => {
 
             if (eventType === 'message') {
               if (data.task_id) setCurrentTaskId(data.task_id)
-              if (data.conversation_id && !conversationId) setConversationId(data.conversation_id)
+              if (data.conversation_id && !conversationId) {
+                setConversationId(data.conversation_id)
+                // 会話IDが確定した時点でグローバル状態を更新
+                updateDashboardState({ conversationId: data.conversation_id })
+              }
 
               if (data.answer) {
                 accumulatedContent += data.answer
@@ -737,11 +746,11 @@ const ChatPage: React.FC = () => {
             } else if (eventType === 'action_executed') {
               // 管理者向け：自動実行結果の通知
               if (data?.results && Array.isArray(data.results)) {
-                const results = data.results.map((r: any) =>
-                  r.success ? `✅ ${r.message || '実行完了'}` : `❌ ${r.error || '失敗'}`
-                ).join('\n')
-                // 累積コンテンツに追加するのではなく、別のメッセージとして出すか、末尾に追記するか
-                // バックエンドが[システム通知]を後で流すので、ここではログ出力のみ、またはトースト
+                const success = data.results.some((r: any) => r.success)
+                if (success && refreshGlobalData) {
+                  refreshGlobalData()
+                }
+                hasReceivedTaskActionRef.current = true // 自動実行されたのでフロント側での検知を抑止
                 console.log('Actions executed automatically:', data.results)
               }
             } else if (eventType === 'message_end') {
@@ -750,43 +759,50 @@ const ChatPage: React.FC = () => {
                 clearTimeout(updateTimeoutRef.current)
                 updateTimeoutRef.current = null
               }
+              
+              const finalMessages: Array<{ role: 'user' | 'assistant'; content: string }> = []
               setMessages(prev => {
                 if (prev.length === 0) return prev
                 const last = prev[prev.length - 1]
+                let updated = [...prev]
                 if (last.role === 'assistant') {
-                  const u = [...prev]
-                  u[u.length - 1] = { ...last, content: accumulatedContent }
-                  return u
+                  updated[updated.length - 1] = { ...last, content: accumulatedContent }
                 }
-                return prev
+                finalMessages.push(...updated)
+                return updated
               })
+              
+              // 最終的なメッセージをグローバル状態に保存
+              updateDashboardState({ 
+                messages: finalMessages.length > 0 ? finalMessages : messages,
+                conversationId: conversationId 
+              })
+              
               setIsGenerating(false)
-              if (autoSpeak) {
-                speakText(accumulatedContent)
-              }
               return
             }
-
-            if (!hasReceivedTaskActionRef.current) {
-              const detected = detectActionFromContent(accumulatedContent)
-              if (detected != null) {
-                const list = Array.isArray(detected) ? detected : [detected]
-                setPendingActions(
-                  list.map((a: any) => ({
-                    action_type: a.action_type,
-                    task_id: a.task_id,
-                    task_data: a.task_data,
-                    description: generateActionDescription(a),
-                  }))
-                )
-              }
-            }
-            hasReceivedTaskActionRef.current = false
           } catch (e) {
             console.error('JSON parse error', e)
           }
         }
       }
+
+      // 一般ユーザーの場合のみ、SSEイベントでアクションが来なかった時のフォールバックとしてフロント側で検知を行う
+      if (!isAdmin && !hasReceivedTaskActionRef.current) {
+        const detected = detectActionFromContent(accumulatedContent)
+        if (detected != null) {
+          const list = Array.isArray(detected) ? detected : [detected]
+          setPendingActions(
+            list.map((a: any) => ({
+              action_type: a.action_type,
+              task_id: a.task_id,
+              task_data: a.task_data,
+              description: generateActionDescription(a),
+            }))
+          )
+        }
+      }
+      hasReceivedTaskActionRef.current = false
     } catch (e: any) {
       console.error('Streaming error', e)
       if (!streamEnded && !aiStarted) {
@@ -811,7 +827,9 @@ const ChatPage: React.FC = () => {
     setConversationId(null)
     setSending(false)
     setChatInput('')
-    setMessages([CHAT_WELCOME_MESSAGE])
+    const resetMessages = [CHAT_WELCOME_MESSAGE]
+    setMessages(resetMessages)
+    updateDashboardState({ messages: resetMessages, conversationId: null })
   }
 
 

@@ -160,16 +160,19 @@ async def run_batch_scan(api_key: str):
     scanner = MeetingScanner(api_key)
     await scanner.scan_and_process()
 
+def _sanitize_folder_name(name: str) -> str:
+    """Windowsなどでフォルダ名として禁止されている文字を '_' に置き換える"""
+    import re
+    return re.sub(r'[\\/:*?"<>|]', '_', name)
+
+
 def create_project_folder(project_name: str):
     """Create a folder for the project in the network drive."""
     if not os.path.exists(BASE_DIR):
         logger.warning(f"Base MTG directory not found: {BASE_DIR}. Could not create project folder.")
         return
     
-    # 禁止文字をサニタイズ（念のため）
-    import re
-    safe_name = re.sub(r'[\\/:*?"<>|]', '_', project_name)
-    
+    safe_name = _sanitize_folder_name(project_name)
     proj_path = os.path.join(BASE_DIR, safe_name)
     if not os.path.exists(proj_path):
         try:
@@ -177,14 +180,15 @@ def create_project_folder(project_name: str):
             logger.info(f"Created project folder: {proj_path}")
         except Exception as e:
             logger.error(f"Failed to create project folder {proj_path}: {e}")
+
+
 def rename_project_folder(old_name: str, new_name: str):
     """Rename the project folder in the network drive."""
     if not os.path.exists(BASE_DIR):
         return
     
-    import re
-    old_safe = re.sub(r'[\\/:*?"<>|]', '_', old_name)
-    new_safe = re.sub(r'[\\/:*?"<>|]', '_', new_name)
+    old_safe = _sanitize_folder_name(old_name)
+    new_safe = _sanitize_folder_name(new_name)
     
     if old_safe == new_safe:
         return
@@ -202,13 +206,13 @@ def rename_project_folder(old_name: str, new_name: str):
         # 元のフォルダがない場合は作成を試みる
         create_project_folder(new_name)
 
+
 def delete_project_folder(project_name: str):
     """Rename the project folder to mark it as deleted (won't be scanned)."""
     if not os.path.exists(BASE_DIR):
         return
     
-    import re
-    safe_name = re.sub(r'[\\/:*?"<>|]', '_', project_name)
+    safe_name = _sanitize_folder_name(project_name)
     old_path = os.path.join(BASE_DIR, safe_name)
     
     if os.path.exists(old_path):
@@ -227,3 +231,4 @@ def delete_project_folder(project_name: str):
             logger.info(f"Marked project folder as deleted: {old_path} -> {new_path}")
         except Exception as e:
             logger.error(f"Failed to rename folder on deletion: {e}")
+

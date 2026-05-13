@@ -12,7 +12,7 @@ from .. import crud, models, schemas
 from ..database import get_db, SessionLocal
 from ..security import get_current_user
 import logging
-from .chat import get_llm_client
+from ..services.llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -80,15 +80,12 @@ async def upload_meeting_audio(
         db.refresh(db_meeting)
         
         # 4. バックグラウンドでAI解析を開始
-        openai_key = os.getenv("OPENAI_API_KEY", "")
-        google_key = os.getenv("GOOGLE_API_KEY", "")
-        selected_key = openai_key if openai_key.startswith("sk-") else google_key
-        
-        if not selected_key:
-            logger.error("LLM API Key is not set. Background analysis will not start.")
-        else:
+        try:
+            client = get_llm_client()
             import asyncio
-            asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), selected_key))
+            asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), client.api_key))
+        except Exception as e:
+            logger.error(f"LLM API Key is not set. Background analysis will not start: {e}")
         
         return db_meeting
     except Exception as e:
@@ -186,9 +183,11 @@ async def scan_network_drive(
     current_user: models.User = Depends(get_current_user)
 ):
     """Xレポジトリをスキャンして未処理の会議音声を一括登録・解析開始する"""
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY is not configured")
+    try:
+        client = get_llm_client()
+        api_key = client.api_key
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM API Key is not configured: {e}")
         
     from ..services.meeting_scanner import run_batch_scan
     # バックグラウンドではなく、まずはスキャン自体を走らせる（解析は各々内部で非同期タスクとして起動）

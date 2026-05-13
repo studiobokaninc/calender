@@ -51,6 +51,18 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    # CLIバイパストークンの検証
+    bypass_token = os.getenv("CLI_BYPASS_TOKEN")
+    if bypass_token and token == bypass_token:
+        # データベースから最初の管理者ユーザーを取得して返却
+        admin_user = db.query(models.User).filter(models.User.role == "admin").first()
+        if admin_user:
+            return admin_user
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="バイパス認証に成功しましたが、管理者ユーザーがデータベースに見つかりません。"
+        )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: Optional[str] = payload.get("sub")  # email を想定

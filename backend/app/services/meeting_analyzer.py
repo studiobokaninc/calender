@@ -13,6 +13,7 @@ from .. import crud, models, schemas
 from .llm import LLMClient
 from .rag import rag_service
 from ..timezone import now_jst_naive
+from llama_index.core import Document
 
 logger = logging.getLogger(__name__)
 
@@ -169,37 +170,15 @@ class MeetingAnalyzer:
                     if db_meeting:
                         crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed"})
                         
-                        # RAGメタデータの準備
+                        # RAGメタデータの準備と追加
                         ref_date = db_meeting.date or now_jst_naive()
-                        rag_metadata = {
-                            "meeting_id": meeting_id, 
-                            "title": db_meeting.title, 
-                            "project_id": db_meeting.project_id,
-                            "version_group": db_meeting.version_group,
-                            "type": "meeting",
-                            "date": ref_date.isoformat()
-                        }
-
-                        # 1. 統合された議事録サマリーをRAGに追加
-                        rag_text = f"TITLE: {db_meeting.title}\n"
-                        rag_text += f"DECISIONS: {', '.join(final_minutes.get('decisions', []))}\n"
-                        rag_text += f"TASKS: {', '.join(final_minutes.get('tasks', []))}\n"
-                        rag_text += f"--- TRANSCRIPT ---\n{final_minutes.get('transcript', '')}"
-                        
-                        await rag_service.add_text(rag_text, metadata=rag_metadata)
-
-                        # 2. 個別のセグメント（チャンク）もRAGに追加（チャンク分散型のRAG）
-                        # これにより、長い会議の特定部分だけをピンポイントで取得しやすくなる
-                        if len(all_results) > 1:
-                            for idx, segment in enumerate(all_results):
-                                seg_transcript = segment.get("transcript")
-                                if seg_transcript:
-                                    seg_metadata = rag_metadata.copy()
-                                    seg_metadata["segment_index"] = idx
-                                    seg_metadata["type"] = "meeting_segment"
-                                    # 検索時に文脈がわかるようタイトルを含める
-                                    seg_text = f"--- [Segment {idx+1}/{len(all_results)}] {db_meeting.title} ---\n{seg_transcript}"
-                                    await rag_service.add_text(seg_text, metadata=seg_metadata)
+                        await self._add_meeting_data_to_rag(
+                            meeting_id=meeting_id,
+                            db_meeting=db_meeting,
+                            final_minutes=final_minutes,
+                            all_results=all_results,
+                            ref_date=ref_date
+                        )
 
                         if db_meeting.version_group:
                             db.query(models.Decision).filter(
@@ -217,36 +196,8 @@ class MeetingAnalyzer:
                                 project_id=db_meeting.project_id
                             ))
                         
-                        # 3. 検出されたタスクを MeetingTask テーブルに保存
-                        import re
-                        for task_str in final_minutes.get('tasks', []):
-                            # 解析ロジック: [タイプ] 担当者：内容（期限）
-                            m_type = re.search(r'\[(.*?)\]', task_str)
-                            task_type = m_type.group(1) if m_type else None
-                            
-                            remaining = task_str
-                            if m_type: remaining = remaining.replace(m_type.group(0), "").strip()
-                            
-                            assignee = None
-                            if "：" in remaining:
-                                parts = remaining.split("：", 1)
-                                assignee = parts[0].strip()
-                                remaining = parts[1].strip()
-                                # 先頭のリストマーカーを除去
-                                assignee = assignee.lstrip('-*• ').strip()
-                            
-                            m_date = re.search(r'\((.*?)\)', remaining)
-                            if m_date:
-                                # 内容から期限表記を除去
-                                remaining = remaining.replace(m_date.group(0), "").strip()
-                            
-                            crud.create_meeting_task(db, schemas.MeetingTaskCreate(
-                                meeting_id=meeting_id,
-                                content=remaining.lstrip('-*• ').strip(),
-                                type=task_type,
-                                assignee_suggestion=assignee,
-                                status="detected"
-                            ))
+                        # 検出されたタスクを MeetingTask テーブルに保存
+                        self._save_detected_tasks(db, meeting_id, final_minutes.get('tasks', []))
 
                         db.commit()
                         logger.info(f"Meeting {meeting_id} analysis completed.")
@@ -273,17 +224,15 @@ class MeetingAnalyzer:
             try:
                 segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
                 
-                segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
+                # プロバイダー（Gemini vs OpenAI/Anthropic）に応じた指示の微調整
+                is_text_input = (self.llm_client.provider in ["openai", "anthropic"])
                 
-                # プロバイダー（Gemini vs OpenAI/Whisper）に応じた指示の微調整
-                is_openai = (self.llm_client.provider == "openai")
-                
-                # 指示：Geminiは直接聴けるが、OpenAIはWhisper後のテキストを受け取る前提
-                action_instr = "提供された会議の文字起こしデータを詳細に分析し、" if is_openai else "提供された会議音声を詳細に分析し、"
-                transcript_instr = "1. 詳細な全文文字起こし（整形・補完）:" if is_openai else "1. 全文を詳細に文字起こし:"
+                # 指示：Geminiは直接聴けるが、OpenAIとAnthropicはWhisper後のテキストを受け取る前提
+                action_instr = "提供された会議の文字起こしデータを詳細に分析し、" if is_text_input else "提供された会議音声を詳細に分析し、"
+                transcript_instr = "1. 詳細な全文文字起こし（整形・補完）:" if is_text_input else "1. 全文を詳細に文字起こし:"
                 transcript_sub_instr = (
                     "提供された文字起こしデータの【全内容】を、意味を損なうことなく、読みやすく整形して出力してください。"
-                    if is_openai else "日本語で全文を一字一句漏らさず（不要な相槌を除く）文字起こししてください。"
+                    if is_text_input else "日本語で全文を一字一句漏らさず（不要な相槌を除く）文字起こししてください。"
                 )
 
                 prompt = f"""
@@ -291,6 +240,11 @@ class MeetingAnalyzer:
 現在、会議のセグメント{segment_info}を処理しています。
 
 以下の【要件】に厳密に従って、出力を生成してください。
+
+【システム制約上の最重要指示】
+このタスクは自動化されたパイプラインの一部として実行されます。
+与えられたデータが短かったり、部分的・不完全であっても、絶対に作業を拒否せず、提供された情報のみから推測を交えずに最大限の抽出を行ってください。
+「文脈が不足している」「作業を進めることができません」などの謝罪や作業拒否のメッセージは、後続のシステム処理でエラーとなるため出力しないでください。
 
 【要件】
 {transcript_instr}
@@ -505,3 +459,134 @@ class MeetingAnalyzer:
                 "discussion_points": list(dict.fromkeys(all_points)),
                 "deadlines": list(dict.fromkeys(all_deadlines))
             }
+
+    async def _add_meeting_data_to_rag(
+        self, 
+        meeting_id: int, 
+        db_meeting: models.Meeting, 
+        final_minutes: Dict[str, Any], 
+        all_results: List[Dict[str, Any]], 
+        ref_date: Any
+    ):
+        """議事録の全文、セグメント、重要構造化データ（決定事項、タスク、論点、期限）をRAGに追加する"""
+        rag_metadata = {
+            "meeting_id": meeting_id, 
+            "title": db_meeting.title, 
+            "project_id": db_meeting.project_id,
+            "version_group": db_meeting.version_group,
+            "type": "meeting",
+            "date": ref_date.isoformat()
+        }
+        
+        docs_to_add = []
+        date_str = ref_date.strftime("%Y-%m-%d") if hasattr(ref_date, "strftime") else str(ref_date)[:10]
+
+        # 1. 文字起こし全文 (transcript) のChunk分割してRAGに追加
+        raw_transcript = final_minutes.get('transcript', '') or db_meeting.transcript or ""
+        if raw_transcript.strip():
+            chunks = []
+            start = 0
+            chunk_size = 1000
+            overlap = 200
+            while start < len(raw_transcript):
+                end = start + chunk_size
+                chunks.append(raw_transcript[start:end])
+                if end >= len(raw_transcript):
+                    break
+                start += chunk_size - overlap
+                
+            for idx, chunk in enumerate(chunks):
+                chunk_text_data = f"【会議発言録チャンク {idx+1}/{len(chunks)}】 会議: {db_meeting.title} ({date_str}), 内容:\n{chunk}"
+                chunk_metadata = rag_metadata.copy()
+                chunk_metadata["type"] = "meeting_transcript_chunk"
+                chunk_metadata["content_type"] = "transcript_chunk"
+                chunk_metadata["chunk_index"] = idx
+                docs_to_add.append(Document(text=chunk_text_data, metadata=chunk_metadata))
+
+        # 2. 個別のセグメント（チャンク）もRAGに追加
+        if len(all_results) > 1:
+            for idx, segment in enumerate(all_results):
+                seg_transcript = segment.get("transcript")
+                if seg_transcript:
+                    seg_metadata = rag_metadata.copy()
+                    seg_metadata["segment_index"] = idx
+                    seg_metadata["type"] = "meeting_segment"
+                    seg_text = f"--- [Segment {idx+1}/{len(all_results)}] {db_meeting.title} ---\n{seg_transcript}"
+                    docs_to_add.append(Document(text=seg_text, metadata=seg_metadata))
+
+        # 3. 意味単位で構造化したナレッジ（決定事項、タスク、論点、期限）を個別にRAGに追加
+        project_name = db_meeting.project.name if db_meeting.project else "不明"
+
+        # 決定事項 (decisions)
+        for dec in final_minutes.get('decisions', []):
+            if dec and dec.strip():
+                dec_text = f"【決定事項】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dec}"
+                dec_metadata = rag_metadata.copy()
+                dec_metadata["type"] = "meeting_decision"
+                dec_metadata["content_type"] = "decision"
+                docs_to_add.append(Document(text=dec_text, metadata=dec_metadata))
+
+        # タスク (tasks)
+        for tsk in final_minutes.get('tasks', []):
+            if tsk and tsk.strip():
+                tsk_text = f"【タスク】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {tsk}"
+                tsk_metadata = rag_metadata.copy()
+                tsk_metadata["type"] = "meeting_task"
+                tsk_metadata["content_type"] = "task"
+                docs_to_add.append(Document(text=tsk_text, metadata=tsk_metadata))
+
+        # 論点 (discussion_points)
+        for dp in final_minutes.get('discussion_points', []):
+            if dp and dp.strip():
+                dp_text = f"【論点・議論】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dp}"
+                dp_metadata = rag_metadata.copy()
+                dp_metadata["type"] = "meeting_discussion_point"
+                dp_metadata["content_type"] = "discussion_point"
+                docs_to_add.append(Document(text=dp_text, metadata=dp_metadata))
+
+        # 期限・日程候補 (deadlines)
+        for dl in final_minutes.get('deadlines', []):
+            if dl and dl.strip():
+                dl_text = f"【期限・日程】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dl}"
+                dl_metadata = rag_metadata.copy()
+                dl_metadata["type"] = "meeting_deadline"
+                dl_metadata["content_type"] = "deadline"
+                docs_to_add.append(Document(text=dl_text, metadata=dl_metadata))
+                
+        # まとめてRAGに登録 (ディスクI/Oのボトルネック防止)
+        if docs_to_add:
+            await rag_service.add_documents(docs_to_add)
+
+    def _save_detected_tasks(self, db: Session, meeting_id: int, tasks: List[str]):
+        """議事録から検出されたタスクを MeetingTask テーブルに解析・保存する"""
+        import re
+        for task_str in tasks:
+            # 解析ロジック: [タイプ] 担当者：内容（期限）
+            m_type = re.search(r'\[(.*?)\]', task_str)
+            task_type = m_type.group(1) if m_type else None
+            
+            remaining = task_str
+            if m_type: 
+                remaining = remaining.replace(m_type.group(0), "").strip()
+            
+            assignee = None
+            if "：" in remaining:
+                parts = remaining.split("：", 1)
+                assignee = parts[0].strip()
+                remaining = parts[1].strip()
+                # 先頭のリストマーカーを除去
+                assignee = assignee.lstrip('-*• ').strip()
+            
+            m_date = re.search(r'\((.*?)\)', remaining)
+            if m_date:
+                # 内容から期限表記を除去
+                remaining = remaining.replace(m_date.group(0), "").strip()
+            
+            crud.create_meeting_task(db, schemas.MeetingTaskCreate(
+                meeting_id=meeting_id,
+                content=remaining.lstrip('-*• ').strip(),
+                type=task_type,
+                assignee_suggestion=assignee,
+                status="detected"
+            ))
+

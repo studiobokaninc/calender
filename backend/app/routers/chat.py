@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 import json
 import time
 
-from ..services.llm import LLMClient
+from ..services.llm import LLMClient, get_llm_client
 from ..services.rag import rag_service
 from ..services.chat_context import ChatContextService
 from ..database import get_db
@@ -28,10 +28,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# LLMClientの初期化
-llm_client = None
-_cached_api_key: str = ""
-
 @router.get("/chat/status")
 async def get_chat_status(db: Session = Depends(get_db)):
     """現在、システム全体で重い処理（議事録解析や資料追加など）が動いているかチェック"""
@@ -42,26 +38,6 @@ async def get_chat_status(db: Session = Depends(get_db)):
     processing_knowledge = db.query(models.KnowledgeItem).filter(models.KnowledgeItem.status.in_(["pending", "processing"])).count()
     
     return {"is_processing": (processing_meetings + processing_knowledge) > 0}
-
-
-def get_llm_client():
-    """backend/.env を読み込み、API Keyが変更されていればクライアントを再生成"""
-    global llm_client, _cached_api_key
-
-    env_path = Path(__file__).resolve().parent.parent / ".env"
-    load_dotenv(dotenv_path=str(env_path), override=True)
-
-    # OpenAI優先
-    current_openai_key = os.getenv("OPENAI_API_KEY", "")
-    current_google_key = os.getenv("GOOGLE_API_KEY", "")
-    
-    selected_key = current_openai_key if current_openai_key.startswith("sk-") else current_google_key
-
-    if llm_client is None or _cached_api_key != selected_key:
-        _cached_api_key = selected_key
-        llm_client = LLMClient(api_key=selected_key)
-
-    return llm_client
 
 
 class ChatRequest(BaseModel):
@@ -412,13 +388,24 @@ async def execute_task_action(
 
 
 def _normalize_priority(value):  # noqa: ANN201
-    """チャット/AI から渡る小文字の priority を TaskPriority の 'HIGH'/'MEDIUM'/'LOW' に正規化する。"""
+    """チャット/AI から渡る priority を TaskPriority の 'HIGH'/'MEDIUM'/'LOW' に正規化する。"""
     if value is None:
         return None
     if isinstance(value, str):
         u = value.upper()
+        # 英語キーワード
         if u in ("HIGH", "MEDIUM", "LOW"):
             return u
+        # 日本語キーワード
+        jp_map = {
+            "高": "HIGH",
+            "中": "MEDIUM",
+            "低": "LOW",
+            "高い": "HIGH",
+            "普通": "MEDIUM",
+            "低い": "LOW",
+        }
+        return jp_map.get(value) # 変換できなければNone
     return None
 
 
@@ -429,6 +416,7 @@ def _normalize_status(status_str: str) -> Optional[str]:
     s = status_str.strip().lower()
     # 一般的な表現を内部Enum値にマッピング
     mapping = {
+        # 英語
         "done": "completed",
         "finished": "completed",
         "complete": "completed",
@@ -444,6 +432,21 @@ def _normalize_status(status_str: str) -> Optional[str]:
         "reviewing": "review",
         "delayed": "delayed",
         "delay": "delayed",
+        # 日本語
+        "完了": "completed",
+        "終了": "completed",
+        "済": "completed",
+        "済み": "completed",
+        "未着手": "todo",
+        "未": "todo",
+        "着手中": "in-progress",
+        "進行中": "in-progress",
+        "作業中": "in-progress",
+        "レビュー中": "review",
+        "レビュー": "review",
+        "確認中": "review",
+        "遅延": "delayed",
+        "遅れ": "delayed",
     }
     return mapping.get(s, s)
 

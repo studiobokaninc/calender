@@ -479,3 +479,12 @@ class KnowledgeItemResponse(KnowledgeItemBase):
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
+
+# --- Ask API Schemas ---
+
+class AskRequest(BaseModel):
+    question: str = Field(..., description="自然言語の質問")
+
+class AskResponse(BaseModel):
+    answer: str = Field(..., description="AIによる回答")
+    sources: List[str] = Field(default_factory=list, description="根拠となった情報源（会議名など）")

@@ -40,7 +40,8 @@ from .routers import (
     notes as notes_router,
     activities as activities_router,
     meeting_tasks as meeting_tasks_router,
-    admin as admin_router
+    admin as admin_router,
+    ask as ask_router
 )
 print("Main: ルーター読み込み完了")
 
@@ -81,6 +82,20 @@ app = FastAPI(
     description="プロジェクト、タスク、イベント、ユーザーを管理するためのAPI",
     version="0.1.0",
 )
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        print("Main: RAGサービスの初期化(インデックス読み込み)を開始します。これには数分かかる場合があります...")
+        from .services.rag import rag_service
+        await rag_service._ensure_initialized()
+        print("Main: RAGサービスの初期化が完了しました。")
+        
+        # Start auto backup background task
+        from .services.auto_backup import auto_backup_loop
+        asyncio.create_task(auto_backup_loop())
+    except Exception as e:
+        print(f"Main: サービスの初期化に失敗しました: {e}")
 
 # CORSミドルウェア
 _cors_allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() == "true"
@@ -126,6 +141,7 @@ app.include_router(meetings_router.root_router, tags=["Meetings (All)"])
 app.include_router(knowledge_router.router, tags=["Knowledge Base"])
 app.include_router(meeting_tasks_router.router, tags=["Meeting Tasks"])
 app.include_router(tts_router.router, prefix="/tts", tags=["TTS"])
+app.include_router(ask_router.router, tags=["Ask"])
 
 @app.get("/tts_debug")
 async def tts_debug():

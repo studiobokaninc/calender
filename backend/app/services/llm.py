@@ -37,7 +37,12 @@ class LLMClient:
             logger.warning("No API Key provided to LLMClient.")
         
         # Decide provider based on key format or presence
-        if api_key and api_key.startswith("sk-"):
+        if api_key and api_key.startswith("sk-ant-"):
+            self.provider = "anthropic"
+            self.model_name = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+            self.client = None
+            logger.info(f"LLMClient initialized with Anthropic (Model: {self.model_name})")
+        elif api_key and api_key.startswith("sk-"):
             self.provider = "openai"
             self.model_name = os.getenv("OPENAI_MODEL", "gpt-4o")
             self.client = openai.AsyncOpenAI(api_key=self.api_key)
@@ -152,7 +157,27 @@ class LLMClient:
 5. 【カバレッジ状況】（どのデータをどの期間分探したか、抜け漏れの可能性がないかをユーザーに明示）
 """
 
-        if mode == "personal":
+        if mode == "ask":
+            role_msg = (
+                "あなたは、過去の議事録、会議録、および会議中の会話文字起こし（トランスクリプト）の精読・分析に特化した、調査専任の優秀なAIアシスタントです。\n"
+                "一般的な一問一答のように、ユーザーの質問に対して優しく、丁寧で、分かりやすいプロフェッショナルな自然言語で回答してください。\n"
+                "※重要：プロジェクト管理のフォーマット（『各ソース要約』『相互関係の整理』『問題点・リスク』『結論』『カバレッジ状況』などの5層構成）は【絶対に】使用しないでください。これらは今回は完全に不要です。ただ自然な対話形式で答えを生成してください。"
+            )
+            
+            kb_instruction_ask = ""
+            if kb_summaries:
+                kb_instruction_ask = (
+                    f"\n【会議ナレッジの抜粋（検索結果）】\n{kb_summaries}\n"
+                    "※重要：ここに提供されている情報は、検索によって得られた「浅い抜粋」に過ぎません。\n"
+                    "ユーザーが会議での実際の発言や、会話の流れ、経緯を求めている場合は、絶対にこの抜粋だけで回答を終わらせないでください。\n"
+                    "必ず `get_meeting_details` などのツールを自律的に呼び出して、該当する会議の「完全な文字起こしデータ」をSQLiteから直接ロードし、発言や会話を読み込んだ上で回答を構成してください。\n"
+                    "回答には、どの会議（日付と会議名）を参考にしたかを必ず明記してください。また、可能であれば、会議ID（ID: xx）を文頭、文末、または参考元として含めてください（API側でソースの抽出に使用します）。"
+                )
+                
+            system_prompt = f"{role_msg}\n{common_instructions}\n{kb_instruction_ask}\n\n【注意事項】\n- 主な調査対象は会議データ、およびそこでの発言・会話内容です。タスク一覧は関係ありません。\n- 推測や捏造は禁止です。根拠となるデータがない場合は、知ったかぶりをせず素直に「データが見つかりませんでした」と回答してください。"
+            return system_prompt
+
+        elif mode == "personal":
             role_msg = f"あなたはユーザー {inputs.get('user_name', 'User')} の専属AIアシスタントです。フレンドリーに応対してください。"
         elif mode == "utility":
             return "あなたは実務的なデータ処理ツールです。挨拶や装飾なしで、求められた情報を簡潔に出力してください。"
@@ -174,7 +199,7 @@ class LLMClient:
         if self.provider == "google":
             async for chunk in self._stream_gemini(query, conversation_id, inputs, history):
                 yield chunk
-        else:
+        elif self.provider in ["openai", "anthropic"]:
             async for chunk in self._stream_openai(query, conversation_id, inputs, history, db_session):
                 yield chunk
 
@@ -233,8 +258,6 @@ class LLMClient:
                     full_text += chunk.text
                     yield {"event": "message", "answer": chunk.text, "conversation_id": conversation_id}
             
-            action = self.detect_action_from_text(full_text)
-            if action: yield {"event": "task_action", "action": action, "conversation_id": conversation_id}
             yield {"event": "message_end", "conversation_id": conversation_id}
         finally:
             for fn in attachments_to_clean:
@@ -306,12 +329,12 @@ class LLMClient:
             mtg = crud.get_meeting(db_session, int(meeting_id))
             if not mtg: return f"Error: 会議ID {meeting_id} の情報が見つかりません。"
             
-            detail = f"【会議ID: {mtg.id} の詳細】\nタイトル: {mtg.title}\n日付: {mtg.date}\n\n"
+            detail = f"【会議ID: {mtg.id} の詳細】\nタイトル: {mtg.title}\nプロジェクト: {mtg.project.name if mtg.project else '不明'}\n日付: {mtg.date}\n\n"
             if mtg.decisions: detail += "■ 決定事項:\n" + "\n".join([f"- {d}" for d in mtg.decisions]) + "\n"
             if mtg.discussion_points: detail += "■ 議論事項:\n" + "\n".join([f"- {d}" for d in mtg.discussion_points]) + "\n"
             if mtg.tasks: detail += "■ タスク:\n" + "\n".join([f"- {d}" for d in mtg.tasks]) + "\n"
             
-            detail += f"\n■ 完全な文字起こしデータ (先頭30000文字):\n{str(mtg.transcript or '')[:30000]}"
+            detail += f"\n■ 完全な文字起こしデータ (先頭8000文字):\n{str(mtg.transcript or '')[:8000]}"
             return detail
             
         elif name == "search_tasks":
@@ -363,16 +386,38 @@ class LLMClient:
                     for page in reader.pages: text += page.extract_text() + "\n"
                     all_text_parts.append(f"\n【資料内容: {p.name}】\n{text}")
                 elif ext in [".mp3", ".wav", ".m4a", ".mp4"]:
-                    logger.info(f"LLMClient: Transcribing {p.name} via Whisper...")
-                    with open(file_path, "rb") as audio_file:
-                        transcript = await self.client.audio.transcriptions.create(
-                            model="whisper-1", 
-                            file=audio_file,
-                            prompt="これは日本語の会議の文字起こしです。句読点を適切に使用し、意味不明な繰り返しや関係のない挨拶を省いてください。",
-                            language="ja"
-                        )
+                    t_text = ""
+                    openai_key = os.environ.get("OPENAI_API_KEY")
                     
-                    t_text = transcript.text.strip()
+                    if openai_key and openai_key.startswith("sk-"):
+                        try:
+                            import openai
+                            oai_client = openai.AsyncOpenAI(api_key=openai_key)
+                            logger.info(f"LLMClient: Transcribing {p.name} via OpenAI Whisper API...")
+                            with open(file_path, "rb") as audio_file:
+                                transcript = await oai_client.audio.transcriptions.create(
+                                    model="whisper-1", 
+                                    file=audio_file,
+                                    prompt="これは日本語の会議の文字起こしです。句読点を適切に使用し、意味不明な繰り返しや関係のない挨拶を省いてください。",
+                                    language="ja"
+                                )
+                            t_text = transcript.text.strip()
+                        except Exception as e:
+                            logger.warning(f"OpenAI Whisper API failed: {e}. Falling back to local Whisper...")
+                            
+                    if not t_text:
+                        logger.info(f"LLMClient: Transcribing {p.name} via local Faster-Whisper...")
+                        def _transcribe_local():
+                            from faster_whisper import WhisperModel
+                            # Use base model for balance of speed and accuracy on CPU
+                            model = WhisperModel("base", device="cpu", compute_type="int8")
+                            segments, _ = model.transcribe(file_path, language="ja")
+                            return "".join([s.text for s in segments])
+                        
+                        import asyncio
+                        t_text = await asyncio.to_thread(_transcribe_local)
+                        t_text = t_text.strip()
+
                     if t_text:
                         all_text_parts.append(f"\n【会議の文字起こしデータ: {p.name}】\n{t_text}")
                     else:
@@ -393,13 +438,24 @@ class LLMClient:
 
         try:
             for iteration in range(5):
-                stream = await self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                    stream=True,
-                    temperature=0.7,
-                    tools=tools
-                )
+                if self.provider == "anthropic":
+                    import litellm
+                    os.environ["ANTHROPIC_API_KEY"] = self.api_key
+                    stream = await litellm.acompletion(
+                        model=f"anthropic/{self.model_name}",
+                        messages=messages,
+                        stream=True,
+                        temperature=0.7,
+                        tools=tools
+                    )
+                else:
+                    stream = await self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=messages,
+                        stream=True,
+                        temperature=0.7,
+                        tools=tools
+                    )
                 
                 full_text = ""
                 tool_calls_buffer = {}
@@ -420,8 +476,6 @@ class LLMClient:
                                 if tc.function.arguments: tool_calls_buffer[idx]["function"]["arguments"] += tc.function.arguments
                 
                 if not tool_calls_buffer:
-                    action = self.detect_action_from_text(full_text)
-                    if action: yield {"event": "task_action", "action": action, "conversation_id": conversation_id}
                     break
                 
                 tool_calls_list = [tool_calls_buffer[k] for k in sorted(tool_calls_buffer.keys())]
@@ -449,3 +503,28 @@ class LLMClient:
             if match: return json.loads(match.group(1).strip())
         except: pass
         return None
+
+_cached_llm_client: Optional[LLMClient] = None
+_cached_api_key: str = ""
+
+def get_llm_client() -> LLMClient:
+    """backend/.env をリロードし、APIキー（OpenAI優先、なければGoogle）を元に
+    LLMClientインスタンスをキャッシュ（あるいはAPIキー変更時の再生成）して取得する"""
+    global _cached_llm_client, _cached_api_key
+    
+    from dotenv import load_dotenv
+    env_path = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(dotenv_path=str(env_path), override=True)
+    
+    current_openai_key = os.getenv("OPENAI_API_KEY", "")
+    current_google_key = os.getenv("GOOGLE_API_KEY", "")
+    
+    # OpenAI優先、なければGoogle
+    selected_key = current_openai_key if current_openai_key.startswith("sk-") else current_google_key
+    
+    if _cached_llm_client is None or _cached_api_key != selected_key:
+        _cached_api_key = selected_key
+        _cached_llm_client = LLMClient(api_key=selected_key)
+        
+    return _cached_llm_client
+

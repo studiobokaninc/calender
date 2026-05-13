@@ -41,8 +41,19 @@ class RAGService:
             
             openai_key = os.environ.get("OPENAI_API_KEY")
             google_key = os.environ.get("GOOGLE_API_KEY")
+            anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
             
-            if openai_key and openai_key.startswith("sk-"):
+            if anthropic_key and anthropic_key.startswith("sk-ant-"):
+                print("RAGService: Anthropic (Claude / HuggingFace BGE) を初期化中...")
+                from llama_index.llms.anthropic import Anthropic
+                from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+                self.provider = "anthropic"
+                self.api_key = anthropic_key
+                persist_dir = os.path.join(str(Path(__file__).resolve().parent.parent.parent), "data", "rag_index_anthropic")
+                model_name = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+                Settings.llm = Anthropic(model=model_name, api_key=self.api_key)
+                Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-m3")
+            elif openai_key and openai_key.startswith("sk-"):
                 print("RAGService: OpenAI (gpt-4o / text-embedding-3-small) を初期化中...")
                 self.provider = "openai"
                 self.api_key = openai_key
@@ -66,13 +77,18 @@ class RAGService:
                     def _load():
                         sc = StorageContext.from_defaults(persist_dir=persist_dir)
                         return load_index_from_storage(sc)
-                    self.index = await asyncio.wait_for(asyncio.to_thread(_load), timeout=60.0)
+                    self.index = await asyncio.wait_for(asyncio.to_thread(_load), timeout=300.0)
                 else:
                     self.index = None
                 
                 self._initialized = True
+            except asyncio.TimeoutError:
+                logger.error(f"RAG init error: Loading index from storage timed out after 300 seconds.")
+                self.index = None
+                self._initialized = True
             except Exception as e:
-                logger.error(f"RAG init error: {e}")
+                import traceback
+                logger.error(f"RAG init error: {e}\n{traceback.format_exc()}")
                 self.index = None
                 self._initialized = True
 
@@ -172,10 +188,91 @@ class RAGService:
             context = "Knowledge Base excerpts:\n"
             for node in top_nodes:
                 m = node.metadata
-                context += f"\n--- [{m.get('type','doc').upper()}: {m.get('title','?')} (ID: {m.get('item_id', '不明')})] ({m.get('date','?')}) ---\n{node.text}\n"
+                item_id_val = m.get('item_id') or m.get('meeting_id', '不明')
+                context += f"\n--- [{m.get('type','doc').upper()}: {m.get('title','?')} (ID: {item_id_val})] ({m.get('date','?')}) ---\n{node.text}\n"
             return context
         except Exception as e:
             logger.error(f"RAG query error: {e}")
             return ""
+
+    async def query_context_with_sources(self, query_text: str, project_id: Optional[int] = None, top_k: int = 20, metadata_filters: Optional[Dict[str, Any]] = None, recency_weight: float = 0.3, exclude_project_ids: Optional[List[int]] = None) -> tuple[str, List[str]]:
+        await self._ensure_initialized()
+        if not self.index: return "", []
+        try:
+            from llama_index.core.vector_stores import MetadataFilter, MetadataFilters, FilterOperator
+            filters_list = []
+            if project_id is not None:
+                filters_list.append(MetadataFilter(key="project_id", value=project_id, operator=FilterOperator.EQ))
+            if metadata_filters:
+                for k, v in metadata_filters.items():
+                    filters_list.append(MetadataFilter(key=k, value=v, operator=FilterOperator.EQ))
+            
+            def _retrieve():
+                retriever = self.index.as_retriever(similarity_top_k=top_k * 2, filters=MetadataFilters(filters=filters_list) if filters_list else None)
+                return retriever.retrieve(query_text)
+            
+            nodes = await asyncio.to_thread(_retrieve)
+            if not nodes: return "", []
+
+            from datetime import datetime
+            now = datetime.now()
+            scored_nodes = []
+            for node in nodes:
+                m = node.metadata
+                
+                # オフラインプロジェクトの除外
+                if exclude_project_ids and m.get("project_id") in exclude_project_ids:
+                    continue
+
+                similarity = node.score or 0.5
+                date_str = m.get('date')
+                recency_score = 0.0
+                if date_str:
+                    try:
+                        dt = datetime.fromisoformat(date_str.replace('Z', '+00:00')).replace(tzinfo=None)
+                        recency_score = max(0.0, 1.0 - ((now - dt).days / 365.0))
+                    except: pass
+                final_score = similarity * (1.0 - recency_weight) + recency_score * recency_weight
+                
+                # タイトル一致ブースト (クエリに含まれる単語がタイトルにある場合)
+                title = m.get('title', '').lower()
+                if title:
+                    query_lower = query_text.lower()
+                    if any(word in title for word in query_lower.split() if len(word) > 1):
+                        final_score += 0.2
+                
+                scored_nodes.append((final_score, node))
+            
+            scored_nodes.sort(key=lambda x: x[0], reverse=True)
+            top_nodes = [node for score, node in scored_nodes[:10]]
+
+            context = "Knowledge Base excerpts:\n"
+            sources_set = []
+            for node in top_nodes:
+                m = node.metadata
+                item_id_val = m.get('item_id') or m.get('meeting_id', '不明')
+                context += f"\n--- [{m.get('type','doc').upper()}: {m.get('title','?')} (ID: {item_id_val})] ({m.get('date','?')}) ---\n{node.text}\n"
+                
+                # ソースの作成
+                title = m.get('title')
+                date_val = m.get('date')
+                source_str = ""
+                if date_val:
+                    # '2026-05-11T12:00:00' のような形式から日付部分だけを抽出
+                    date_str_formatted = str(date_val)[:10]  # YYYY-MM-DD
+                    if title:
+                        source_str = f"{date_str_formatted} {title}"
+                    else:
+                        source_str = f"{date_str_formatted} 議事録ナレッジ"
+                elif title:
+                    source_str = title
+                
+                if source_str and source_str not in sources_set:
+                    sources_set.append(source_str)
+                    
+            return context, sources_set
+        except Exception as e:
+            logger.error(f"RAG query with sources error: {e}")
+            return "", []
 
 rag_service = RAGService()

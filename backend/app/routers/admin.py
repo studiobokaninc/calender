@@ -9,10 +9,12 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy import text
+from sqlalchemy import text, insert, DateTime, Enum, or_
+import enum
 
 from .. import crud, models, schemas, security
 from ..database import get_db, DATABASE_FILE_PATH
+from ..services.auto_backup import write_backup_data_to_zip
 from fastapi.responses import FileResponse, Response, StreamingResponse
 import tempfile
 import zipfile
@@ -111,22 +113,10 @@ async def import_csv_data(
     CSVからタスク・プロジェクトを一括インポートするロジック。
     セクション (プロジェクト情報/タスク情報) を判別して解析。
     """
-    from sqlalchemy import or_
     from ..timezone import now_jst_naive
 
     content = await file.read()
-    # Handle BOM (Byte Order Mark)
-    if content.startswith(b'\xef\xbb\xbf'):
-        content = content[3:]
-    
-    try:
-        decoded = content.decode("utf-8")
-    except UnicodeDecodeError:
-        # Fallback to Shift-JIS if UTF-8 fails (for old Excel Japanese CSV)
-        try:
-            decoded = content.decode("shift-jis")
-        except:
-            raise HTTPException(status_code=400, detail="CSVファイルの文字コードが読み取れません (UTF-8 または Shift-JIS を使用してください)")
+    decoded = _decode_csv_content(content)
 
     reader = csv.reader(io.StringIO(decoded))
     rows = list(reader)
@@ -141,31 +131,6 @@ async def import_csv_data(
     # 依存関係解決のためのキャッシュ
     # (project_id, task_name) -> db_task
     tasks_to_resolve_deps = [] # List of (db_task, deps_str_list)
-
-    def find_user_id(identifier: str) -> Optional[int]:
-        if not identifier: return None
-        # "/" や "," で区切られている可能性も考慮
-        clean_id = identifier.split("/")[0].split(",")[0].strip()
-        
-        # username -> full_name -> name -> email の順で検索
-        u = db.query(models.User).filter(
-            or_(
-                models.User.username == clean_id,
-                models.User.full_name == clean_id,
-                models.User.name == clean_id,
-                models.User.email == clean_id
-            )
-        ).first()
-        return u.id if u else None
-
-    # --- Helper: Parse Date ---
-    def parse_csv_date(date_str: str) -> Optional[datetime]:
-        if not date_str or not date_str.strip(): return None
-        date_str = date_str.strip()
-        for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y/%n/%d"):
-            try: return datetime.strptime(date_str, fmt)
-            except: continue
-        return None
 
     for i, row in enumerate(rows):
         if not row or all(not cell.strip() for cell in row):
@@ -186,8 +151,8 @@ async def import_csv_data(
             name = row[0].strip()
             if not name: continue
             
-            start_date = parse_csv_date(row[1]) if len(row) > 1 else None
-            end_date = parse_csv_date(row[2]) if len(row) > 2 else None
+            start_date = _parse_csv_date(row[1]) if len(row) > 1 else None
+            end_date = _parse_csv_date(row[2]) if len(row) > 2 else None
             desc = row[3].strip() if len(row) > 3 else ""
             
             project = db.query(models.Project).filter(models.Project.name == name).first()
@@ -226,7 +191,7 @@ async def import_csv_data(
             name = row[0].strip()
             if not name: continue
             
-            due_date = parse_csv_date(row[1]) if len(row) > 1 else None
+            due_date = _parse_csv_date(row[1]) if len(row) > 1 else None
             desc = row[2].strip() if len(row) > 2 else ""
             assignee = row[3].strip() if len(row) > 3 else ""
             try:
@@ -252,7 +217,7 @@ async def import_csv_data(
                     count += 1
                 start_date = current_d
             
-            user_id = find_user_id(assignee)
+            user_id = _find_user_by_identifier(db, assignee)
             
             # 既存タスクがあるか確認
             task_obj = db.query(models.Task).filter(
@@ -409,14 +374,295 @@ def get_csv_template(
         headers={"Content-Disposition": "attachment; filename=project_task_template.csv"}
     )
 
+TABLE_MODEL_MAP = {
+    "users": models.User,
+    "projects": models.Project,
+    "tasks": models.Task,
+    "task_status_history": models.TaskStatusHistory,
+    "events": models.Event,
+    "groups": models.Group,
+    "user_groups": models.UserGroup,
+    "notes": models.Note,
+    "chat_messages": models.ChatMessage,
+    "user_activities": models.UserActivity,
+    "user_google_tokens": models.UserGoogleToken,
+    "task_google_sync": models.TaskGoogleSync,
+    "project_google_sync": models.ProjectGoogleSync,
+    "event_google_sync": models.EventGoogleSync,
+    "meetings": models.Meeting,
+    "decisions": models.Decision,
+    "meeting_tasks": models.MeetingTask,
+    "knowledge_items": models.KnowledgeItem,
+    "knowledge_tags": models.KnowledgeTag,
+}
+
+def serialize_model(obj) -> Dict[str, Any]:
+    if obj is None:
+        return {}
+    row_dict = {}
+    for column in obj.__table__.columns:
+        val = getattr(obj, column.name)
+        if isinstance(val, datetime):
+            row_dict[column.name] = val.isoformat()
+        elif isinstance(val, enum.Enum):
+            row_dict[column.name] = val.value
+        else:
+            row_dict[column.name] = val
+    return row_dict
+
+def deserialize_model_data(model, data_list):
+    if not data_list:
+        return []
+    
+    datetime_cols = []
+    enum_cols = {}
+    for col in model.__table__.columns:
+        if isinstance(col.type, DateTime) or (hasattr(col.type, "impl") and isinstance(col.type.impl, DateTime)):
+            datetime_cols.append(col.name)
+        elif isinstance(col.type, Enum):
+            enum_cols[col.name] = col.type.enum_class
+            
+    processed_list = []
+    for item in data_list:
+        processed_item = {}
+        for k, v in item.items():
+            if k not in model.__table__.columns:
+                continue
+            if v is None:
+                processed_item[k] = None
+            elif k in datetime_cols:
+                try:
+                    processed_item[k] = datetime.fromisoformat(v)
+                except Exception:
+                    processed_item[k] = v
+            elif k in enum_cols:
+                try:
+                    processed_item[k] = enum_cols[k](v)
+                except Exception:
+                    processed_item[k] = v
+            else:
+                processed_item[k] = v
+        processed_list.append(processed_item)
+    return processed_list
+
+def _get_all_database_data(db: Session) -> Dict[str, Any]:
+    """全データベーステーブルの情報を辞書形式でダンプするヘルパー"""
+    export_data = {}
+    for table_key, model in TABLE_MODEL_MAP.items():
+        rows = db.query(model).all()
+        export_data[table_key] = [serialize_model(row) for row in rows]
+    return export_data
+
+def _decode_csv_content(content: bytes) -> str:
+    """CSVのバイト列をBOM対応およびUTF-8 / Shift-JIS自動判別でデコードするヘルパー"""
+    if content.startswith(b'\xef\xbb\xbf'):
+        content = content[3:]
+    
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        # Fallback to Shift-JIS if UTF-8 fails (for old Excel Japanese CSV)
+        try:
+            return content.decode("shift-jis")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CSVファイルの文字コードが読み取れません (UTF-8 または Shift-JIS を使用してください)"
+            )
+
+def _find_user_by_identifier(db: Session, identifier: str) -> Optional[int]:
+    """識別子 (username, full_name, name, email) からユーザーIDを検索するヘルパー"""
+    if not identifier:
+        return None
+    # "/" や "," で区切られている可能性も考慮
+    clean_id = identifier.split("/")[0].split(",")[0].strip()
+    
+    # username -> full_name -> name -> email の順で検索
+    u = db.query(models.User).filter(
+        or_(
+            models.User.username == clean_id,
+            models.User.full_name == clean_id,
+            models.User.name == clean_id,
+            models.User.email == clean_id
+        )
+    ).first()
+    return u.id if u else None
+
+def _parse_csv_date(date_str: str) -> Optional[datetime]:
+    """多様な日付フォーマットをパースするヘルパー"""
+    if not date_str or not date_str.strip():
+        return None
+    date_str = date_str.strip()
+    for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y/%n/%d"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except Exception:
+            continue
+    return None
+
+
+@router.get("/database/export-json")
+def export_all_database_json(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """データベースの全19テーブルの情報を丸ごとJSON形式のファイルとしてエクスポートする"""
+    export_data = _get_all_database_data(db)
+    
+    filename = f"database_full_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    content = json.dumps(export_data, ensure_ascii=False, indent=2)
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Cache-Control": "no-cache"
+        }
+    )
+
+@router.post("/database/import-json")
+def import_all_database_json(
+    data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """JSON形式の全データベース情報を受け取り、データベースを丸ごと復元する"""
+    logger.warning(f"Admin {current_user.email} is importing a full JSON database backup.")
+    
+    try:
+        # foreign key checksを一時的に無効化
+        db.execute(text("PRAGMA foreign_keys = OFF"))
+        
+        # 全テーブルの既存データを削除
+        for table_key, model in TABLE_MODEL_MAP.items():
+            db.execute(text(f"DELETE FROM {model.__tablename__}"))
+        
+        # 新しいデータを復元
+        counts = {}
+        for table_key, model in TABLE_MODEL_MAP.items():
+            if table_key in data and isinstance(data[table_key], list):
+                records = data[table_key]
+                if not records:
+                    counts[table_key] = 0
+                    continue
+                
+                processed_records = deserialize_model_data(model, records)
+                
+                if processed_records:
+                    db.execute(insert(model), processed_records)
+                    counts[table_key] = len(processed_records)
+                else:
+                    counts[table_key] = 0
+            else:
+                counts[table_key] = 0
+                
+        db.commit()
+        return {
+            "message": "データベースの丸ごと復元が完了しました",
+            "imported_records": counts
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Full JSON import failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"インポート復元処理中にエラーが発生しました: {str(e)}"
+        )
+    finally:
+        # foreign key checksを再有効化
+        try:
+            db.execute(text("PRAGMA foreign_keys = ON"))
+        except:
+            pass
+
+@router.get("/database/query")
+def query_database(
+    table: Optional[str] = None,
+    username: Optional[str] = None,
+    email: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """
+    外部CLIやスクリプトから、データベースを柔軟にクエリするためのAPI。
+    - table: 特定のテーブルキー名 (users, projects, tasks, notes, chat_messages, user_activities など)
+    - username: ユーザーの name または username で絞り込む場合
+    - email: ユーザーの email で絞り込む場合
+    """
+    target_user = None
+    if email or username:
+        user_query = db.query(models.User)
+        if email:
+            target_user = user_query.filter(models.User.email == email).first()
+        elif username:
+            target_user = user_query.filter(
+                or_(
+                    models.User.name == username,
+                    models.User.username == username
+                )
+            ).first()
+            
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"指定されたユーザー (email={email}, username={username}) が見つかりません。"
+            )
+
+    # 1. 特定のテーブル名が指定されている場合
+    if table:
+        if table not in TABLE_MODEL_MAP:
+            valid_keys = ", ".join(TABLE_MODEL_MAP.keys())
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"無効なテーブル名です。指定可能なテーブル名: {valid_keys}"
+            )
+            
+        model = TABLE_MODEL_MAP[table]
+        query = db.query(model)
+        
+        # ユーザーによる絞り込みの適用
+        if target_user:
+            if table == "users":
+                query = query.filter(models.User.id == target_user.id)
+            elif table == "tasks":
+                query = query.filter(models.Task.assigned_to == target_user.id)
+            elif table == "notes":
+                query = query.filter(models.Note.created_by == target_user.id)
+            elif table == "chat_messages":
+                query = query.filter(models.ChatMessage.user_id == target_user.id)
+            elif table == "user_activities":
+                query = query.filter(models.UserActivity.user_id == target_user.id)
+            elif table == "user_groups":
+                query = query.filter(models.UserGroup.user_id == target_user.id)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"テーブル '{table}' はユーザーによる絞り込みに対応していません。"
+                )
+                
+        rows = query.all()
+        return {table: [serialize_model(row) for row in rows]}
+
+    # 2. テーブル未指定で、ユーザー絞り込みがある場合 (ユーザー詳細、関連タスク、関連メモなどを一括返却)
+    if target_user:
+        return {
+            "user": serialize_model(target_user),
+            "tasks": [serialize_model(t) for t in db.query(models.Task).filter(models.Task.assigned_to == target_user.id).all()],
+            "notes": [serialize_model(n) for n in db.query(models.Note).filter(models.Note.created_by == target_user.id).all()],
+            "activities": [serialize_model(a) for a in db.query(models.UserActivity).filter(models.UserActivity.user_id == target_user.id).all()]
+        }
+
+    # 3. どちらも指定がない場合は全テーブルの丸ごとデータを取得
+    return _get_all_database_data(db)
+
 @router.get("/backup")
 def backup_json_data(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_active_admin),
 ):
     """全データをJSON形式でバックアップとして取得"""
-    # エクスポートロジックを流用（または共通化）
-    return export_mock_data(db=db, current_user=current_user)
+    # データベースの全19テーブルの情報を丸ごとJSON辞書として返却する
+    return _get_all_database_data(db)
 @router.get("/full-backup/download")
 async def download_full_backup(
     token: Optional[str] = None,
@@ -447,26 +693,7 @@ async def download_full_backup(
             pass
 
         with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # 1. DBファイルの追加
-            db_dir = DATABASE_FILE_PATH.parent
-            base_name = DATABASE_FILE_PATH.name
-            for suffix in ["", "-wal", "-shm"]:
-                file_path = db_dir / (base_name + suffix)
-                if file_path.exists():
-                    zf.write(file_path, f"database/{file_path.name}")
-            
-            # 2. RAGインデックスの追加
-            # backend/app/routers/admin.py から backend/data へのパス
-            data_dir = Path(__file__).resolve().parent.parent.parent / "data"
-            if data_dir.exists():
-                for folder_name in ["rag_index", "rag_index_openai"]:
-                    folder_path = data_dir / folder_name
-                    if folder_path.exists():
-                        for root, _, files in os.walk(folder_path):
-                            for file in files:
-                                abs_path = Path(root) / file
-                                rel_path = abs_path.relative_to(data_dir)
-                                zf.write(abs_path, f"knowledge/{rel_path}")
+            write_backup_data_to_zip(zf)
 
         # ZIPファイルをレスポンスとして返す
         def iterfile():

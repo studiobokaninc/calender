@@ -110,6 +110,26 @@ export const mockDataApi = {
     }
   },
 
+  // データベースの全19テーブルを丸ごとJSONとしてエクスポート
+  exportAllDatabaseJson: async () => {
+    try {
+      const response = await api.get('/admin/database/export-json');
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  // データベースの全19テーブルを丸ごとJSONから復元
+  importAllDatabaseJson: async (data: any) => {
+    try {
+      const response = await api.post('/admin/database/import-json', data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   // ユーザーデータのみをエクスポート
   exportUserData: async () => {
     try {
@@ -222,6 +242,22 @@ export const exportMockData = async (): Promise<MockDataImport> => {
  */
 export const importMockData = async (data: MockDataImport): Promise<any> => {
   return await mockDataApi.importMockData(data);
+};
+
+/**
+ * データベースの全19テーブルを丸ごとJSONとしてエクスポートします。
+ * 要管理者権限。
+ */
+export const exportAllDatabaseJson = async (): Promise<any> => {
+  return await mockDataApi.exportAllDatabaseJson();
+};
+
+/**
+ * データベースの全19テーブルを丸ごとJSONから復元します。
+ * 要管理者権限。
+ */
+export const importAllDatabaseJson = async (data: any): Promise<any> => {
+  return await mockDataApi.importAllDatabaseJson(data);
 };
 
 export const fetchUsers = async () => (await api.get('/api/users')).data;

@@ -41,7 +41,9 @@ from .routers import (
     activities as activities_router,
     meeting_tasks as meeting_tasks_router,
     admin as admin_router,
-    ask as ask_router
+    ask as ask_router,
+    external as external_router,
+    shots as shots_router
 )
 print("Main: ルーター読み込み完了")
 
@@ -134,6 +136,8 @@ app.include_router(groups_router.router)
 app.include_router(notes_router.router)
 app.include_router(activities_router.router)
 app.include_router(admin_router.router)
+app.include_router(external_router.router)
+app.include_router(shots_router.router)
 
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])

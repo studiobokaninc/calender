@@ -2,7 +2,12 @@ from pydantic import BaseModel, Field, EmailStr, validator, root_validator, comp
 from typing import Optional, List, Dict, Any, ForwardRef
 from datetime import datetime, date, timezone
 from . import models # models をインポート
-from typing import Optional
+
+VALID_TASK_TYPES = {
+    "animation", "layout", "comp", "fx", "lighting", "asset", 
+    "programming", "design", "testing", "documentation", 
+    "shoot", "gs", "report", "other"
+}
 
 # --- User Schemas ---
 
@@ -215,9 +220,23 @@ class TaskBase(BaseModel):
     dependsOn: Optional[List[str]] = Field(default_factory=list)
     shotID: Optional[str] = None
     seqID: Optional[str] = None
+    shot_id: Optional[int] = None
     phases: Optional[List[Dict[str, Any]]] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
+
+    @validator('type', pre=True)
+    def validate_task_type(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip().lower()
+        if s == "aseet":
+            s = "asset"
+        elif s == "anim":
+            s = "animation"
+        if s not in VALID_TASK_TYPES:
+            s = "other"
+        return s
 
 class TaskCreate(TaskBase):
     project_id: Optional[int] = None
@@ -238,9 +257,23 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     dependsOn: Optional[List[str]] = None
     shotID: Optional[str] = None
     seqID: Optional[str] = None
+    shot_id: Optional[int] = None
     phases: Optional[List[Dict[str, Any]]] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
+
+    @validator('type', pre=True)
+    def validate_task_type_update(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip().lower()
+        if s == "aseet":
+            s = "asset"
+        elif s == "anim":
+            s = "animation"
+        if s not in VALID_TASK_TYPES:
+            s = "other"
+        return s
 
 class TaskBulkUpdateRequest(BaseModel):
     """一括更新: 指定したタスクに同じ項目を適用"""
@@ -261,6 +294,42 @@ class TaskResponse(TaskBase):
     # Pydantic V1 の場合
     class Config:
         from_attributes = True # orm_mode から変更
+
+# --- Shot Schemas ---
+
+class ShotBase(BaseModel):
+    project_id: int
+    seq_code: str
+    shot_code: str
+    display_order: Optional[int] = 0
+    status: Optional[str] = "planning"
+    thumbnail_url: Optional[str] = None
+    description: Optional[str] = None
+
+class ShotCreate(ShotBase):
+    pass
+
+class ShotUpdate(BaseModel):
+    seq_code: Optional[str] = None
+    shot_code: Optional[str] = None
+    display_order: Optional[int] = None
+    status: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    description: Optional[str] = None
+
+class ShotResponse(ShotBase):
+    id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class ShotProgressResponse(BaseModel):
+    shot_id: int
+    total_tasks: int
+    completed_tasks: int
+    average_progress: float
 
 # --- Note Schemas ---
 

@@ -394,6 +394,7 @@ TABLE_MODEL_MAP = {
     "meeting_tasks": models.MeetingTask,
     "knowledge_items": models.KnowledgeItem,
     "knowledge_tags": models.KnowledgeTag,
+    "shots": models.Shot,
 }
 
 def serialize_model(obj) -> Dict[str, Any]:

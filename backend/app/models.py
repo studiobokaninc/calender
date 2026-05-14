@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, Text, Enum, JSON
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Float, Text, Enum, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship, Mapped, mapped_column, selectinload
 import enum
 from typing import List, Optional, Dict, Any
@@ -103,6 +103,24 @@ class TaskStatusHistory(Base):
 
     task: Mapped["Task"] = relationship(back_populates="status_history")
 
+
+class Shot(Base):
+    __tablename__ = "shots"
+    __table_args__ = (UniqueConstraint('project_id', 'seq_code', 'shot_code', name='uix_project_seq_shot'),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    seq_code: Mapped[str] = mapped_column(String(50), index=True)
+    shot_code: Mapped[str] = mapped_column(String(50), index=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(50), default="planning")
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+    project: Mapped["Project"] = relationship("Project")
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -121,6 +139,7 @@ class Task(Base):
     dependsOn: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     shotID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     seqID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
+    shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id", ondelete="SET NULL"), index=True, nullable=True)
     phases: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
     deliverables: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 提出物
     check_items: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True) # 確認事項
@@ -132,6 +151,7 @@ class Task(Base):
 
     assignee: Mapped[Optional["User"]] = relationship("User")
     project: Mapped[Optional["Project"]] = relationship("Project")
+    shot: Mapped[Optional["Shot"]] = relationship("Shot")
 
     status_history: Mapped[List["TaskStatusHistory"]] = relationship(
         back_populates="task",

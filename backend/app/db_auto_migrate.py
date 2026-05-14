@@ -141,6 +141,36 @@ def check_and_migrate_db():
         conn.commit()
         print("knowledge_items/tagsテーブルを確認・作成しました。")
 
+        # shotsテーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS shots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                seq_code VARCHAR(50) NOT NULL,
+                shot_code VARCHAR(50) NOT NULL,
+                display_order INTEGER DEFAULT 0,
+                status VARCHAR(50) DEFAULT 'planning',
+                thumbnail_url TEXT,
+                description TEXT,
+                created_at DATETIME,
+                updated_at DATETIME,
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                UNIQUE(project_id, seq_code, shot_code)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_shots_project ON shots(project_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_shots_seq ON shots(project_id, seq_code)")
+        conn.commit()
+        print("shotsテーブルを確認・作成しました。")
+
+        # tasksテーブルにshot_idカラムが存在するか確認して追加
+        if 'shot_id' not in task_columns:
+            print("shot_idカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE tasks ADD COLUMN shot_id INTEGER REFERENCES shots(id) ON DELETE SET NULL")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_shot ON tasks(shot_id)")
+            conn.commit()
+            print("shot_idカラムを追加しました。")
+
         conn.close()
         
     except sqlite3.Error as e:

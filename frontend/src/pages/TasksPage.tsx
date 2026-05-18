@@ -13,7 +13,8 @@ import {
     Add as AddIcon, Task as TaskIcon
 } from '@mui/icons-material';
 import { IconButton, Fab } from '@mui/material';
-import api from '../services/api';
+import api, { mockDataApi } from '../services/api';
+
 import { Task, Project, User } from '../types'; // Import User type as well
 import { format, parseISO, isValid, isBefore, startOfDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
@@ -198,9 +199,38 @@ const TasksPage: React.FC = () => {
         type: '',
         seqID: '',
         shotID: '',
-        dependsOn: []
+        dependsOn: [],
+        shot_id: null
     });
+    const [shots, setShots] = useState<{ id: number; shotID: string; seqID: string }[]>([]);
+
+    useEffect(() => {
+        if (!currentTask.project_id) {
+            setShots([]);
+            return;
+        }
+        mockDataApi.getProductionTracker(currentTask.project_id)
+            .then((data: any) => {
+                const allShots: { id: number; shotID: string; seqID: string }[] = [];
+                if (data && data.sequences) {
+                    data.sequences.forEach((seqData: any) => {
+                        if (seqData.shots) {
+                            seqData.shots.forEach((s: any) => {
+                                allShots.push({ id: s.id, shotID: s.shotID, seqID: seqData.seqID });
+                            });
+                        }
+                    });
+                }
+                setShots(allShots);
+            })
+
+
+            .catch(() => console.error('Failed to fetch shots'));
+    }, [currentTask.project_id]);
+
+
     const [snackbar, setSnackbar] = useState<{
+
         open: boolean;
         message: string;
         severity: 'success' | 'error' | 'info' | 'warning';
@@ -610,7 +640,7 @@ const TasksPage: React.FC = () => {
     const handleSelectChange = (e: SelectChangeEvent<string | number>) => {
         const { name, value } = e.target;
         if (!name) return;
-        const isIdField = name === 'project_id' || name === 'assigned_to';
+        const isIdField = name === 'project_id' || name === 'assigned_to' || name === 'shot_id';
         const normalized = (value === '' || value == null)
             ? null
             : (isIdField && typeof value === 'string' && /^\d+$/.test(value) ? parseInt(value, 10) : value);
@@ -619,9 +649,21 @@ const TasksPage: React.FC = () => {
             if (name === 'project_id' && prev.project_id !== normalized) {
                 next.dependsOn = [];
             }
+            if (name === 'shot_id') {
+                const selectedShot = shots.find(s => s.id === normalized);
+                if (selectedShot) {
+                    next.seqID = selectedShot.seqID;
+                    next.shotID = selectedShot.shotID;
+                } else {
+                    next.seqID = '';
+                    next.shotID = '';
+                }
+            }
             return next;
         });
     };
+
+
 
     const handleMultiSelectChange = (e: SelectChangeEvent<string[]>) => {
         const { name, value } = e.target;
@@ -661,8 +703,11 @@ const TasksPage: React.FC = () => {
                 due_date: currentTask.due_date,
                 cost: currentTask.cost || 0,
                 type: currentTask.type?.toLowerCase() || '',
-                seqID: currentTask.seqID || '',
-                shotID: currentTask.shotID || '',
+                shot_id: currentTask.shot_id,
+                seqID: currentTask.seqID,
+                shotID: currentTask.shotID,
+
+
                 dependsOn: currentTask.dependsOn || [],
                 display_status: 'online'
             };
@@ -1687,6 +1732,27 @@ const TasksPage: React.FC = () => {
                             size="small"
                             inputProps={{ step: '0.1' }}
                         />
+                        <FormControl fullWidth size="small" disabled={!currentTask.project_id}>
+                            <InputLabel>ショット</InputLabel>
+                            <Select
+                                name="shot_id"
+                                value={currentTask.shot_id ?? ''}
+                                label="ショット"
+                                onChange={handleSelectChange}
+                            >
+                                {!currentTask.project_id ? (
+                                    <MenuItem value="" disabled>プロジェクトを先に選択してください</MenuItem>
+                                ) : shots.length === 0 ? (
+                                    <MenuItem value="" disabled>このプロジェクトにはショットがありません</MenuItem>
+                                ) : (
+                                    <MenuItem value="">選択してください</MenuItem>
+                                )}
+                                {shots.map((s) => (
+                                    <MenuItem key={s.id} value={s.id}>{s.shotID}</MenuItem>
+                                ))}
+                            </Select>
+
+                        </FormControl>
                         <TextField
                             name="seqID"
                             label="シーケンスID"
@@ -1694,6 +1760,8 @@ const TasksPage: React.FC = () => {
                             onChange={handleInputChange}
                             fullWidth
                             size="small"
+                            InputProps={{ readOnly: !!currentTask.shot_id }}
+                            sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
                         />
                         <TextField
                             name="shotID"
@@ -1702,7 +1770,12 @@ const TasksPage: React.FC = () => {
                             onChange={handleInputChange}
                             fullWidth
                             size="small"
+                            InputProps={{ readOnly: !!currentTask.shot_id }}
+                            sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
                         />
+
+
+
                         <FormControl fullWidth size="small">
                             <InputLabel>Type</InputLabel>
                             <Select
@@ -1711,16 +1784,21 @@ const TasksPage: React.FC = () => {
                                 label="Type"
                                 onChange={handleSelectChange}
                             >
-                                <MenuItem value="development">Development</MenuItem>
-                                <MenuItem value="design">Design</MenuItem>
-                                <MenuItem value="documentation">Documentation</MenuItem>
-                                <MenuItem value="testing">Testing</MenuItem>
-                                <MenuItem value="maintenance">Maintenance</MenuItem>
-                                <MenuItem value="fx">FX</MenuItem>
-                                <MenuItem value="asset">Asset</MenuItem>
-                                <MenuItem value="animation">Animation</MenuItem>
-                                <MenuItem value="lighting">Lighting</MenuItem>
-                                <MenuItem value="comp">Comp</MenuItem>
+                                <MenuItem value="animation">animation</MenuItem>
+                                <MenuItem value="layout">layout</MenuItem>
+                                <MenuItem value="comp">comp</MenuItem>
+                                <MenuItem value="fx">fx</MenuItem>
+                                <MenuItem value="lighting">lighting</MenuItem>
+                                <MenuItem value="asset">asset</MenuItem>
+                                <MenuItem value="programming">programming</MenuItem>
+                                <MenuItem value="design">design</MenuItem>
+                                <MenuItem value="testing">testing</MenuItem>
+                                <MenuItem value="documentation">documentation</MenuItem>
+                                <MenuItem value="shoot">shoot</MenuItem>
+                                <MenuItem value="gs">gs</MenuItem>
+                                <MenuItem value="report">report</MenuItem>
+                                <MenuItem value="other">other</MenuItem>
+
                             </Select>
                         </FormControl>
                         <FormControl fullWidth size="small" disabled={!currentTask.project_id}>

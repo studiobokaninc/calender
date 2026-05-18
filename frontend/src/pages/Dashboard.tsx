@@ -623,21 +623,23 @@ const Dashboard: React.FC = () => {
         </Box>
       )}
 
-      {(retakes.length > 0 || troubles.length > 0 || notifications.length > 0) && (
+      {((retakes.filter(r => r.status === 'open' || r.status === 'in_progress').length > 0) || 
+        (troubles.filter(t => t.status === 'open').length > 0) || 
+        (notifications.filter(n => !n.is_read).length > 0)) && (
         <Box sx={{ mb: 4 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 2, fontSize: '0.9rem' }}>制作詳細アラート</Typography>
           <Grid container spacing={2}>
             {/* リテイク詳細 */}
-            {retakes.length > 0 && (
+            {retakes.filter(r => r.status === 'open' || r.status === 'in_progress').length > 0 && (
               <Grid item xs={12} md={4}>
                 <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                     <HistoryIcon color="error" />
                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>最近のリテイク</Typography>
-                    <Chip label={retakes.length} size="small" color="error" sx={{ height: 20, fontWeight: 800 }} />
+                    <Chip label={retakes.filter(r => r.status === 'open' || r.status === 'in_progress').length} size="small" color="error" sx={{ height: 20, fontWeight: 800 }} />
                   </Stack>
                   <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
-                    {retakes.slice(0, 4).map((r) => {
+                    {retakes.filter(r => r.status === 'open' || r.status === 'in_progress').slice(0, 4).map((r) => {
                       const date = r.created_at ? new Date(r.created_at) : null;
                       const dateStr = (date && !isNaN(date.getTime())) ? format(date, 'MM/dd') : '';
                       return (
@@ -653,7 +655,7 @@ const Dashboard: React.FC = () => {
                         </Box>
                       );
                     })}
-                    {retakes.length > 4 && (
+                    {retakes.filter(r => r.status === 'open' || r.status === 'in_progress').length > 4 && (
                       <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全て表示</Button>
                     )}
                   </Stack>
@@ -662,7 +664,7 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* トラブル詳細 */}
-            {troubles.length > 0 && (
+            {troubles.filter(t => t.status === 'open').length > 0 && (
               <Grid item xs={12} md={4}>
                 <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
@@ -683,7 +685,7 @@ const Dashboard: React.FC = () => {
                         <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>報告者: {t.reporter_name || 'Unknown'}</Typography>
                       </Box>
                     ))}
-                    {troubles.length > 4 && (
+                    {troubles.filter(t => t.status === 'open').length > 4 && (
                       <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全て表示</Button>
                     )}
                   </Stack>
@@ -692,7 +694,7 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* 通知詳細 */}
-            {notifications.length > 0 && (
+            {notifications.filter(n => !n.is_read).length > 0 && (
               <Grid item xs={12} md={4}>
                 <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
@@ -701,7 +703,7 @@ const Dashboard: React.FC = () => {
                     <Chip label={notifications.filter(n => !n.is_read).length} size="small" color="primary" sx={{ height: 20, fontWeight: 800 }} />
                   </Stack>
                   <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
-                    {notifications.slice(0, 4).map((n) => {
+                    {notifications.filter(n => !n.is_read).slice(0, 4).map((n) => {
                       const date = n.created_at ? new Date(n.created_at) : null;
                       const dateStr = (date && !isNaN(date.getTime())) ? format(date, 'MM/dd HH:mm') : '';
                       return (
@@ -716,7 +718,7 @@ const Dashboard: React.FC = () => {
                         </Box>
                       );
                     })}
-                    {notifications.length > 4 && (
+                    {notifications.filter(n => !n.is_read).length > 4 && (
                       <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全ての通知を確認</Button>
                     )}
                   </Stack>
@@ -725,7 +727,8 @@ const Dashboard: React.FC = () => {
             )}
           </Grid>
         </Box>
-      )}
+      )
+}
 
       <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>今週の概要</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>

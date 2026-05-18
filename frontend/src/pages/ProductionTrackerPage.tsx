@@ -239,12 +239,13 @@ const ProductionTrackerPage: React.FC = () => {
                     break;
                 case 5: // 通知・履歴
                     const [notifs, msgs] = await Promise.all([
-                        shotsApi.getNotifications(),
-                        shotsApi.getUserMessages()
+                        shotsApi.getNotifications({ project_id: projectId }),
+                        shotsApi.getUserMessages({ project_id: projectId })
                     ]);
                     setNotifications(notifs);
                     setUserMessages(msgs);
                     break;
+
             }
         } catch (err: any) {
             console.error('Failed to fetch tab data', err);
@@ -485,15 +486,17 @@ const ProductionTrackerPage: React.FC = () => {
                                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <HistoryIcon color="error" /> リテイク状況 ({shotDetails?.retakes.length || 0})
                                         </Typography>
-                                        <RetakesList retakes={shotDetails?.retakes || []} />
+                                        <RetakesList retakes={shotDetails?.retakes || []} compact={true} />
                                     </Box>
+
 
                                     <Box>
                                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <TroubleIcon color="warning" /> トラブル報告 ({shotDetails?.troubles.length || 0})
                                         </Typography>
-                                        <TroublesList troubles={shotDetails?.troubles || []} />
+                                        <TroublesList troubles={shotDetails?.troubles || []} compact={true} />
                                     </Box>
+
 
                                     <Box>
                                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>

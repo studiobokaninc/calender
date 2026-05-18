@@ -11,7 +11,8 @@ import {
     Chip,
     Box,
     alpha,
-    useTheme
+    useTheme,
+    Stack
 } from '@mui/material';
 import { Retake } from '../../types';
 import { History as HistoryIcon } from '@mui/icons-material';
@@ -19,9 +20,10 @@ import { History as HistoryIcon } from '@mui/icons-material';
 interface RetakesListProps {
     retakes: Retake[];
     loading?: boolean;
+    compact?: boolean;
 }
 
-export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading }) => {
+export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading, compact }) => {
     const theme = useTheme();
 
     if (retakes.length === 0 && !loading) {
@@ -41,6 +43,53 @@ export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading }) =>
             default: return 'default';
         }
     };
+
+    if (compact) {
+        return (
+            <Stack spacing={2}>
+                {retakes.map((retake) => (
+                    <Paper key={retake.id} variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.8) }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>#{retake.id}</Typography>
+                                <Chip 
+                                    label={retake.priority || 'NORMAL'} 
+                                    size="small" 
+                                    color={retake.priority === 'HIGH' ? 'error' : 'default'} 
+                                    sx={{ fontWeight: 700, height: 20, fontSize: '0.65rem' }}
+                                />
+                            </Box>
+                            <Chip 
+                                label={retake.status.toUpperCase()} 
+                                size="small" 
+                                color={getStatusColor(retake.status)}
+                                variant="outlined"
+                                sx={{ fontWeight: 800, height: 20 }}
+                            />
+                        </Box>
+                        <Typography variant="body2" sx={{ mb: 1, whiteSpace: 'pre-wrap', fontWeight: 500, color: 'text.primary' }}>
+                            {retake.overall_comment || 'コメントなし'}
+                        </Typography>
+                        {retake.timecodes.length > 0 && (
+                            <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                {retake.timecodes.map((tc, idx) => (
+                                    <Chip key={idx} label={tc.timecode} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 18 }} />
+                                ))}
+                            </Box>
+                        )}
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="caption" color="text.secondary">
+                                締切: {retake.deadline ? new Date(retake.deadline).toLocaleDateString() : '-'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {new Date(retake.created_at).toLocaleDateString()}
+                            </Typography>
+                        </Box>
+                    </Paper>
+                ))}
+            </Stack>
+        );
+    }
 
     return (
         <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 2 }}>
@@ -99,3 +148,4 @@ export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading }) =>
         </TableContainer>
     );
 };
+

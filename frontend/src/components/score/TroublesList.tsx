@@ -11,7 +11,8 @@ import {
     Chip,
     Box,
     alpha,
-    useTheme
+    useTheme,
+    Stack
 } from '@mui/material';
 import { Trouble } from '../../types';
 import { ReportProblem as TroubleIcon } from '@mui/icons-material';
@@ -19,9 +20,10 @@ import { ReportProblem as TroubleIcon } from '@mui/icons-material';
 interface TroublesListProps {
     troubles: Trouble[];
     loading?: boolean;
+    compact?: boolean;
 }
 
-export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading }) => {
+export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading, compact }) => {
     const theme = useTheme();
 
     if (troubles.length === 0 && !loading) {
@@ -42,6 +44,43 @@ export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading })
             default: return 'default';
         }
     };
+
+    if (compact) {
+        return (
+            <Stack spacing={2}>
+                {troubles.map((trouble) => (
+                    <Paper key={trouble.id} variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.background.paper, 0.8) }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary' }}>#{trouble.id}</Typography>
+                                <Chip label={trouble.category} size="small" variant="outlined" sx={{ height: 20 }} />
+                                <Chip 
+                                    label={trouble.severity?.toUpperCase() || 'NORMAL'} 
+                                    size="small" 
+                                    color={getSeverityColor(trouble.severity)} 
+                                    sx={{ fontWeight: 700, height: 20, fontSize: '0.65rem' }}
+                                />
+                            </Box>
+                            <Chip 
+                                label={trouble.status.toUpperCase()} 
+                                size="small" 
+                                color={trouble.status === 'open' ? 'error' : 'success'}
+                                sx={{ fontWeight: 800, height: 20 }}
+                            />
+                        </Box>
+                        <Typography variant="body2" sx={{ mb: 1, whiteSpace: 'pre-wrap', fontWeight: 500, color: 'text.primary' }}>
+                            {trouble.description}
+                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <Typography variant="caption" color="text.secondary">
+                                {new Date(trouble.created_at).toLocaleDateString()}
+                            </Typography>
+                        </Box>
+                    </Paper>
+                ))}
+            </Stack>
+        );
+    }
 
     return (
         <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: 2 }}>
@@ -92,3 +131,4 @@ export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading })
         </TableContainer>
     );
 };
+

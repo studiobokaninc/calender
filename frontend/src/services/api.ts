@@ -422,13 +422,14 @@ export const shotsApi = {
     const response = await api.get('/api/routines', { params })
     return response.data
   },
-  getNotifications: async (params?: { recipient_id?: number }) => {
+  getNotifications: async (params?: { recipient_id?: number; project_id?: number }) => {
     const response = await api.get('/api/notifications', { params })
     return response.data
   },
-  getUserMessages: async (params?: { shot_id?: number; author_id?: number }) => {
+  getUserMessages: async (params?: { shot_id?: number; author_id?: number; project_id?: number }) => {
     const response = await api.get('/api/user_messages', { params })
     return response.data
   },
+
 }
 

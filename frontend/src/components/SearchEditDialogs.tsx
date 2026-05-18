@@ -3,7 +3,8 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel,
   Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography,
 } from '@mui/material';
-import api from '../services/api';
+import api, { mockDataApi } from '../services/api';
+
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
 import EventAddModal from './EventAddModal';
 import { Group } from '../types';
@@ -138,8 +139,9 @@ interface TaskEditDialogProps {
 }
 
 const TASK_TYPE_OPTIONS = [
-  'design', 'documentation', 'testing', 'review', 'meeting',
-  'fx', 'asset', 'animation', 'lighting', 'comp',
+  "animation", "layout", "comp", "fx", "lighting", "asset", 
+  "programming", "design", "testing", "documentation", 
+  "shoot", "gs", "report", "other"
 ];
 
 export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, onClose, onSaved }) => {
@@ -149,6 +151,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [shots, setShots] = useState<{ id: number; shotID: string; seqID: string }[]>([]);
   const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -163,9 +166,11 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     type: '',
     seqID: '',
     shotID: '',
+    shot_id: null as number | null,
     dependsOn: [] as string[],
     phases: [] as { name: string; date: string }[],
   });
+
 
   useEffect(() => {
     if (!open || taskId == null) return;
@@ -197,6 +202,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
           type: (t as any).type?.toLowerCase() ?? (t as any).extendedProps?.type?.toLowerCase() ?? '',
           seqID: (t as any).seqID ?? (t as any).extendedProps?.seqID ?? '',
           shotID: (t as any).shotID ?? (t as any).extendedProps?.shotID ?? '',
+          shot_id: (t as any).shot_id ?? null,
           dependsOn: t.dependsOn ?? [],
           phases: t.phases ?? [],
         });
@@ -205,16 +211,51 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
       .finally(() => setLoading(false));
   }, [open, taskId]);
 
+  useEffect(() => {
+    if (!form.project_id) {
+      setShots([]);
+      return;
+    }
+    mockDataApi.getProductionTracker(form.project_id)
+      .then((data: any) => {
+        const allShots: { id: number; shotID: string; seqID: string }[] = [];
+        if (data && data.sequences) {
+          data.sequences.forEach((seqData: any) => {
+            if (seqData.shots) {
+              seqData.shots.forEach((s: any) => {
+                allShots.push({ id: s.id, shotID: s.shotID, seqID: seqData.seqID });
+              });
+            }
+          });
+        }
+        setShots(allShots);
+      })
+
+
+      .catch(() => console.error('Failed to fetch shots'));
+  }, [form.project_id]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent<string | number>) => {
     const name = e.target.name;
     const value = e.target.value;
-    if (name === 'project_id' || name === 'assigned_to') {
+    if (name === 'project_id' || name === 'assigned_to' || name === 'shot_id') {
       setForm((prev) => {
         const next = { ...prev, [name]: value === '' ? null : Number(value) };
         if (name === 'project_id' && prev.project_id !== next.project_id) next.dependsOn = [];
+        if (name === 'shot_id') {
+          const selectedShot = shots.find(s => s.id === Number(value));
+          if (selectedShot) {
+            next.seqID = selectedShot.seqID;
+            next.shotID = selectedShot.shotID;
+          } else {
+            next.seqID = '';
+            next.shotID = '';
+          }
+        }
         return next;
       });
     } else if (name === 'cost') {
+
       setForm((prev) => ({ ...prev, [name]: Number(value) || 0 }));
     } else if (name) {
       setForm((prev) => ({ ...prev, [name]: value }));
@@ -256,8 +297,11 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
         priority: (form.priority || 'low').toUpperCase(),
         cost: form.cost,
         type: (form.type || '').toLowerCase(),
-        seqID: form.seqID || '',
-        shotID: form.shotID || '',
+        shot_id: form.shot_id,
+        seqID: form.seqID,
+        shotID: form.shotID,
+
+
         dependsOn: form.dependsOn || [],
         phases: form.phases || [],
         display_status: 'online',
@@ -333,8 +377,45 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
               </Select>
             </FormControl>
             <TextField name="cost" label="コスト" type="number" value={form.cost} onChange={handleChange} fullWidth size="small" inputProps={{ min: 0, step: 0.1 }} />
-            <TextField name="seqID" label="シーケンスID" value={form.seqID} onChange={handleChange} fullWidth size="small" />
-            <TextField name="shotID" label="ショットID" value={form.shotID} onChange={handleChange} fullWidth size="small" />
+            <FormControl fullWidth size="small" disabled={!form.project_id}>
+              <InputLabel>ショット</InputLabel>
+              <Select name="shot_id" value={form.shot_id ?? ''} label="ショット" onChange={handleChange}>
+                {!form.project_id ? (
+                  <MenuItem value="" disabled>プロジェクトを先に選択してください</MenuItem>
+                ) : shots.length === 0 ? (
+                  <MenuItem value="" disabled>このプロジェクトにはショットがありません</MenuItem>
+                ) : (
+                  <MenuItem value="">選択してください</MenuItem>
+                )}
+                {shots.map((s) => (
+                  <MenuItem key={s.id} value={s.id}>{s.shotID}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              name="seqID"
+              label="シーケンスID"
+              value={form.seqID}
+              onChange={handleChange}
+              fullWidth
+              size="small"
+              InputProps={{ readOnly: !!form.shot_id }}
+              sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
+            />
+            <TextField
+              name="shotID"
+              label="ショットID"
+              value={form.shotID}
+              onChange={handleChange}
+              fullWidth
+              size="small"
+              InputProps={{ readOnly: !!form.shot_id }}
+              sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
+            />
+
+
+
             <FormControl fullWidth size="small">
               <InputLabel>Type</InputLabel>
               <Select name="type" value={form.type} label="Type" onChange={handleChange}>

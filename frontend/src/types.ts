@@ -37,6 +37,8 @@ export interface Task {
   priority?: 'low' | 'medium' | 'high' | 'LOW' | 'MEDIUM' | 'HIGH' | string | null;
   seqID?: string | null;
   shotID?: string | null;
+  shot_id?: number | null;
+  seq_id?: number | null;
   phases?: { name: string; date: string; is_completed?: boolean }[] | null;
   deliverables?: string | null;
   check_items?: { label: string; checked: boolean }[] | null;
@@ -187,8 +189,16 @@ export interface Group {
 export interface DashboardMetrics {
   users: number;
   tasks: number;
+  completed_tasks?: number;
   projects: number;
   events: number;
+  shots: number;
+  project_metrics?: Array<{
+    id: number;
+    name: string;
+    tasks: number;
+    completed_tasks: number;
+  }>;
 }
 
 // ★★★ Remove UserGroup interface if it conflicts or isn't used extensively ★★★
@@ -304,6 +314,53 @@ export interface NoteCreate {
   project_id?: number | null;
 }
 
+// --- Score / Production Tracker Types ---
+
+export interface Shot {
+  id: number;
+  project_id: number;
+  seq_code: string;
+  shot_code: string;
+  display_order: number;
+  status: string;
+  thumbnail_url?: string | null;
+  description?: string | null;
+  retakes_count?: number;
+  troubles_count?: number;
+  tasks?: { [type: string]: Task[] };
+}
+
+export interface Retake {
+  id: number;
+  shot_id: number;
+  overall_comment?: string | null;
+  status: 'open' | 'in_progress' | 'closed';
+  priority?: string | null;
+  deadline?: string | null;
+  created_by: number;
+  created_at: string;
+  timecodes: RetakeTimecode[];
+}
+
+export interface RetakeTimecode {
+  id: number;
+  retake_id: number;
+  timecode: string;
+  comment?: string | null;
+}
+
+export interface Trouble {
+  id: number;
+  shot_id: number;
+  category: string;
+  description: string;
+  severity?: string | null;
+  status: 'open' | 'resolved' | 'closed';
+  assigned_to?: number | null;
+  created_by: number;
+  created_at: string;
+}
+
 export interface Meeting {
   id: number;
   project_id: number;
@@ -348,4 +405,70 @@ export interface NoteUpdate {
   content_position?: { x: number; y: number; width: number; height: number } | null; // 後方互換性のため残す
   text_boxes?: Array<{ id: string; content: string; x: number; y: number; width: number; height: number }> | null;
   project_id?: number | null;
+}
+
+export interface ChangeRequest {
+  id: number;
+  shot_id?: number | null;
+  task_id?: number | null;
+  type: string;
+  proposed_value?: string | null;
+  reason?: string | null;
+  status: string;
+  created_by: number;
+  created_at: string;
+}
+
+export interface LookDistribution {
+  id: number;
+  shot_ids: number[];
+  look_dev_id: number;
+  status: string;
+  assigned_to: number;
+  created_by: number;
+  created_at: string;
+}
+
+export interface Timecard {
+  id: number;
+  user_id: number;
+  date: string;
+  clock_out_at?: string | null;
+  worked_minutes: number;
+  break_minutes: number;
+  memo?: string | null;
+}
+
+export interface Routine {
+  id: number;
+  user_id: number;
+  date: string;
+  condition?: string | null;
+  blockers?: string[] | null;
+  ai_priorities_adopted?: number[] | null;
+}
+
+export interface UserMessage {
+  id: number;
+  channel_id: string;
+  shot_id?: number | null;
+  body: string;
+  author_id: number;
+  created_at: string;
+}
+
+export interface Notification {
+  id: number;
+  recipient_id: number;
+  type: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface ScoreUserRole {
+  id: number;
+  user_id: number;
+  project_id: number;
+  role: string;
 }

@@ -145,7 +145,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
     { text: 'ユーザー', icon: <UserIcon />, path: '/admin/users', isAdmin: true },
-    { text: '進捗トラッカー', icon: <TrackerIcon />, path: '/production-tracker', isAdmin: true },
+    { text: '進捗トラッカー', icon: <TrackerIcon />, path: '/production-tracker' },
     { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
     { text: '議事録', icon: <DescriptionIcon />, path: '/meetings' },
     { text: 'AI推薦タスク', icon: <AIRecommendedIcon />, path: '/ai-tasks', isAdmin: true },

@@ -3,18 +3,11 @@ import {
     Box,
     Typography,
     Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Select,
-    MenuItem,
     FormControl,
     InputLabel,
+    Select,
+    MenuItem,
     CircularProgress,
-    Tooltip,
     IconButton,
     Breadcrumbs,
     Link,
@@ -22,18 +15,42 @@ import {
     alpha,
     Stack,
     Drawer,
-    LinearProgress
+    Button,
+    Divider,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Tabs,
+    Tab,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
-    Error as ErrorIcon,
     ViewModule as ViewModuleIcon,
     Close as CloseIcon,
+    Add as AddIcon,
+    Assignment as AssignmentIcon,
+    History as HistoryIcon,
+    ReportProblem as TroubleIcon,
+    Person as PersonIcon,
+    SwapHoriz as ChangeIcon,
+    Palette as LookIcon,
 } from '@mui/icons-material';
-import api, { mockDataApi, fetchProjects, fetchUsers } from '../services/api';
-import { Project, Task, User } from '../types';
+import api, { mockDataApi, fetchProjects, fetchUsers, shotsApi } from '../services/api';
+import { Project, Task, User, Retake, Trouble, ChangeRequest, LookDistribution, Notification, UserMessage } from '../types';
 import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
+import { useAuth } from '../contexts/AuthContext';
+import { ToggleButton, ToggleButtonGroup } from '@mui/material';
+
+// Import sub-components
+import { ShotTrackerTable } from '../components/score/ShotTrackerTable';
+import { RetakesList } from '../components/score/RetakesList';
+import { TroublesList } from '../components/score/TroublesList';
+import { ChangeRequestsList } from '../components/score/ChangeRequestsList';
+import { LookDistributionsList } from '../components/score/LookDistributionsList';
+import { ProductionHistory } from '../components/score/ProductionHistory';
 
 interface TaskInfo {
     id: number;
@@ -44,7 +61,12 @@ interface TaskInfo {
 }
 
 interface ShotData {
+    id: number;
     shotID: string;
+    status: string;
+    thumbnail_url?: string | null;
+    retakes_count: number;
+    troubles_count: number;
     tasks: { [type: string]: TaskInfo[] };
 }
 
@@ -55,21 +77,63 @@ interface SequenceData {
 
 const ProductionTrackerPage: React.FC = () => {
     const theme = useTheme();
+    const { user } = useAuth();
     const [projects, setProjects] = useState<Project[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
+    const [activeTab, setActiveTab] = useState(0);
+
+    // Data states
     const [trackerData, setTrackerData] = useState<{ sequences: SequenceData[]; types: string[] } | null>(null);
+    const [retakes, setRetakes] = useState<Retake[]>([]);
+    const [troubles, setTroubles] = useState<Trouble[]>([]);
+    const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+    const [lookDistributions, setLookDistributions] = useState<LookDistribution[]>([]);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [userMessages, setUserMessages] = useState<UserMessage[]>([]);
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showMyTasksOnly, setShowMyTasksOnly] = useState(false);
 
-    // タスク詳細用State
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    // Filtered data for tracker
+    const filteredTrackerData = useMemo(() => {
+        if (!trackerData) return null;
+        if (!showMyTasksOnly || !user) return trackerData;
+
+        const filteredSequences = trackerData.sequences.map(seq => {
+            const filteredShots = seq.shots.filter(shot => {
+                return Object.values(shot.tasks).some(tasks => 
+                    tasks.some(t => t.assignee === user.username || t.assignee === user.full_name)
+                );
+            });
+            return { ...seq, shots: filteredShots };
+        }).filter(seq => seq.shots.length > 0);
+
+        return { ...trackerData, sequences: filteredSequences };
+    }, [trackerData, showMyTasksOnly, user]);
+
+    // Drawer/Dialog states
+    const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [isTaskLoading, setIsTaskLoading] = useState(false);
     const [editTaskId, setEditTaskId] = useState<number | null>(null);
 
+    const [selectedShot, setSelectedShot] = useState<ShotData | null>(null);
+    const [shotDetails, setShotDetails] = useState<{
+        retakes: Retake[];
+        troubles: Trouble[];
+        messages: UserMessage[];
+    } | null>(null);
+    const [isShotDrawerOpen, setIsShotDrawerOpen] = useState(false);
+    const [isShotLoading, setIsShotLoading] = useState(false);
+
+    const [isAddShotDialogOpen, setIsAddShotDialogOpen] = useState(false);
+    const [newShot, setNewShot] = useState({ seq_code: '', shot_code: '', description: '' });
+
     const stats = useMemo(() => {
-        if (!trackerData) return null;
+        const data = filteredTrackerData || trackerData;
+        if (!data || !data.sequences) return null;
         let totalTasks = 0;
         let completedTasks = 0;
         let delayedTasks = 0;
@@ -77,38 +141,44 @@ const ProductionTrackerPage: React.FC = () => {
         const seqStats: Record<string, { total: number, completed: number, delayed: number }> = {};
         const shotStats: Record<string, { total: number, completed: number, delayed: number }> = {};
 
-        trackerData.sequences.forEach(seq => {
+        data.sequences.forEach(seq => {
+            if (!seq || !seq.seqID) return;
             seqStats[seq.seqID] = { total: 0, completed: 0, delayed: 0 };
-            seq.shots.forEach(shot => {
+            seq.shots?.forEach(shot => {
+                if (!shot || !shot.shotID) return;
                 const shotKey = `${seq.seqID}-${shot.shotID}`;
                 shotStats[shotKey] = { total: 0, completed: 0, delayed: 0 };
-                Object.values(shot.tasks).forEach(tasks => {
-                    tasks.forEach(t => {
-                        totalTasks++;
-                        seqStats[seq.seqID].total++;
-                        shotStats[shotKey].total++;
-                        if (t.status === 'completed') {
-                            completedTasks++;
-                            seqStats[seq.seqID].completed++;
-                            shotStats[shotKey].completed++;
-                        }
-                        if (t.status === 'delayed') {
-                            delayedTasks++;
-                            seqStats[seq.seqID].delayed++;
-                            shotStats[shotKey].delayed++;
-                        }
+                
+                if (shot.tasks) {
+                    Object.values(shot.tasks).forEach(tasks => {
+                        if (!Array.isArray(tasks)) return;
+                        tasks.forEach(t => {
+                            if (!t) return;
+                            totalTasks++;
+                            seqStats[seq.seqID].total++;
+                            shotStats[shotKey].total++;
+                            if (t.status === 'completed') {
+                                completedTasks++;
+                                seqStats[seq.seqID].completed++;
+                                shotStats[shotKey].completed++;
+                            }
+                            if (t.status === 'delayed') {
+                                delayedTasks++;
+                                seqStats[seq.seqID].delayed++;
+                                shotStats[shotKey].delayed++;
+                            }
+                        });
                     });
-                });
+                }
             });
         });
 
         return { totalTasks, completedTasks, delayedTasks, seqStats, shotStats };
-    }, [trackerData]);
+    }, [trackerData, filteredTrackerData]);
 
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                // プロジェクトとユーザーを同時に取得
                 const [projectsData, usersData] = await Promise.all([
                     fetchProjects(),
                     fetchUsers()
@@ -118,7 +188,7 @@ const ProductionTrackerPage: React.FC = () => {
                 setProjects(onlineProjects);
                 setUsers(usersData);
 
-                if (onlineProjects.length > 0) {
+                if (onlineProjects && onlineProjects.length > 0) {
                     setSelectedProjectId(onlineProjects[0].id);
                 }
             } catch (err) {
@@ -131,21 +201,110 @@ const ProductionTrackerPage: React.FC = () => {
 
     useEffect(() => {
         if (selectedProjectId !== '') {
-            loadTrackerData(selectedProjectId as number);
+            loadTabData(selectedProjectId as number, activeTab);
         }
-    }, [selectedProjectId]);
+    }, [selectedProjectId, activeTab]);
 
-    const loadTrackerData = async (projectId: number) => {
+    const loadTabData = async (projectId: number, tabIndex: number) => {
         setLoading(true);
         setError(null);
+        
+        // タブ切り替え時またはプロジェクト切り替え時に古いデータをクリアする（任意）
+        // ここでは、データがない場合に「データが見つかりませんでした」が表示されるのを防ぐため、
+        // 読み込み中は既存のデータを保持したままローダーを表示する現在の挙動を維持しつつ、
+        // 明示的にnullにする場合は以下のようにします。
+        // if (tabIndex === 0) setTrackerData(null);
+
         try {
-            const data = await mockDataApi.getProductionTracker(projectId);
-            setTrackerData(data);
+            switch (tabIndex) {
+                case 0: // ショット進捗
+                    const tracker = await mockDataApi.getProductionTracker(projectId);
+                    setTrackerData(tracker);
+                    break;
+                case 1: // リテイク
+                    const retakesData = await shotsApi.getRetakes({ project_id: projectId });
+                    setRetakes(retakesData);
+                    break;
+                case 2: // トラブル
+                    const troublesData = await shotsApi.getTroubles({ project_id: projectId });
+                    setTroubles(troublesData);
+                    break;
+                case 3: // 変更申請
+                    const crData = await shotsApi.getChangeRequests({ project_id: projectId });
+                    setChangeRequests(crData);
+                    break;
+                case 4: // ルック配信
+                    const lookData = await shotsApi.getLookDistributions({ project_id: projectId });
+                    setLookDistributions(lookData);
+                    break;
+                case 5: // 通知・履歴
+                    const [notifs, msgs] = await Promise.all([
+                        shotsApi.getNotifications(),
+                        shotsApi.getUserMessages()
+                    ]);
+                    setNotifications(notifs);
+                    setUserMessages(msgs);
+                    break;
+            }
         } catch (err: any) {
-            console.error('Failed to fetch tracker data', err);
-            setError('進捗データの取得に失敗しました');
+            console.error('Failed to fetch tab data', err);
+            setError('データの取得に失敗しました');
+            // エラー時はデータをクリア
+            if (tabIndex === 0) setTrackerData(null);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleTaskClick = async (taskId: number) => {
+        setIsTaskLoading(true);
+        try {
+            const response = await api.get<Task>(`/tasks/${taskId}`);
+            setSelectedTask(response.data);
+            setIsTaskDrawerOpen(true);
+        } catch (err) {
+            console.error('Failed to fetch task details', err);
+        } finally {
+            setIsTaskLoading(false);
+        }
+    };
+
+    const handleShotClick = async (shot: ShotData) => {
+        setSelectedShot(shot);
+        setIsShotDrawerOpen(true);
+        setIsShotLoading(true);
+        try {
+            const [shotRetakes, shotTroubles, shotMessages] = await Promise.all([
+                shotsApi.getRetakes({ shot_id: shot.id }),
+                shotsApi.getTroubles({ shot_id: shot.id }),
+                shotsApi.getUserMessages({ shot_id: shot.id })
+            ]);
+            setShotDetails({
+                retakes: shotRetakes,
+                troubles: shotTroubles,
+                messages: shotMessages
+            });
+        } catch (err) {
+            console.error('Failed to fetch shot details', err);
+        } finally {
+            setIsShotLoading(false);
+        }
+    };
+
+    const handleAddShot = async () => {
+        if (!selectedProjectId) return;
+        try {
+            await shotsApi.createShot({
+                ...newShot,
+                project_id: selectedProjectId,
+                status: 'planning'
+            });
+            setIsAddShotDialogOpen(false);
+            setNewShot({ seq_code: '', shot_code: '', description: '' });
+            loadTabData(selectedProjectId as number, activeTab);
+        } catch (err) {
+            console.error('Failed to create shot:', err);
+            alert('ショットの作成に失敗しました。書式を確認してください（例: SEQ01, SHOT010）');
         }
     };
 
@@ -171,106 +330,9 @@ const ProductionTrackerPage: React.FC = () => {
         }
     };
 
-    const handleTaskClick = async (taskId: number) => {
-        setIsTaskLoading(true);
-        try {
-            // フルタスク情報を取得
-            const response = await api.get<Task>(`/tasks/${taskId}`);
-            setSelectedTask(response.data);
-            setIsDrawerOpen(true);
-        } catch (err) {
-            console.error('Failed to fetch task details', err);
-        } finally {
-            setIsTaskLoading(false);
-        }
-    };
-
-    const handleUpdateTaskQuick = async (taskId: number, updates: Partial<Task>) => {
-        try {
-            await api.put(`/tasks/${taskId}`, updates);
-            // 選択中のタスクを更新
-            if (selectedTask && selectedTask.id === taskId) {
-                setSelectedTask({ ...selectedTask, ...updates });
-            }
-            // トラッカーデータを再読込して反映（効率は落ちるが確実）
-            if (selectedProjectId !== '') {
-                const data = await mockDataApi.getProductionTracker(selectedProjectId as number);
-                setTrackerData(data);
-            }
-        } catch (err) {
-            console.error('Failed to update task:', err);
-        }
-    };
-
-    const handleEditTaskFull = (task: Task) => {
-        setEditTaskId(task.id);
-        setIsDrawerOpen(false);
-    };
-
-    const handleTaskDialogSaved = () => {
-        setEditTaskId(null);
-        if (selectedProjectId !== '') {
-            loadTrackerData(selectedProjectId as number);
-        }
-    };
-
-    const renderTaskCell = (tasks: TaskInfo[] | undefined) => {
-        if (!tasks || tasks.length === 0) return <Box sx={{ opacity: 0.1, py: 1 }}>-</Box>;
-
-        return (
-            <Stack spacing={0.5} sx={{ py: 0.5 }}>
-                {tasks.map((task) => {
-                    const color = getStatusColor(task.status);
-                    const label = getStatusLabel(task.status);
-
-                    return (
-                        <Tooltip key={task.id} title={`${task.name}${task.assignee ? ` (担当: ${task.assignee})` : ''}${task.due_date ? ` [〆: ${task.due_date}]` : ''}`} arrow>
-                            <Box
-                                sx={{
-                                    p: 1,
-                                    borderRadius: 1.5,
-                                    border: `1px solid ${alpha(color, 0.3)}`,
-                                    borderLeft: `5px solid ${color}`,
-                                    backgroundColor: alpha(color, 0.05),
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 0.5,
-                                    minWidth: 180,
-                                    transition: 'all 0.15s',
-                                    cursor: 'pointer',
-                                    '&:hover': {
-                                        backgroundColor: alpha(color, 0.1),
-                                        transform: 'scale(1.02)',
-                                        zIndex: 1,
-                                        boxShadow: 2,
-                                    }
-                                }}
-                                onClick={() => handleTaskClick(task.id)}
-                            >
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: color, letterSpacing: 0.5 }}>
-                                        {label}
-                                    </Typography>
-                                    {task.assignee && (
-                                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: 'text.secondary', opacity: 0.8 }}>
-                                            {task.assignee}
-                                        </Typography>
-                                    )}
-                                </Box>
-                                <Typography variant="caption" noWrap sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                                    {task.name}
-                                </Typography>
-                            </Box>
-                        </Tooltip>
-                    );
-                })}
-            </Stack>
-        );
-    };
-
     return (
         <Box sx={{ p: 4, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                     <Breadcrumbs sx={{ mb: 1 }}>
                         <Link color="inherit" href="/dashboard" sx={{ cursor: 'pointer' }}>Dashboard</Link>
@@ -282,13 +344,18 @@ const ProductionTrackerPage: React.FC = () => {
                             Production Tracker
                         </Typography>
                     </Box>
-                    <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
-                        ショット・シーケンス進捗管理
-                    </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <FormControl variant="outlined" size="medium" sx={{ minWidth: 300 }}>
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => setIsAddShotDialogOpen(true)}
+                        sx={{ borderRadius: 2, px: 3, fontWeight: 700 }}
+                    >
+                        ショット追加
+                    </Button>
+                    <FormControl variant="outlined" size="medium" sx={{ minWidth: 250 }}>
                         <InputLabel>プロジェクト選択</InputLabel>
                         <Select
                             value={selectedProjectId}
@@ -301,201 +368,158 @@ const ProductionTrackerPage: React.FC = () => {
                             ))}
                         </Select>
                     </FormControl>
-                    <IconButton onClick={() => selectedProjectId && loadTrackerData(selectedProjectId as number)} color="primary">
+                    <IconButton onClick={() => selectedProjectId && loadTabData(selectedProjectId as number, activeTab)} color="primary">
                         <RefreshIcon />
                     </IconButton>
                 </Box>
             </Box>
 
-            {stats && (
-                <Box sx={{ mb: 3, display: 'flex', gap: 2 }}>
-                    <Paper sx={{ p: 2.5, flex: 1, borderRadius: 3, display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.8), boxShadow: 2 }}>
-                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700 }}>プロジェクト全体進捗</Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mt: 1.5 }}>
-                            <Box sx={{ flexGrow: 1 }}>
-                                <LinearProgress
-                                    variant="determinate"
-                                    value={stats.totalTasks > 0 ? (stats.completedTasks / stats.totalTasks) * 100 : 0}
-                                    sx={{ height: 12, borderRadius: 6, bgcolor: alpha(theme.palette.primary.main, 0.1) }}
-                                />
-                            </Box>
-                            <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette.primary.main }}>
-                                {stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}%
-                            </Typography>
-                        </Box>
-                    </Paper>
-                    <Paper sx={{ p: 2.5, minWidth: 160, borderRadius: 3, display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.background.paper, 0.8), boxShadow: 2 }}>
-                        <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 700 }}>完了タスク</Typography>
-                        <Typography variant="h5" sx={{ fontWeight: 900, mt: 1 }}>
-                            {stats.completedTasks} <Typography component="span" variant="body1" color="text.secondary">/ {stats.totalTasks}</Typography>
-                        </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 2.5, minWidth: 160, borderRadius: 3, display: 'flex', flexDirection: 'column', bgcolor: alpha(theme.palette.error.main, 0.05), border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`, boxShadow: 2 }}>
-                        <Typography variant="subtitle2" color="error" sx={{ fontWeight: 700 }}>遅延タスク</Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                            <ErrorIcon color="error" />
-                            <Typography variant="h5" sx={{ fontWeight: 900, color: theme.palette.error.main }}>
-                                {stats.delayedTasks}
-                            </Typography>
-                        </Box>
-                    </Paper>
-                </Box>
-            )}
-
-            <TableContainer
-                component={Paper}
-                sx={{
-                    flexGrow: 1,
-                    borderRadius: 3,
-                    boxShadow: 3,
-                    bgcolor: alpha(theme.palette.background.paper, 0.8),
-                    position: 'relative',
-                    overflow: 'auto',
-                }}
-            >
-                {loading && (
-                    <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10, bgcolor: alpha(theme.palette.background.paper, 0.3) }}>
-                        <CircularProgress />
-                    </Box>
-                )}
-
-                {error && (
-                    <Box sx={{ p: 5, textAlign: 'center' }}>
-                        <ErrorIcon color="error" sx={{ fontSize: 48, mb: 2 }} />
-                        <Typography variant="h6" gutterBottom>{error}</Typography>
-                    </Box>
-                )}
-
-                {!loading && !error && trackerData && (
-                    <Table stickyHeader size="medium" sx={{ minWidth: 1500 }}>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell sx={{ fontWeight: 900, fontSize: '1rem', width: 140, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SEQ</TableCell>
-                                <TableCell sx={{ fontWeight: 900, fontSize: '1rem', width: 140, bgcolor: alpha(theme.palette.background.paper, 0.95), zIndex: 12 }}>SHOT</TableCell>
-                                {(trackerData?.types ?? []).map((t) => (
-                                    <TableCell key={t} sx={{
-                                        fontWeight: 900,
-                                        textTransform: 'uppercase',
-                                        fontSize: '0.95rem',
-                                        letterSpacing: 1,
-                                        bgcolor: alpha(theme.palette.background.paper, 0.95),
-                                        textAlign: 'center'
-                                    }}>
-                                        {t}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {trackerData.sequences.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={trackerData.types.length + 2} align="center" sx={{ py: 10 }}>
-                                        <Typography color="text.secondary">データが見つかりませんでした。</Typography>
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                trackerData.sequences.map((seq) => (
-                                    <React.Fragment key={seq.seqID}>
-                                        {seq.shots.map((shot, shotIdx) => (
-                                            <TableRow key={`${seq.seqID}-${shot.shotID}`} hover>
-                                                {shotIdx === 0 && (
-                                                    <TableCell
-                                                        rowSpan={seq.shots.length}
-                                                        sx={{
-                                                            fontWeight: 900,
-                                                            color: theme.palette.primary.main,
-                                                            bgcolor: alpha(theme.palette.primary.main, 0.05),
-                                                            borderRight: `1px solid ${theme.palette.divider}`,
-                                                            fontSize: '1.2rem',
-                                                            textAlign: 'center',
-                                                            verticalAlign: 'top',
-                                                            pt: 3
-                                                        }}
-                                                    >
-                                                        {seq.seqID}
-                                                        {stats && stats.seqStats[seq.seqID].total > 0 && (
-                                                            <Box sx={{ mt: 2, px: 2, textAlign: 'center' }}>
-                                                                <LinearProgress
-                                                                    variant="determinate"
-                                                                    value={(stats.seqStats[seq.seqID].completed / stats.seqStats[seq.seqID].total) * 100}
-                                                                    sx={{ height: 8, borderRadius: 4 }}
-                                                                />
-                                                                <Typography variant="caption" sx={{ mt: 1, display: 'block', fontWeight: 800, opacity: 0.8 }}>
-                                                                    {Math.round((stats.seqStats[seq.seqID].completed / stats.seqStats[seq.seqID].total) * 100)}%
-                                                                </Typography>
-                                                            </Box>
-                                                        )}
-                                                    </TableCell>
-                                                )}
-                                                <TableCell sx={{
-                                                    verticalAlign: 'top',
-                                                    pt: 3,
-                                                    borderRight: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                                                    bgcolor: alpha(theme.palette.background.paper, 0.3)
-                                                }}>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                                                        <Typography sx={{ fontWeight: 800, fontSize: '1.1rem' }}>{shot.shotID}</Typography>
-                                                        {stats && stats.shotStats[`${seq.seqID}-${shot.shotID}`].delayed > 0 && (
-                                                            <Tooltip title={`${stats.shotStats[`${seq.seqID}-${shot.shotID}`].delayed}件の遅延タスクがあります`}>
-                                                                <ErrorIcon color="error" fontSize="small" />
-                                                            </Tooltip>
-                                                        )}
-                                                    </Box>
-                                                    {stats && stats.shotStats[`${seq.seqID}-${shot.shotID}`].total > 0 && (
-                                                        <Box sx={{ width: '100%', mt: 1 }}>
-                                                            <LinearProgress
-                                                                variant="determinate"
-                                                                value={(stats.shotStats[`${seq.seqID}-${shot.shotID}`].completed / stats.shotStats[`${seq.seqID}-${shot.shotID}`].total) * 100}
-                                                                sx={{ height: 6, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.1) }}
-                                                            />
-                                                            <Typography variant="caption" sx={{ mt: 0.5, display: 'block', textAlign: 'right', fontWeight: 700, opacity: 0.7 }}>
-                                                                {Math.round((stats.shotStats[`${seq.seqID}-${shot.shotID}`].completed / stats.shotStats[`${seq.seqID}-${shot.shotID}`].total) * 100)}%
-                                                            </Typography>
-                                                        </Box>
-                                                    )}
-                                                </TableCell>
-                                                {trackerData.types.map((type) => (
-                                                    <TableCell key={type} sx={{ verticalAlign: 'top', minWidth: 200, borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-                                                        {renderTaskCell(shot.tasks[type])}
-                                                    </TableCell>
-                                                ))}
-                                            </TableRow>
-                                        ))}
-                                    </React.Fragment>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                )}
-            </TableContainer>
-
-            <Box sx={{ mt: 2, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                {[
-                    { key: 'todo', label: '未着手' },
-                    { key: 'in-progress', label: '進行中' },
-                    { key: 'review', label: 'レビュー' },
-                    { key: 'delayed', label: '遅延' },
-                    { key: 'completed', label: '完了' }
-                ].map((s) => (
-                    <Typography key={s.key} variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 700 }}>
-                        <Box sx={{ width: 16, height: 16, borderRadius: '4px', bgcolor: getStatusColor(s.key) }} />
-                        {s.label}
-                    </Typography>
-                ))}
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+                <Tabs 
+                    value={activeTab} 
+                    onChange={(_, val) => setActiveTab(val)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    sx={{
+                        '& .MuiTab-root': { fontWeight: 700, fontSize: '0.95rem', minHeight: 60 },
+                        '& .Mui-selected': { color: theme.palette.primary.main }
+                    }}
+                >
+                    <Tab label="ショット進捗" icon={<ViewModuleIcon />} iconPosition="start" />
+                    <Tab label="リテイク" icon={<HistoryIcon />} iconPosition="start" />
+                    <Tab label="トラブル" icon={<TroubleIcon />} iconPosition="start" />
+                    <Tab label="変更申請" icon={<ChangeIcon />} iconPosition="start" />
+                    <Tab label="ルック配信" icon={<LookIcon />} iconPosition="start" />
+                    <Tab label="通知・履歴" icon={<RefreshIcon />} iconPosition="start" />
+                </Tabs>
             </Box>
+
+            <Box sx={{ flexGrow: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+                {activeTab === 0 && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>ショット・シーケンス進捗管理</Typography>
+                            <ToggleButtonGroup
+                                size="small"
+                                value={showMyTasksOnly}
+                                exclusive
+                                onChange={(_, value) => value !== null && setShowMyTasksOnly(value)}
+                            >
+                                <ToggleButton value={false} sx={{ textTransform: 'none', px: 2 }}>すべて表示</ToggleButton>
+                                <ToggleButton value={true} sx={{ textTransform: 'none', px: 2, display: 'flex', gap: 1 }}>
+                                    <PersonIcon fontSize="small" /> 自分のタスクのみ
+                                </ToggleButton>
+                            </ToggleButtonGroup>
+                        </Box>
+                        <ShotTrackerTable
+                            data={filteredTrackerData}
+                            loading={loading}
+                            error={error}
+                            user={user}
+                            stats={stats}
+                            onTaskClick={handleTaskClick}
+                            onShotClick={handleShotClick}
+                        />
+                    </Box>
+                )}
+
+                {activeTab === 1 && <RetakesList retakes={retakes} loading={loading} />}
+                {activeTab === 2 && <TroublesList troubles={troubles} loading={loading} />}
+                {activeTab === 3 && <ChangeRequestsList requests={changeRequests} loading={loading} />}
+                {activeTab === 4 && <LookDistributionsList distributions={lookDistributions} loading={loading} />}
+                {activeTab === 5 && <ProductionHistory notifications={notifications} messages={userMessages} loading={loading} />}
+            </Box>
+
+            {/* ショット詳細ドロワー */}
+            <Drawer
+                anchor="right"
+                open={isShotDrawerOpen}
+                onClose={() => setIsShotDrawerOpen(false)}
+                PaperProps={{ sx: { width: { xs: '100%', sm: 600 } } }}
+            >
+                <Box sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Typography variant="h5" sx={{ fontWeight: 800 }}>ショット詳細: {selectedShot?.shotID}</Typography>
+                        <IconButton onClick={() => setIsShotDrawerOpen(false)}><CloseIcon /></IconButton>
+                    </Box>
+                    
+                    {selectedShot && (
+                        <Stack spacing={4}>
+                            <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
+                                <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 1 }}>基本情報</Typography>
+                                <Typography variant="body2">ステータス: <strong>{selectedShot.status}</strong></Typography>
+                                <Typography variant="body2">シーケンス: <strong>{selectedShot.shotID.split('_')[0]}</strong></Typography>
+                            </Paper>
+
+                            <Box>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <AssignmentIcon color="action" /> タスク状況
+                                </Typography>
+                                {Object.entries(selectedShot.tasks).map(([type, tasks]) => (
+                                    <Box key={type} sx={{ mb: 2 }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: 'uppercase' }}>{type}</Typography>
+                                        <Stack spacing={1} sx={{ mt: 0.5 }}>
+                                            {tasks.map(t => (
+                                                <Paper key={t.id} variant="outlined" sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 1.5 }}>
+                                                    <Box>
+                                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{t.name}</Typography>
+                                                        <Typography variant="caption" color="text.secondary">{t.assignee || '未アサイン'}</Typography>
+                                                    </Box>
+                                                    <Typography variant="caption" sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: getStatusColor(t.status), color: 'white', fontWeight: 800 }}>
+                                                        {getStatusLabel(t.status)}
+                                                    </Typography>
+                                                </Paper>
+                                            ))}
+                                        </Stack>
+                                    </Box>
+                                ))}
+                            </Box>
+
+                            <Divider />
+
+                            {isShotLoading ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}><CircularProgress /></Box>
+                            ) : (
+                                <>
+                                    <Box>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <HistoryIcon color="error" /> リテイク状況 ({shotDetails?.retakes.length || 0})
+                                        </Typography>
+                                        <RetakesList retakes={shotDetails?.retakes || []} />
+                                    </Box>
+
+                                    <Box>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <TroubleIcon color="warning" /> トラブル報告 ({shotDetails?.troubles.length || 0})
+                                        </Typography>
+                                        <TroublesList troubles={shotDetails?.troubles || []} />
+                                    </Box>
+
+                                    <Box>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <RefreshIcon color="primary" /> ショット内メッセージ ({shotDetails?.messages.length || 0})
+                                        </Typography>
+                                        <ProductionHistory notifications={[]} messages={shotDetails?.messages || []} />
+                                    </Box>
+                                </>
+                            )}
+                        </Stack>
+                    )}
+                </Box>
+            </Drawer>
 
             {/* タスク詳細ドロワー */}
             <Drawer
                 anchor="right"
-                open={isDrawerOpen}
-                onClose={() => setIsDrawerOpen(false)}
+                open={isTaskDrawerOpen}
+                onClose={() => setIsTaskDrawerOpen(false)}
                 PaperProps={{
-                    sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
+                    sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%', zIndex: 1400 }
                 }}
             >
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>タスク詳細</Typography>
-                    <IconButton onClick={() => setIsDrawerOpen(false)}>
+                    <IconButton onClick={() => setIsTaskDrawerOpen(false)}>
                         <CloseIcon />
                     </IconButton>
                 </Box>
@@ -504,8 +528,14 @@ const ProductionTrackerPage: React.FC = () => {
                         task={selectedTask}
                         projects={projects}
                         users={users}
-                        onUpdate={handleUpdateTaskQuick}
-                        onEditFull={handleEditTaskFull}
+                        onUpdate={async (taskId, updates) => {
+                            await api.put(`/tasks/${taskId}`, updates);
+                            if (selectedProjectId) loadTabData(selectedProjectId as number, activeTab);
+                        }}
+                        onEditFull={(task) => {
+                            setEditTaskId(task.id);
+                            setIsTaskDrawerOpen(false);
+                        }}
                     />
                 ) : (
                     isTaskLoading && (
@@ -516,12 +546,50 @@ const ProductionTrackerPage: React.FC = () => {
                 )}
             </Drawer>
 
+            {/* ショット追加ダイアログ */}
+            <Dialog open={isAddShotDialogOpen} onClose={() => setIsAddShotDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+                <DialogTitle sx={{ fontWeight: 800 }}>新規ショット追加</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{ mt: 1 }}>
+                        <TextField
+                            label="シーケンスコード (例: SEQ01)"
+                            fullWidth
+                            value={newShot.seq_code}
+                            onChange={(e) => setNewShot({ ...newShot, seq_code: e.target.value.toUpperCase() })}
+                            placeholder="SEQ01"
+                        />
+                        <TextField
+                            label="ショットコード (例: SHOT010)"
+                            fullWidth
+                            value={newShot.shot_code}
+                            onChange={(e) => setNewShot({ ...newShot, shot_code: e.target.value.toUpperCase() })}
+                            placeholder="SHOT010"
+                        />
+                        <TextField
+                            label="説明"
+                            fullWidth
+                            multiline
+                            rows={3}
+                            value={newShot.description}
+                            onChange={(e) => setNewShot({ ...newShot, description: e.target.value })}
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ p: 3 }}>
+                    <Button onClick={() => setIsAddShotDialogOpen(false)} color="inherit">キャンセル</Button>
+                    <Button onClick={handleAddShot} variant="contained" disabled={!newShot.seq_code || !newShot.shot_code}>作成</Button>
+                </DialogActions>
+            </Dialog>
+
             {/* 詳細編集用ダイアログ */}
             <TaskEditDialog
                 open={editTaskId !== null}
                 taskId={editTaskId}
                 onClose={() => setEditTaskId(null)}
-                onSaved={handleTaskDialogSaved}
+                onSaved={() => {
+                    setEditTaskId(null);
+                    if (selectedProjectId) loadTabData(selectedProjectId as number, activeTab);
+                }}
             />
         </Box>
     );

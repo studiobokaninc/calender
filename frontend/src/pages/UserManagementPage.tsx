@@ -91,6 +91,7 @@ const UserManagementPage: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [scoreUserRoles, setScoreUserRoles] = useState<any[]>([]);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [userTaskInfo, setUserTaskInfo] = useState<Record<number, UserTaskInfo>>({});
   const [loading, setLoading] = useState(true);
@@ -130,7 +131,7 @@ const UserManagementPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [usersResponse, tasksResponse, projectsResponse, groupsResponse] = await Promise.all([
+      const [usersResponse, tasksResponse, projectsResponse, groupsResponse, scoreRolesResponse] = await Promise.all([
         api.get<User[]>('/users').catch(err => {
           console.error("Failed to fetch users:", err);
           throw new Error(`ユーザーデータの取得に失敗しました: ${err.response?.data?.detail || err.message}`);
@@ -148,12 +149,14 @@ const UserManagementPage: React.FC = () => {
           // グループデータの取得失敗は警告のみ（グループ機能が使えないだけ）
           console.warn("グループデータの取得に失敗しましたが、続行します");
           return { data: [] };
-        })
+        }),
+        api.get('/score_user_roles').catch(() => ({ data: [] }))
       ]);
       setUsers(usersResponse.data);
       setTasks(tasksResponse.data);
       setProjects(projectsResponse.data);
       setGroups(groupsResponse.data || []);
+      setScoreUserRoles(scoreRolesResponse.data || []);
 
       // 全ユーザーのグループ所属情報を取得
       if (usersResponse.data.length > 0) {
@@ -905,6 +908,16 @@ const UserManagementPage: React.FC = () => {
                                   </Box>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                                     {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ height: 20, fontSize: '0.65rem' }} />}
+                                    {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => (
+                                      <Tooltip key={idx} title={projects.find(p => p.id === sr.project_id)?.name || 'Project'}>
+                                        <Chip 
+                                          label={sr.role.toUpperCase()} 
+                                          size="small" 
+                                          variant="outlined" 
+                                          sx={{ height: 20, fontSize: '0.6rem', borderColor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.main }} 
+                                        />
+                                      </Tooltip>
+                                    ))}
                                     {isAdmin && (
                                       <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit" sx={{ p: 0.5, ml: 'auto' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                     )}
@@ -1202,6 +1215,15 @@ const UserManagementPage: React.FC = () => {
                                 {user.role === 'admin' && (
                                   <Chip label="管理者" size="small" color="secondary" />
                                 )}
+                                {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => (
+                                  <Chip 
+                                    key={idx}
+                                    label={sr.role.toUpperCase()} 
+                                    size="small" 
+                                    variant="outlined" 
+                                    sx={{ fontSize: '0.65rem', height: 20 }} 
+                                  />
+                                ))}
                               </Box>
                               <Typography variant="body2" color="text.secondary">
                                 {user.email || 'メール未設定'}

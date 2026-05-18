@@ -12,6 +12,7 @@ import { ja } from 'date-fns/locale';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
+import HistoryIcon from '@mui/icons-material/History';
 
 
 interface TaskQuickDetailProps {
@@ -162,6 +163,21 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         bgcolor: 'background.paper'
                     }}
                 />
+                {(task.seqID || task.shotID) && (
+                    <Chip
+                        label={`${task.seqID || '-'}${task.shotID ? ` / ${task.shotID}` : ''}`}
+                        size="small"
+                        icon={<HistoryIcon fontSize="small" />}
+                        variant="outlined"
+                        sx={{
+                            maxWidth: 200,
+                            fontWeight: 600,
+                            borderColor: isDark ? 'rgba(255,152,0,0.3)' : 'rgba(255,152,0,0.2)',
+                            bgcolor: isDark ? 'rgba(255,152,0,0.05)' : 'rgba(255,152,0,0.02)',
+                            color: isDark ? '#ffb74d' : '#f57c00'
+                        }}
+                    />
+                )}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 1, bgcolor: 'background.paper', px: 1, py: 0.5, borderRadius: 10, border: '1px solid', borderColor: 'divider' }}>
                     <Avatar sx={{
                         width: 24,

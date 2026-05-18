@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -11,6 +11,11 @@ import {
   Divider,
   Button,
   Tooltip,
+  Stack,
+  alpha,
+  useTheme,
+  Grid,
+  Chip,
 } from '@mui/material'
 import {
   People as PeopleIcon,
@@ -20,17 +25,24 @@ import {
   Event as EventIcon,
   Close as CloseIcon,
   Edit as EditIcon,
+  History as HistoryIcon,
+  ReportProblem as TroubleIcon,
+  SwapHoriz as ChangeIcon,
+  ArrowForward as ArrowForwardIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
-import api from '../services/api'
-import { DashboardMetrics, BackendEvent, Task } from '../types'
+import api, { shotsApi } from '../services/api'
+import { DashboardMetrics, BackendEvent, Task, Retake, Trouble } from '../types'
 import { usePageState } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
 import { TaskEditDialog, EventEditDialog } from '../components/SearchEditDialogs'
 import { TaskQuickDetail } from '../components/TaskQuickDetail'
 
 const Dashboard: React.FC = () => {
+  const theme = useTheme()
   const navigate = useNavigate()
   const { user } = useAuth()
   const isAdmin = user?.role === 'admin'
@@ -40,6 +52,13 @@ const Dashboard: React.FC = () => {
   const [backendEvents, setBackendEvents] = useState<BackendEvent[]>([])
   const [eventsLoaded, setEventsLoaded] = useState(false)
   const [isSystemBusy, setIsSystemBusy] = useState(false)
+
+  // Score Data
+  const [retakes, setRetakes] = useState<Retake[]>([])
+  const [troubles, setTroubles] = useState<Trouble[]>([])
+  const [changeRequests, setChangeRequests] = useState<any[]>([])
+  const [staffAlerts, setStaffAlerts] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<any[]>([])
 
   // 編集ダイアログ用
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
@@ -52,6 +71,17 @@ const Dashboard: React.FC = () => {
   const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
 
   const { refreshGlobalData, globalData } = usePageState();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = (direction: 'left' | 'right') => {
+    if (scrollRef.current) {
+      const scrollAmount = 300; // スクロール量
+      scrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const handleUpdateTaskQuick = async (taskId: number, updates: any) => {
     try {
@@ -63,17 +93,35 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchMetrics = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get('/metrics/dashboard')
-        setMetrics(response.data)
+        const [metricsRes, retakesRes, troublesRes, crRes, notifRes] = await Promise.all([
+          api.get('/metrics/dashboard'),
+          isAdmin ? shotsApi.getRetakes() : shotsApi.getMyRetakes(),
+          (isAdmin ? shotsApi.getTroubles() : shotsApi.getMyTroubles()).catch(() => []),
+          shotsApi.getChangeRequests({ status: 'pending' }).catch(() => []),
+          shotsApi.getNotifications(isAdmin ? {} : { recipient_id: user?.id }).catch(() => [])
+        ])
+        setMetrics(metricsRes.data)
+        setRetakes(retakesRes)
+        setTroubles(troublesRes)
+        setChangeRequests(crRes)
+        setNotifications(notifRes)
+
+        // Simple staff alert logic (Mock for now or based on routines if available)
+        // In a real app, we'd call an endpoint like /api/metrics/staff-health
+        const routinesRes = await shotsApi.getRoutines({ date: new Date().toISOString().split('T')[0] }).catch(() => []);
+        const poorConditionUsers = (routinesRes as any[]).filter(r => r.condition === 'poor' || r.condition === 'bad');
+        setStaffAlerts(poorConditionUsers);
+
       } catch (err) {
-        setError('メトリクスの取得に失敗しました')
+        console.error('Dashboard data fetch error:', err);
+        setError('データの取得に失敗しました')
       } finally {
         setLoading(false)
       }
     }
-    fetchMetrics()
+    fetchData()
   }, [])
 
   useEffect(() => {
@@ -137,7 +185,7 @@ const Dashboard: React.FC = () => {
       return u?.username || u?.full_name || u?.name || u?.email || `User ${userId}`
     }
 
-    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; phaseIdx?: number; }
+    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; phaseIdx?: number; seqID?: string; shotID?: string; }
     const eventList: TodayItem[] = []
 
     backendEvents.forEach((ev: BackendEvent) => {
@@ -202,6 +250,8 @@ const Dashboard: React.FC = () => {
             startTime: t.due_date,
             isPhase: false,
             rawId: t.id,
+            seqID: t.seqID,
+            shotID: t.shotID,
           });
         }
       }
@@ -223,7 +273,9 @@ const Dashboard: React.FC = () => {
               startTime: p.date,
               isPhase: true,
               rawId: t.id,
-              phaseIdx: idx
+              phaseIdx: idx,
+              seqID: t.seqID,
+              shotID: t.shotID,
             });
           }
         });
@@ -463,6 +515,218 @@ const Dashboard: React.FC = () => {
         })}
       </Box>
 
+      {/* 達成度ゲージ（XPバー）- プロジェクト別カルーセル */}
+      {metrics && metrics.project_metrics && metrics.project_metrics.length > 0 && (
+        <Box sx={{ mb: 4 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.9rem' }}>プロジェクト別タスク達成度</Typography>
+            <IconButton 
+              size="small" 
+              onClick={() => navigate('/galaxy')} 
+              sx={{ color: 'text.secondary', opacity: 0.3, '&:hover': { opacity: 1 } }}
+            >
+              ★
+            </IconButton>
+          </Stack>
+          
+          <Box sx={{ position: 'relative', px: { xs: 0, sm: 4 } }}>
+            {/* 左ボタン */}
+            <IconButton 
+              onClick={() => handleScroll('left')}
+              sx={{ 
+                position: 'absolute', 
+                left: 0, 
+                top: '50%', 
+                transform: 'translateY(-50%)', 
+                zIndex: 2,
+                bgcolor: 'background.paper',
+                boxShadow: 2,
+                display: { xs: 'none', sm: 'inline-flex' }, // スマホでは非表示
+                '&:hover': { bgcolor: 'action.hover' }
+              }}
+              size="small"
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+
+            <Box 
+              ref={scrollRef}
+              sx={{ 
+                display: 'flex', 
+                overflowX: 'auto', 
+                gap: 2, 
+                pb: 1.5,
+                scrollSnapType: 'x mandatory',
+                '&::-webkit-scrollbar': { height: 6 },
+                '&::-webkit-scrollbar-thumb': { bgcolor: 'action.focus', borderRadius: 3 },
+                '&::-webkit-scrollbar-track': { bgcolor: 'transparent' }
+              }}
+            >
+              {metrics.project_metrics.map((pm) => {
+                const percent = pm.tasks > 0 ? Math.round((pm.completed_tasks / pm.tasks) * 100) : 0;
+                return (
+                  <Paper 
+                    key={pm.id} 
+                    elevation={2} 
+                    sx={{ 
+                      p: 2, 
+                      borderRadius: 2, 
+                      flex: { xs: '0 0 100%', sm: '0 0 calc(50% - 8px)', md: '0 0 calc(33.333% - 11px)' }, 
+                      scrollSnapAlign: 'start',
+                      minWidth: 250,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+                        {pm.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                        {pm.completed_tasks} / {pm.tasks} ({percent}%)
+                      </Typography>
+                    </Stack>
+                    <Box sx={{ width: '100%', height: 10, bgcolor: 'action.hover', borderRadius: 5, overflow: 'hidden' }}>
+                      <Box sx={{ 
+                        width: `${percent}%`, 
+                        height: '100%', 
+                        background: 'linear-gradient(90deg, #4facfe 0%, #00f2fe 100%)',
+                        borderRadius: 5,
+                        transition: 'width 0.5s ease-in-out'
+                      }} />
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Box>
+
+            {/* 右ボタン */}
+            <IconButton 
+              onClick={() => handleScroll('right')}
+              sx={{ 
+                position: 'absolute', 
+                right: 0, 
+                top: '50%', 
+                transform: 'translateY(-50%)', 
+                zIndex: 2,
+                bgcolor: 'background.paper',
+                boxShadow: 2,
+                display: { xs: 'none', sm: 'inline-flex' }, // スマホでは非表示
+                '&:hover': { bgcolor: 'action.hover' }
+              }}
+              size="small"
+            >
+              <ChevronRightIcon />
+            </IconButton>
+          </Box>
+        </Box>
+      )}
+
+      {(retakes.length > 0 || troubles.length > 0 || notifications.length > 0) && (
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 2, fontSize: '0.9rem' }}>制作詳細アラート</Typography>
+          <Grid container spacing={2}>
+            {/* リテイク詳細 */}
+            {retakes.length > 0 && (
+              <Grid item xs={12} md={4}>
+                <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <HistoryIcon color="error" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>最近のリテイク</Typography>
+                    <Chip label={retakes.length} size="small" color="error" sx={{ height: 20, fontWeight: 800 }} />
+                  </Stack>
+                  <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
+                    {retakes.slice(0, 4).map((r) => {
+                      const date = r.created_at ? new Date(r.created_at) : null;
+                      const dateStr = (date && !isNaN(date.getTime())) ? format(date, 'MM/dd') : '';
+                      return (
+                        <Box key={r.id} onClick={() => navigate('/production-tracker')} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.error.main, 0.05), border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.08) } }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.error.main }}>
+                              {r.project_name ? `${r.project_name} / ` : ''}{r.shot_code || `ID: ${r.shot_id}`}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{dateStr}</Typography>
+                          </Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }} noWrap>{r.description || r.overall_comment || 'リテイク指示'}</Typography>
+                          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>担当: {r.assignee_name || '未設定'}</Typography>
+                        </Box>
+                      );
+                    })}
+                    {retakes.length > 4 && (
+                      <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全て表示</Button>
+                    )}
+                  </Stack>
+                </Paper>
+              </Grid>
+            )}
+
+            {/* トラブル詳細 */}
+            {troubles.length > 0 && (
+              <Grid item xs={12} md={4}>
+                <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <TroubleIcon color="warning" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>進行中のトラブル</Typography>
+                    <Chip label={troubles.filter(t => t.status === 'open').length} size="small" color="warning" sx={{ height: 20, fontWeight: 800 }} />
+                  </Stack>
+                  <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
+                    {troubles.filter(t => t.status === 'open').slice(0, 4).map((t) => (
+                      <Box key={t.id} onClick={() => navigate('/production-tracker')} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.warning.main, 0.05), border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.warning.main, 0.08) } }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.warning.dark }}>
+                            {t.project_name ? `${t.project_name} / ` : ''}{t.shot_code || `ID: ${t.shot_id}`}
+                          </Typography>
+                          <Chip label={(t.priority || t.severity || 'NORMAL').toUpperCase()} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 900, bgcolor: (t.priority === 'high' || t.severity === 'high') ? 'error.main' : 'warning.main', color: 'white' }} />
+                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }} noWrap>{t.title || t.description}</Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>報告者: {t.reporter_name || 'Unknown'}</Typography>
+                      </Box>
+                    ))}
+                    {troubles.length > 4 && (
+                      <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全て表示</Button>
+                    )}
+                  </Stack>
+                </Paper>
+              </Grid>
+            )}
+
+            {/* 通知詳細 */}
+            {notifications.length > 0 && (
+              <Grid item xs={12} md={4}>
+                <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                    <EventIcon color="primary" />
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>新着の通知</Typography>
+                    <Chip label={notifications.filter(n => !n.is_read).length} size="small" color="primary" sx={{ height: 20, fontWeight: 800 }} />
+                  </Stack>
+                  <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
+                    {notifications.slice(0, 4).map((n) => {
+                      const date = n.created_at ? new Date(n.created_at) : null;
+                      const dateStr = (date && !isNaN(date.getTime())) ? format(date, 'MM/dd HH:mm') : '';
+                      return (
+                        <Box key={n.id} onClick={() => navigate('/production-tracker')} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: n.is_read ? 'transparent' : alpha(theme.palette.primary.main, 0.05), border: `1px solid ${n.is_read ? theme.palette.divider : alpha(theme.palette.primary.main, 0.1)}`, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) } }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
+                              {n.project_name ? `${n.project_name} / ` : ''}{n.type?.toUpperCase() || 'NOTIF'}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{dateStr}</Typography>
+                          </Box>
+                          <Typography variant="body2" sx={{ fontWeight: n.is_read ? 500 : 700, mb: 0.5 }} noWrap>{n.content || n.body}</Typography>
+                        </Box>
+                      );
+                    })}
+                    {notifications.length > 4 && (
+                      <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全ての通知を確認</Button>
+                    )}
+                  </Stack>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+        </Box>
+      )}
+
       <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>今週の概要</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
         {/* 今日の予定 */}
@@ -489,7 +753,17 @@ const Dashboard: React.FC = () => {
                         <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} noWrap>{item.name}</Typography>
                         <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
                       </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} /><Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography></Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography>
+                        </Box>
+                        {(item.seqID || item.shotID) && (
+                          <Typography variant="caption" sx={{ ml: 1, px: 0.75, py: 0.1, borderRadius: 0.5, bgcolor: 'action.selected', color: 'text.secondary', fontWeight: 600, fontSize: '0.7rem' }}>
+                            {item.seqID}{item.shotID ? ` / ${item.shotID}` : ''}
+                          </Typography>
+                        )}
+                      </Box>
                     </Box>
                   </Box>
                 ))

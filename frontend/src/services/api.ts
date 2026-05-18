@@ -217,7 +217,8 @@ export const mockDataApi = {
   // ショット進捗トラッカーデータの取得
   getProductionTracker: async (projectId: number) => {
     try {
-      const response = await api.get(`/projects/${projectId}/production-tracker`);
+      // Score専用の新しいエンドポイントを使用
+      const response = await api.get(`/api/projects/${projectId}/production-tracker`)
       return response.data;
     } catch (error) {
       throw error;
@@ -260,7 +261,7 @@ export const importAllDatabaseJson = async (data: any): Promise<any> => {
   return await mockDataApi.importAllDatabaseJson(data);
 };
 
-export const fetchUsers = async () => (await api.get('/api/users')).data;
+export const fetchUsers = async () => (await api.get('/users')).data;
 export const fetchTasks = async () => (await api.get('/tasks')).data;
 export const fetchProjects = async () => (await api.get('/projects')).data;
 export const fetchGroups = async () => (await api.get('/api/groups')).data;
@@ -365,3 +366,69 @@ export const userActivityApi = {
     return response.data
   },
 }
+
+// --- Shots API ---
+export const shotsApi = {
+  getShots: async (projectId?: number) => {
+    const response = await api.get('/api/shots', { params: { project_id: projectId } })
+    return response.data
+  },
+  getShot: async (id: number) => {
+    const response = await api.get(`/api/shots/${id}`)
+    return response.data
+  },
+  createShot: async (shot: any) => {
+    const response = await api.post('/api/shots', shot)
+    return response.data
+  },
+  updateShot: async (id: number, shot: any) => {
+    const response = await api.patch(`/api/shots/${id}`, shot)
+    return response.data
+  },
+  deleteShot: async (id: number) => {
+    const response = await api.delete(`/api/shots/${id}`)
+    return response.data
+  },
+  getMyRetakes: async () => {
+    const response = await api.get('/api/me/retakes')
+    return response.data
+  },
+  getMyTroubles: async () => {
+    const response = await api.get('/api/me/troubles')
+    return response.data
+  },
+  // --- Admin/Viewer Score Data APIs ---
+  getRetakes: async (params?: { shot_id?: number; project_id?: number }) => {
+    const response = await api.get('/api/retakes', { params })
+    return response.data
+  },
+  getTroubles: async (params?: { shot_id?: number; project_id?: number }) => {
+    const response = await api.get('/api/troubles', { params })
+    return response.data
+  },
+  getChangeRequests: async (params?: { project_id?: number }) => {
+    const response = await api.get('/api/change_requests', { params })
+    return response.data
+  },
+  getLookDistributions: async (params?: { project_id?: number }) => {
+    const response = await api.get('/api/look_distributions', { params })
+    return response.data
+  },
+  getTimecards: async (params?: { user_id?: number; date?: string }) => {
+    const response = await api.get('/api/timecards', { params })
+    return response.data
+  },
+  getRoutines: async (params?: { user_id?: number; date?: string }) => {
+    const response = await api.get('/api/routines', { params })
+    return response.data
+  },
+  getNotifications: async (params?: { recipient_id?: number }) => {
+    const response = await api.get('/api/notifications', { params })
+    return response.data
+  },
+  getUserMessages: async (params?: { shot_id?: number; author_id?: number }) => {
+    const response = await api.get('/api/user_messages', { params })
+    return response.data
+  },
+}
+

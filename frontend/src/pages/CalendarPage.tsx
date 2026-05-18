@@ -352,24 +352,45 @@ const CalendarPage: React.FC = () => {
     }, [isPanelMinimized]);
 
     // ★★★ fetchData をバックアップ版のロジックに置き換え ★★★
+    const [scoreSummary, setScoreSummary] = useState<{shots: number, retakes: number, troubles: number} | null>(null);
+
     const fetchData = useCallback(async () => {
         console.log('Fetching calendar data...');
         setLoading(true);
         setError(null);
         try {
-            const [projectsResponse, tasksResponse, eventsResponse, usersResponse, groupsResponse] = await Promise.all([
+            const [projectsResponse, tasksResponse, eventsResponse, usersResponse, groupsResponse, scoreResponse] = await Promise.all([
                 api.get<Project[]>('/projects'),
                 api.get<Task[]>('/tasks'),
-                api.get<BackendEvent[]>('/calendar/events'), // 通常のイベントも取得
+                api.get<BackendEvent[]>('/calendar/events'),
                 api.get<User[]>('/api/users'),
-                api.get<Group[]>('/api/groups')
+                api.get<Group[]>('/api/groups'),
+                eventStatusFilter !== 'all' 
+                    ? api.get(`/api/projects/${eventStatusFilter}/production-tracker`).catch(() => ({ data: { sequences: [] } }))
+                    : Promise.resolve({ data: null })
             ]);
 
             let projectsData = projectsResponse.data;
             let tasksData = tasksResponse.data;
-            const backendEventsData = eventsResponse.data; // 通常イベント用
+            const backendEventsData = eventsResponse.data;
             const usersData = usersResponse.data;
             const groupsData = groupsResponse.data;
+            
+            // Calculate score summary from project data if a project is selected
+            if (eventStatusFilter !== 'all' && (scoreResponse as any).data) {
+                const data = (scoreResponse as any).data;
+                let shots = 0, retakes = 0, troubles = 0;
+                data.sequences.forEach((seq: any) => {
+                    seq.shots.forEach((shot: any) => {
+                        shots++;
+                        retakes += shot.retakes_count || 0;
+                        troubles += shot.troubles_count || 0;
+                    });
+                });
+                setScoreSummary({ shots, retakes, troubles });
+            } else {
+                setScoreSummary(null);
+            }
 
             // ★★★ 一般ユーザーの場合のフィルタリング ★★★
             if (user?.role !== 'admin') {
@@ -2883,6 +2904,36 @@ const CalendarPage: React.FC = () => {
                         width: '100%',
                     }}
                 >
+                    {scoreSummary && user?.role === 'admin' && (
+                        <Box sx={{ 
+                            px: 2, py: 1, mb: 1, borderRadius: 1, 
+                            bgcolor: isDark ? alpha(theme.palette.primary.main, 0.05) : alpha(theme.palette.primary.main, 0.02),
+                            border: '1px solid', borderColor: isDark ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.1),
+                            display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap'
+                        }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>Shots</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 800 }}>{scoreSummary.shots}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: (scoreSummary.retakes > 0 ? 'warning.main' : 'text.secondary'), textTransform: 'uppercase' }}>Retakes</Typography>
+                                <Chip label={scoreSummary.retakes} size="small" sx={{ height: 20, bgcolor: scoreSummary.retakes > 0 ? 'warning.main' : 'action.hover', color: scoreSummary.retakes > 0 ? 'white' : 'text.disabled', fontWeight: 800 }} />
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: (scoreSummary.troubles > 0 ? 'error.main' : 'text.secondary'), textTransform: 'uppercase' }}>Troubles</Typography>
+                                <Chip label={scoreSummary.troubles} size="small" sx={{ height: 20, bgcolor: scoreSummary.troubles > 0 ? 'error.main' : 'action.hover', color: scoreSummary.troubles > 0 ? 'white' : 'text.disabled', fontWeight: 800 }} />
+                            </Box>
+                            <Button 
+                                size="small" 
+                                variant="text" 
+                                color="primary" 
+                                sx={{ ml: 'auto', fontWeight: 700, fontSize: '0.75rem' }}
+                                onClick={() => navigate('/production-tracker')}
+                            >
+                                トラッカーを開く
+                            </Button>
+                        </Box>
+                    )}
                     <style>{`
                 /* Google風: ツールバーをフラットに */
                 .fc .fc-header-toolbar,

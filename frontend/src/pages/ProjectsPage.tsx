@@ -46,6 +46,9 @@ interface ProjectWithProgress extends Project {
     totalCost: number;
     completedCost: number;
     progress: number;
+    shots?: number;
+    retakes?: number;
+    troubles?: number;
 }
 
 interface ProjectFormData {
@@ -106,13 +109,15 @@ const ProjectsPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [projectsResponse, tasksResponse] = await Promise.all([
+            const [projectsResponse, tasksResponse, summaryResponse] = await Promise.all([
                 api.get<Project[]>('/projects'),
-                api.get<Task[]>('/tasks')
+                api.get<Task[]>('/tasks'),
+                api.get<Record<string, {shots: number, retakes: number, troubles: number}>>('/api/projects/summary').catch(() => ({ data: {} }))
             ]);
 
             const projectsData = projectsResponse.data;
             const tasksData = tasksResponse.data;
+            const scoreSummary = (summaryResponse as any).data || {};
 
             const tasksByProjectId = tasksData.reduce((acc, task) => {
                 const projId = task.project_id;
@@ -127,6 +132,8 @@ const ProjectsPage: React.FC = () => {
 
             const projectsWithProgress = projectsData.map((project): ProjectWithProgress => {
                 const relatedTasks = tasksByProjectId[String(project.id)] || [];
+                const summary = scoreSummary[String(project.id)] || { shots: 0, retakes: 0, troubles: 0 };
+                
                 const totalCost = relatedTasks.reduce((sum, task) => sum + (Number(task.cost) || 0), 0);
                 const completedCost = relatedTasks.reduce((sum, task) => {
                     const cost = Number(task.cost) || 0;
@@ -151,6 +158,9 @@ const ProjectsPage: React.FC = () => {
                     totalCost,
                     completedCost,
                     progress,
+                    shots: summary.shots,
+                    retakes: summary.retakes,
+                    troubles: summary.troubles,
                 };
             });
 
@@ -394,6 +404,37 @@ const ProjectsPage: React.FC = () => {
                     return '-';
                 }
             }
+        },
+        {
+            field: 'shots', headerName: 'ショット数', width: 110, renderCell: (params) => (
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{params.value || 0}</Typography>
+            )
+        },
+        {
+            field: 'retakes', headerName: 'リテイク', width: 110, renderCell: (params) => (
+                <Chip
+                    label={params.value || 0}
+                    size="small"
+                    sx={{
+                        bgcolor: (params.value as number) > 0 ? 'warning.light' : 'action.hover',
+                        color: (params.value as number) > 0 ? 'warning.dark' : 'text.disabled',
+                        fontWeight: 700
+                    }}
+                />
+            )
+        },
+        {
+            field: 'troubles', headerName: 'トラブル', width: 110, renderCell: (params) => (
+                <Chip
+                    label={params.value || 0}
+                    size="small"
+                    sx={{
+                        bgcolor: (params.value as number) > 0 ? 'error.light' : 'action.hover',
+                        color: (params.value as number) > 0 ? 'error.dark' : 'text.disabled',
+                        fontWeight: 700
+                    }}
+                />
+            )
         },
         {
             field: 'progress', headerName: '進捗率(%)', width: 140, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
@@ -727,6 +768,21 @@ const ProjectsPage: React.FC = () => {
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.85rem' }}>
                                     {project.description || '説明なし'}
                                 </Typography>
+
+                                <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                    <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Shots:</Typography>
+                                        <Typography variant="caption" sx={{ fontWeight: 700 }}>{project.shots || 0}</Typography>
+                                    </Box>
+                                    <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: (project.retakes || 0) > 0 ? 'warning.light' : 'action.hover', border: '1px solid', borderColor: (project.retakes || 0) > 0 ? 'warning.main' : 'divider', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 600, color: (project.retakes || 0) > 0 ? 'warning.dark' : 'text.secondary' }}>Retakes:</Typography>
+                                        <Typography variant="caption" sx={{ fontWeight: 700, color: (project.retakes || 0) > 0 ? 'warning.dark' : 'inherit' }}>{project.retakes || 0}</Typography>
+                                    </Box>
+                                    <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: (project.troubles || 0) > 0 ? 'error.light' : 'action.hover', border: '1px solid', borderColor: (project.troubles || 0) > 0 ? 'error.main' : 'divider', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Typography variant="caption" sx={{ fontWeight: 600, color: (project.troubles || 0) > 0 ? 'error.dark' : 'text.secondary' }}>Troubles:</Typography>
+                                        <Typography variant="caption" sx={{ fontWeight: 700, color: (project.troubles || 0) > 0 ? 'error.dark' : 'inherit' }}>{project.troubles || 0}</Typography>
+                                    </Box>
+                                </Box>
 
                                 <Box sx={{ mb: 1 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>

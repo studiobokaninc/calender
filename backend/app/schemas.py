@@ -557,3 +557,170 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str = Field(..., description="AIによる回答")
     sources: List[str] = Field(default_factory=list, description="根拠となった情報源（会議名など）")
+
+# --- Score Related Schemas ---
+
+class ScoreUserRoleBase(BaseModel):
+    user_id: int
+    project_id: int
+    role: str
+
+class ScoreUserRoleCreate(ScoreUserRoleBase):
+    pass
+
+class ScoreUserRole(ScoreUserRoleBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+class RetakeTimecodeBase(BaseModel):
+    timecode: str
+    comment: Optional[str] = None
+
+class RetakeTimecodeCreate(RetakeTimecodeBase):
+    pass
+
+class RetakeTimecode(RetakeTimecodeBase):
+    id: int
+    retake_id: int
+    class Config:
+        from_attributes = True
+
+class RetakeBase(BaseModel):
+    shot_id: int
+    overall_comment: Optional[str] = None
+    status: str = "open"
+    priority: Optional[str] = None
+    deadline: Optional[datetime] = None
+
+class RetakeCreate(RetakeBase):
+    timecodes: List[RetakeTimecodeCreate] = []
+
+class Retake(RetakeBase):
+    id: int
+    created_by: int
+    created_at: datetime
+    timecodes: List[RetakeTimecode] = []
+    shot_code: Optional[str] = None
+    project_name: Optional[str] = None
+    assignee_name: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class ChangeRequestBase(BaseModel):
+    shot_id: Optional[int] = None
+    task_id: Optional[int] = None
+    type: str
+    proposed_value: Optional[str] = None
+    reason: Optional[str] = None
+    status: str = "pending"
+
+class ChangeRequestCreate(ChangeRequestBase):
+    pass
+
+class ChangeRequest(ChangeRequestBase):
+    id: int
+    created_by: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class TroubleBase(BaseModel):
+    shot_id: int
+    category: str
+    description: str
+    severity: Optional[str] = None
+    status: str = "open"
+    assigned_to: Optional[int] = None
+
+class TroubleCreate(TroubleBase):
+    pass
+
+class Trouble(TroubleBase):
+    id: int
+    created_by: int
+    created_at: datetime
+    shot_code: Optional[str] = None
+    project_name: Optional[str] = None
+    reporter_name: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class LookDistributionBase(BaseModel):
+    shot_ids: List[int]
+    look_dev_id: int
+    status: str = "pending"
+    assigned_to: int
+
+class LookDistributionCreate(LookDistributionBase):
+    pass
+
+class LookDistribution(LookDistributionBase):
+    id: int
+    created_by: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class UserMessageBase(BaseModel):
+    channel_id: str
+    shot_id: Optional[int] = None
+    body: str
+
+class UserMessageCreate(UserMessageBase):
+    pass
+
+class UserMessage(UserMessageBase):
+    id: int
+    author_id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class NotificationBase(BaseModel):
+    recipient_id: int
+    type: str
+    body: str
+    is_read: bool = False
+
+class NotificationCreate(NotificationBase):
+    pass
+
+class Notification(NotificationBase):
+    id: int
+    created_at: datetime
+    project_name: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class TimecardBase(BaseModel):
+    date: datetime
+    clock_out_at: Optional[datetime] = None
+    worked_minutes: int = 0
+    break_minutes: int = 0
+    memo: Optional[str] = None
+
+class TimecardCreate(TimecardBase):
+    user_id: Optional[int] = None
+
+class Timecard(TimecardBase):
+    id: int
+    user_id: int
+    class Config:
+        from_attributes = True
+
+class RoutineBase(BaseModel):
+    date: datetime
+    condition: Optional[str] = None
+    blockers: Optional[List[str]] = None
+    ai_priorities_adopted: Optional[List[int]] = None
+
+class RoutineCreate(RoutineBase):
+    user_id: Optional[int] = None
+
+class Routine(RoutineBase):
+    id: int
+    user_id: int
+    class Config:
+        from_attributes = True
+

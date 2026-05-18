@@ -4,6 +4,7 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case
 
 from .. import crud, models, security
 from ..database import get_db
@@ -26,41 +27,78 @@ def get_dashboard_metrics(
         logger.error(f"Error auto-updating task statuses: {e}")
 
     try:
-        tasks_from_db = crud.get_tasks(db=db, limit=100000)
-        num_tasks = len(tasks_from_db) if tasks_from_db else 0
+        num_tasks = db.query(models.Task).join(models.Project).filter(models.Project.display_status == 'online').count()
     except Exception as e:
         logger.error(f"Error counting tasks for metrics: {e}")
         num_tasks = -1
 
     try:
-        if current_user.role == 'admin':
-            projects_from_db = crud.get_projects(db=db, skip=0, limit=100000, display_status_in=None)
-        else:
-            projects_from_db = crud.get_projects(db=db, skip=0, limit=100000, display_status_in=['online'])
-        num_projects = len(projects_from_db) if projects_from_db else 0
+        num_completed_tasks = db.query(models.Task).join(models.Project).filter(
+            models.Project.display_status == 'online',
+            models.Task.status == models.TaskStatus.COMPLETED
+        ).count()
+    except Exception as e:
+        logger.error(f"Error counting completed tasks for metrics: {e}")
+        num_completed_tasks = -1
+
+    try:
+        num_projects = db.query(models.Project).filter(models.Project.display_status == 'online').count()
     except Exception as e:
         logger.error(f"Error counting projects for metrics: {e}")
         num_projects = -1
     
     try:
-        events_from_db = crud.get_events(db=db, skip=0, limit=100000)
-        num_events = len(events_from_db) if events_from_db else 0
+        # 紐づくプロジェクトがonlineのもの、またはプロジェクトに紐づかないイベント
+        num_events = db.query(models.Event).outerjoin(models.Project).filter(
+            (models.Project.display_status == 'online') | (models.Event.project_id == None)
+        ).count()
     except Exception as e:
         logger.error(f"Error counting events for metrics: {e}")
         num_events = -1
     
     try:
-        users_from_db = crud.get_users(db=db, skip=0, limit=100000)
-        num_users = len(users_from_db) if users_from_db else 0
+        num_users = db.query(models.User).count()
     except Exception as e:
         logger.error(f"Error counting users for metrics: {e}")
         num_users = -1
 
+    try:
+        num_shots = db.query(models.Shot).join(models.Project).filter(models.Project.display_status == 'online').count()
+    except Exception as e:
+        logger.error(f"Error counting shots for metrics: {e}")
+        num_shots = -1
+
+    try:
+        project_stats = db.query(
+            models.Project.id,
+            models.Project.name,
+            func.count(models.Task.id).label('total_tasks'),
+            func.sum(case((models.Task.status == models.TaskStatus.COMPLETED, 1), else_=0)).label('completed_tasks')
+        ).outerjoin(models.Task, models.Project.id == models.Task.project_id)\
+         .filter(models.Project.display_status == 'online')\
+         .group_by(models.Project.id, models.Project.name).all()
+        
+        project_metrics = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "tasks": p.total_tasks,
+                "completed_tasks": int(p.completed_tasks or 0)
+            }
+            for p in project_stats
+        ]
+    except Exception as e:
+        logger.error(f"Error calculating project metrics: {e}")
+        project_metrics = []
+
     return {
         "users": num_users,
         "tasks": num_tasks,
+        "completed_tasks": num_completed_tasks,
         "projects": num_projects,
-        "events": num_events
+        "events": num_events,
+        "shots": num_shots,
+        "project_metrics": project_metrics
     }
 
 

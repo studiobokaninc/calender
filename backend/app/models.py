@@ -387,3 +387,116 @@ class KnowledgeTag(Base):
     name: Mapped[str] = mapped_column(index=True)
 
     knowledge_item: Mapped["KnowledgeItem"] = relationship("KnowledgeItem", back_populates="tags")
+
+# --- Score Related Models ---
+
+class ScoreUserRole(Base):
+    __tablename__ = "score_user_roles"
+    __table_args__ = (UniqueConstraint('user_id', 'project_id', 'role', name='uix_user_project_role'),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(50)) # director, compositor, etc.
+
+class Retake(Base):
+    __tablename__ = "retakes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id", ondelete="CASCADE"), index=True)
+    overall_comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="open") # open, in_progress, closed
+    priority: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    deadline: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+    timecodes: Mapped[List["RetakeTimecode"]] = relationship("RetakeTimecode", back_populates="retake", cascade="all, delete-orphan")
+
+class RetakeTimecode(Base):
+    __tablename__ = "retake_timecodes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    retake_id: Mapped[int] = mapped_column(ForeignKey("retakes.id", ondelete="CASCADE"), index=True)
+    timecode: Mapped[str] = mapped_column(String(20))
+    comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    retake: Mapped["Retake"] = relationship("Retake", back_populates="timecodes")
+
+class ChangeRequest(Base):
+    __tablename__ = "change_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id"), nullable=True)
+    task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    type: Mapped[str] = mapped_column(String(50)) # deadline_extension, etc.
+    proposed_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="pending")
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class Trouble(Base):
+    __tablename__ = "troubles"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id"), index=True)
+    category: Mapped[str] = mapped_column(String(50))
+    description: Mapped[str] = mapped_column(Text)
+    severity: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="open")
+    assigned_to: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class LookDistribution(Base):
+    __tablename__ = "look_distributions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    shot_ids: Mapped[List[int]] = mapped_column(JSON)
+    look_dev_id: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(50), default="pending")
+    assigned_to: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class UserMessage(Base):
+    __tablename__ = "user_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    channel_id: Mapped[str] = mapped_column(String(100), index=True)
+    shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id"), nullable=True, index=True)
+    body: Mapped[str] = mapped_column(Text)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    type: Mapped[str] = mapped_column(String(50))
+    body: Mapped[str] = mapped_column(Text)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class Timecard(Base):
+    __tablename__ = "timecards"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
+    clock_out_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    worked_minutes: Mapped[int] = mapped_column(default=0)
+    break_minutes: Mapped[int] = mapped_column(default=0)
+    memo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+class Routine(Base):
+    __tablename__ = "routines"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
+    condition: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    blockers: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    ai_priorities_adopted: Mapped[Optional[List[int]]] = mapped_column(JSON, nullable=True)

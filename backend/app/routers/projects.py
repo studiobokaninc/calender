@@ -135,7 +135,7 @@ def get_production_tracker_endpoint(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
-    """シーケンス・ショット軸での進捗マトリックスデータを取得"""
+    """シーケンス・ショット軸での進捗マトリックスデータを取得 (Legacy / External Compatibility)"""
     from sqlalchemy.orm import joinedload
     from typing import Dict, Any, List
     
@@ -174,7 +174,7 @@ def get_production_tracker_endpoint(
             
         tree[sid][hid][task_type].append({
             "id": t.id,
-            "status": t.status.value if t.status else "todo",
+            "status": t.status.value if hasattr(t.status, 'value') else str(t.status or "todo"),
             "name": t.name,
             "assignee": assignee_name,
             "due_date": t.due_date.isoformat() if t.due_date else None

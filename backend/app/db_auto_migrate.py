@@ -170,6 +170,156 @@ def check_and_migrate_db():
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_shot ON tasks(shot_id)")
             conn.commit()
             print("shot_idカラムを追加しました。")
+        
+        # --- Score Related Tables ---
+        
+        # score_user_roles
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS score_user_roles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                project_id INTEGER NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                UNIQUE(user_id, project_id, role)
+            )
+        """)
+        
+        # retakes
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS retakes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shot_id INTEGER NOT NULL,
+                overall_comment TEXT,
+                status VARCHAR(50) DEFAULT 'open',
+                priority VARCHAR(50),
+                deadline DATETIME,
+                created_by INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(shot_id) REFERENCES shots(id) ON DELETE CASCADE,
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+        
+        # retake_timecodes
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS retake_timecodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                retake_id INTEGER NOT NULL,
+                timecode VARCHAR(20),
+                comment TEXT,
+                FOREIGN KEY(retake_id) REFERENCES retakes(id) ON DELETE CASCADE
+            )
+        """)
+        
+        # change_requests
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS change_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shot_id INTEGER,
+                task_id INTEGER,
+                type VARCHAR(50),
+                proposed_value TEXT,
+                reason TEXT,
+                status VARCHAR(50) DEFAULT 'pending',
+                created_by INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(shot_id) REFERENCES shots(id),
+                FOREIGN KEY(task_id) REFERENCES tasks(id),
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+        
+        # troubles
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS troubles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shot_id INTEGER NOT NULL,
+                category VARCHAR(50),
+                description TEXT NOT NULL,
+                severity VARCHAR(50),
+                status VARCHAR(50) DEFAULT 'open',
+                assigned_to INTEGER,
+                created_by INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(shot_id) REFERENCES shots(id),
+                FOREIGN KEY(assigned_to) REFERENCES users(id),
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+        
+        # look_distributions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS look_distributions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shot_ids JSON,
+                look_dev_id INTEGER,
+                status VARCHAR(50) DEFAULT 'pending',
+                assigned_to INTEGER NOT NULL,
+                created_by INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(assigned_to) REFERENCES users(id),
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+        
+        # user_messages
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel_id VARCHAR(100),
+                shot_id INTEGER,
+                body TEXT NOT NULL,
+                author_id INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(shot_id) REFERENCES shots(id),
+                FOREIGN KEY(author_id) REFERENCES users(id)
+            )
+        """)
+        
+        # notifications
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipient_id INTEGER NOT NULL,
+                type VARCHAR(50),
+                body TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT 0,
+                created_at DATETIME,
+                FOREIGN KEY(recipient_id) REFERENCES users(id)
+            )
+        """)
+        
+        # timecards
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS timecards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date DATETIME,
+                clock_out_at DATETIME,
+                worked_minutes INTEGER DEFAULT 0,
+                break_minutes INTEGER DEFAULT 0,
+                memo TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """)
+        
+        # routines
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS routines (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                date DATETIME,
+                condition VARCHAR(50),
+                blockers JSON,
+                ai_priorities_adopted JSON,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """)
+        
+        conn.commit()
+        print("Score 関連テーブルの確認・作成を完了しました。")
 
         conn.close()
         

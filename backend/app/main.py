@@ -43,7 +43,8 @@ from .routers import (
     admin as admin_router,
     ask as ask_router,
     external as external_router,
-    shots as shots_router
+    shots as shots_router,
+    score as score_router
 )
 print("Main: ルーター読み込み完了")
 
@@ -138,6 +139,7 @@ app.include_router(activities_router.router)
 app.include_router(admin_router.router)
 app.include_router(external_router.router)
 app.include_router(shots_router.router)
+app.include_router(score_router.router)
 
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])

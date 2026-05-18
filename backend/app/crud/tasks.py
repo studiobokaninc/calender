@@ -202,6 +202,14 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
                 db_task.auto_started = False
             if db_key == "due_date" and db_task.due_date != parsed_value:
                 db_task.auto_delayed = False
+                
+            # 手動でステータスが変更された場合
+            if db_key == "status" and db_task.status != parsed_value:
+                # 期日を過ぎているタスクのステータスを手動で変更したなら、自動遅延を抑止する
+                if db_task.due_date:
+                    due_date = db_task.due_date.date() if hasattr(db_task.due_date, 'date') else db_task.due_date
+                    if due_date < now_jst_naive().date():
+                        db_task.auto_delayed = True
 
             setattr(db_task, db_key, parsed_value)
             if db_key in ["phases", "check_items", "deliverables", "dependsOn"]:

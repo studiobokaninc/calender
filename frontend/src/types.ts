@@ -144,6 +144,11 @@ export interface CalendarEvent {
     actualStartTime?: string | null;
     taskPriority?: 'low' | 'medium' | 'high' | null; // Added
     taskType?: string | null; // Added to fix lint error
+    projectColor?: string | null;
+    groupId?: string | null;
+    groupDescription?: string | null;
+    groupStartDate?: string | null;
+    groupEndDate?: string | null;
     isPhase?: boolean; // Added
     isCompleted?: boolean; // Added for Phase status
     isDelayed?: boolean; // Added for Phase status

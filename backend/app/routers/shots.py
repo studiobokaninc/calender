@@ -10,8 +10,13 @@ from ..database import get_db
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/shots", tags=["Shots"])
 
-SEQ_CODE_REGEX = re.compile(r"^(SEQ|SQ)?\d{2,4}$")
-SHOT_CODE_REGEX = re.compile(r"^(SHOT)?[\d_]+$")
+# seq_code: 1〜50文字の英数字・アンダースコア・ハイフン（大文字小文字不問）
+# 例: seq01, C, OP, SQ001, A, ep01, scene-1
+SEQ_CODE_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,49}$")
+
+# shot_code: 1〜50文字の英数字・アンダースコア・ハイフン（大文字小文字不問）
+# 例: shot010, C001, 0010, shot_01, 001
+SHOT_CODE_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,49}$")
 
 @router.get("", response_model=List[schemas.ShotResponse])
 def get_shots(

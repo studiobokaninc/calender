@@ -8,6 +8,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme,
   Breadcrumbs, Link, Drawer
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { User, Task, Project, UserGroup, Group, CalendarEvent } from '../types';
 import api from '../services/api';
 import {

@@ -44,7 +44,8 @@ def get_tasks_endpoint(
     skip: int = 0,
     limit: int = 10000,
     display_status_in: Optional[List[str]] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
 ):
     """タスクリストを取得"""
     try:

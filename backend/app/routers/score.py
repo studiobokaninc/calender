@@ -17,9 +17,10 @@ def get_actor_user_id(
 ) -> int:
     """
     ヘッダーから実操作者のIDを取得します。
-    ヘッダーがない場合は、認証されたユーザーのIDを使用します。
+    管理者のみ X-Actor-User-Id ヘッダーで任意のユーザーIDを指定できます。
+    一般ユーザーがヘッダーを指定した場合は、自分自身のIDを使用します。
     """
-    if x_actor_user_id:
+    if x_actor_user_id and current_user.role == 'admin':
         return x_actor_user_id
     return current_user.id
 

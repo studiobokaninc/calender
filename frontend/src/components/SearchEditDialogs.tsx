@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel,
-  Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography,
+  Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography, Checkbox, FormControlLabel, IconButton,
 } from '@mui/material';
+import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import api, { mockDataApi } from '../services/api';
 
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
@@ -169,6 +170,8 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     shot_id: null as number | null,
     dependsOn: [] as string[],
     phases: [] as { name: string; date: string }[],
+    check_items: [] as { label: string; checked: boolean }[],
+    deliverables: '',
   });
 
 
@@ -205,6 +208,8 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
           shot_id: (t as any).shot_id ?? null,
           dependsOn: t.dependsOn ?? [],
           phases: t.phases ?? [],
+          check_items: (t as any).check_items ?? [],
+          deliverables: (t as any).deliverables ?? '',
         });
       })
       .catch(() => setError('タスクの取得に失敗しました'))
@@ -300,6 +305,8 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
         shot_id: form.shot_id,
         seqID: form.seqID,
         shotID: form.shotID,
+        check_items: form.check_items,
+        deliverables: form.deliverables || null,
 
 
         dependsOn: form.dependsOn || [],
@@ -495,6 +502,61 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
             <Button variant="outlined" size="small" onClick={() => {
               setForm({ ...form, phases: [...form.phases, { name: '', date: '' }] });
             }}>段階目標を追加</Button>
+
+            {/* チェックリスト (check_items) */}
+            <Divider />
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>チェックリスト</Typography>
+            {form.check_items.map((item, index) => (
+              <Stack direction="row" spacing={1} key={index} alignItems="center">
+                <Checkbox
+                  checked={item.checked}
+                  size="small"
+                  onChange={(e) => {
+                    const next = [...form.check_items];
+                    next[index].checked = e.target.checked;
+                    setForm({ ...form, check_items: next });
+                  }}
+                />
+                <TextField
+                  label={`項目 ${index + 1}`}
+                  value={item.label}
+                  onChange={(e) => {
+                    const next = [...form.check_items];
+                    next[index].label = e.target.value;
+                    setForm({ ...form, check_items: next });
+                  }}
+                  size="small"
+                  sx={{ flex: 1 }}
+                />
+                <IconButton size="small" color="error" onClick={() => {
+                  setForm({ ...form, check_items: form.check_items.filter((_, i) => i !== index) });
+                }}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            ))}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={() => setForm({ ...form, check_items: [...form.check_items, { label: '', checked: false }] })}
+            >
+              チェック項目を追加
+            </Button>
+
+            {/* 成果物 (deliverables) */}
+            <Divider />
+            <TextField
+              name="deliverables"
+              label="成果物"
+              value={form.deliverables}
+              onChange={handleChange}
+              fullWidth
+              multiline
+              rows={2}
+              size="small"
+              helperText="このタスクで生成・提出するファイルや成果物の説明"
+            />
           </Stack>
         )}
       </DialogContent>

@@ -99,6 +99,7 @@ interface TaskFormData {
     seqID: string;
     shotID: string;
     dependsOn: string[];
+    shot_id: number | null;
 }
 
 

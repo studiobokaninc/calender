@@ -101,7 +101,8 @@ const App: React.FC = () => {
             <Route path="meetings" element={<AdminRoute><MeetingMinutesPage /></AdminRoute>} />
             <Route path="galaxy" element={<AdminRoute><GalaxyPage /></AdminRoute>} />
             <Route path="knowledge" element={<AdminRoute><KnowledgePage /></AdminRoute>} />
-            <Route path="events" element={<AdminRoute><Navigate to="/metrics?tab=events" replace /></AdminRoute>} />
+            {/* /eventsは/event-managementに統一（MetricsのEventsタブは/metrics?tab=eventsで直接アクセス可能） */}
+            <Route path="events" element={<AdminRoute><Navigate to="/event-management" replace /></AdminRoute>} />
             <Route path="projects/:projectId" element={<AdminRoute><ProjectDetailPage /></AdminRoute>} />
             <Route path="production-tracker" element={<AdminRoute><ProductionTrackerPage /></AdminRoute>} />
             <Route path="admin/users" element={<AdminRoute><UserManagementPage /></AdminRoute>} />

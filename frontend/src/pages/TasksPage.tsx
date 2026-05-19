@@ -1748,7 +1748,7 @@ const TasksPage: React.FC = () => {
                                     <MenuItem value="">選択してください</MenuItem>
                                 )}
                                 {shots.map((s) => (
-                                    <MenuItem key={s.id} value={s.id}>{s.shotID}</MenuItem>
+                                    <MenuItem key={s.id} value={s.id}>{s.seqID} / {s.shotID}</MenuItem>
                                 ))}
                             </Select>
 
@@ -1761,6 +1761,7 @@ const TasksPage: React.FC = () => {
                             fullWidth
                             size="small"
                             InputProps={{ readOnly: !!currentTask.shot_id }}
+                            helperText={currentTask.shot_id ? 'ショット選択で自動入力' : '手動入力（レガシープロジェクト用）'}
                             sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
                         />
                         <TextField
@@ -1771,8 +1772,10 @@ const TasksPage: React.FC = () => {
                             fullWidth
                             size="small"
                             InputProps={{ readOnly: !!currentTask.shot_id }}
+                            helperText={currentTask.shot_id ? 'ショット選択で自動入力' : ''}
                             sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
                         />
+
 
 
 

@@ -388,7 +388,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
                   <MenuItem value="">選択してください</MenuItem>
                 )}
                 {shots.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>{s.shotID}</MenuItem>
+                  <MenuItem key={s.id} value={s.id}>{s.seqID} / {s.shotID}</MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -401,6 +401,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
               fullWidth
               size="small"
               InputProps={{ readOnly: !!form.shot_id }}
+              helperText={form.shot_id ? 'ショット選択で自動入力' : '手動入力（レガシープロジェクト用）'}
               sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
             />
             <TextField
@@ -411,6 +412,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
               fullWidth
               size="small"
               InputProps={{ readOnly: !!form.shot_id }}
+              helperText={form.shot_id ? 'ショット選択で自動入力' : ''}
               sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
             />
 

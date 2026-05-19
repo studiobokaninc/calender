@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import api, { mockDataApi } from '../services/api';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select,
   MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Box, Grid,
@@ -43,6 +44,7 @@ interface EventFormData {
   taskType?: string;
   taskSeqID?: string;
   taskShotID?: string;
+  taskShotRelId?: number | null;
   taskDependsOn?: string[];
   location?: string;
   dueDate?: string;
@@ -160,6 +162,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       taskType: '',
       taskSeqID: '',
       taskShotID: '',
+      taskShotRelId: null,
       taskDependsOn: [],
       location: '',
       dueDate: format(initialStartDateTime, 'yyyy-MM-dd'),
@@ -175,12 +178,37 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   const [selectedParticipants, setSelectedParticipants] = useState<ParticipantOption[]>([]);
   const [selectedDependencies, setSelectedDependencies] = useState<TaskOption[]>([]);
   const [isRange, setIsRange] = useState(false); // Added for Generic event range selection
+  const [shots, setShots] = useState<{ id: number; shotID: string; seqID: string }[]>([]);
 
   useEffect(() => {
     if (open) {
       setProjectsLoading(false);
     }
   }, [open]);
+
+  // プロジェクト選択時にショット一覧を取得
+  const selectedProjectId = projectSelectionMode === 'existing' ? formData.projectId : null;
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setShots([]);
+      return;
+    }
+    mockDataApi.getProductionTracker(Number(selectedProjectId))
+      .then((data: any) => {
+        const allShots: { id: number; shotID: string; seqID: string }[] = [];
+        if (data && data.sequences) {
+          data.sequences.forEach((seqData: any) => {
+            if (seqData.shots) {
+              seqData.shots.forEach((s: any) => {
+                allShots.push({ id: s.id, shotID: s.shotID, seqID: seqData.seqID });
+              });
+            }
+          });
+        }
+        setShots(allShots);
+      })
+      .catch(() => console.error('Failed to fetch shots for EventAddModal'));
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (!canCreateProject && projectSelectionMode === 'new') {
@@ -826,6 +854,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         dataToSave.taskType = (formData.taskType ?? '').toLowerCase() || undefined;
         dataToSave.seqID = formData.taskSeqID?.trim() ?? '';
         dataToSave.shotID = formData.taskShotID?.trim() ?? '';
+        dataToSave.shot_id = formData.taskShotRelId ?? null;
+
         dataToSave.dependsOn = selectedDependencies.map(dep => dep.id);
         // 段階目標: カレンダー表示用に date と is_completed を含める（name のみの場合は is_completed: false）
         dataToSave.phases = (formData.taskPhases || []).map((p: { name: string; date: string; is_completed?: boolean }) => ({
@@ -1255,37 +1285,79 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       onChange={handleChange}
                     >
                       <MenuItem value="">未設定</MenuItem>
-                      <MenuItem value="design">Design</MenuItem>
-                      <MenuItem value="documentation">Documentation</MenuItem>
-                      <MenuItem value="testing">Testing</MenuItem>
-                      <MenuItem value="review">Review</MenuItem>
-                      <MenuItem value="meeting">Meeting</MenuItem>
-                      <MenuItem value="fx">FX</MenuItem>
-                      <MenuItem value="asset">Asset</MenuItem>
-                      <MenuItem value="animation">Animation</MenuItem>
-                      <MenuItem value="lighting">Lighting</MenuItem>
-                      <MenuItem value="comp">Comp</MenuItem>
+                      <MenuItem value="animation">animation</MenuItem>
+                      <MenuItem value="layout">layout</MenuItem>
+                      <MenuItem value="comp">comp</MenuItem>
+                      <MenuItem value="fx">fx</MenuItem>
+                      <MenuItem value="lighting">lighting</MenuItem>
+                      <MenuItem value="asset">asset</MenuItem>
+                      <MenuItem value="programming">programming</MenuItem>
+                      <MenuItem value="design">design</MenuItem>
+                      <MenuItem value="testing">testing</MenuItem>
+                      <MenuItem value="documentation">documentation</MenuItem>
+                      <MenuItem value="shoot">shoot</MenuItem>
+                      <MenuItem value="gs">gs</MenuItem>
+                      <MenuItem value="report">report</MenuItem>
+                      <MenuItem value="other">other</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                {/* ショット選択（Scoreプロジェクト連携） */}
+                <Grid item xs={12}>
+                  <FormControl fullWidth size="small" disabled={!formData.projectId}>
+                    <InputLabel>ショット（Scoreプロジェクト）</InputLabel>
+                    <Select
+                      value={formData.taskShotRelId ?? ''}
+                      label="ショット（Scoreプロジェクト）"
+                      onChange={(e) => {
+                        const val = e.target.value as number | '';
+                        if (val === '') {
+                          setFormData(prev => ({ ...prev, taskShotRelId: null, taskSeqID: '', taskShotID: '' }));
+                        } else {
+                          const shot = shots.find(s => s.id === val);
+                          setFormData(prev => ({
+                            ...prev,
+                            taskShotRelId: val,
+                            taskSeqID: shot?.seqID ?? '',
+                            taskShotID: shot?.shotID ?? '',
+                          }));
+                        }
+                      }}
+                    >
+                      {!formData.projectId ? (
+                        <MenuItem value="" disabled>プロジェクトを先に選択してください</MenuItem>
+                      ) : shots.length === 0 ? (
+                        <MenuItem value="" disabled>このプロジェクトにはショットがありません</MenuItem>
+                      ) : (
+                        <MenuItem value="">（なし）</MenuItem>
+                      )}
+                      {shots.map(s => (
+                        <MenuItem key={s.id} value={s.id}>{s.seqID} / {s.shotID}</MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>
                 <Grid item xs={6}>
                   <TextField
-                    label="seqID"
+                    label="シーケンスID"
                     name="taskSeqID"
                     value={formData.taskSeqID ?? ''}
                     onChange={handleChange}
                     fullWidth
                     size="small"
+                    InputProps={{ readOnly: !!formData.taskShotRelId }}
+                    helperText={formData.taskShotRelId ? 'ショット選択で自動入力' : '手動入力（レガシープロジェクト用）'}
                   />
                 </Grid>
                 <Grid item xs={6}>
                   <TextField
-                    label="shotID"
+                    label="ショットID"
                     name="taskShotID"
                     value={formData.taskShotID ?? ''}
                     onChange={handleChange}
                     fullWidth
                     size="small"
+                    InputProps={{ readOnly: !!formData.taskShotRelId }}
                   />
                 </Grid>
                 <Grid item xs={12}>

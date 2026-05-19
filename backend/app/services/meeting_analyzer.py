@@ -486,8 +486,8 @@ class MeetingAnalyzer:
         if raw_transcript.strip():
             chunks = []
             start = 0
-            chunk_size = 1000
-            overlap = 200
+            chunk_size = 4000
+            overlap = 500
             while start < len(raw_transcript):
                 end = start + chunk_size
                 chunks.append(raw_transcript[start:end])

@@ -272,9 +272,23 @@ def get_my_retakes(
     db: Session = Depends(get_db)
 ):
     # 自分が発行した、または自分の担当ショットに対するリテイク
-    return db.query(models.Retake).options(selectinload(models.Retake.timecodes)).join(models.Shot).join(models.Task, isouter=True).filter(
+    query = db.query(
+        models.Retake,
+        models.Shot.shot_code,
+        models.Project.name.label("project_name")
+    ).join(models.Shot, models.Retake.shot_id == models.Shot.id)\
+     .join(models.Project, models.Shot.project_id == models.Project.id)\
+     .join(models.Task, models.Task.shot_id == models.Shot.id, isouter=True)\
+     .filter(
         (models.Retake.created_by == actor_id) | (models.Task.assigned_to == actor_id)
-    ).distinct().all()
+    ).distinct()
+    
+    results = query.options(selectinload(models.Retake.timecodes)).all()
+    
+    for r, sc, pn in results:
+        r.shot_code = sc
+        r.project_name = pn
+    return [r for r, sc, pn in results]
 
 @router.get("/me/troubles", response_model=List[schemas.Trouble])
 def get_my_troubles(
@@ -282,9 +296,25 @@ def get_my_troubles(
     db: Session = Depends(get_db)
 ):
     # 自分が報告した、または自分にアサインされたトラブル
-    return db.query(models.Trouble).filter(
+    query = db.query(
+        models.Trouble,
+        models.Shot.shot_code,
+        models.Project.name.label("project_name"),
+        models.User.full_name.label("reporter_name")
+    ).join(models.Shot, models.Trouble.shot_id == models.Shot.id)\
+     .join(models.Project, models.Shot.project_id == models.Project.id)\
+     .join(models.User, models.Trouble.created_by == models.User.id)\
+     .filter(
         (models.Trouble.created_by == actor_id) | (models.Trouble.assigned_to == actor_id)
-    ).all()
+    )
+    
+    results = query.all()
+    
+    for t, sc, pn, rn in results:
+        t.shot_code = sc
+        t.project_name = pn
+        t.reporter_name = rn
+    return [t for t, sc, pn, rn in results]
 
 @router.get("/shots/similar", response_model=List[schemas.ShotResponse])
 def get_similar_shots(
@@ -525,13 +555,23 @@ def list_look_distributions(
     project_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
+    import json
     query = db.query(models.LookDistribution)
+    results = query.order_by(models.LookDistribution.created_at.desc()).all()
+    
     if project_id:
-        # look_distributions には shot_ids (JSON) があるが、紐付けが複雑なので
-        # 今回は単純に全件または作成者などでフィルタリングする想定
-        # 本来は shot_ids を展開して project_id を確認する必要がある
-        pass
-    return query.order_by(models.LookDistribution.created_at.desc()).all()
+        # プロジェクトに属するショットのIDを取得
+        shot_ids = db.query(models.Shot.id).filter(models.Shot.project_id == project_id).all()
+        project_shot_ids = set(s[0] for s in shot_ids)
+        
+        filtered_results = []
+        for r in results:
+            r_shot_ids = json.loads(r.shot_ids) if isinstance(r.shot_ids, str) else r.shot_ids
+            if set(r_shot_ids).intersection(project_shot_ids):
+                filtered_results.append(r)
+        return filtered_results
+        
+    return results
 
 @router.get("/timecards", response_model=List[schemas.Timecard])
 def list_timecards(
@@ -565,17 +605,26 @@ def list_routines(
 @router.get("/notifications", response_model=List[schemas.Notification])
 def list_notifications(
     recipient_id: Optional[int] = None,
+    project_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(models.Notification)
     if recipient_id:
         query = query.filter(models.Notification.recipient_id == recipient_id)
+    if project_id:
+        # 通知にプロジェクトIDがないため、本文にプロジェクト名が含まれるか、
+        # またはプロジェクトに属するショットコードが含まれるかで簡易的にフィルタリング
+        project = db.query(models.Project).filter(models.Project.id == project_id).first()
+        if project:
+            query = query.filter(models.Notification.body.contains(project.name))
+            
     return query.order_by(models.Notification.created_at.desc()).all()
 
 @router.get("/user_messages", response_model=List[schemas.UserMessage])
 def list_user_messages(
     shot_id: Optional[int] = None,
     author_id: Optional[int] = None,
+    project_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     query = db.query(models.UserMessage)
@@ -583,4 +632,7 @@ def list_user_messages(
         query = query.filter(models.UserMessage.shot_id == shot_id)
     if author_id:
         query = query.filter(models.UserMessage.author_id == author_id)
+    if project_id:
+        query = query.join(models.Shot).filter(models.Shot.project_id == project_id)
+        
     return query.order_by(models.UserMessage.created_at.desc()).all()

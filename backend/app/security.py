@@ -76,6 +76,12 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
+    if not getattr(user, "is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="このアカウントは無効化されています。管理者にお問い合わせください。",
+        )
+
     return user
 
 
@@ -98,6 +104,8 @@ def authenticate_user(db: Session, username: str, password: str) -> Union[models
     if not db_user:
         return False
     if not verify_password(password, db_user.hashed_password):
+        return False
+    if not getattr(db_user, "is_active", True):
         return False
     return db_user
 

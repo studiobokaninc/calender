@@ -395,6 +395,20 @@ TABLE_MODEL_MAP = {
     "knowledge_items": models.KnowledgeItem,
     "knowledge_tags": models.KnowledgeTag,
     "shots": models.Shot,
+    "score_user_roles": models.ScoreUserRole,
+    "retakes": models.Retake,
+    "retake_timecodes": models.RetakeTimecode,
+    "change_requests": models.ChangeRequest,
+    "troubles": models.Trouble,
+    "look_distributions": models.LookDistribution,
+    "user_messages": models.UserMessage,
+    "notifications": models.Notification,
+    "timecards": models.Timecard,
+    "routines": models.Routine,
+    "assets": models.Asset,
+    "deliveries": models.Delivery,
+    "direct_messages": models.DirectMessage,
+    "group_direct_messages": models.GroupDirectMessage,
 }
 
 def serialize_model(obj) -> Dict[str, Any]:

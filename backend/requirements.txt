@@ -25,3 +25,4 @@ llama-index-llms-openai
 llama-index-embeddings-openai
 llama-index-vector-stores-chroma
 edge-tts
+holidays

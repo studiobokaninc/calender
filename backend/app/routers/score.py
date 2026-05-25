@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Form, UploadFile, File, Body, Query
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import or_
 from typing import List, Optional
 from .. import models, schemas, database, security
 from ..database import get_db
 from ..security import get_current_user
 from datetime import datetime
 from ..timezone import now_jst_naive
+import shutil
+from pathlib import Path
 
 router = APIRouter(prefix="/api", tags=["score"])
 
@@ -212,6 +215,175 @@ def read_notification(
     db.commit()
     db.refresh(db_notif)
     return db_notif
+
+# --- New Write APIs for U-01 ---
+
+@router.post("/shots/{id}/comments", response_model=schemas.UserMessage, status_code=status.HTTP_201_CREATED)
+def create_shot_comment(
+    id: int,
+    msg_in: schemas.UserMessageCreate,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    db_msg = models.UserMessage(
+        channel_id=f"shot_{id}",
+        shot_id=id,
+        body=msg_in.body,
+        timecode=msg_in.timecode,
+        author_id=actor_id,
+        created_at=now_jst_naive()
+    )
+    db.add(db_msg)
+    db.commit()
+    db.refresh(db_msg)
+    return db_msg
+
+@router.post("/assets", response_model=schemas.AssetResponse, status_code=status.HTTP_201_CREATED)
+def upload_asset(
+    file: UploadFile = File(...),
+    shot_id: int = Form(...),
+    task_id: Optional[int] = Form(None),
+    version: str = Form(...),
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    assets_dir = Path("static/assets")
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = assets_dir / f"shot_{shot_id}_task_{task_id}_{version}_{file.filename}"
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+        
+    db_asset = models.Asset(
+        shot_id=shot_id,
+        task_id=task_id,
+        version=version,
+        file_path=str(file_path.as_posix()),
+        created_by=actor_id,
+        created_at=now_jst_naive()
+    )
+    db.add(db_asset)
+    db.commit()
+    db.refresh(db_asset)
+    return db_asset
+
+@router.post("/deliveries/{id}/receive", response_model=schemas.DeliveryResponse)
+def receive_delivery(
+    id: int,
+    qc_status: str = Body(..., embed=True),
+    memo: Optional[str] = Body(None, embed=True),
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    db_delivery = db.query(models.Delivery).filter(models.Delivery.id == id).first()
+    if not db_delivery:
+        db_delivery = models.Delivery(
+            task_id=id,
+            status="received",
+            qc_status=qc_status,
+            memo=memo,
+            created_by=actor_id,
+            created_at=now_jst_naive()
+        )
+        db.add(db_delivery)
+    else:
+        db_delivery.status = "received"
+        db_delivery.qc_status = qc_status
+        db_delivery.memo = memo
+    db.commit()
+    db.refresh(db_delivery)
+    return db_delivery
+
+@router.patch("/look_distributions/{id}/accept", response_model=schemas.LookDistribution)
+def accept_look_distribution(
+    id: int,
+    estimated_hours: int = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    dist = db.query(models.LookDistribution).filter(models.LookDistribution.id == id).first()
+    if not dist:
+        raise HTTPException(status_code=404, detail="Look distribution not found")
+    dist.status = "in_progress"
+    dist.estimated_hours = estimated_hours
+    db.commit()
+    db.refresh(dist)
+    return dist
+
+@router.patch("/look_distributions/{id}/complete", response_model=schemas.LookDistribution)
+def complete_look_distribution(
+    id: int,
+    result_asset_id: int = Body(..., embed=True),
+    notes: Optional[str] = Body(None, embed=True),
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    dist = db.query(models.LookDistribution).filter(models.LookDistribution.id == id).first()
+    if not dist:
+        raise HTTPException(status_code=404, detail="Look distribution not found")
+    dist.status = "completed"
+    dist.result_asset_id = result_asset_id
+    dist.notes = notes
+    db.commit()
+    db.refresh(dist)
+    return dist
+
+@router.post("/dm", response_model=schemas.DirectMessageResponse, status_code=status.HTTP_201_CREATED)
+def send_direct_message(
+    dm_in: schemas.DirectMessageCreate,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    recipient_id = dm_in.recipient_id
+    thread_id = dm_in.thread_id
+    if not thread_id:
+        thread_id = min(actor_id, recipient_id) * 10000 + max(actor_id, recipient_id)
+        
+    db_dm = models.DirectMessage(
+        thread_id=thread_id,
+        sender_id=actor_id,
+        recipient_id=recipient_id,
+        body=dm_in.body,
+        context_json=dm_in.context_json,
+        created_at=now_jst_naive()
+    )
+    db.add(db_dm)
+    db.commit()
+    db.refresh(db_dm)
+    return db_dm
+
+@router.post("/group_dm", response_model=schemas.GroupDirectMessageResponse, status_code=status.HTTP_201_CREATED)
+def send_group_direct_message(
+    gdm_in: schemas.GroupDirectMessageCreate,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    db_gdm = models.GroupDirectMessage(
+        group_id=gdm_in.group_id,
+        sender_id=actor_id,
+        body=gdm_in.body,
+        created_at=now_jst_naive()
+    )
+    db.add(db_gdm)
+    db.commit()
+    db.refresh(db_gdm)
+    return db_gdm
+
+@router.patch("/notifications/read_all")
+def read_all_notifications(
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    notifs = db.query(models.Notification).filter(
+        models.Notification.recipient_id == actor_id,
+        models.Notification.is_read == False
+    ).all()
+    
+    marked_count = len(notifs)
+    for n in notifs:
+        n.is_read = True
+    db.commit()
+    return {"marked_count": marked_count}
 
 # --- Read APIs (22 endpoints) ---
 
@@ -637,3 +809,182 @@ def list_user_messages(
         query = query.join(models.Shot).filter(models.Shot.project_id == project_id)
         
     return query.order_by(models.UserMessage.created_at.desc()).all()
+
+# --- New Read APIs for U-03 ---
+
+@router.get("/me/shots/{id}")
+def get_my_shot_detail(
+    id: int,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    shot = db.query(models.Shot).filter(models.Shot.id == id).first()
+    if not shot:
+        raise HTTPException(status_code=404, detail="Shot not found")
+        
+    my_tasks = db.query(models.Task).filter(
+        models.Task.shot_id == id,
+        models.Task.assigned_to == actor_id
+    ).all()
+    
+    assets = db.query(models.Asset).filter(models.Asset.shot_id == id).all()
+    
+    return {
+        "shot_id": shot.id,
+        "shot_code": shot.shot_code,
+        "seq_code": shot.seq_code,
+        "status": shot.status,
+        "my_tasks": [schemas.TaskResponse.from_orm(t) for t in my_tasks],
+        "asset_list": [schemas.AssetResponse.from_orm(a) for a in assets],
+        "upstream": []
+    }
+
+@router.get("/me/events", response_model=List[schemas.EventResponse])
+def get_my_events(
+    start_date: Optional[datetime] = Query(None, alias="from"),
+    end_date: Optional[datetime] = Query(None, alias="to"),
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    user = db.query(models.User).filter(models.User.id == actor_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    query = db.query(models.Event)
+    
+    conditions = []
+    if user.email:
+        conditions.append(models.Event.participants.like(f"%{user.email}%"))
+    if user.full_name:
+        conditions.append(models.Event.participants.like(f"%{user.full_name}%"))
+        
+    if conditions:
+        query = query.filter(or_(*conditions))
+        
+    if start_date:
+        query = query.filter(models.Event.start_time >= start_date)
+    if end_date:
+        query = query.filter(models.Event.end_time <= end_date)
+        
+    return query.all()
+
+@router.get("/me/projects/{id}")
+def get_my_project_detail(
+    id: int,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    project = db.query(models.Project).filter(models.Project.id == id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+        
+    my_shots = db.query(models.Shot).join(models.Task).filter(
+        models.Shot.project_id == id,
+        models.Task.assigned_to == actor_id
+    ).distinct().all()
+    
+    members = db.query(models.User).join(models.Task).filter(
+        models.Task.project_id == id
+    ).distinct().all()
+    
+    return {
+        "project_id": project.id,
+        "name": project.name,
+        "status": project.status,
+        "my_shots": [schemas.ShotResponse.from_orm(s) for s in my_shots],
+        "my_team_members": [{"user_id": m.id, "name": m.full_name or m.username} for m in members]
+    }
+
+@router.get("/me/messages", response_model=List[schemas.UserMessage])
+def get_my_messages_read(
+    since: Optional[datetime] = None,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    my_shot_ids = [s.id for s in db.query(models.Shot).join(models.Task).filter(models.Task.assigned_to == actor_id).all()]
+    
+    query = db.query(models.UserMessage)
+    if my_shot_ids:
+        query = query.filter(models.UserMessage.shot_id.in_(my_shot_ids))
+    else:
+        query = query.filter(models.UserMessage.author_id == actor_id)
+        
+    if since:
+        query = query.filter(models.UserMessage.created_at >= since)
+        
+    return query.order_by(models.UserMessage.created_at.desc()).limit(100).all()
+
+@router.get("/me/dm/threads")
+def get_my_dm_threads(
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    dms = db.query(models.DirectMessage).filter(
+        or_(
+            models.DirectMessage.sender_id == actor_id,
+            models.DirectMessage.recipient_id == actor_id
+        )
+    ).order_by(models.DirectMessage.created_at.desc()).all()
+    
+    threads = {}
+    for dm in dms:
+        tid = dm.thread_id
+        if tid not in threads:
+            other_id = dm.recipient_id if dm.sender_id == actor_id else dm.sender_id
+            other_user = db.query(models.User).filter(models.User.id == other_id).first()
+            threads[tid] = {
+                "thread_id": tid,
+                "participants": [{"user_id": actor_id, "name": "Me"}, {"user_id": other_id, "name": other_user.full_name or other_user.username if other_user else "Unknown"}],
+                "last_message": dm.body,
+                "updated_at": dm.created_at.isoformat()
+            }
+    return list(threads.values())
+
+@router.get("/me/meeting_tasks", response_model=List[schemas.MeetingTaskResponse])
+def get_my_meeting_tasks(
+    status: Optional[str] = "pending",
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    user = db.query(models.User).filter(models.User.id == actor_id).first()
+    if not user:
+        return []
+        
+    query = db.query(models.MeetingTask)
+    if status:
+        query = query.filter(models.MeetingTask.status == status)
+        
+    conditions = []
+    if user.full_name:
+        conditions.append(models.MeetingTask.assignee_suggestion.contains(user.full_name))
+    if user.username:
+        conditions.append(models.MeetingTask.assignee_suggestion.contains(user.username))
+        
+    if conditions:
+        query = query.filter(or_(*conditions))
+    else:
+        return []
+        
+    return query.all()
+
+@router.get("/me/routines/latest")
+def get_latest_routine(
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    latest = db.query(models.Routine).filter(models.Routine.user_id == actor_id).order_by(models.Routine.date.desc()).first()
+    
+    previous_tasks = []
+    if latest:
+        return {
+            "routine_id": latest.id,
+            "condition": latest.condition,
+            "ai_priorities": latest.ai_priorities_adopted,
+            "previous_tasks": previous_tasks
+        }
+    return {
+        "routine_id": None,
+        "condition": None,
+        "ai_priorities": [],
+        "previous_tasks": []
+    }

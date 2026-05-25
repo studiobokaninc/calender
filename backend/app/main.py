@@ -44,7 +44,8 @@ from .routers import (
     ask as ask_router,
     external as external_router,
     shots as shots_router,
-    score as score_router
+    score as score_router,
+    holidays as holidays_router
 )
 print("Main: ルーター読み込み完了")
 
@@ -140,6 +141,25 @@ app.include_router(admin_router.router)
 app.include_router(external_router.router)
 app.include_router(shots_router.router)
 app.include_router(score_router.router)
+
+# §1 プレフィックス不整合対策: URL Prefix 二重化 (エイリアス・ルーティング)
+app.include_router(projects_router.router, prefix="/api")
+app.include_router(tasks_router.router, prefix="/api")
+app.include_router(events_router.router, prefix="/api")
+app.include_router(notes_router.router, prefix="/api")
+app.include_router(admin_router.router, prefix="/api")
+app.include_router(chat_router.router, prefix="/api", tags=["Chat"])
+app.include_router(meetings_router.router, prefix="/api", tags=["Meetings"])
+app.include_router(meetings_router.root_router, prefix="/api", tags=["Meetings (All)"])
+app.include_router(knowledge_router.router, prefix="/api", tags=["Knowledge Base"])
+app.include_router(meeting_tasks_router.router, prefix="/api", tags=["Meeting Tasks"])
+app.include_router(tts_router.router, prefix="/api/tts", tags=["TTS"])
+app.include_router(ask_router.router, prefix="/api", tags=["Ask"])
+
+
+# §2 新規 API ルーターのインクルード
+app.include_router(holidays_router.router)
+app.include_router(meetings_router.api_router)
 
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])

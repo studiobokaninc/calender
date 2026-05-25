@@ -18,7 +18,12 @@ class UserBase(BaseModel):
     name: Optional[str] = None # 旧フィールド（後方互換用）
     role: Optional[str] = 'user'
     iconUrl: Optional[str] = None
+    avatar_url: Optional[str] = None
+    is_active: Optional[bool] = True
     base_load_hours_per_week: Optional[float] = Field(default=0.0, ge=0.0, le=40.0, description="週あたりの定常業務時間（ベースロード）")
+
+
+
 
 class UserCreate(UserBase):
     email: EmailStr
@@ -50,6 +55,8 @@ class EventBase(BaseModel):
     status: Optional[str] = Field(default='offline')
     project_id: Optional[int] = None
     participants: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    meeting_url: Optional[str] = None
+    minutes_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -402,14 +409,31 @@ class MeetingBase(BaseModel):
     title: str
     project_id: int
     date: Optional[datetime] = None
+    event_id: Optional[int] = None
+    attendees: Optional[List[Dict[str, Any]]] = None
     version_group: Optional[str] = None
 
 class MeetingCreate(MeetingBase):
     pass
 
+class MeetingCreateManual(BaseModel):
+    title: str
+    project_id: int
+    date: Optional[datetime] = None
+    event_id: Optional[int] = None
+    transcript: Optional[str] = None
+    decisions: Optional[List[str]] = Field(default_factory=list)
+    tasks: Optional[List[str]] = Field(default_factory=list)
+    discussion_points: Optional[List[str]] = Field(default_factory=list)
+    deadlines: Optional[List[str]] = Field(default_factory=list)
+    attendees: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    version_group: Optional[str] = None
+
 class MeetingUpdate(BaseModel):
     title: Optional[str] = None
     date: Optional[datetime] = None
+    event_id: Optional[int] = None
+    attendees: Optional[List[Dict[str, Any]]] = None
     status: Optional[str] = None
     audio_url: Optional[str] = None
     transcript: Optional[str] = None
@@ -417,6 +441,18 @@ class MeetingUpdate(BaseModel):
     tasks: Optional[List[str]] = None
     discussion_points: Optional[List[str]] = None
     deadlines: Optional[List[str]] = None
+    version_group: Optional[str] = None
+
+class MeetingUpdateManual(BaseModel):
+    title: Optional[str] = None
+    date: Optional[datetime] = None
+    event_id: Optional[int] = None
+    transcript: Optional[str] = None
+    decisions: Optional[List[str]] = None
+    tasks: Optional[List[str]] = None
+    discussion_points: Optional[List[str]] = None
+    deadlines: Optional[List[str]] = None
+    attendees: Optional[List[Dict[str, Any]]] = None
     version_group: Optional[str] = None
 
 
@@ -651,6 +687,7 @@ class LookDistributionBase(BaseModel):
     look_dev_id: int
     status: str = "pending"
     assigned_to: int
+    estimated_hours: Optional[int] = None
 
 class LookDistributionCreate(LookDistributionBase):
     pass
@@ -659,6 +696,8 @@ class LookDistribution(LookDistributionBase):
     id: int
     created_by: int
     created_at: datetime
+    result_asset_id: Optional[int] = None
+    notes: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -666,6 +705,7 @@ class UserMessageBase(BaseModel):
     channel_id: str
     shot_id: Optional[int] = None
     body: str
+    timecode: Optional[str] = None
 
 class UserMessageCreate(UserMessageBase):
     pass
@@ -673,6 +713,68 @@ class UserMessageCreate(UserMessageBase):
 class UserMessage(UserMessageBase):
     id: int
     author_id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class AssetBase(BaseModel):
+    shot_id: int
+    task_id: Optional[int] = None
+    version: str
+    file_path: str
+
+class AssetCreate(AssetBase):
+    pass
+
+class AssetResponse(AssetBase):
+    id: int
+    created_by: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class DeliveryBase(BaseModel):
+    task_id: int
+    status: str = "pending"
+    qc_status: Optional[str] = None
+    memo: Optional[str] = None
+
+class DeliveryCreate(DeliveryBase):
+    pass
+
+class DeliveryResponse(DeliveryBase):
+    id: int
+    created_by: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class DirectMessageBase(BaseModel):
+    thread_id: int
+    recipient_id: int
+    body: str
+    context_json: Optional[Dict[str, Any]] = None
+
+class DirectMessageCreate(DirectMessageBase):
+    sender_id: Optional[int] = None
+
+class DirectMessageResponse(DirectMessageBase):
+    id: int
+    sender_id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class GroupDirectMessageBase(BaseModel):
+    group_id: str
+    body: str
+
+class GroupDirectMessageCreate(GroupDirectMessageBase):
+    sender_id: Optional[int] = None
+
+class GroupDirectMessageResponse(GroupDirectMessageBase):
+    id: int
+    sender_id: int
     created_at: datetime
     class Config:
         from_attributes = True

@@ -318,6 +318,86 @@ def check_and_migrate_db():
             )
         """)
         
+        # look_distributions の既存のカラムを確認・追加
+        cursor.execute("PRAGMA table_info(look_distributions)")
+        look_columns = [row[1] for row in cursor.fetchall()]
+        if 'estimated_hours' not in look_columns:
+            print("estimated_hoursカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE look_distributions ADD COLUMN estimated_hours INTEGER")
+        if 'result_asset_id' not in look_columns:
+            print("result_asset_idカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE look_distributions ADD COLUMN result_asset_id INTEGER")
+        if 'notes' not in look_columns:
+            print("notesカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE look_distributions ADD COLUMN notes TEXT")
+
+        # user_messages の既存のカラムを確認・追加
+        cursor.execute("PRAGMA table_info(user_messages)")
+        msg_columns = [row[1] for row in cursor.fetchall()]
+        if 'timecode' not in msg_columns:
+            print("timecodeカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE user_messages ADD COLUMN timecode VARCHAR(20)")
+
+        # assets テーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS assets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shot_id INTEGER NOT NULL,
+                task_id INTEGER,
+                version VARCHAR(50) NOT NULL,
+                file_path TEXT NOT NULL,
+                created_by INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(shot_id) REFERENCES shots(id) ON DELETE CASCADE,
+                FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+
+        # deliveries テーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deliveries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                status VARCHAR(50) DEFAULT 'pending',
+                qc_status VARCHAR(50),
+                memo TEXT,
+                created_by INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+
+        # direct_messages テーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS direct_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                thread_id INTEGER,
+                sender_id INTEGER NOT NULL,
+                recipient_id INTEGER NOT NULL,
+                body TEXT NOT NULL,
+                context_json JSON,
+                created_at DATETIME,
+                FOREIGN KEY(sender_id) REFERENCES users(id),
+                FOREIGN KEY(recipient_id) REFERENCES users(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_direct_messages_thread ON direct_messages(thread_id)")
+
+        # group_direct_messages テーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS group_direct_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id VARCHAR(100) NOT NULL,
+                sender_id INTEGER NOT NULL,
+                body TEXT NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(sender_id) REFERENCES users(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_group_direct_messages_group ON group_direct_messages(group_id)")
+
         conn.commit()
         print("Score 関連テーブルの確認・作成を完了しました。")
 

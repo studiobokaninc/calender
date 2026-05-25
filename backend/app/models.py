@@ -75,6 +75,11 @@ class User(Base):
     username: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     full_name: Mapped[Optional[str]] = mapped_column(index=True)
     base_load_hours_per_week: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
+    avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+
 
 class Project(Base):
     __tablename__ = "projects"
@@ -173,6 +178,8 @@ class Event(Base):
     allDay: Mapped[Optional[bool]] = mapped_column(nullable=True)
     participants: Mapped[Optional[List[dict]]] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String, default='offline', index=True)
+    meeting_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    minutes_id: Mapped[Optional[int]] = mapped_column(ForeignKey("meetings.id"), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column()
     updated_at: Mapped[Optional[datetime]] = mapped_column()
 
@@ -302,6 +309,8 @@ class Meeting(Base):
     discussion_points: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     deadlines: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     version_group: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    event_id: Mapped[Optional[int]] = mapped_column(ForeignKey("events.id"), nullable=True)
+    attendees: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
@@ -459,6 +468,9 @@ class LookDistribution(Base):
     assigned_to: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    estimated_hours: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    result_asset_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 class UserMessage(Base):
     __tablename__ = "user_messages"
@@ -468,6 +480,49 @@ class UserMessage(Base):
     shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id"), nullable=True, index=True)
     body: Mapped[str] = mapped_column(Text)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    timecode: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
+class Asset(Base):
+    __tablename__ = "assets"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
+    version: Mapped[str] = mapped_column(String(50))
+    file_path: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class Delivery(Base):
+    __tablename__ = "deliveries"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(50), default="pending")
+    qc_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    memo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class DirectMessage(Base):
+    __tablename__ = "direct_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    thread_id: Mapped[int] = mapped_column(Integer, index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    context_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+class GroupDirectMessage(Base):
+    __tablename__ = "group_direct_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    group_id: Mapped[str] = mapped_column(String(100), index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
 
 class Notification(Base):

@@ -31,3 +31,5 @@ backend/*.db
 backend/*.db-journal 
 backend/static/
 backend/data/
+*.md
+*.zip

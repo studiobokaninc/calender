@@ -60,6 +60,8 @@ async def upload_meeting_audio(
     try:
         from ..timezone import now_jst_naive
         meeting_date = None
+        
+        # A. 送信された date パラメータがある場合
         if date:
              try:
                  from datetime import datetime
@@ -67,6 +69,20 @@ async def upload_meeting_audio(
              except:
                  pass
         
+        # B. date がない、またはパース失敗した場合、ファイル名（file.filename）から日付 (YYYYMMDD や YYYY-MM-DD 等) を抽出
+        if not meeting_date and file.filename:
+             import re
+             from datetime import datetime
+             # 8桁の数字（YYYYMMDD）や区切り文字付き日付を検索
+             match = re.search(r'(\d{4})[-/_]?(\d{2})[-/_]?(\d{2})', file.filename)
+             if match:
+                 try:
+                     year, month, day = match.groups()
+                     # 月日の妥当性チェックも兼ねて datetime オブジェクトを作成
+                     meeting_date = datetime(int(year), int(month), int(day))
+                 except ValueError:
+                     pass
+
         meeting_in = schemas.MeetingCreate(
             title=title, 
             project_id=project_id, 
@@ -202,3 +218,126 @@ async def analyze_meeting_background(meeting_id: int, audio_path: str, api_key: 
         await analyzer.analyze_meeting(meeting_id, audio_path)
     except Exception as e:
         logger.error(f"Background analysis for meeting {meeting_id} failed: {e}")
+
+
+# --- §2 新規 API エンドポイントの実装 (API v3) ---
+
+api_router = APIRouter(prefix="/api", tags=["Meetings (API v3)"])
+
+@api_router.get("/events/{event_id}/meetings")
+async def get_event_meetings(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    §2.3 指定されたイベントに紐づく議事録一覧を取得します。
+    """
+    meetings = db.query(models.Meeting).filter(models.Meeting.event_id == event_id).all()
+    result = []
+    for m in meetings:
+        result.append({
+            "id": m.id,
+            "event_id": m.event_id,
+            "project_id": m.project_id,
+            "title": m.title,
+            "date": m.date.isoformat() if m.date else None,
+            "transcript": m.transcript,
+            "decisions": m.decisions or [],
+            "tasks": m.tasks or [],
+            "deadlines": m.deadlines or [],
+            "attendees": m.attendees or []
+        })
+    return {"meetings": result}
+
+
+@api_router.get("/meetings/{meeting_id}", response_model=schemas.MeetingResponse)
+async def get_meeting_details(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    §2.4 指定された議事録の単体詳細を取得します。
+    """
+    db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+    if not db_meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会議が見つかりません")
+    return db_meeting
+
+
+@api_router.post("/projects/{project_id}/meetings", response_model=schemas.MeetingResponse, status_code=status.HTTP_201_CREATED)
+async def create_manual_meeting(
+    project_id: int,
+    meeting_data: schemas.MeetingCreateManual,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    §2.5 手動で議事録を作成・登録します。
+    """
+    from ..timezone import now_jst_naive
+    
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="プロジェクトが見つかりません")
+
+    db_meeting = models.Meeting(
+        project_id=project_id,
+        title=meeting_data.title,
+        date=meeting_data.date or now_jst_naive(),
+        event_id=meeting_data.event_id,
+        status="completed",
+        transcript=meeting_data.transcript,
+        decisions=meeting_data.decisions,
+        tasks=meeting_data.tasks,
+        discussion_points=meeting_data.discussion_points,
+        deadlines=meeting_data.deadlines,
+        attendees=meeting_data.attendees,
+        version_group=meeting_data.version_group
+    )
+    
+    db.add(db_meeting)
+    db.commit()
+    db.refresh(db_meeting)
+    
+    # もし event_id が指定されているなら、対応するイベントの minutes_id にも紐づける
+    if meeting_data.event_id:
+        db_event = db.query(models.Event).filter(models.Event.id == meeting_data.event_id).first()
+        if db_event:
+            db_event.minutes_id = db_meeting.id
+            db.commit()
+            
+    return db_meeting
+
+
+@api_router.patch("/meetings/{meeting_id}", response_model=schemas.MeetingResponse)
+async def update_meeting_manual(
+    meeting_id: int,
+    meeting_data: schemas.MeetingUpdateManual,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    §2.6 議事録を手動編集・部分更新します。
+    """
+    db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+    if not db_meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会議が見つかりません")
+
+    update_dict = meeting_data.model_dump(exclude_unset=True)
+    for key, value in update_dict.items():
+        setattr(db_meeting, key, value)
+        
+    db.commit()
+    db.refresh(db_meeting)
+    
+    # event_id が変更された場合、対応するイベントの minutes_id を更新
+    if "event_id" in update_dict and update_dict["event_id"]:
+        db_event = db.query(models.Event).filter(models.Event.id == update_dict["event_id"]).first()
+        if db_event:
+            db_event.minutes_id = db_meeting.id
+            db.commit()
+            
+    return db_meeting
+

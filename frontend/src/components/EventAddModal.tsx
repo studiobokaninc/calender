@@ -7,6 +7,7 @@ import {
   Autocomplete, Chip, IconButton
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add'; // Added AddIcon
+import CloseIcon from '@mui/icons-material/Close';
 import { format, parseISO, isValid as isDateValid, addDays, addHours, startOfDay, setHours, setMinutes, parse } from 'date-fns';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -50,6 +51,8 @@ interface EventFormData {
   dueDate?: string;
   taskPhases?: { name: string; date: string }[];
   phaseTargetTaskId?: string | null; // Added for Phase creation
+  taskCheckItems?: { label: string; checked: boolean }[];
+  taskDeliverables?: string;
 }
 
 interface ProjectOption { id: string; name: string; }
@@ -168,6 +171,8 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
       dueDate: format(initialStartDateTime, 'yyyy-MM-dd'),
       taskPhases: [],
       phaseTargetTaskId: null,
+      taskCheckItems: [],
+      taskDeliverables: '',
     };
   };
 
@@ -354,6 +359,11 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
             date: p.date || p.due_date || '',
             is_completed: p.is_completed ?? false,
           })),
+          taskCheckItems: ((eventToEdit.extendedProps as any)?.check_items || []).map((item: any) => ({
+            label: item.label || '',
+            checked: item.checked ?? false,
+          })),
+          taskDeliverables: (eventToEdit.extendedProps as any)?.deliverables || '',
         } as EventFormData);
 
         // Populate selectedParticipants from eventToEdit
@@ -863,6 +873,10 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
           date: p.date,
           is_completed: p.is_completed ?? false,
         })).filter((p: { name: string; date: string }) => p.name.trim() !== '' && p.date !== '');
+        
+        dataToSave.check_items = formData.taskCheckItems || [];
+        dataToSave.deliverables = formData.taskDeliverables || null;
+
         console.log("Formatted dependsOn to save:", JSON.stringify(dataToSave.dependsOn, null, 2));
 
         if (projectSelectionMode === 'existing' && formData.projectId) {
@@ -1450,6 +1464,75 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                   >
                     段階目標を追加
                   </Button>
+                </Grid>
+
+                {/* チェックリスト (check_items) */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1.5 }} />
+                  <Typography variant="subtitle2" sx={{ mt: 1, fontWeight: 600 }}>確認事項（チェックリスト）</Typography>
+                  {(formData.taskCheckItems || []).map((item, index) => (
+                    <Stack key={index} direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, mb: 0.5 }}>
+                      <Checkbox
+                        checked={item.checked}
+                        size="small"
+                        onChange={(e) => {
+                          const next = [...(formData.taskCheckItems || [])];
+                          next[index].checked = e.target.checked;
+                          setFormData({ ...formData, taskCheckItems: next });
+                        }}
+                      />
+                      <TextField
+                        label={`項目 ${index + 1}`}
+                        value={item.label}
+                        onChange={(e) => {
+                          const next = [...(formData.taskCheckItems || [])];
+                          next[index].label = e.target.value;
+                          setFormData({ ...formData, taskCheckItems: next });
+                        }}
+                        size="small"
+                        sx={{ flex: 1 }}
+                      />
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          const next = (formData.taskCheckItems || []).filter((_, i) => i !== index);
+                          setFormData({ ...formData, taskCheckItems: next });
+                        }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  ))}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={() => {
+                      const next = [...(formData.taskCheckItems || []), { label: '', checked: false }];
+                      setFormData({ ...formData, taskCheckItems: next });
+                    }}
+                    sx={{ mt: 0.5 }}
+                  >
+                    チェック項目を追加
+                  </Button>
+                </Grid>
+
+                {/* 成果物 (deliverables) */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1.5 }} />
+                  <TextField
+                    name="taskDeliverables"
+                    label="成果物（メモ）"
+                    value={formData.taskDeliverables || ''}
+                    onChange={handleChange}
+                    fullWidth
+                    multiline
+                    rows={3}
+                    size="small"
+                    placeholder="このタスクで作成する納品物や成果物、参考メモを入力してください..."
+                    helperText="タスクに紐づく提出ファイルや成果物に関する説明"
+                  />
                 </Grid>
               </Grid>
             )}

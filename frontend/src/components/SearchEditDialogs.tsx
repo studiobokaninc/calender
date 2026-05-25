@@ -385,14 +385,14 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
             </FormControl>
             <TextField name="cost" label="コスト" type="number" value={form.cost} onChange={handleChange} fullWidth size="small" inputProps={{ min: 0, step: 0.1 }} />
             <FormControl fullWidth size="small" disabled={!form.project_id}>
-              <InputLabel>ショット</InputLabel>
-              <Select name="shot_id" value={form.shot_id ?? ''} label="ショット" onChange={handleChange}>
+              <InputLabel>ショット（Scoreプロジェクト）</InputLabel>
+              <Select name="shot_id" value={form.shot_id ?? ''} label="ショット（Scoreプロジェクト）" onChange={handleChange}>
                 {!form.project_id ? (
                   <MenuItem value="" disabled>プロジェクトを先に選択してください</MenuItem>
                 ) : shots.length === 0 ? (
                   <MenuItem value="" disabled>このプロジェクトにはショットがありません</MenuItem>
                 ) : (
-                  <MenuItem value="">選択してください</MenuItem>
+                  <MenuItem value="">（なし）</MenuItem>
                 )}
                 {shots.map((s) => (
                   <MenuItem key={s.id} value={s.id}>{s.seqID} / {s.shotID}</MenuItem>
@@ -400,28 +400,30 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
               </Select>
             </FormControl>
 
-            <TextField
-              name="seqID"
-              label="シーケンスID"
-              value={form.seqID}
-              onChange={handleChange}
-              fullWidth
-              size="small"
-              InputProps={{ readOnly: !!form.shot_id }}
-              helperText={form.shot_id ? 'ショット選択で自動入力' : '手動入力（レガシープロジェクト用）'}
-              sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
-            />
-            <TextField
-              name="shotID"
-              label="ショットID"
-              value={form.shotID}
-              onChange={handleChange}
-              fullWidth
-              size="small"
-              InputProps={{ readOnly: !!form.shot_id }}
-              helperText={form.shot_id ? 'ショット選択で自動入力' : ''}
-              sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
-            />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                name="seqID"
+                label="シーケンスID"
+                value={form.seqID}
+                onChange={handleChange}
+                fullWidth
+                size="small"
+                InputProps={{ readOnly: !!form.shot_id }}
+                helperText={form.shot_id ? '自動入力' : '手動入力（レガシー用）'}
+                sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
+              />
+              <TextField
+                name="shotID"
+                label="ショットID"
+                value={form.shotID}
+                onChange={handleChange}
+                fullWidth
+                size="small"
+                InputProps={{ readOnly: !!form.shot_id }}
+                helperText={form.shot_id ? '自動入力' : ''}
+                sx={{ bgcolor: form.shot_id ? 'action.hover' : 'inherit' }}
+              />
+            </Box>
 
 
 

@@ -1734,11 +1734,11 @@ const TasksPage: React.FC = () => {
                             inputProps={{ step: '0.1' }}
                         />
                         <FormControl fullWidth size="small" disabled={!currentTask.project_id}>
-                            <InputLabel>ショット</InputLabel>
+                            <InputLabel>ショット（Scoreプロジェクト）</InputLabel>
                             <Select
                                 name="shot_id"
                                 value={currentTask.shot_id ?? ''}
-                                label="ショット"
+                                label="ショット（Scoreプロジェクト）"
                                 onChange={handleSelectChange}
                             >
                                 {!currentTask.project_id ? (
@@ -1746,36 +1746,38 @@ const TasksPage: React.FC = () => {
                                 ) : shots.length === 0 ? (
                                     <MenuItem value="" disabled>このプロジェクトにはショットがありません</MenuItem>
                                 ) : (
-                                    <MenuItem value="">選択してください</MenuItem>
+                                    <MenuItem value="">（なし）</MenuItem>
                                 )}
                                 {shots.map((s) => (
                                     <MenuItem key={s.id} value={s.id}>{s.seqID} / {s.shotID}</MenuItem>
                                 ))}
                             </Select>
-
                         </FormControl>
-                        <TextField
-                            name="seqID"
-                            label="シーケンスID"
-                            value={currentTask.seqID}
-                            onChange={handleInputChange}
-                            fullWidth
-                            size="small"
-                            InputProps={{ readOnly: !!currentTask.shot_id }}
-                            helperText={currentTask.shot_id ? 'ショット選択で自動入力' : '手動入力（レガシープロジェクト用）'}
-                            sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
-                        />
-                        <TextField
-                            name="shotID"
-                            label="ショットID"
-                            value={currentTask.shotID}
-                            onChange={handleInputChange}
-                            fullWidth
-                            size="small"
-                            InputProps={{ readOnly: !!currentTask.shot_id }}
-                            helperText={currentTask.shot_id ? 'ショット選択で自動入力' : ''}
-                            sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
-                        />
+
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                            <TextField
+                                name="seqID"
+                                label="シーケンスID"
+                                value={currentTask.seqID}
+                                onChange={handleInputChange}
+                                fullWidth
+                                size="small"
+                                InputProps={{ readOnly: !!currentTask.shot_id }}
+                                helperText={currentTask.shot_id ? '自動入力' : '手動入力（レガシー用）'}
+                                sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
+                            />
+                            <TextField
+                                name="shotID"
+                                label="ショットID"
+                                value={currentTask.shotID}
+                                onChange={handleInputChange}
+                                fullWidth
+                                size="small"
+                                InputProps={{ readOnly: !!currentTask.shot_id }}
+                                helperText={currentTask.shot_id ? '自動入力' : ''}
+                                sx={{ bgcolor: currentTask.shot_id ? 'action.hover' : 'inherit' }}
+                            />
+                        </Box>
 
 
 

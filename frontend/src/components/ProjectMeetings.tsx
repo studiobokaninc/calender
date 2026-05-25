@@ -102,6 +102,50 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                             formData.append('file', file);
                             formData.append('title', file.name.split('.')[0]);
 
+                            // --- 会議実施日の自動検出ロジック ---
+                            let detectedDateStr: string | null = null;
+
+                            // 1. ファイル名から日付パターンを抽出 (例: 20260520 や 2026-05-20)
+                            const yyyymmddMatch = file.name.match(/(\d{4})(\d{2})(\d{2})/);
+                            const separatorMatch = file.name.match(/(\d{4})[-/_](\d{2})[-/_](\d{2})/);
+
+                            if (yyyymmddMatch) {
+                                const year = yyyymmddMatch[1];
+                                const month = yyyymmddMatch[2];
+                                const day = yyyymmddMatch[3];
+                                const m = parseInt(month, 10);
+                                const d = parseInt(day, 10);
+                                if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+                                    detectedDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                                }
+                            }
+
+                            if (!detectedDateStr && separatorMatch) {
+                                const year = separatorMatch[1];
+                                const month = separatorMatch[2];
+                                const day = separatorMatch[3];
+                                const m = parseInt(month, 10);
+                                const d = parseInt(day, 10);
+                                if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+                                    detectedDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                                }
+                            }
+
+                            // 2. なければファイルの最終更新日 (file.lastModified) を使用してフォールバック
+                            if (!detectedDateStr && file.lastModified) {
+                                const lastModDate = new Date(file.lastModified);
+                                const year = lastModDate.getFullYear();
+                                const month = String(lastModDate.getMonth() + 1).padStart(2, '0');
+                                const day = String(lastModDate.getDate()).padStart(2, '0');
+                                detectedDateStr = `${year}-${month}-${day}`;
+                            }
+
+                            if (detectedDateStr) {
+                                // サーバー側でパース可能な ISO format で送信
+                                formData.append('date', `${detectedDateStr}T00:00:00Z`);
+                            }
+                            // ------------------------------------
+
                             try {
                                 setLoading(true);
                                 await api.post(`/projects/${projectId}/meetings/upload`, formData, {

@@ -40,7 +40,8 @@ import {
 } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
-import { usePageState } from '../contexts/PageStateContext';
+import { usePageState, useCalendarPageState } from '../contexts/PageStateContext';
+import { useAuth } from '../contexts/AuthContext';
 import EventDetailsPanel from '../components/EventDetailsPanel';
 import EventAddModal from '../components/EventAddModal';
 import PhaseEditModal from '../components/PhaseEditModal';
@@ -63,7 +64,9 @@ const CalendarPage: React.FC = () => {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
 
-    const { user, refreshGlobalData, calendarState, updateCalendarState } = usePageState();
+    const { refreshGlobalData } = usePageState();
+    const { calendarState, updateCalendarState } = useCalendarPageState();
+    const { user } = useAuth();
 
     // ────────────────────────────────────────────────────────────────────────
     // 状態管理
@@ -93,7 +96,7 @@ const CalendarPage: React.FC = () => {
     const [mobileEventDetailsOpen, setMobileEventDetailsOpen] = useState(false);
     const [isPanelMinimized, setIsPanelMinimized] = useState(false);
     
-    const [loading, setLoading] = useState(false);
+    const [, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const calendarRef = useRef<FullCalendar>(null);
@@ -123,7 +126,7 @@ const CalendarPage: React.FC = () => {
     const {
         googleStatus,
         googleSnackbar,
-        setGoogleSnackbar,
+        closeSnackbar,
         handleGoogleConnect,
         handleGoogleSyncEventToggle,
         handleGoogleDisconnect,
@@ -139,7 +142,7 @@ const CalendarPage: React.FC = () => {
         handleEventDrop,
         handleEventResize,
     } = useCalendarActions({
-        user,
+        user: user as any,
         tasks,
         projects,
         modalEventToEdit,
@@ -1131,7 +1134,7 @@ const CalendarPage: React.FC = () => {
                     `}</style>
 
                     {error && <Typography color="error" sx={{ px: 1 }}>{error}</Typography>}
-                    {dataError && <Typography color="error" sx={{ px: 1 }}>{dataError.message}</Typography>}
+                    {dataError && <Typography color="error" sx={{ px: 1 }}>{dataError}</Typography>}
 
                     <FullCalendar
                         ref={calendarRef}
@@ -1496,10 +1499,10 @@ const CalendarPage: React.FC = () => {
             <Snackbar
                 open={googleSnackbar.open}
                 autoHideDuration={6000}
-                onClose={() => setGoogleSnackbar((s) => ({ ...s, open: false }))}
+                onClose={closeSnackbar}
                 anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
             >
-                <Alert severity={googleSnackbar.severity} onClose={() => setGoogleSnackbar((s) => ({ ...s, open: false }))}>
+                <Alert severity={googleSnackbar.severity} onClose={closeSnackbar}>
                     {googleSnackbar.message}
                 </Alert>
             </Snackbar>

@@ -54,6 +54,22 @@ def migrate():
         conn.rollback()
         logger.error(f"Failed to create UNIQUE INDEX on users(email): {e}")
 
+    # 4. retake_timecodes テーブル拡張 (paint_image, paint_mime)
+    add_column_if_not_exists("retake_timecodes", "paint_image", "TEXT NULL")
+    add_column_if_not_exists("retake_timecodes", "paint_mime", "VARCHAR(50) NOT NULL DEFAULT 'image/png'")
+
+    # 5. users テーブル拡張 (§5-bis ユーザープロフィール拡張)
+    add_column_if_not_exists("users", "birthday", "DATE NULL")
+    add_column_if_not_exists("users", "bio", "TEXT NULL")
+    add_column_if_not_exists("users", "phone", "VARCHAR(50) NULL")
+    add_column_if_not_exists("users", "line_id", "VARCHAR(100) NULL")
+    add_column_if_not_exists("users", "work_start_time", "VARCHAR(20) NULL")
+    add_column_if_not_exists("users", "work_end_time", "VARCHAR(20) NULL")
+    add_column_if_not_exists("users", "skills", "JSON NULL")
+    add_column_if_not_exists("users", "settings_json", "JSON NULL")
+    add_column_if_not_exists("users", "google_linked", "BOOLEAN NOT NULL DEFAULT 0")
+    add_column_if_not_exists("users", "google_email", "VARCHAR(255) NULL")
+
     conn.close()
     logger.info("Database migration completed successfully.")
 

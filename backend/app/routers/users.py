@@ -128,3 +128,139 @@ async def get_user_avatar(
     
     return Response(content=svg, media_type="image/svg+xml")
 
+
+# --- User Profile Expansion APIs (§5-bis) ---
+
+me_router = APIRouter(prefix="/api/me", tags=["My Profile"])
+
+@me_router.get("/profile", response_model=schemas.UserProfileResponse)
+async def get_my_profile(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """自身のプロフィールを取得 (全フィールド表示)"""
+    return current_user
+
+
+@me_router.patch("/profile", response_model=schemas.UserProfileResponse)
+async def update_my_profile(
+    profile_in: schemas.UserProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """自身のプロフィールを更新"""
+    update_data = profile_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(current_user, field, value)
+    
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.get("/birthdays_today", response_model=List[dict])
+async def get_birthdays_today(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """
+    当日誕生日の同僚リストを取得 (月日のみ一致するアクティブユーザー、公開部分のみ)
+    """
+    # 指定プロジェクトに所属するユーザーID一覧を取得
+    project_user_ids = [
+        r.user_id for r in db.query(models.ScoreUserRole).filter(models.ScoreUserRole.project_id == project_id).all()
+    ]
+    if not project_user_ids:
+        return []
+        
+    # 今日（JST）の月日を取得
+    from datetime import datetime, date
+    import pytz
+    today_jst = datetime.now(pytz.timezone('Asia/Tokyo')).date()
+    today_month = today_jst.month
+    today_day = today_jst.day
+    
+    # 対象プロジェクトのアクティブな全ユーザー
+    users = db.query(models.User).filter(
+        models.User.id.in_(project_user_ids),
+        models.User.is_active == True,
+        models.User.birthday.isnot(None)
+    ).all()
+    
+    birthday_buddies = []
+    for u in users:
+        bday = u.birthday
+        if isinstance(bday, str):
+            try:
+                bday = datetime.strptime(bday.split(" ")[0], "%Y-%m-%d").date()
+            except ValueError:
+                continue
+        
+        if bday and bday.month == today_month and bday.day == today_day:
+            birthday_buddies.append({
+                "user_id": u.id,
+                "name": u.full_name or u.name or u.username,
+                "avatar_url": f"/api/users/{u.id}/avatar"
+            })
+            
+    return birthday_buddies
+
+
+@router.get("/{user_id}/profile", response_model=schemas.UserProfileResponse)
+async def get_other_user_profile(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """
+    他者のプロフィールを取得 (公開範囲アクセス制御付き)
+    """
+    target_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+        
+    # 自分自身の場合は全フィールドを開示
+    if current_user.id == target_user.id:
+        return target_user
+
+    # 1. 🌐 全員公開フィールドの構成
+    profile_data = {
+        "id": target_user.id,
+        "username": target_user.username,
+        "full_name": target_user.full_name or target_user.name,
+        "email": target_user.email,
+        "role": target_user.role,
+        "is_active": target_user.is_active,
+        "avatar_url": f"/api/users/{target_user.id}/avatar",
+        "bio": target_user.bio,
+        "skills": target_user.skills,
+        # 制限されるフィールドの初期化
+        "birthday": None,
+        "phone": None,
+        "line_id": None,
+        "work_start_time": None,
+        "work_end_time": None,
+        "settings_json": None,
+        "google_linked": False,
+        "google_email": None
+    }
+
+    # 2. 🔓 同プロジェクトのメンバーであるか確認 ➔ birthday, line_id, work_start/end_time を開示
+    my_projects = {r.project_id for r in db.query(models.ScoreUserRole).filter(models.ScoreUserRole.user_id == current_user.id).all()}
+    target_projects = {r.project_id for r in db.query(models.ScoreUserRole).filter(models.ScoreUserRole.user_id == target_user.id).all()}
+    common_projects = my_projects.intersection(target_projects)
+    
+    if common_projects:
+        profile_data["birthday"] = target_user.birthday
+        profile_data["line_id"] = target_user.line_id
+        profile_data["work_start_time"] = target_user.work_start_time
+        profile_data["work_end_time"] = target_user.work_end_time
+
+    # 3. 🔒 管理者 (PM / admin) であるか確認 ➔ phone 開示
+    if current_user.role in ("admin", "pm"):
+        profile_data["phone"] = target_user.phone
+
+    return schemas.UserProfileResponse(**profile_data)
+

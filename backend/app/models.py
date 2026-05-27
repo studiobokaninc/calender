@@ -78,6 +78,18 @@ class User(Base):
     avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # §5-bis ユーザープロフィール拡張用フィールド
+    birthday: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    bio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    line_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    work_start_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    work_end_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    skills: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
+    settings_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    google_linked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
+    google_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
 
 
 
@@ -429,6 +441,8 @@ class RetakeTimecode(Base):
     retake_id: Mapped[int] = mapped_column(ForeignKey("retakes.id", ondelete="CASCADE"), index=True)
     timecode: Mapped[str] = mapped_column(String(20))
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    paint_image: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    paint_mime: Mapped[str] = mapped_column(String(50), default="image/png", nullable=False)
 
     retake: Mapped["Retake"] = relationship("Retake", back_populates="timecodes")
 

@@ -612,6 +612,8 @@ class ScoreUserRole(ScoreUserRoleBase):
 class RetakeTimecodeBase(BaseModel):
     timecode: str
     comment: Optional[str] = None
+    paint_image: Optional[str] = None
+    paint_mime: Optional[str] = "image/png"
 
 class RetakeTimecodeCreate(RetakeTimecodeBase):
     pass
@@ -825,4 +827,39 @@ class Routine(RoutineBase):
     user_id: int
     class Config:
         from_attributes = True
+
+# --- User Profile Expanded Schemas (§5-bis) ---
+
+class UserProfileResponse(BaseModel):
+    id: int
+    username: Optional[str] = None
+    full_name: Optional[str] = None
+    email: str
+    role: Optional[str] = None
+    is_active: bool
+    avatar_url: Optional[str] = None
+    birthday: Optional[datetime] = None
+    bio: Optional[str] = None
+    phone: Optional[str] = None
+    line_id: Optional[str] = None
+    work_start_time: Optional[str] = None
+    work_end_time: Optional[str] = None
+    skills: Optional[List[str]] = None
+    settings_json: Optional[Dict[str, Any]] = None
+    google_linked: bool = False
+    google_email: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    birthday: Optional[datetime] = None
+    bio: Optional[str] = None
+    phone: Optional[str] = None
+    line_id: Optional[str] = None
+    work_start_time: Optional[str] = None
+    work_end_time: Optional[str] = None
+    skills: Optional[List[str]] = None
+    settings_json: Optional[Dict[str, Any]] = None
 

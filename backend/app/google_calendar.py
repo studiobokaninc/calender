@@ -45,6 +45,7 @@ def get_authorize_url(state: Optional[str] = None) -> Optional[str]:
         "scope": SCOPE,
         "access_type": "offline",
         "prompt": "consent",
+        "hd": "studiobokan.com", # Workspace domain 制限
     }
     if state:
         params["state"] = state

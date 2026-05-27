@@ -50,7 +50,9 @@ def create_retake(
         db_tc = models.RetakeTimecode(
             retake_id=db_retake.id,
             timecode=tc.timecode,
-            comment=tc.comment
+            comment=tc.comment,
+            paint_image=tc.paint_image,
+            paint_mime=tc.paint_mime or "image/png"
         )
         db.add(db_tc)
     
@@ -988,3 +990,12 @@ def get_latest_routine(
         "ai_priorities": [],
         "previous_tasks": []
     }
+
+@router.get("/score_user_roles", response_model=List[schemas.ScoreUserRole])
+def list_score_user_roles(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """全てのScore制作ロールを取得"""
+    return db.query(models.ScoreUserRole).all()
+

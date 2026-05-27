@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Box, Typography, CircularProgress, Paper, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
-    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, Checkbox, useTheme, Drawer, useMediaQuery,
+    Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, useTheme, Drawer, useMediaQuery,
     Card, CardContent, CardActionArea, Avatar, Breadcrumbs, Link
 } from '@mui/material';
 import {
@@ -578,9 +578,7 @@ const TasksPage: React.FC = () => {
 
 
 
-    const handleCloseModal = () => {
-        setSelectedTask(null);
-    };
+
 
 
 

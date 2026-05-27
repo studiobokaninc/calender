@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { Box, Typography, Button, Stack, Alert } from '@mui/material';
 import ReplayIcon from '@mui/icons-material/Replay';
 

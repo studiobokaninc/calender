@@ -10,7 +10,6 @@ import {
 
 interface ProjectDeleteDialogProps {
   open: boolean;
-  projectId: number;
   projectName: string;
   onClose: () => void;
   onDelete: () => void;
@@ -18,7 +17,6 @@ interface ProjectDeleteDialogProps {
 
 const ProjectDeleteDialog: React.FC<ProjectDeleteDialogProps> = ({
   open,
-  projectId,
   projectName,
   onClose,
   onDelete,

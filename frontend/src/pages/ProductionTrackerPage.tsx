@@ -416,7 +416,7 @@ const ProductionTrackerPage: React.FC = () => {
                             data={filteredTrackerData}
                             loading={loading}
                             error={error}
-                            user={user}
+                            user={user as any}
                             stats={stats}
                             onTaskClick={handleTaskClick}
                             onShotClick={handleShotClick}

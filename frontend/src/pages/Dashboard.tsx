@@ -6,11 +6,9 @@ import {
   Typography,
   CircularProgress,
   IconButton,
-  Checkbox,
   Drawer,
   Divider,
   Button,
-  Tooltip,
   Stack,
   alpha,
   useTheme,
@@ -27,10 +25,9 @@ import {
   Edit as EditIcon,
   History as HistoryIcon,
   ReportProblem as TroubleIcon,
-  SwapHoriz as ChangeIcon,
-  ArrowForward as ArrowForwardIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  Check as CheckIcon,
 } from '@mui/icons-material'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
@@ -51,14 +48,93 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState('')
   const [backendEvents, setBackendEvents] = useState<BackendEvent[]>([])
   const [eventsLoaded, setEventsLoaded] = useState(false)
-  const [isSystemBusy, setIsSystemBusy] = useState(false)
-
-  // Score Data
   const [retakes, setRetakes] = useState<Retake[]>([])
   const [troubles, setTroubles] = useState<Trouble[]>([])
-  const [changeRequests, setChangeRequests] = useState<any[]>([])
-  const [staffAlerts, setStaffAlerts] = useState<any[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
+
+  // ユーザーが確認して非表示（Dismiss）にしたアラートIDリスト（localStorageから復元）
+  const [dismissedRetakes, setDismissedRetakes] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('dismissed_retakes');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [dismissedTroubles, setDismissedTroubles] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('dismissed_troubles');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [dismissedNotifications, setDismissedNotifications] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('dismissed_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // 「確認済みのアラートもすべて表示する」トグル状態
+  const [showDismissed, setShowDismissed] = useState<boolean>(false);
+
+  const dismissRetake = useCallback((id: number) => {
+    setDismissedRetakes(prev => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      localStorage.setItem('dismissed_retakes', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const dismissTrouble = useCallback((id: number) => {
+    setDismissedTroubles(prev => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      localStorage.setItem('dismissed_troubles', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const dismissNotification = useCallback((id: number) => {
+    setDismissedNotifications(prev => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      localStorage.setItem('dismissed_notifications', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // すべてのアラート表示設定をリセット（すべて未読に戻す）する機能
+  const resetDismissed = useCallback(() => {
+    setDismissedRetakes([]);
+    setDismissedTroubles([]);
+    setDismissedNotifications([]);
+    localStorage.removeItem('dismissed_retakes');
+    localStorage.removeItem('dismissed_troubles');
+    localStorage.removeItem('dismissed_notifications');
+  }, []);
+
+  // フィルタリング後のアクティブなアラートデータ
+  const activeRetakes = useMemo(() => {
+    const list = retakes.filter(r => r.status === 'open' || r.status === 'in_progress');
+    if (showDismissed) return list;
+    return list.filter(r => !dismissedRetakes.includes(r.id));
+  }, [retakes, dismissedRetakes, showDismissed]);
+
+  const activeTroubles = useMemo(() => {
+    const list = troubles.filter(t => t.status === 'open');
+    if (showDismissed) return list;
+    return list.filter(t => !dismissedTroubles.includes(t.id));
+  }, [troubles, dismissedTroubles, showDismissed]);
+
+  const activeNotifications = useMemo(() => {
+    const list = notifications.filter(n => !n.is_read);
+    if (showDismissed) return list;
+    return list.filter(n => !dismissedNotifications.includes(n.id));
+  }, [notifications, dismissedNotifications, showDismissed]);
 
   // 編集ダイアログ用
   const [editTaskId, setEditTaskId] = useState<number | null>(null);
@@ -95,24 +171,16 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [metricsRes, retakesRes, troublesRes, crRes, notifRes] = await Promise.all([
+        const [metricsRes, retakesRes, troublesRes, notifRes] = await Promise.all([
           api.get('/metrics/dashboard'),
           isAdmin ? shotsApi.getRetakes() : shotsApi.getMyRetakes(),
           (isAdmin ? shotsApi.getTroubles() : shotsApi.getMyTroubles()).catch(() => []),
-          shotsApi.getChangeRequests({ status: 'pending' }).catch(() => []),
           shotsApi.getNotifications(isAdmin ? {} : { recipient_id: user?.id }).catch(() => [])
         ])
         setMetrics(metricsRes.data)
         setRetakes(retakesRes)
         setTroubles(troublesRes)
-        setChangeRequests(crRes)
         setNotifications(notifRes)
-
-        // Simple staff alert logic (Mock for now or based on routines if available)
-        // In a real app, we'd call an endpoint like /api/metrics/staff-health
-        const routinesRes = await shotsApi.getRoutines({ date: new Date().toISOString().split('T')[0] }).catch(() => []);
-        const poorConditionUsers = (routinesRes as any[]).filter(r => r.condition === 'poor' || r.condition === 'bad');
-        setStaffAlerts(poorConditionUsers);
 
       } catch (err) {
         console.error('Dashboard data fetch error:', err);
@@ -128,19 +196,7 @@ const Dashboard: React.FC = () => {
     refreshGlobalData?.()
   }, [refreshGlobalData])
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const res = await api.get('/chat/status')
-        setIsSystemBusy(!!res.data.is_processing)
-      } catch (err) {
-        console.error('Failed to fetch chat status:', err)
-      }
-    }
-    checkStatus()
-    const interval = setInterval(checkStatus, 5000)
-    return () => clearInterval(interval)
-  }, [])
+
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -429,18 +485,7 @@ const Dashboard: React.FC = () => {
     }
   }, [globalData?.projects, globalData?.tasks])
 
-  const handleTogglePhase = async (taskId: number, phaseIdx: number, completed: boolean) => {
-    try {
-      const task = globalData?.tasks.find((t: any) => t.id === taskId);
-      if (!task || !task.phases) return;
-      const updatedPhases = [...task.phases];
-      updatedPhases[phaseIdx] = { ...updatedPhases[phaseIdx], is_completed: completed };
-      await api.put(`/tasks/${taskId}`, { phases: updatedPhases });
-      if (refreshGlobalData) await refreshGlobalData();
-    } catch (err) {
-      console.error('Failed to update phase:', err);
-    }
-  };
+
 
   if (loading) {
     return (
@@ -627,35 +672,109 @@ const Dashboard: React.FC = () => {
         (troubles.filter(t => t.status === 'open').length > 0) || 
         (notifications.filter(n => !n.is_read).length > 0)) && (
         <Box sx={{ mb: 4 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 2, fontSize: '0.9rem' }}>制作詳細アラート</Typography>
+          <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.9rem' }}>
+              制作詳細アラート
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ ml: 'auto' }}>
+              {(dismissedRetakes.length > 0 || dismissedTroubles.length > 0 || dismissedNotifications.length > 0) && (
+                <>
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    onClick={() => setShowDismissed(!showDismissed)}
+                    sx={{ fontSize: '0.75rem', px: 1.5, py: 0.25, borderRadius: 3, textTransform: 'none' }}
+                  >
+                    {showDismissed ? '確認済みを非表示' : `確認済みを表示 (${dismissedRetakes.length + dismissedTroubles.length + dismissedNotifications.length})`}
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant="text" 
+                    color="warning"
+                    onClick={resetDismissed}
+                    sx={{ fontSize: '0.75rem', px: 1, py: 0.25, textTransform: 'none' }}
+                  >
+                    すべて未確認に戻す
+                  </Button>
+                </>
+              )}
+            </Stack>
+          </Stack>
+          
           <Grid container spacing={2}>
             {/* リテイク詳細 */}
-            {retakes.filter(r => r.status === 'open' || r.status === 'in_progress').length > 0 && (
+            {(showDismissed ? retakes.filter(r => r.status === 'open' || r.status === 'in_progress') : activeRetakes).length > 0 && (
               <Grid item xs={12} md={4}>
                 <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                     <HistoryIcon color="error" />
                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>最近のリテイク</Typography>
-                    <Chip label={retakes.filter(r => r.status === 'open' || r.status === 'in_progress').length} size="small" color="error" sx={{ height: 20, fontWeight: 800 }} />
+                    <Chip label={(showDismissed ? retakes.filter(r => r.status === 'open' || r.status === 'in_progress') : activeRetakes).length} size="small" color="error" sx={{ height: 20, fontWeight: 800 }} />
                   </Stack>
                   <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
-                    {retakes.filter(r => r.status === 'open' || r.status === 'in_progress').slice(0, 4).map((r) => {
+                    {(showDismissed ? retakes.filter(r => r.status === 'open' || r.status === 'in_progress') : activeRetakes).slice(0, 4).map((r) => {
                       const date = r.created_at ? new Date(r.created_at) : null;
                       const dateStr = (date && !isNaN(date.getTime())) ? format(date, 'MM/dd') : '';
+                      const isDismissed = dismissedRetakes.includes(r.id);
                       return (
-                        <Box key={r.id} onClick={() => navigate('/production-tracker')} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.error.main, 0.05), border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.08) } }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.error.main }}>
+                        <Box 
+                          key={r.id} 
+                          onClick={() => navigate('/production-tracker')} 
+                          sx={{ 
+                            position: 'relative',
+                            p: 1.5, 
+                            borderRadius: 1.5, 
+                            bgcolor: alpha(theme.palette.error.main, isDismissed ? 0.01 : 0.05), 
+                            border: `1px solid ${alpha(theme.palette.error.main, isDismissed ? 0.05 : 0.1)}`, 
+                            opacity: isDismissed ? 0.45 : 1,
+                            cursor: 'pointer', 
+                            transition: 'all 0.2s ease',
+                            '&:hover': { bgcolor: alpha(theme.palette.error.main, 0.08) },
+                            '&:hover .dismiss-btn': { opacity: 1 }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, pr: 3.5 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.error.main, textDecoration: isDismissed ? 'line-through' : 'none' }}>
                               {r.project_name ? `${r.project_name} / ` : ''}{r.shot_code || `ID: ${r.shot_id}`}
                             </Typography>
                             <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{dateStr}</Typography>
                           </Box>
-                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }} noWrap>{r.description || r.overall_comment || 'リテイク指示'}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, textDecoration: isDismissed ? 'line-through' : 'none' }} noWrap>{r.description || r.overall_comment || 'リテイク指示'}</Typography>
                           <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>担当: {r.assignee_name || '未設定'}</Typography>
+                          
+                          {/* 確認（既読化）ボタン */}
+                          <IconButton
+                            className="dismiss-btn"
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isDismissed) {
+                                setDismissedRetakes(prev => {
+                                  const next = prev.filter(id => id !== r.id);
+                                  localStorage.setItem('dismissed_retakes', JSON.stringify(next));
+                                  return next;
+                                });
+                              } else {
+                                dismissRetake(r.id);
+                              }
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: 6,
+                              right: 6,
+                              opacity: isDismissed ? 0.9 : 0,
+                              transition: 'opacity 0.2s ease',
+                              color: isDismissed ? 'success.main' : 'text.secondary',
+                              bgcolor: isDismissed ? 'action.selected' : 'transparent',
+                              '&:hover': { bgcolor: 'action.hover' }
+                            }}
+                          >
+                            <CheckIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
                         </Box>
                       );
                     })}
-                    {retakes.filter(r => r.status === 'open' || r.status === 'in_progress').length > 4 && (
+                    {(showDismissed ? retakes.filter(r => r.status === 'open' || r.status === 'in_progress') : activeRetakes).length > 4 && (
                       <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全て表示</Button>
                     )}
                   </Stack>
@@ -664,28 +783,76 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* トラブル詳細 */}
-            {troubles.filter(t => t.status === 'open').length > 0 && (
+            {(showDismissed ? troubles.filter(t => t.status === 'open') : activeTroubles).length > 0 && (
               <Grid item xs={12} md={4}>
                 <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                     <TroubleIcon color="warning" />
                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>進行中のトラブル</Typography>
-                    <Chip label={troubles.filter(t => t.status === 'open').length} size="small" color="warning" sx={{ height: 20, fontWeight: 800 }} />
+                    <Chip label={(showDismissed ? troubles.filter(t => t.status === 'open') : activeTroubles).length} size="small" color="warning" sx={{ height: 20, fontWeight: 800 }} />
                   </Stack>
                   <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
-                    {troubles.filter(t => t.status === 'open').slice(0, 4).map((t) => (
-                      <Box key={t.id} onClick={() => navigate('/production-tracker')} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: alpha(theme.palette.warning.main, 0.05), border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.warning.main, 0.08) } }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                          <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.warning.dark }}>
-                            {t.project_name ? `${t.project_name} / ` : ''}{t.shot_code || `ID: ${t.shot_id}`}
-                          </Typography>
-                          <Chip label={(t.priority || t.severity || 'NORMAL').toUpperCase()} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 900, bgcolor: (t.priority === 'high' || t.severity === 'high') ? 'error.main' : 'warning.main', color: 'white' }} />
+                    {(showDismissed ? troubles.filter(t => t.status === 'open') : activeTroubles).slice(0, 4).map((t) => {
+                      const isDismissed = dismissedTroubles.includes(t.id);
+                      return (
+                        <Box 
+                          key={t.id} 
+                          onClick={() => navigate('/production-tracker')} 
+                          sx={{ 
+                            position: 'relative',
+                            p: 1.5, 
+                            borderRadius: 1.5, 
+                            bgcolor: alpha(theme.palette.warning.main, isDismissed ? 0.01 : 0.05), 
+                            border: `1px solid ${alpha(theme.palette.warning.main, isDismissed ? 0.05 : 0.1)}`, 
+                            opacity: isDismissed ? 0.45 : 1,
+                            cursor: 'pointer', 
+                            transition: 'all 0.2s ease',
+                            '&:hover': { bgcolor: alpha(theme.palette.warning.main, 0.08) },
+                            '&:hover .dismiss-btn': { opacity: 1 }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, pr: 3.5 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.warning.dark, textDecoration: isDismissed ? 'line-through' : 'none' }}>
+                              {t.project_name ? `${t.project_name} / ` : ''}{t.shot_code || `ID: ${t.shot_id}`}
+                            </Typography>
+                            <Chip label={(t.priority || t.severity || 'NORMAL').toUpperCase()} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 900, bgcolor: (t.priority === 'high' || t.severity === 'high') ? 'error.main' : 'warning.main', color: 'white', display: isDismissed ? 'none' : 'inline-flex' }} />
+                          </Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, textDecoration: isDismissed ? 'line-through' : 'none' }} noWrap>{t.title || t.description}</Typography>
+                          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>報告者: {t.reporter_name || 'Unknown'}</Typography>
+                          
+                          {/* 確認（既読化）ボタン */}
+                          <IconButton
+                            className="dismiss-btn"
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isDismissed) {
+                                setDismissedTroubles(prev => {
+                                  const next = prev.filter(id => id !== t.id);
+                                  localStorage.setItem('dismissed_troubles', JSON.stringify(next));
+                                  return next;
+                                });
+                              } else {
+                                dismissTrouble(t.id);
+                              }
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: 6,
+                              right: 6,
+                              opacity: isDismissed ? 0.9 : 0,
+                              transition: 'opacity 0.2s ease',
+                              color: isDismissed ? 'success.main' : 'text.secondary',
+                              bgcolor: isDismissed ? 'action.selected' : 'transparent',
+                              '&:hover': { bgcolor: 'action.hover' }
+                            }}
+                          >
+                            <CheckIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
                         </Box>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }} noWrap>{t.title || t.description}</Typography>
-                        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>報告者: {t.reporter_name || 'Unknown'}</Typography>
-                      </Box>
-                    ))}
-                    {troubles.filter(t => t.status === 'open').length > 4 && (
+                      );
+                    })}
+                    {(showDismissed ? troubles.filter(t => t.status === 'open') : activeTroubles).length > 4 && (
                       <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全て表示</Button>
                     )}
                   </Stack>
@@ -694,31 +861,77 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* 通知詳細 */}
-            {notifications.filter(n => !n.is_read).length > 0 && (
+            {(showDismissed ? notifications.filter(n => !n.is_read) : activeNotifications).length > 0 && (
               <Grid item xs={12} md={4}>
                 <Paper elevation={2} sx={{ p: 2, borderRadius: 2, height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                     <EventIcon color="primary" />
                     <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>新着の通知</Typography>
-                    <Chip label={notifications.filter(n => !n.is_read).length} size="small" color="primary" sx={{ height: 20, fontWeight: 800 }} />
+                    <Chip label={(showDismissed ? notifications.filter(n => !n.is_read) : activeNotifications).length} size="small" color="primary" sx={{ height: 20, fontWeight: 800 }} />
                   </Stack>
                   <Stack spacing={1.5} sx={{ flexGrow: 1 }}>
-                    {notifications.filter(n => !n.is_read).slice(0, 4).map((n) => {
+                    {(showDismissed ? notifications.filter(n => !n.is_read) : activeNotifications).slice(0, 4).map((n) => {
                       const date = n.created_at ? new Date(n.created_at) : null;
                       const dateStr = (date && !isNaN(date.getTime())) ? format(date, 'MM/dd HH:mm') : '';
+                      const isDismissed = dismissedNotifications.includes(n.id);
                       return (
-                        <Box key={n.id} onClick={() => navigate('/production-tracker')} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: n.is_read ? 'transparent' : alpha(theme.palette.primary.main, 0.05), border: `1px solid ${n.is_read ? theme.palette.divider : alpha(theme.palette.primary.main, 0.1)}`, cursor: 'pointer', '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) } }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>
+                        <Box 
+                          key={n.id} 
+                          onClick={() => navigate('/production-tracker')} 
+                          sx={{ 
+                            position: 'relative',
+                            p: 1.5, 
+                            borderRadius: 1.5, 
+                            bgcolor: isDismissed ? alpha(theme.palette.primary.main, 0.01) : (n.is_read ? 'transparent' : alpha(theme.palette.primary.main, 0.05)), 
+                            border: `1px solid ${isDismissed ? alpha(theme.palette.primary.main, 0.05) : (n.is_read ? theme.palette.divider : alpha(theme.palette.primary.main, 0.1))}`, 
+                            opacity: isDismissed ? 0.45 : 1,
+                            cursor: 'pointer', 
+                            transition: 'all 0.2s ease',
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.08) },
+                            '&:hover .dismiss-btn': { opacity: 1 }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, pr: 3.5 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 800, color: theme.palette.primary.main, textDecoration: isDismissed ? 'line-through' : 'none' }}>
                               {n.project_name ? `${n.project_name} / ` : ''}{n.type?.toUpperCase() || 'NOTIF'}
                             </Typography>
                             <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>{dateStr}</Typography>
                           </Box>
-                          <Typography variant="body2" sx={{ fontWeight: n.is_read ? 500 : 700, mb: 0.5 }} noWrap>{n.content || n.body}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: (n.is_read || isDismissed) ? 500 : 700, mb: 0.5, textDecoration: isDismissed ? 'line-through' : 'none' }} noWrap>{n.content || n.body}</Typography>
+                          
+                          {/* 確認（既読化）ボタン */}
+                          <IconButton
+                            className="dismiss-btn"
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isDismissed) {
+                                setDismissedNotifications(prev => {
+                                  const next = prev.filter(id => id !== n.id);
+                                  localStorage.setItem('dismissed_notifications', JSON.stringify(next));
+                                  return next;
+                                });
+                              } else {
+                                dismissNotification(n.id);
+                              }
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: 6,
+                              right: 6,
+                              opacity: isDismissed ? 0.9 : 0,
+                              transition: 'opacity 0.2s ease',
+                              color: isDismissed ? 'success.main' : 'text.secondary',
+                              bgcolor: isDismissed ? 'action.selected' : 'transparent',
+                              '&:hover': { bgcolor: 'action.hover' }
+                            }}
+                          >
+                            <CheckIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
                         </Box>
                       );
                     })}
-                    {notifications.filter(n => !n.is_read).length > 4 && (
+                    {(showDismissed ? notifications.filter(n => !n.is_read) : activeNotifications).length > 4 && (
                       <Button fullWidth size="small" onClick={() => navigate('/production-tracker')} sx={{ mt: 'auto' }}>全ての通知を確認</Button>
                     )}
                   </Stack>
@@ -727,8 +940,7 @@ const Dashboard: React.FC = () => {
             )}
           </Grid>
         </Box>
-      )
-}
+      )}
 
       <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>今週の概要</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: { xs: 1.5, sm: 2 }, mb: { xs: 2, sm: 3 } }}>

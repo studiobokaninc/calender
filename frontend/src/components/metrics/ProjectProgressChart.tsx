@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { parseISO, format, eachDayOfInterval, addDays, isBefore, isAfter, startOfDay } from 'date-fns';
-import { ja } from 'date-fns/locale';
+
 import { Task, Project } from '../../types'; // 型定義をインポート
 
 interface ProjectProgressChartProps {

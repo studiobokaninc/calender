@@ -402,11 +402,11 @@ export const shotsApi = {
     const response = await api.get('/api/retakes', { params })
     return response.data
   },
-  getTroubles: async (params?: { shot_id?: number; project_id?: number }) => {
+  getTroubles: async (params?: { shot_id?: number; project_id?: number; status?: string }) => {
     const response = await api.get('/api/troubles', { params })
     return response.data
   },
-  getChangeRequests: async (params?: { project_id?: number }) => {
+  getChangeRequests: async (params?: { project_id?: number; status?: string }) => {
     const response = await api.get('/api/change_requests', { params })
     return response.data
   },
@@ -422,7 +422,7 @@ export const shotsApi = {
     const response = await api.get('/api/routines', { params })
     return response.data
   },
-  getNotifications: async (params?: { recipient_id?: number; project_id?: number }) => {
+  getNotifications: async (params?: { recipient_id?: number | string; project_id?: number }) => {
     const response = await api.get('/api/notifications', { params })
     return response.data
   },

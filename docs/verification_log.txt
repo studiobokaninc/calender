@@ -1,0 +1,53 @@
+==================================================
+ マイグレ後の整合性検証 SQL とその実行結果ログ
+==================================================
+[SQL] SELECT count(*) FROM tasks WHERE type LIKE '%aseet%'; -> 0 件 (期待値: 0)
+
+[SQL] 各タスクタイプと件数内訳:
+  - 'animation': 109 件
+  - 'asset': 41 件
+  - 'comp': 57 件
+  - 'design': 7 件
+  - 'documentation': 2 件
+  - 'fx': 39 件
+  - 'gs': 2 件
+  - 'layout': 71 件
+  - 'lighting': 36 件
+  - 'other': 59 件
+  - 'programming': 9 件
+  - 'report': 1 件
+  - 'shoot': 4 件
+[SQL] SELECT count(*) FROM tasks WHERE type NOT IN (...valid_types...); -> 0 件 (期待値: 0)
+[SQL] SELECT count(*) FROM tasks WHERE shot_id IS NOT NULL; -> 357 件 (期待値: 357 前後)
+[SQL] SELECT count(*) FROM shots; -> 138 件 (期待値: 138 前後)
+
+==================================================
+ 新規 API 7種 動作確認結果
+==================================================
+GET /api/shots: HTTP 200
+  -> 取得件数: 138 件
+POST /api/shots: HTTP 201
+  -> 作成された Shot ID: 144
+GET /api/shots/144: HTTP 200, seq_code: SEQ999
+PATCH /api/shots/144: HTTP 200, description: Updated Description
+GET /api/shots/144/tasks: HTTP 200, タスク件数: 0
+GET /api/shots/144/progress: HTTP 200, average_progress: 0.0
+DELETE /api/shots/144: HTTP 204
+
+==================================================
+ 既存 API 後方互換性確認（主要 10 エンドポイント以上）
+==================================================
+疎通テスト [GET Projects] (/projects): HTTP 200
+疎通テスト [GET Tasks] (/tasks): HTTP 200
+疎通テスト [GET Users] (/api/users): HTTP 200
+疎通テスト [GET Groups] (/api/groups): HTTP 200
+疎通テスト [GET Notes] (/notes): HTTP 200
+疎通テスト [GET Meetings] (/projects/1/meetings): HTTP 200
+疎通テスト [GET Knowledge] (/knowledge): HTTP 200
+疎通テスト [Admin Query Shots] (/admin/database/query?table=shots): HTTP 200
+疎通テスト [Admin Query Projects] (/admin/database/query?table=projects): HTTP 200
+疎通テスト [Metrics Dashboard] (/metrics/dashboard): HTTP 200
+疎通テスト [Admin Export JSON] (/admin/database/export-json): HTTP 200
+  -> 確認: レスポンスに 'shots' テーブルが含まれています (件数: 138 件)
+
+検証完了。すべてのテスト項目が通過しました。

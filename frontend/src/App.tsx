@@ -52,11 +52,7 @@ const DefaultRedirect: React.FC = () => {
   return <Navigate to={user?.role === 'admin' ? '/calendar' : '/chat'} replace />;
 };
 
-/** 一般ユーザーのみアクセス可能なルート（管理者はカレンダーへ） */
-const UserOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  return user?.role === 'admin' ? <Navigate to="/calendar" replace /> : <>{children}</>;
-};
+
 
 const App: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();

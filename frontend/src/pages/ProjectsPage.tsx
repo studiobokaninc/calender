@@ -958,7 +958,6 @@ const ProjectsPage: React.FC = () => {
             {selectedProject && (
                 <ProjectDeleteDialog
                     open={deleteDialogOpen}
-                    projectId={selectedProject.id}
                     projectName={selectedProject.name}
                     onClose={() => setDeleteDialogOpen(false)}
                     onDelete={handleDeleteConfirm}

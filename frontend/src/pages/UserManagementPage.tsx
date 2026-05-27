@@ -738,7 +738,7 @@ const UserManagementPage: React.FC = () => {
                           <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <Avatar src={user.iconUrl} sx={{ width: 36, height: 36 }}>
+                                <Avatar src={user.iconUrl || undefined} sx={{ width: 36, height: 36 }}>
                                   {(user.name || user.username || '')?.[0]?.toUpperCase()}
                                 </Avatar>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
@@ -904,18 +904,18 @@ const UserManagementPage: React.FC = () => {
                               >
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <Avatar src={user.iconUrl} sx={{ width: 28, height: 28, fontSize: '0.875rem' }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
+                                    <Avatar src={user.iconUrl || undefined} sx={{ width: 28, height: 28, fontSize: '0.875rem' }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
                                     <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.8rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name || user.username}</Typography>
                                   </Box>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                                     {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ height: 20, fontSize: '0.65rem' }} />}
                                     {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => (
                                       <Tooltip key={idx} title={projects.find(p => p.id === sr.project_id)?.name || 'Project'}>
-                                        <Chip 
-                                          label={sr.role.toUpperCase()} 
-                                          size="small" 
-                                          variant="outlined" 
-                                          sx={{ height: 20, fontSize: '0.6rem', borderColor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.main }} 
+                                        <Chip
+                                          label={sr.role.toUpperCase()}
+                                          size="small"
+                                          variant="outlined"
+                                          sx={{ height: 20, fontSize: '0.6rem', borderColor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.main }}
                                         />
                                       </Tooltip>
                                     ))}
@@ -1066,7 +1066,7 @@ const UserManagementPage: React.FC = () => {
                           <CardContent sx={{ '&:last-child': { pb: 2 } }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <Avatar src={user.iconUrl} sx={{ width: 36, height: 36 }}>
+                                <Avatar src={user.iconUrl || undefined} sx={{ width: 36, height: 36 }}>
                                   {(user.name || user.username || '')?.[0]?.toUpperCase()}
                                 </Avatar>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
@@ -1128,7 +1128,7 @@ const UserManagementPage: React.FC = () => {
                             <TableRow key={user.id} hover sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                               <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                                  <Avatar src={user.iconUrl} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
+                                  <Avatar src={user.iconUrl || undefined} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
                                   <Box>
                                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
                                     {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ mt: 0.25 }} />}
@@ -1205,7 +1205,7 @@ const UserManagementPage: React.FC = () => {
                       >
                         <CardContent>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Avatar src={user.iconUrl} alt={user.name || user.username || ''}>
+                            <Avatar src={user.iconUrl || undefined} alt={user.name || user.username || ''}>
                               {user.iconUrl ? null : (user.name || user.username || '')?.[0]?.toUpperCase()}
                             </Avatar>
                             <Box sx={{ flex: 1 }}>
@@ -1217,12 +1217,12 @@ const UserManagementPage: React.FC = () => {
                                   <Chip label="管理者" size="small" color="secondary" />
                                 )}
                                 {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => (
-                                  <Chip 
+                                  <Chip
                                     key={idx}
-                                    label={sr.role.toUpperCase()} 
-                                    size="small" 
-                                    variant="outlined" 
-                                    sx={{ fontSize: '0.65rem', height: 20 }} 
+                                    label={sr.role.toUpperCase()}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.65rem', height: 20 }}
                                   />
                                 ))}
                               </Box>

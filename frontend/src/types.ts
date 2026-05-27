@@ -103,6 +103,8 @@ export interface BackendEvent {
   end_time?: string | null;
   status?: string | null;
   project_id?: number | null;
+  meeting_url?: string | null; // ★★★ 追加: 議事録ミーティングURL ★★★
+  minutes_id?: number | null;  // ★★★ 追加: 紐付き議事録 ID ★★★
   participants?: Participant[] | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -168,12 +170,21 @@ export interface User {
   name?: string;
   role?: string;
   base_load_hours_per_week?: number; // 週あたりの定常業務時間（ベースロード）
-  // --- User Profile Settings ---
-  language?: string;
-  iconUrl?: string; // URL to the user's profile picture
-  birthday?: string; // ISO 8601 date string (YYYY-MM-DD)
-  phoneNumber?: string;
-  gender?: string;
+  is_active?: boolean; // ★★★ 追加: 退職者制御カラム ★★★
+  // --- User Profile Expanded Fields (§5-bis & DB物理構造準拠) ---
+  birthday?: string | null;
+  bio?: string | null;
+  phone?: string | null;      // DB準拠
+  phoneNumber?: string | null; // フロント後方互換
+  line_id?: string | null;
+  work_start_time?: string | null;
+  work_end_time?: string | null;
+  skills?: string[] | null;
+  avatar_url?: string | null; // DB準拠
+  iconUrl?: string | null;    // フロント後方互換
+  settings_json?: Record<string, any> | null;
+  google_linked?: boolean;
+  google_email?: string | null;
   // --- End User Profile Settings ---
 }
 
@@ -345,6 +356,10 @@ export interface Retake {
   created_by: number;
   created_at: string;
   timecodes: RetakeTimecode[];
+  project_name?: string | null;
+  shot_code?: string | null;
+  description?: string | null;
+  assignee_name?: string | null;
 }
 
 export interface RetakeTimecode {
@@ -352,6 +367,8 @@ export interface RetakeTimecode {
   retake_id: number;
   timecode: string;
   comment?: string | null;
+  paint_image?: string | null; // ★★★ 追加: オーバーペイント base64 PNG または URL ★★★
+  paint_mime?: string | null;  // ★★★ 追加: MIME 型 ('image/png' 等) ★★★
 }
 
 export interface Trouble {
@@ -364,6 +381,11 @@ export interface Trouble {
   assigned_to?: number | null;
   created_by: number;
   created_at: string;
+  project_name?: string | null;
+  shot_code?: string | null;
+  priority?: string | null;
+  title?: string | null;
+  reporter_name?: string | null;
 }
 
 export interface Meeting {
@@ -372,6 +394,8 @@ export interface Meeting {
   title: string;
   date: string;
   status: string; // pending, processing, completed, failed
+  event_id?: number | null; // ★★★ 追加: event 紐付き用 ID ★★★
+  attendees?: string[] | null; // ★★★ 追加: 出席者リスト ★★★
   audio_url?: string | null;
   transcript?: string | null;
   decisions?: string[] | null;
@@ -469,6 +493,8 @@ export interface Notification {
   body: string;
   is_read: boolean;
   created_at: string;
+  project_name?: string | null;
+  content?: string | null;
 }
 
 export interface ScoreUserRole {

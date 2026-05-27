@@ -66,7 +66,7 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
         try {
             const res = await api.get<BackendEvent[]>('/calendar/events');
             const processed = res.data
-                .map(be => backendEventToCalendarEvent(be, { user, projects: currentProjects }))
+                .map(be => backendEventToCalendarEvent(be, { user: user as any, projects: currentProjects }))
                 .filter((e): e is CalendarEvent => e !== null);
             setBackendEvents(processed);
         } catch {

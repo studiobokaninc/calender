@@ -35,3 +35,4 @@ backend/data/
 *.zip
 *.db-shm
 *.db-wal
+scratch/

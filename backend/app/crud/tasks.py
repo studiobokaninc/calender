@@ -149,7 +149,8 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         cost=task.cost or 0.0,
         dependsOn=task.dependsOn or [],
         shotID=task.shotID,
-        seqID=task.seqID,
+        seqID=task.seqID if (task.shotID or task.shot_id) else "SEQ_PM",
+        shot_id=task.shot_id,
         phases=task.phases or [],
         deliverables=task.deliverables or "",
         check_items=task.check_items or []
@@ -214,6 +215,10 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             setattr(db_task, db_key, parsed_value)
             if db_key in ["phases", "check_items", "deliverables", "dependsOn"]:
                 flag_modified(db_task, db_key)
+
+    # 規則: 特定のSHOTに紐づかないタスク (shotID / shot_id が空) の場合、seqID を "SEQ_PM" で統一する
+    if not db_task.shotID and not db_task.shot_id:
+        db_task.seqID = "SEQ_PM"
 
     db_task.updated_at = now_jst_naive()
 

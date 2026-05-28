@@ -68,3 +68,34 @@ def test_update_task_status(db: Session):
     history = db.query(models.TaskStatusHistory).filter_by(task_id=task.id).all()
     assert len(history) == 1
     assert history[0].status == models.TaskStatus.IN_PROGRESS
+
+def test_project_level_task_seq_pm(db: Session):
+    proj = models.Project(name="Proj PM Test", status=models.ProjectStatus.PLANNING)
+    db.add(proj)
+    db.commit()
+
+    # Create task without shotID or shot_id
+    task_in = schemas.TaskCreate(
+        name="Project Level PM Task",
+        project_id=proj.id,
+        shotID="",
+        seqID=""
+    )
+    task = crud.create_task(db, task_in)
+    assert task.seqID == "SEQ_PM"
+
+    # Create task with shotID but no seqID
+    task_in_with_shot = schemas.TaskCreate(
+        name="Shot Level Task",
+        project_id=proj.id,
+        shotID="shot01",
+        seqID=""
+    )
+    task_with_shot = crud.create_task(db, task_in_with_shot)
+    assert task_with_shot.seqID == ""
+
+    # Update task to remove shotID and shot_id
+    task_update = schemas.TaskUpdate(shotID="", seqID="")
+    updated_task = crud.update_task(db, task_with_shot, task_update)
+    assert updated_task.seqID == "SEQ_PM"
+

@@ -171,6 +171,15 @@ def check_and_migrate_db():
             conn.commit()
             print("shot_idカラムを追加しました。")
         
+        # eventsテーブルにuser_idsカラムが存在するか確認して追加
+        cursor.execute("PRAGMA table_info(events)")
+        event_columns = [row[1] for row in cursor.fetchall()]
+        if 'user_ids' not in event_columns:
+            print("eventsテーブルにuser_idsカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE events ADD COLUMN user_ids JSON")
+            conn.commit()
+            print("eventsテーブルにuser_idsカラムを追加しました。")
+        
         # --- Score Related Tables ---
         
         # score_user_roles
@@ -400,6 +409,44 @@ def check_and_migrate_db():
 
         conn.commit()
         print("Score 関連テーブルの確認・作成を完了しました。")
+
+        # --- Ryoji 殿のメンバーロールと検証用マイルストーンイベントの自動セットアップ ---
+        print("=== Ryoji 殿用テストデータの自動セットアップを開始 ===")
+        try:
+            # 1. users テーブルに id=99 が存在するか確認し、いなければ作成 (外部キー制約エラー回避)
+            cursor.execute("SELECT id FROM users WHERE id=99")
+            if not cursor.fetchone():
+                print("ユーザー id=99 が存在しないため、テスト用に作成します...")
+                cursor.execute("""
+                    INSERT INTO users (id, username, email, hashed_password, role, full_name, is_active)
+                    VALUES (99, 'ryoji_spec', 'ryoji_spec@example.com', 'dummy_hash', 'admin', 'Ryoji Spec Admin', 1)
+                """)
+                conn.commit()
+
+            # 2. score_user_roles に id=28 および id=99 を project_id=72 (marukome) のメンバーとして登録
+            for uid in [28, 99]:
+                cursor.execute("SELECT id FROM score_user_roles WHERE user_id=? AND project_id=?", (uid, 72))
+                if not cursor.fetchone():
+                    print(f"score_user_roles に user_id={uid} × project_id=72 のメンバー紐付けを登録します...")
+                    cursor.execute("""
+                        INSERT INTO score_user_roles (user_id, project_id, role)
+                        VALUES (?, 72, 'director')
+                    """, (uid,))
+                    conn.commit()
+
+            # 3. events テーブルにテスト用マイルストーンイベントを追加
+            cursor.execute("SELECT id FROM events WHERE title='【テスト】v05 全体納品マイルストーン'")
+            if not cursor.fetchone():
+                print("events テーブルに検証用の共有マイルストーンイベントを作成します...")
+                cursor.execute("""
+                    INSERT INTO events (project_id, title, description, start_time, end_time, type, allDay, status, user_ids, participants)
+                    VALUES (72, '【テスト】v05 全体納品マイルストーン', '検証用テストデータ', '2026-06-10 00:00:00', '2026-06-10 01:00:00', 'MILESTONE', 1, 'offline', '[]', '[]')
+                """)
+                conn.commit()
+                
+            print("=== Ryoji 殿用テストデータの自動セットアップを完了 ===")
+        except Exception as data_err:
+            print(f"警告: テストデータの自動セットアップ中にエラーが発生しました（無視して続行します）: {data_err}")
 
         conn.close()
         

@@ -55,8 +55,12 @@ class EventBase(BaseModel):
     status: Optional[str] = Field(default='offline')
     project_id: Optional[int] = None
     participants: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    user_ids: Optional[List[int]] = Field(default_factory=list)
     meeting_url: Optional[str] = None
     minutes_id: Optional[int] = None
+    date: Optional[str] = None
+    time: Optional[str] = None
+    duration_minutes: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -76,6 +80,10 @@ class EventUpdate(EventBase):
     status: Optional[str] = None
     project_id: Optional[int] = None
     participants: Optional[List[Dict[str, Any]]] = None
+    user_ids: Optional[List[int]] = None
+    date: Optional[str] = None
+    time: Optional[str] = None
+    duration_minutes: Optional[int] = None
 
 class EventResponse(EventBase):
     id: int

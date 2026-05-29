@@ -189,11 +189,31 @@ class Event(Base):
     type: Mapped[EventType] = mapped_column(nullable=False)
     allDay: Mapped[Optional[bool]] = mapped_column(nullable=True)
     participants: Mapped[Optional[List[dict]]] = mapped_column(JSON, nullable=True)
+    user_ids: Mapped[Optional[List[int]]] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String, default='offline', index=True)
     meeting_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     minutes_id: Mapped[Optional[int]] = mapped_column(ForeignKey("meetings.id"), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column()
     updated_at: Mapped[Optional[datetime]] = mapped_column()
+
+    @property
+    def date(self) -> Optional[str]:
+        if self.start_time:
+            return self.start_time.date().isoformat()
+        return None
+
+    @property
+    def time(self) -> Optional[str]:
+        if self.start_time and not self.allDay:
+            return self.start_time.time().strftime("%H:%M")
+        return None
+
+    @property
+    def duration_minutes(self) -> Optional[int]:
+        if self.start_time and self.end_time:
+            delta = self.end_time - self.start_time
+            return int(delta.total_seconds() / 60)
+        return None
 
 class Group(Base):
     __tablename__ = "groups"

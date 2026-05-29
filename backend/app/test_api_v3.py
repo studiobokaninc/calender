@@ -345,6 +345,138 @@ class TestAPIV3(unittest.TestCase):
 
         print("OK: User profile expansion (GET/PATCH, permission checks, and birthdays list) works perfectly!")
 
+    def test_12_get_my_events_filtering(self):
+        """§5-bis: /api/me/events の条件(A)/(B)によるイベント取得テスト"""
+        # アクターがメンバーであるプロジェクトを作成、または既存を使う
+        proj = self.project
+        
+        # アクターをプロジェクトメンバーに設定 (ScoreUserRole)
+        role = self.db.query(models.ScoreUserRole).filter(
+            models.ScoreUserRole.user_id == self.test_user.id,
+            models.ScoreUserRole.project_id == proj.id
+        ).first()
+        if not role:
+            role = models.ScoreUserRole(user_id=self.test_user.id, project_id=proj.id, role="director")
+            self.db.add(role)
+            self.db.commit()
+            
+        # テストイベントを3種類作成
+        # 1. 条件(A) アクターの user_id が user_ids に含まれる個人イベント
+        evt_personal = models.Event(
+            project_id=proj.id,
+            title="My Personal Event 999",
+            description="Personal Event Description",
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            type=models.EventType.MEETING,
+            user_ids=[self.test_user.id]
+        )
+        # 2. 条件(B) user_ids が空、かつアクターがメンバーであるプロジェクトの共有イベント
+        evt_shared = models.Event(
+            project_id=proj.id,
+            title="Project Shared Event 999",
+            description="Shared Event Description",
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            type=models.EventType.MILESTONE,
+            user_ids=[]
+        )
+        # 3. 除外条件: user_ids が空、かつアクターがメンバーではない他プロジェクトの共有イベント
+        evt_other_shared = models.Event(
+            project_id=proj.id + 100, # 無関係のプロジェクトID
+            title="Other Project Shared Event 999",
+            description="Other Shared Description",
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            type=models.EventType.MILESTONE,
+            user_ids=[]
+        )
+        # 4. 条件(B)の拡張: 自分がメンバーであるプロジェクトで、かつ他人のみが user_ids に登録されているイベント
+        evt_other_assigned = models.Event(
+            project_id=proj.id,
+            title="Other User Event in My Project 999",
+            description="Other User Description",
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            type=models.EventType.MEETING,
+            user_ids=[self.test_user.id + 1000]
+        )
+        
+        self.db.add(evt_personal)
+        self.db.add(evt_shared)
+        self.db.add(evt_other_shared)
+        self.db.add(evt_other_assigned)
+        self.db.commit()
+        self.db.refresh(evt_personal)
+        self.db.refresh(evt_shared)
+        self.db.refresh(evt_other_shared)
+        self.db.refresh(evt_other_assigned)
+        
+        # /api/me/events をリクエスト
+        res = self.client.get("/api/me/events", headers=self.headers)
+        self.assertEqual(res.status_code, 200)
+        events_data = res.json()
+        
+        titles = [e["title"] for e in events_data]
+        
+        # 個人イベントとプロジェクト共有イベントが含まれていること
+        self.assertIn("My Personal Event 999", titles)
+        self.assertIn("Project Shared Event 999", titles)
+        self.assertIn("Other User Event in My Project 999", titles)
+        # メンバーではない別プロジェクトの共有イベントは含まれていないこと
+        self.assertNotIn("Other Project Shared Event 999", titles)
+        
+        # 仮想フィールド date, time の出力テスト
+        personal_res = [e for e in events_data if e["title"] == "My Personal Event 999"][0]
+        self.assertIsNotNone(personal_res.get("date"))
+        self.assertIsNotNone(personal_res.get("time"))
+        self.assertIsNotNone(personal_res.get("duration_minutes"))
+
+        # 新規作成 (POST) 時の仮想フィールド入力逆変換テスト
+        post_payload = {
+            "title": "Time Field POST Test Event",
+            "type": "Meeting",
+            "project_id": proj.id,
+            "date": "2026-06-05",
+            "time": "14:30",
+            "duration_minutes": 45,
+            "user_ids": [self.test_user.id]
+        }
+        res_post = self.client.post("/api/calendar/events", json=post_payload, headers=self.headers)
+        self.assertEqual(res_post.status_code, 201)
+        post_data = res_post.json()
+        
+        # start_time / end_time に変換されていること
+        self.assertIn("2026-06-05T14:30:00", post_data["start_time"])
+        self.assertIn("2026-06-05T15:15:00", post_data["end_time"]) # 14:30 + 45m = 15:15
+        self.assertEqual(post_data["allDay"], False)
+
+        # 更新 (PUT) 時の仮想フィールド入力逆変換テスト
+        put_payload = {
+            "time": "15:00",
+            "duration_minutes": 90
+        }
+        res_put = self.client.put(f"/api/calendar/events/{post_data['id']}", json=put_payload, headers=self.headers)
+        self.assertEqual(res_put.status_code, 200)
+        put_data = res_put.json()
+        
+        # 時間が変更されていること
+        self.assertIn("2026-06-05T15:00:00", put_data["start_time"])
+        self.assertIn("2026-06-05T16:30:00", put_data["end_time"]) # 15:00 + 90m = 16:30
+        
+        # クリーンアップ (作成したイベントを削除)
+        res_del = self.client.delete(f"/api/calendar/events/{post_data['id']}", headers=self.headers)
+        self.assertEqual(res_del.status_code, 204)
+        
+        # クリーンアップ
+        self.db.delete(evt_personal)
+        self.db.delete(evt_shared)
+        self.db.delete(evt_other_shared)
+        self.db.delete(evt_other_assigned)
+        self.db.commit()
+        
+        print("OK: /api/me/events filter conditions, virtual fields serializations, and reverse-conversion logic verified perfectly!")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status, Form, UploadFile, File, Body, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import or_
+from sqlalchemy import or_, and_, func
 from typing import List, Optional
 from .. import models, schemas, database, security
 from ..database import get_db
@@ -852,16 +852,30 @@ def get_my_events(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
+    # actor がメンバーであるプロジェクトIDの一覧を取得
+    role_project_ids = [r.project_id for r in db.query(models.ScoreUserRole).filter(models.ScoreUserRole.user_id == actor_id).all()]
+    task_project_ids = [t.project_id for t in db.query(models.Task).filter(models.Task.assigned_to == actor_id).all() if t.project_id is not None]
+    member_project_ids = list(set(role_project_ids + task_project_ids))
+
     query = db.query(models.Event)
     
-    conditions = []
+    # フィルタ条件の構築
+    # (A) 参加者として設定されているイベント (actor_id が event.user_ids に含まれる、または participants に含まれる)
+    cond_a_list = [models.Event.user_ids.contains(actor_id)]
     if user.email:
-        conditions.append(models.Event.participants.like(f"%{user.email}%"))
+        cond_a_list.append(models.Event.participants.like(f"%{user.email}%"))
     if user.full_name:
-        conditions.append(models.Event.participants.like(f"%{user.full_name}%"))
+        cond_a_list.append(models.Event.participants.like(f"%{user.full_name}%"))
         
-    if conditions:
-        query = query.filter(or_(*conditions))
+    cond_a = or_(*cond_a_list)
+    
+    # (B) 関連するプロジェクトに属するイベント (project_id が member_project_ids に含まれる)
+    # これにより、イベントタイプごとの項目差異に関わらず、関連プロジェクトのイベントはすべて取得可能です。
+    if member_project_ids:
+        cond_b = models.Event.project_id.in_(member_project_ids)
+        query = query.filter(or_(cond_a, cond_b))
+    else:
+        query = query.filter(cond_a)
         
     if start_date:
         query = query.filter(models.Event.start_time >= start_date)

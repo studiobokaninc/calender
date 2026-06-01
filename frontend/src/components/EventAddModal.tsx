@@ -637,17 +637,12 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
         // Reset task related fields except those needed for phase logic if any
         next.phaseTargetTaskId = null;
       } else { // Generic
-        // Generic は終日ON/OFFをユーザーに委ねる
+        // Generic は終日ON/OFFをユーザーに委ねる（デフォルトはオフに）
+        next.allDay = false;
         next.startDate = prev.startDate || prev.taskDueDate || '';
         next.endDate = undefined; // 終了日は使用しない
-
-        if (prev.allDay) {
-          next.startTime = '';
-          next.endTime = '';
-        } else {
-          next.startTime = prev.startTime || '09:00';
-          next.endTime = prev.endTime || '10:00';
-        }
+        next.startTime = prev.startTime || '09:00';
+        next.endTime = prev.endTime || '10:00';
       }
 
       return next;

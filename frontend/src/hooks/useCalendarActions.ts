@@ -409,6 +409,14 @@ export const useCalendarActions = ({
                     start_date: `${startDate}T00:00:00+09:00`,
                     end_date: endDate ? `${endDate}T00:00:00+09:00` : undefined,
                 });
+            } else if (type === 'group' || idStr.startsWith('group-')) {
+                const startDate = formatForApi(start, true);
+                const endDate = end && allDay ? formatForApi(addDays(end, -1), true) : formatForApi(end, true);
+                if (!startDate) { arg.revert(); return; }
+                await api.put(`/api/groups/${numericId}`, {
+                    start_date: `${startDate}T00:00:00+09:00`,
+                    end_date: endDate ? `${endDate}T00:00:00+09:00` : undefined,
+                });
             } else {
                 const startTime = formatForApi(start, allDay);
                 const endTime = formatForApi(end ?? start, allDay);
@@ -449,6 +457,14 @@ export const useCalendarActions = ({
                 const endDate = end && allDay ? formatForApi(addDays(end, -1), true) : formatForApi(end, true);
                 if (!startDate) { arg.revert(); return; }
                 await api.put(`/projects/${numericId}`, {
+                    start_date: `${startDate}T00:00:00+09:00`,
+                    end_date: endDate ? `${endDate}T00:00:00+09:00` : undefined,
+                });
+            } else if (type === 'group' || idStr.startsWith('group-')) {
+                const startDate = formatForApi(start, true);
+                const endDate = end && allDay ? formatForApi(addDays(end, -1), true) : formatForApi(end, true);
+                if (!startDate) { arg.revert(); return; }
+                await api.put(`/api/groups/${numericId}`, {
                     start_date: `${startDate}T00:00:00+09:00`,
                     end_date: endDate ? `${endDate}T00:00:00+09:00` : undefined,
                 });

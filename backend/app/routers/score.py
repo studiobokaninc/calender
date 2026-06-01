@@ -465,6 +465,21 @@ def get_my_retakes(
         r.project_name = pn
     return [r for r, sc, pn in results]
 
+@router.get("/me/timecards", response_model=List[schemas.Timecard])
+def get_my_timecards(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    limit: int = Query(100, le=500),
+    actor_user_id: int = Depends(get_actor_user_id),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Timecard).filter(models.Timecard.user_id == actor_user_id)
+    if from_date:
+        query = query.filter(func.date(models.Timecard.date) >= from_date)
+    if to_date:
+        query = query.filter(func.date(models.Timecard.date) <= to_date)
+    return query.order_by(models.Timecard.date.desc()).limit(limit).all()
+
 @router.get("/me/troubles", response_model=List[schemas.Trouble])
 def get_my_troubles(
     actor_id: int = Depends(get_actor_user_id),

@@ -12,6 +12,14 @@ def _apply_date_time_fields(update_dict: dict, start_time: Optional[datetime], e
     """
     date, time, duration_minutes の指定に基づいて start_time, end_time, allDay を調整して更新ディクショナリを返す。
     """
+    # date, time, duration_minutes のいずれも含まれていない場合は何もしない
+    if 'date' not in update_dict and 'time' not in update_dict and 'duration_minutes' not in update_dict:
+        # 仮想フィールド自体は DB モデルに反映しないよう削除
+        for virtual_key in ['date', 'time', 'duration_minutes']:
+            if virtual_key in update_dict:
+                del update_dict[virtual_key]
+        return
+
     target_date = update_dict.get('date')
     target_time = update_dict.get('time')
     duration = update_dict.get('duration_minutes')

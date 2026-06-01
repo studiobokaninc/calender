@@ -99,3 +99,32 @@ def test_project_level_task_seq_pm(db: Session):
     updated_task = crud.update_task(db, task_with_shot, task_update)
     assert updated_task.seqID == "SEQ_PM"
 
+
+def test_create_and_update_event_direct_time(db: Session):
+    # イベント作成
+    event_in = schemas.EventCreate(
+        title="Test Event",
+        type="Meeting",
+        start_time="2026-06-01T10:00:00+09:00",
+        end_time="2026-06-01T11:00:00+09:00"
+    )
+    event = crud.create_event(db, event_in)
+    assert event.id is not None
+    assert event.title == "Test Event"
+    
+    # モデルの start_time は naive datetime なのでタイムゾーン部を除いたアサーション等に合わせるか、
+    # または単純に crud.update_event が正常に日付を更新できるかをアサートする
+    # update_event を呼んで日付が 06-05 に変わるかをテスト
+    event_update = schemas.EventUpdate(
+        start_time="2026-06-05T15:00:00+09:00",
+        end_time="2026-06-05T16:00:00+09:00"
+    )
+    updated_event = crud.update_event(db, event, event_update)
+    # 日付が更新されたことを検証
+    assert updated_event.start_time.day == 5
+    assert updated_event.start_time.month == 6
+    assert updated_event.start_time.hour == 15
+    assert updated_event.end_time.day == 5
+    assert updated_event.end_time.month == 6
+    assert updated_event.end_time.hour == 16
+

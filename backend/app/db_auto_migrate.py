@@ -478,6 +478,25 @@ def check_and_migrate_db():
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_group_direct_messages_group ON group_direct_messages(group_id)")
 
+        # reference_materials テーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS reference_materials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shot_id INTEGER NOT NULL,
+                task_id INTEGER,
+                title VARCHAR(255) NOT NULL,
+                media_type VARCHAR(50) NOT NULL,
+                file_path TEXT NOT NULL,
+                created_by INTEGER NOT NULL,
+                created_at DATETIME,
+                FOREIGN KEY(shot_id) REFERENCES shots(id) ON DELETE CASCADE,
+                FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+                FOREIGN KEY(created_by) REFERENCES users(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reference_materials_shot ON reference_materials(shot_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_reference_materials_task ON reference_materials(task_id)")
+
         conn.commit()
         print("Score 関連テーブルの確認・作成を完了しました。")
 

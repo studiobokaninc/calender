@@ -596,3 +596,15 @@ class Routine(Base):
     condition: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     blockers: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     ai_priorities_adopted: Mapped[Optional[List[int]]] = mapped_column(JSON, nullable=True)
+
+class ReferenceMaterial(Base):
+    __tablename__ = "reference_materials"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    media_type: Mapped[str] = mapped_column(String(50))  # image / video / url / memo
+    file_path: Mapped[str] = mapped_column(Text)  # file path or url
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)

@@ -1110,3 +1110,42 @@ def delete_score_user_role(
     db.delete(target)
     db.commit()
 
+
+@router.post("/reference_materials", response_model=schemas.ReferenceMaterial, status_code=status.HTTP_201_CREATED)
+def create_reference_material(
+    payload: schemas.ReferenceMaterialCreate,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    """参考資料を新規登録"""
+    created_by = actor_id if payload.created_by is None else payload.created_by
+    new_material = models.ReferenceMaterial(
+        shot_id=payload.shot_id,
+        task_id=payload.task_id,
+        title=payload.title,
+        media_type=payload.media_type,
+        file_path=payload.file_path,
+        created_by=created_by,
+        created_at=now_jst_naive()
+    )
+    db.add(new_material)
+    db.commit()
+    db.refresh(new_material)
+    return new_material
+
+
+@router.get("/me/reference_materials", response_model=List[schemas.ReferenceMaterial])
+def get_my_reference_materials(
+    shot_id: Optional[int] = Query(None),
+    task_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    """参考資料一覧を取得"""
+    query = db.query(models.ReferenceMaterial)
+    if shot_id is not None:
+        query = query.filter(models.ReferenceMaterial.shot_id == shot_id)
+    if task_id is not None:
+        query = query.filter(models.ReferenceMaterial.task_id == task_id)
+    return query.all()
+

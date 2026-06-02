@@ -883,3 +883,22 @@ class UserProfileUpdate(BaseModel):
     skills: Optional[List[str]] = None
     settings_json: Optional[Dict[str, Any]] = None
 
+
+class ReferenceMaterialBase(BaseModel):
+    shot_id: int
+    task_id: Optional[int] = None
+    title: str
+    media_type: str  # image / video / url / memo
+    file_path: str
+
+class ReferenceMaterialCreate(ReferenceMaterialBase):
+    created_by: Optional[int] = None
+
+class ReferenceMaterial(ReferenceMaterialBase):
+    id: int
+    created_by: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+

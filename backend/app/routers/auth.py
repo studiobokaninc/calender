@@ -39,4 +39,7 @@ def login_for_access_token(
 @router.get("/api/users/me", response_model=schemas.UserResponse)
 async def read_users_me(current_user: Annotated[models.User, Depends(get_current_user)]):
     """現在認証されているユーザーの情報を返す"""
-    return current_user
+    user_data = schemas.UserResponse.from_orm(current_user)
+    if not user_data.avatar_url:
+        user_data.avatar_url = f"/api/users/{current_user.id}/avatar"
+    return user_data

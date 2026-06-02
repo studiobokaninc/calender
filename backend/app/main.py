@@ -87,6 +87,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# 静的ファイル配信のマウント
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+static_dir = BASE_DIR / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 @app.on_event("startup")
 async def startup_event():
     try:

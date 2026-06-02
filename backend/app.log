@@ -16979,3 +16979,4 @@ Traceback (most recent call last):
     assert self._buffer, 'Data should not be empty'
            ^^^^^^^^^^^^
 AssertionError: Data should not be empty
+2026-06-02 13:19:03,003 - app.routers.holidays - ERROR - Failed to calculate holidays for year 2026: No module named 'holidays'

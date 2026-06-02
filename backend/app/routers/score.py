@@ -397,7 +397,12 @@ def get_my_profile(
 ):
     # actor_id が指定されている場合はそのユーザーを返す（Score Backend からの中継用）
     user = db.query(models.User).filter(models.User.id == actor_id).first()
-    return user
+    if not user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+    user_data = schemas.UserResponse.from_orm(user)
+    if not user_data.avatar_url:
+        user_data.avatar_url = f"/api/users/{user.id}/avatar"
+    return user_data
 
 @router.get("/me/tasks", response_model=List[schemas.TaskResponse])
 def get_my_tasks(

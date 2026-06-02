@@ -257,9 +257,14 @@ class TestAPIV3(unittest.TestCase):
 
     def test_11_profile_expansion(self):
         """§5-bis: ユーザープロフィール拡張 API の疎通・権限判定テスト"""
+        import pytz
+        today_jst = datetime.now(pytz.timezone('Asia/Tokyo')).date()
+        today_bday_str = f"1995-{today_jst.month:02d}-{today_jst.day:02d}T00:00:00"
+        today_bday_dt = datetime(1992, today_jst.month, today_jst.day)
+
         # 1. 自身のプロフィールを更新 (PATCH /api/me/profile)
         payload_update = {
-            "birthday": "1995-05-25T00:00:00",  # 今日が誕生日になるように設定
+            "birthday": today_bday_str,  # 今日が誕生日になるように設定
             "bio": "Maya と Nuke のコンポジターです。",
             "phone": "090-1234-5678",
             "line_id": "test_line_999",
@@ -290,11 +295,15 @@ class TestAPIV3(unittest.TestCase):
                 full_name="同僚スタッフ",
                 role="user",
                 is_active=True,
-                birthday=datetime.strptime("1992-05-25", "%Y-%m-%d"), # 今日が誕生日
+                birthday=today_bday_dt, # 今日が誕生日
                 phone="080-8765-4321",
                 line_id="other_line"
             )
             self.db.add(other_user)
+            self.db.commit()
+            self.db.refresh(other_user)
+        else:
+            other_user.birthday = today_bday_dt
             self.db.commit()
             self.db.refresh(other_user)
 
@@ -476,6 +485,58 @@ class TestAPIV3(unittest.TestCase):
         self.db.commit()
         
         print("OK: /api/me/events filter conditions, virtual fields serializations, and reverse-conversion logic verified perfectly!")
+
+    def test_13_avatar_upload_and_fallback(self):
+        """アバターのアップロード、フォールバックURL、及び取得APIのテスト"""
+        # 1. 自身の情報を取得して avatar_url が fallback URL であることを確認
+        res_me = self.client.get("/api/users/me", headers=self.headers)
+        self.assertEqual(res_me.status_code, 200)
+        self.assertEqual(res_me.json()["avatar_url"], f"/api/users/{self.test_user.id}/avatar")
+
+        # 2. プロフィール情報を取得して avatar_url が fallback URL であることを確認
+        res_prof = self.client.get("/api/me/profile", headers=self.headers)
+        self.assertEqual(res_prof.status_code, 200)
+        self.assertEqual(res_prof.json()["avatar_url"], f"/api/users/{self.test_user.id}/avatar")
+
+        # 3. アバターをダミー画像でアップロード
+        import io
+        dummy_file = io.BytesIO(b"fake image data")
+        response = self.client.post(
+            "/api/me/avatar",
+            files={"file": ("test_avatar.png", dummy_file, "image/png")},
+            headers=self.headers
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("avatar_url", response.json())
+
+        # 4. アップロード後にアバター取得APIを叩いて、アップロードした画像が返ることを確認
+        res_avatar = self.client.get(f"/api/users/{self.test_user.id}/avatar", headers=self.headers)
+        self.assertEqual(res_avatar.status_code, 200)
+        self.assertEqual(res_avatar.content, b"fake image data")
+
+        # 5. 不正なファイル形式をアップロードしてエラーになることを確認
+        dummy_txt = io.BytesIO(b"fake text data")
+        res_fail = self.client.post(
+            "/api/me/avatar",
+            files={"file": ("test_avatar.txt", dummy_txt, "text/plain")},
+            headers=self.headers
+        )
+        self.assertEqual(res_fail.status_code, 400)
+        self.assertIn("許可されていない", res_fail.json()["detail"])
+
+        # クリーンアップ (DBのavatar_urlをリセットし、アップロードされたファイルを物理削除)
+        import os
+        from pathlib import Path
+        db_user = self.db.query(models.User).filter(models.User.id == self.test_user.id).first()
+        if db_user and db_user.avatar_url:
+            filename = os.path.basename(db_user.avatar_url)
+            file_path = Path("static") / "uploads" / "avatars" / filename
+            if file_path.exists():
+                file_path.unlink()
+            db_user.avatar_url = None
+            self.db.commit()
+
+        print("OK: Avatar upload, fallback URL, and serving tests passed successfully!")
 
 
 if __name__ == "__main__":

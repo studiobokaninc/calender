@@ -1,8 +1,12 @@
 import logging
 from typing import List, Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
+import shutil
+import uuid
+import os
+from pathlib import Path
 
 from .. import crud, models, schemas, security
 from ..database import get_db
@@ -21,9 +25,15 @@ async def get_users_endpoint(
     try:
         users = crud.get_users(db=db, skip=skip, limit=limit)
         
-        # バリデーション
-        valid_users = [u for u in users if u.email and '@' in u.email]
-        return valid_users
+        # バリデーション & アバター fallback
+        response_users = []
+        for u in users:
+            if u.email and '@' in u.email:
+                u_data = schemas.UserResponse.from_orm(u)
+                if not u_data.avatar_url:
+                    u_data.avatar_url = f"/api/users/{u.id}/avatar"
+                response_users.append(u_data)
+        return response_users
     except Exception:
         logger.exception("ユーザー情報の取得に失敗しました")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="ユーザー情報の取得に失敗しました。")
@@ -129,6 +139,66 @@ async def get_user_avatar(
     return Response(content=svg, media_type="image/svg+xml")
 
 
+# Static uploads directory for avatars
+AVATAR_UPLOAD_DIR = Path("static") / "uploads" / "avatars"
+
+@router.post("/{user_id}/avatar", response_model=dict)
+async def upload_user_avatar(
+    user_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """ユーザーのアバター画像をアップロードする (本人または管理者のみ)"""
+    if current_user.role != 'admin' and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="他のユーザーのアバターを更新する権限がありません"
+        )
+        
+    db_user = crud.get_user(db=db, user_id=user_id)
+    if not db_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ユーザーが見つかりません")
+        
+    allowed_extensions = {".png", ".jpg", ".jpeg", ".webp"}
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="許可されていないファイル形式です。PNG, JPEG, WebP のみをサポートしています"
+        )
+        
+    MAX_SIZE = 5 * 1024 * 1024  # 5MB
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0)
+    if file_size > MAX_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ファイルサイズが大きすぎます。最大 5MB までです"
+        )
+
+    AVATAR_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    dest_path = AVATAR_UPLOAD_DIR / unique_filename
+    
+    try:
+        with open(dest_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        logger.error(f"Failed to save avatar upload: {e}")
+        raise HTTPException(status_code=500, detail="アバター画像の保存に失敗しました")
+        
+    relative_path = f"/static/uploads/avatars/{unique_filename}"
+    db_user.avatar_url = relative_path
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    return {"avatar_url": f"/api/users/{user_id}/avatar"}
+
+
 # --- User Profile Expansion APIs (§5-bis) ---
 
 me_router = APIRouter(prefix="/api/me", tags=["My Profile"])
@@ -139,7 +209,24 @@ async def get_my_profile(
     current_user: models.User = Depends(security.get_current_user)
 ):
     """自身のプロフィールを取得 (全フィールド表示)"""
-    return current_user
+    profile_data = schemas.UserProfileResponse.from_orm(current_user)
+    if not profile_data.avatar_url:
+        profile_data.avatar_url = f"/api/users/{current_user.id}/avatar"
+    return profile_data
+
+
+@me_router.patch("/avatar")
+async def update_my_avatar(
+    avatar_in: schemas.AvatarUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """自身のアバターURLを設定する"""
+    current_user.avatar_url = avatar_in.avatar_url
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {"avatar_url": current_user.avatar_url}
 
 
 @me_router.patch("/profile", response_model=schemas.UserProfileResponse)
@@ -156,7 +243,26 @@ async def update_my_profile(
     db.add(current_user)
     db.commit()
     db.refresh(current_user)
-    return current_user
+    
+    profile_data = schemas.UserProfileResponse.from_orm(current_user)
+    if not profile_data.avatar_url:
+        profile_data.avatar_url = f"/api/users/{current_user.id}/avatar"
+    return profile_data
+
+
+@me_router.post("/avatar", response_model=dict)
+async def upload_my_avatar(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """ログインユーザー自身のアバター画像をアップロードする"""
+    return await upload_user_avatar(
+        user_id=current_user.id,
+        file=file,
+        db=db,
+        current_user=current_user
+    )
 
 
 @router.get("/birthdays_today", response_model=List[dict])

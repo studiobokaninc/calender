@@ -33,6 +33,9 @@ class UserUpdate(UserBase):
     email: Optional[EmailStr] = None
     password: Optional[str] = None
 
+class AvatarUpdate(BaseModel):
+    avatar_url: str
+
 class UserResponse(UserBase):
     id: int
     email: EmailStr

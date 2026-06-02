@@ -1033,3 +1033,58 @@ def list_score_user_roles(
     """全てのScore制作ロールを取得"""
     return db.query(models.ScoreUserRole).all()
 
+
+@router.post("/score_user_roles", response_model=schemas.ScoreUserRole, status_code=status.HTTP_201_CREATED)
+def create_score_user_role(
+    payload: schemas.ScoreUserRoleCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Score制作ロールを新規登録。同一(user_id, project_id)が既存なら409"""
+    existing = db.query(models.ScoreUserRole).filter(
+        models.ScoreUserRole.user_id == payload.user_id,
+        models.ScoreUserRole.project_id == payload.project_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="この user_id + project_id の組み合わせは既に登録されています")
+    new_role = models.ScoreUserRole(
+        user_id=payload.user_id,
+        project_id=payload.project_id,
+        role=payload.role
+    )
+    db.add(new_role)
+    db.commit()
+    db.refresh(new_role)
+    return new_role
+
+
+@router.patch("/score_user_roles/{role_id}", response_model=schemas.ScoreUserRole)
+def update_score_user_role(
+    role_id: int,
+    payload: schemas.ScoreUserRoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Score制作ロールのroleフィールドを変更"""
+    target = db.query(models.ScoreUserRole).filter(models.ScoreUserRole.id == role_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="指定されたロール割当が見つかりません")
+    target.role = payload.role
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+@router.delete("/score_user_roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_score_user_role(
+    role_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Score制作ロール割当を削除"""
+    target = db.query(models.ScoreUserRole).filter(models.ScoreUserRole.id == role_id).first()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="指定されたロール割当が見つかりません")
+    db.delete(target)
+    db.commit()
+

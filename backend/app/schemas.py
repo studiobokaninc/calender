@@ -615,6 +615,9 @@ class ScoreUserRoleBase(BaseModel):
 class ScoreUserRoleCreate(ScoreUserRoleBase):
     pass
 
+class ScoreUserRoleUpdate(BaseModel):
+    role: str
+
 class ScoreUserRole(ScoreUserRoleBase):
     id: int
     class Config:

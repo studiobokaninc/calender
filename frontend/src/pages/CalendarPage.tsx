@@ -27,11 +27,13 @@ import {
     Fab,
     Snackbar,
     Alert,
+    Popover,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {
     parseISO,
     addDays,
@@ -98,6 +100,11 @@ const CalendarPage: React.FC = () => {
     
     const [, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [contextMenu, setContextMenu] = useState<{
+        mouseX: number;
+        mouseY: number;
+        taskId: number;
+    } | null>(null);
 
     const calendarRef = useRef<FullCalendar>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -141,6 +148,7 @@ const CalendarPage: React.FC = () => {
         handleDeletePhase,
         handleEventDrop,
         handleEventResize,
+        handleDuplicateTask,
     } = useCalendarActions({
         user: user as any,
         tasks,
@@ -449,6 +457,18 @@ const CalendarPage: React.FC = () => {
         setIsAddModalOpen(false);
     };
 
+    const handleCloseContextMenu = () => {
+        setContextMenu(null);
+    };
+
+    const handleDuplicate = async () => {
+        if (contextMenu && contextMenu.taskId) {
+            const taskId = contextMenu.taskId;
+            setContextMenu(null);
+            await handleDuplicateTask(taskId);
+        }
+    };
+
     useEffect(() => {
         if (isAddModalOpen) document.body.classList.add('calendar-modal-open');
         else document.body.classList.remove('calendar-modal-open');
@@ -535,6 +555,8 @@ const CalendarPage: React.FC = () => {
                 );
             }
 
+            const shotID = type === 'task' ? eventInfo.event.extendedProps.shotID : null;
+
             return (
                 <div className="calendar-list-event-content" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '1px 0' }}>
                     <span className={`calendar-event-type-badge calendar-event-type-${(type || 'generic').toLowerCase()}`} style={{
@@ -545,6 +567,9 @@ const CalendarPage: React.FC = () => {
                     }}>
                         {typeLabel}
                     </span>
+                    {shotID && (
+                        <span style={{ fontWeight: 600, fontSize: '0.875rem', marginRight: '-4px' }}>{shotID}_</span>
+                    )}
                     <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{title}</span>
                 </div>
             );
@@ -707,10 +732,19 @@ const CalendarPage: React.FC = () => {
         if (type === 'task') {
             const status = eventInfo.event.extendedProps.status;
             const isDelayed = status === 'delayed';
+            const shotID = eventInfo.event.extendedProps.shotID;
 
             return (
                 <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
                     <span className="calendar-event-type-badge calendar-event-type-task" style={{ marginRight: '4px', fontSize: '0.65rem', padding: '1px 4px' }}>タスク</span>
+                    {shotID && (
+                        <span style={{
+                            marginRight: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            flexShrink: 0
+                        }}>{shotID}_</span>
+                    )}
                     {isDelayed && (
                         <span style={{
                             backgroundColor: '#D32F2F',
@@ -723,7 +757,7 @@ const CalendarPage: React.FC = () => {
                             flexShrink: 0
                         }}>遅延</span>
                     )}
-                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 600 }} title={title}>{title}</span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 600 }} title={shotID ? `${shotID}_${title}` : title}>{title}</span>
                 </div>
             );
         }
@@ -1250,6 +1284,22 @@ const CalendarPage: React.FC = () => {
                                 arg.event.setProp('backgroundColor', recalculatedColor);
                                 arg.event.setProp('borderColor', recalculatedColor);
                                 arg.event.setProp('color', recalculatedColor);
+
+                                // 右クリックでタスク複製メニューを表示
+                                arg.el.addEventListener('contextmenu', (e: MouseEvent) => {
+                                    if (user?.role !== 'admin') return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+
+                                    const taskId = arg.event.extendedProps?.taskId;
+                                    if (taskId) {
+                                        setContextMenu({
+                                            mouseX: e.clientX,
+                                            mouseY: e.clientY,
+                                            taskId: Number(taskId),
+                                        });
+                                    }
+                                });
                             }
                         }}
                         dayCellDidMount={handleDayCellMount}
@@ -1307,6 +1357,55 @@ const CalendarPage: React.FC = () => {
             </Box>
 
             {renderEventModal()}
+
+            <Popover
+                open={contextMenu !== null}
+                anchorReference="anchorPosition"
+                anchorPosition={
+                    contextMenu !== null
+                        ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+                        : undefined
+                }
+                onClose={handleCloseContextMenu}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'center',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'center',
+                }}
+                PaperProps={{
+                    sx: {
+                        p: 0.5,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1.5,
+                        bgcolor: 'background.paper',
+                    }
+                }}
+            >
+                <Button
+                    size="small"
+                    startIcon={<ContentCopyIcon sx={{ fontSize: '0.9rem' }} />}
+                    onClick={handleDuplicate}
+                    sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.75rem',
+                        color: 'primary.main',
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        '&:hover': {
+                            bgcolor: 'action.hover',
+                        }
+                    }}
+                >
+                    タスクを複製
+                </Button>
+            </Popover>
 
             {/* モバイル用: フィルタードロワー */}
             {isMobile && (

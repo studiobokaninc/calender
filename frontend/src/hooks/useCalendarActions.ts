@@ -485,6 +485,51 @@ export const useCalendarActions = ({
         }
     }, [refetch, refreshGlobalData, formatForApi]);
 
+    // ────────────────────────────────────────────────────────────────────────
+    // タスク複製
+    // ────────────────────────────────────────────────────────────────────────
+    const handleDuplicateTask = useCallback(async (taskId: number) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) {
+                setError("複製対象のタスクが見つかりませんでした。");
+                return;
+            }
+
+            const duplicatedTaskData = {
+                name: `${task.name} のコピー`,
+                description: task.description || '',
+                status: task.status || 'todo',
+                due_date: task.due_date,
+                project_id: task.project_id,
+                assigned_to: task.assigned_to,
+                cost: task.cost,
+                dependsOn: task.dependsOn || [],
+                start_date: task.start_date,
+                priority: task.priority,
+                type: task.type,
+                seqID: task.seqID,
+                shotID: task.shotID,
+                phases: task.phases,
+                deliverables: (task as any).deliverables,
+                check_items: (task as any).check_items,
+            };
+
+            const response = await api.post('/tasks', duplicatedTaskData);
+            console.log("Duplicate success:", response.data);
+
+            if (refreshGlobalData) await refreshGlobalData();
+            refetch();
+        } catch (err: any) {
+            console.error("Failed to duplicate task:", err);
+            setError("タスクの複製に失敗しました。");
+        } finally {
+            setLoading(false);
+        }
+    }, [tasks, refetch, refreshGlobalData, setError, setLoading]);
+
     return {
         handleSaveEvent,
         handleDeleteEvent,
@@ -493,5 +538,6 @@ export const useCalendarActions = ({
         handleDeletePhase,
         handleEventDrop,
         handleEventResize,
+        handleDuplicateTask,
     };
 };

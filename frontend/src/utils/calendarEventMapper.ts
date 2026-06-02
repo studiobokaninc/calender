@@ -82,6 +82,7 @@ export const taskToCalendarEvents = (
                 deliverables: (task as any).deliverables,
                 check_items: (task as any).check_items,
                 taskProgress: task.progress,
+                shotID: task.shotID ?? undefined,
             },
         });
     }
@@ -114,6 +115,7 @@ export const taskToCalendarEvents = (
                     check_items: (task as any).check_items ?? [],
                     deliverables: (task as any).deliverables ?? '',
                     phases: task.phases ?? [],
+                    shotID: task.shotID ?? undefined,
                 },
             });
         });

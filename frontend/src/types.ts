@@ -158,6 +158,7 @@ export interface CalendarEvent {
     deliverables?: string | null;
     check_items?: { label: string; checked: boolean }[] | null;
     taskProgress?: number | null;
+    shotID?: string | null;
   };
 }
 

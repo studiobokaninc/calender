@@ -4,7 +4,7 @@
 from .base import _parse_datetime, _parse_int_safe, _safe_json_load
 from .users import (
     get_user, get_user_by_email, get_user_by_username, get_users,
-    create_user, update_user
+    create_user, update_user, delete_user
 )
 from .projects import (
     get_project, get_project_by_name, get_projects, create_project, update_project, 

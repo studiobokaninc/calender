@@ -52,3 +52,8 @@ def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) 
     db.commit()
     db.refresh(db_user)
     return db_user
+
+def delete_user(db: Session, db_user: models.User) -> None:
+    """ユーザーを削除"""
+    db.delete(db_user)
+    db.commit()

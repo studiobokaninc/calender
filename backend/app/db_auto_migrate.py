@@ -336,6 +336,12 @@ def check_and_migrate_db():
                 worked_minutes INTEGER DEFAULT 0,
                 break_minutes INTEGER DEFAULT 0,
                 memo TEXT,
+                type VARCHAR(50) DEFAULT 'clock_out',
+                mode VARCHAR(50) DEFAULT 'current',
+                created_at DATETIME,
+                submitted_at DATETIME,
+                for_date VARCHAR(10),
+                fields JSON,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         """)
@@ -372,6 +378,45 @@ def check_and_migrate_db():
         if 'timecode' not in msg_columns:
             print("timecodeカラムが見つかりません。追加しています...")
             cursor.execute("ALTER TABLE user_messages ADD COLUMN timecode VARCHAR(20)")
+
+        # timecards の既存のカラムを確認・追加
+        cursor.execute("PRAGMA table_info(timecards)")
+        tc_columns = [row[1] for row in cursor.fetchall()]
+        tc_migrated = False
+        if 'type' not in tc_columns:
+            print("typeカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE timecards ADD COLUMN type VARCHAR(50) DEFAULT 'clock_out'")
+            tc_migrated = True
+        if 'mode' not in tc_columns:
+            print("modeカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE timecards ADD COLUMN mode VARCHAR(50) DEFAULT 'current'")
+            tc_migrated = True
+        if 'created_at' not in tc_columns:
+            print("created_atカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE timecards ADD COLUMN created_at DATETIME")
+            tc_migrated = True
+        if 'submitted_at' not in tc_columns:
+            print("submitted_atカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE timecards ADD COLUMN submitted_at DATETIME")
+            tc_migrated = True
+        if 'for_date' not in tc_columns:
+            print("for_dateカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE timecards ADD COLUMN for_date VARCHAR(10)")
+            tc_migrated = True
+        if 'fields' not in tc_columns:
+            print("fieldsカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE timecards ADD COLUMN fields JSON")
+            tc_migrated = True
+            
+        if tc_migrated:
+            # 既存レコードのデフォルト値を初期化
+            cursor.execute("UPDATE timecards SET type = 'clock_out' WHERE type IS NULL")
+            cursor.execute("UPDATE timecards SET mode = 'current' WHERE mode IS NULL")
+            cursor.execute("UPDATE timecards SET created_at = date WHERE created_at IS NULL")
+            cursor.execute("UPDATE timecards SET submitted_at = COALESCE(clock_out_at, date) WHERE submitted_at IS NULL")
+            cursor.execute("UPDATE timecards SET for_date = strftime('%Y-%m-%d', date) WHERE for_date IS NULL")
+            conn.commit()
+            print("timecards: 既存レコードのデフォルト値初期化を完了しました。")
 
         # assets テーブルの作成
         cursor.execute("""

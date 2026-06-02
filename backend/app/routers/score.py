@@ -103,13 +103,24 @@ def clock_out(
     # actor_id を強制適用
     user_id = actor_id if timecard_in.user_id is None else timecard_in.user_id
     
+    # default for_date to timecard_in.date's date string if not provided
+    for_date = timecard_in.for_date
+    if not for_date and timecard_in.date:
+        for_date = timecard_in.date.strftime("%Y-%m-%d")
+
     db_timecard = models.Timecard(
         user_id=user_id,
         date=timecard_in.date,
         clock_out_at=timecard_in.clock_out_at or now_jst_naive(),
         worked_minutes=timecard_in.worked_minutes,
         break_minutes=timecard_in.break_minutes,
-        memo=timecard_in.memo
+        memo=timecard_in.memo,
+        type=timecard_in.type or "clock_out",
+        mode=timecard_in.mode or "current",
+        created_at=timecard_in.created_at or now_jst_naive(),
+        submitted_at=timecard_in.submitted_at or timecard_in.clock_out_at or now_jst_naive(),
+        for_date=for_date,
+        fields=timecard_in.fields
     )
     db.add(db_timecard)
     db.commit()
@@ -474,15 +485,26 @@ def get_my_retakes(
 def get_my_timecards(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    type: Optional[str] = Query(None),
     limit: int = Query(100, le=500),
     actor_user_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db),
 ):
+    from datetime import datetime, timedelta
+    
+    if not from_date:
+        from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    if not to_date:
+        to_date = datetime.now().strftime("%Y-%m-%d")
+        
     query = db.query(models.Timecard).filter(models.Timecard.user_id == actor_user_id)
     if from_date:
         query = query.filter(func.date(models.Timecard.date) >= from_date)
     if to_date:
         query = query.filter(func.date(models.Timecard.date) <= to_date)
+    if type:
+        query = query.filter(models.Timecard.type == type)
+        
     return query.order_by(models.Timecard.date.desc()).limit(limit).all()
 
 @router.get("/me/troubles", response_model=List[schemas.Trouble])

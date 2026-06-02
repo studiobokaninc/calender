@@ -817,6 +817,12 @@ class TimecardBase(BaseModel):
     worked_minutes: int = 0
     break_minutes: int = 0
     memo: Optional[str] = None
+    type: Optional[str] = "clock_out"
+    mode: Optional[str] = "current"
+    created_at: Optional[datetime] = None
+    submitted_at: Optional[datetime] = None
+    for_date: Optional[str] = None
+    fields: Optional[Dict[str, Any]] = None
 
 class TimecardCreate(TimecardBase):
     user_id: Optional[int] = None

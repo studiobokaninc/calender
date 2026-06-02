@@ -579,6 +579,13 @@ class Timecard(Base):
     worked_minutes: Mapped[int] = mapped_column(default=0)
     break_minutes: Mapped[int] = mapped_column(default=0)
     memo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    type: Mapped[str] = mapped_column(String(50), default="clock_out")
+    mode: Mapped[Optional[str]] = mapped_column(String(50), default="current", nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive, nullable=True)
+    for_date: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    fields: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
 class Routine(Base):
     __tablename__ = "routines"

@@ -433,7 +433,7 @@ class KnowledgeTag(Base):
 
 class ScoreUserRole(Base):
     __tablename__ = "score_user_roles"
-    __table_args__ = (UniqueConstraint('user_id', 'project_id', 'role', name='uix_user_project_role'),)
+    __table_args__ = (UniqueConstraint('user_id', 'project_id', name='uix_user_project'),)
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)

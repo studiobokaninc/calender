@@ -183,6 +183,32 @@ def check_and_migrate_db():
         # --- Score Related Tables ---
         
         # score_user_roles
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='score_user_roles'")
+        table_info = cursor.fetchone()
+        if table_info:
+            sql_def = table_info[0]
+            if "UNIQUE(user_id,project_id,role)" in sql_def.replace(" ", ""):
+                print("score_user_roles: 古い3列一意制約(user_id, project_id, role)を検出しました。2列一意制約(user_id, project_id)に移行します...")
+                cursor.execute("ALTER TABLE score_user_roles RENAME TO score_user_roles_old")
+                cursor.execute("""
+                    CREATE TABLE score_user_roles (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        project_id INTEGER NOT NULL,
+                        role VARCHAR(50) NOT NULL,
+                        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                        UNIQUE(user_id, project_id)
+                    )
+                """)
+                cursor.execute("""
+                    INSERT INTO score_user_roles (id, user_id, project_id, role)
+                    SELECT id, user_id, project_id, role FROM score_user_roles_old
+                """)
+                cursor.execute("DROP TABLE score_user_roles_old")
+                conn.commit()
+                print("score_user_roles: 2列一意制約(user_id, project_id)への移行が完了しました。")
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS score_user_roles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -191,7 +217,7 @@ def check_and_migrate_db():
                 role VARCHAR(50) NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
                 FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
-                UNIQUE(user_id, project_id, role)
+                UNIQUE(user_id, project_id)
             )
         """)
         

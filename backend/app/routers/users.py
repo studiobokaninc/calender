@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .. import crud, models, schemas, security
 from ..database import get_db
+from .score import get_actor_user_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/users", tags=["Users"])
@@ -219,14 +220,21 @@ async def get_my_profile(
 async def update_my_avatar(
     avatar_in: schemas.AvatarUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(security.get_current_user)
+    current_user: models.User = Depends(security.get_current_user),
+    actor_id: int = Depends(get_actor_user_id)
 ):
-    """自身のアバターURLを設定する"""
-    current_user.avatar_url = avatar_in.avatar_url
-    db.add(current_user)
+    """自身のアバターURLを設定する (管理者はX-Actor-User-Idで代理更新可能)"""
+    if actor_id != current_user.id:
+        target_user = crud.get_user(db=db, user_id=actor_id)
+        if not target_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="対象ユーザーが見つかりません")
+    else:
+        target_user = current_user
+    target_user.avatar_url = avatar_in.avatar_url
+    db.add(target_user)
     db.commit()
-    db.refresh(current_user)
-    return {"avatar_url": current_user.avatar_url}
+    db.refresh(target_user)
+    return {"avatar_url": target_user.avatar_url}
 
 
 @me_router.patch("/profile", response_model=schemas.UserProfileResponse)
@@ -254,11 +262,12 @@ async def update_my_profile(
 async def upload_my_avatar(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(security.get_current_user)
+    current_user: models.User = Depends(security.get_current_user),
+    actor_id: int = Depends(get_actor_user_id)
 ):
-    """ログインユーザー自身のアバター画像をアップロードする"""
+    """ログインユーザー自身のアバター画像をアップロードする (管理者はX-Actor-User-Idで代理更新可能)"""
     return await upload_user_avatar(
-        user_id=current_user.id,
+        user_id=actor_id,
         file=file,
         db=db,
         current_user=current_user

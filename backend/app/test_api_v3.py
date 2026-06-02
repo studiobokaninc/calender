@@ -24,6 +24,10 @@ class TestAPIV3(unittest.TestCase):
             cls.db.add(cls.test_user)
             cls.db.commit()
             cls.db.refresh(cls.test_user)
+        else:
+            cls.test_user.avatar_url = None
+            cls.db.commit()
+            cls.db.refresh(cls.test_user)
 
         # 認証トークンの作成
         cls.token = security.create_access_token(data={"sub": cls.test_user.email})
@@ -537,6 +541,55 @@ class TestAPIV3(unittest.TestCase):
             self.db.commit()
 
         print("OK: Avatar upload, fallback URL, and serving tests passed successfully!")
+
+    def test_avatar_xactor_proxy(self):
+        """X-Actor-User-Id ヘッダによる管理者Bot代理アバターアップロードのテスト"""
+        import io
+
+        # 代理対象の非adminユーザーを作成
+        target_user = self.db.query(models.User).filter(models.User.email == "proxy_target@example.com").first()
+        if not target_user:
+            target_user = models.User(
+                email="proxy_target@example.com",
+                hashed_password=security.get_password_hash("password"),
+                username="proxy_target",
+                full_name="代理対象ユーザー",
+                role="member"
+            )
+            self.db.add(target_user)
+            self.db.commit()
+            self.db.refresh(target_user)
+
+        # adminトークン + X-Actor-User-Id で対象ユーザーのアバターをアップロード
+        proxy_headers = {**self.headers, "X-Actor-User-Id": str(target_user.id)}
+        dummy_file = io.BytesIO(b"proxy avatar data")
+        response = self.client.post(
+            "/api/me/avatar",
+            files={"file": ("proxy_avatar.png", dummy_file, "image/png")},
+            headers=proxy_headers
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("avatar_url", response.json())
+
+        # 対象ユーザーのアバター取得でプロキシ経由のデータが返ることを確認
+        res_avatar = self.client.get(f"/api/users/{target_user.id}/avatar", headers=self.headers)
+        self.assertEqual(res_avatar.status_code, 200)
+        self.assertEqual(res_avatar.content, b"proxy avatar data")
+
+        # クリーンアップ
+        import os
+        from pathlib import Path
+        self.db.refresh(target_user)
+        if target_user.avatar_url:
+            filename = os.path.basename(target_user.avatar_url)
+            file_path = Path("static") / "uploads" / "avatars" / filename
+            if file_path.exists():
+                file_path.unlink()
+            target_user.avatar_url = None
+        self.db.delete(target_user)
+        self.db.commit()
+
+        print("OK: X-Actor-User-Id proxy avatar upload test passed!")
 
 
 if __name__ == "__main__":

@@ -260,7 +260,8 @@ def upload_asset(
     db: Session = Depends(get_db),
     actor_id: int = Depends(get_actor_user_id)
 ):
-    assets_dir = Path("static/assets")
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    assets_dir = BASE_DIR / "static" / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
     
     file_path = assets_dir / f"shot_{shot_id}_task_{task_id}_{version}_{file.filename}"

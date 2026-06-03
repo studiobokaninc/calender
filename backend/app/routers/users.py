@@ -141,7 +141,8 @@ async def get_user_avatar(
 
 
 # Static uploads directory for avatars
-AVATAR_UPLOAD_DIR = Path("static") / "uploads" / "avatars"
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+AVATAR_UPLOAD_DIR = BASE_DIR / "static" / "uploads" / "avatars"
 
 @router.post("/{user_id}/avatar", response_model=dict)
 async def upload_user_avatar(

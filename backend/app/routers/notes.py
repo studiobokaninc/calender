@@ -39,7 +39,8 @@ async def upload_note_audio(
 
 async def _save_file(file: UploadFile):
     """汎用ファイル保存関数"""
-    upload_dir = Path("static") / "uploads"
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    upload_dir = BASE_DIR / "static" / "uploads"
     if not upload_dir.exists():
         upload_dir.mkdir(parents=True, exist_ok=True)
     
@@ -110,7 +111,8 @@ def update_note_endpoint(
     if db_note.created_by != current_user.id and current_user.role != 'admin':
         raise HTTPException(status_code=403, detail="編集権限がありません")
         
-    upload_dir = os.path.join("static", "uploads")
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    upload_dir = str(BASE_DIR / "static" / "uploads")
     return crud.update_note(db, db_note=db_note, note_in=note, upload_dir=upload_dir)
 
 @router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -127,6 +129,7 @@ def delete_note_endpoint(
     if db_note.created_by != current_user.id and current_user.role != 'admin':
         raise HTTPException(status_code=403, detail="削除権限がありません")
         
-    upload_dir = os.path.join("static", "uploads")
-    crud.delete_note(db, db_note=db_note, upload_dir=upload_dir)
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    upload_dir = str(BASE_DIR / "static" / "uploads")
+    crud.delete_note(db, db_note=db_note)
     return None

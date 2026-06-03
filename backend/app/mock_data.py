@@ -31,13 +31,18 @@ def get_password_hash(password):
     # この get_password_hash 関数自体は不要になる。
     pass # users リスト作成時に直接平文パスワードを使うため、この関数は呼ばれない想定。
 
-# --- ユーザーデータ (管理者1人 + 一般10人 = 合計11人) ---
+# --- ユーザーデータ (管理者2人 + 一般10人 = 合計12人) ---
 users = [
     {
         "id": "user-admin", "username": "tanaka@example.com", "full_name": "田中 太郎 (Admin)",
         "email": "tanaka@example.com", "role": "admin",
         # "hashed_password": get_password_hash("password123") # ここではハッシュ化しない
         "password": "adminpassword" # create_db.py で使うための平文パスワードキーを追加
+    },
+    {
+        "id": "score-service", "username": "score_service@example.com", "full_name": "Score Service Account (Admin)",
+        "email": "score_service@example.com", "role": "admin",
+        "password": "scorepassword123"
     }
 ]
 for i in range(1, 11):

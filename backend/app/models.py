@@ -157,6 +157,7 @@ class Task(Base):
     shotID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     seqID: Mapped[Optional[str]] = mapped_column(String, index=True, nullable=True)
     shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id", ondelete="SET NULL"), index=True, nullable=True)
+    thread_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     phases: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
     deliverables: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # 提出物
     check_items: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True) # 確認事項
@@ -521,7 +522,7 @@ class Asset(Base):
     __tablename__ = "assets"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id", ondelete="CASCADE"), index=True)
+    shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id", ondelete="CASCADE"), nullable=True, index=True)
     task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
     version: Mapped[str] = mapped_column(String(50))
     file_path: Mapped[str] = mapped_column(Text)

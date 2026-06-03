@@ -239,6 +239,7 @@ class TaskBase(BaseModel):
     shotID: Optional[str] = None
     seqID: Optional[str] = None
     shot_id: Optional[int] = None
+    thread_id: Optional[int] = None
     phases: Optional[List[Dict[str, Any]]] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
@@ -276,6 +277,7 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     shotID: Optional[str] = None
     seqID: Optional[str] = None
     shot_id: Optional[int] = None
+    thread_id: Optional[int] = None
     phases: Optional[List[Dict[str, Any]]] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
@@ -734,7 +736,7 @@ class UserMessage(UserMessageBase):
         from_attributes = True
 
 class AssetBase(BaseModel):
-    shot_id: int
+    shot_id: Optional[int] = None
     task_id: Optional[int] = None
     version: str
     file_path: str
@@ -766,8 +768,8 @@ class DeliveryResponse(DeliveryBase):
         from_attributes = True
 
 class DirectMessageBase(BaseModel):
-    thread_id: int
-    recipient_id: int
+    thread_id: Optional[int] = None
+    recipient_id: Optional[int] = None
     body: str
     context_json: Optional[Dict[str, Any]] = None
 
@@ -898,6 +900,18 @@ class ReferenceMaterial(ReferenceMaterialBase):
     id: int
     created_by: int
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DMThreadCreate(BaseModel):
+    participant_ids: List[int]
+    task_id: Optional[int] = None
+
+class DMThreadResponse(BaseModel):
+    thread_id: int
+    participants: List[Dict[str, Any]]
 
     class Config:
         from_attributes = True

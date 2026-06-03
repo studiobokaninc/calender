@@ -132,8 +132,193 @@ def get_tasks(db: Session, project_id: Optional[int] = None, skip: int = 0, limi
             detail=f"タスクの取得に失敗しました: {e}"
         )
 
+def _get_project_supervisors(db: Session, project_id: int) -> List[int]:
+    """プロジェクトの監督者（Lead, Director, PM）のユーザーIDリストを取得する。
+    いなければデフォルトの管理者ID 28 (ryoji) を含むリストを返す。
+    """
+    rows = db.execute(
+        text("SELECT user_id FROM score_user_roles WHERE project_id = :pid AND role IN ('lead', 'director', 'pm', 'Lead', 'Director', 'PM')"),
+        {"pid": project_id}
+    ).fetchall()
+    supervisor_ids = [row[0] for row in rows]
+    
+    if not supervisor_ids:
+        # フォールバックとして role='admin' を探す
+        row_admin = db.execute(
+            text("SELECT id FROM users WHERE role = 'admin' LIMIT 1")
+        ).fetchone()
+        fallback_id = row_admin[0] if row_admin else 28
+        supervisor_ids = [fallback_id]
+        
+    return supervisor_ids
+
+def _resolve_dm_thread_id(db: Session, participant_ids: List[int]) -> int:
+    """参加者リストから一意のスレッドIDを取得または新規採番する。
+    1対1の場合は既存の min*10000+max 規則を使用。
+    3人以上の場合は、参加者が一致する既存スレッドをグループから探すか、新規に採番する。
+    """
+    from sqlalchemy import func
+    participants = sorted(list(set(participant_ids)))
+    if len(participants) < 2:
+        raise ValueError("スレッドには少なくとも2人の参加者が必要です")
+        
+    if len(participants) == 2:
+        return participants[0] * 10000 + participants[1]
+        
+    # 3人以上の場合、既存の裏グループ "DM_Thread_" を検索する
+    # 各グループのIDとそのメンバー集合をマップ化
+    rows = db.query(models.Group.id, models.Group.name, models.UserGroup.user_id)\
+        .join(models.UserGroup, models.Group.id == models.UserGroup.group_id)\
+        .filter(models.Group.name.like("DM_Thread_%"))\
+        .all()
+    
+    group_members = {}  # group_id: set(user_id)
+    group_name_map = {}  # group_id: name
+    for gid, gname, uid in rows:
+        if gid not in group_members:
+            group_members[gid] = set()
+            group_name_map[gid] = gname
+        group_members[gid].add(uid)
+        
+    target_set = set(participants)
+    for gid, members in group_members.items():
+        if members == target_set:
+            # グループ名から thread_id を取り出す
+            name = group_name_map[gid]
+            try:
+                return int(name.replace("DM_Thread_", ""))
+            except ValueError:
+                continue
+                
+    # 一致する既存スレッドがなければ新規採番
+    max_dm_tid = db.query(func.max(models.DirectMessage.thread_id)).scalar() or 0
+    
+    max_g_tid = 0
+    for gname in group_name_map.values():
+        try:
+            tid = int(gname.replace("DM_Thread_", ""))
+            if tid > max_g_tid:
+                max_g_tid = tid
+        except ValueError:
+            continue
+            
+    new_tid = max(10000000, max_dm_tid + 1, max_g_tid + 1)
+    
+    # グループとメンバーの登録 (ORMを利用することで Enum の検証も正しく処理される)
+    group = models.Group(
+        name=f"DM_Thread_{new_tid}",
+        type=models.GroupType.CROSS_FUNCTIONAL,
+        created_at=now_jst_naive(),
+        updated_at=now_jst_naive()
+    )
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    
+    gid = group.id
+    
+    for pid in participants:
+        user_group = models.UserGroup(
+            user_id=pid,
+            group_id=gid,
+            role=models.GroupRole.MEMBER,
+            created_at=now_jst_naive(),
+            updated_at=now_jst_naive()
+        )
+        db.add(user_group)
+    db.commit()
+    
+    return new_tid
+
+def _send_dm_to_participants(db: Session, thread_id: int, sender_id: int, participant_ids: List[int], body: str):
+    """送信者を除く全参加者に対して、代表者1名に向けてメッセージを1件だけ挿入する（複製データ無し）"""
+    other_participants = [p for p in set(participant_ids) if p != sender_id]
+    if not other_participants:
+        return
+    representative_id = other_participants[0]
+    
+    db_dm = models.DirectMessage(
+        thread_id=thread_id,
+        sender_id=sender_id,
+        recipient_id=representative_id,
+        body=body,
+        created_at=now_jst_naive()
+    )
+    db.add(db_dm)
+    db.commit()
+
+def _auto_create_task_dm_thread(db: Session, task_id: int, project_id: Optional[int], assigned_to: Optional[int]) -> Optional[int]:
+    """タスクに関連するDMスレッドを自動生成する。
+    担当者とプロジェクトの監督者全員（Lead/Director/PM）とのスレッドを作成し、初期メッセージを登録。
+    """
+    if not assigned_to or not project_id:
+        return None
+        
+    supervisor_ids = _get_project_supervisors(db, project_id)
+    participant_ids = list(set([assigned_to] + supervisor_ids))
+    
+    if len(participant_ids) < 2:
+        if 28 not in participant_ids:
+            participant_ids.append(28)
+        else:
+            return None
+            
+    thread_id = _resolve_dm_thread_id(db, participant_ids)
+    
+    existing = db.execute(
+        text("SELECT id FROM direct_messages WHERE thread_id = :tid LIMIT 1"),
+        {"tid": thread_id}
+    ).fetchone()
+    
+    if not existing:
+        sender_id = supervisor_ids[0] if supervisor_ids else 28
+        _send_dm_to_participants(db, thread_id, sender_id, participant_ids, "Task message thread initialized.")
+        
+    return thread_id
+
+def _resolve_and_sync_shot_id(db: Session, project_id: Optional[int], shot_id: Optional[int], shot_id_str: Optional[str]) -> Optional[int]:
+    """shotID(文字列)とproject_idから、対応するShotレコードのid(数値)を解決する。
+    無ければ自動的に新規Shotレコードを作成してそのidを返す。
+    同じプロジェクトで同じshotIDなら、同じShot.idを再利用する。
+    """
+    if not shot_id_str or not project_id:
+        return None
+    
+    seq_code = "sq01"
+    shot_code = shot_id_str
+    
+    # 既存の shot_id がある場合、それが現在の project_id と shotID に一致しているか確認
+    if shot_id is not None:
+        existing = db.query(models.Shot).filter(models.Shot.id == shot_id).first()
+        if existing and existing.project_id == project_id and existing.shot_code == shot_code:
+            return shot_id
+    
+    # 一致していない、あるいは既存の shot_id がない場合は検索
+    existing_shot = db.query(models.Shot).filter(
+        models.Shot.project_id == project_id,
+        models.Shot.seq_code == seq_code,
+        models.Shot.shot_code == shot_code
+    ).first()
+    
+    if existing_shot:
+        return existing_shot.id
+        
+    # なければ新規作成
+    new_shot = models.Shot(
+        project_id=project_id,
+        seq_code=seq_code,
+        shot_code=shot_code,
+        display_order=0,
+        status="planning"
+    )
+    db.add(new_shot)
+    db.commit()
+    db.refresh(new_shot)
+    return new_shot.id
+
 def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
     """新規タスクを作成"""
+    resolved_shot_id = _resolve_and_sync_shot_id(db, task.project_id, task.shot_id, task.shotID)
     db_task = models.Task(
         name=task.name if hasattr(task, 'name') and task.name else getattr(task, 'title', '新しいたタスク'),
         description=task.description,
@@ -149,8 +334,8 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         cost=task.cost or 0.0,
         dependsOn=task.dependsOn or [],
         shotID=task.shotID,
-        seqID=task.seqID if (task.shotID or task.shot_id) else "SEQ_PM",
-        shot_id=task.shot_id,
+        seqID=task.seqID if (task.shotID or resolved_shot_id) else "SEQ_PM",
+        shot_id=resolved_shot_id,
         phases=task.phases or [],
         deliverables=task.deliverables or "",
         check_items=task.check_items or []
@@ -158,6 +343,14 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
+    
+    # DM スレッドを自動作成して紐付け
+    if db_task.assigned_to and db_task.project_id:
+        thread_id = _auto_create_task_dm_thread(db, db_task.id, db_task.project_id, db_task.assigned_to)
+        if thread_id:
+            db_task.thread_id = thread_id
+            db.commit()
+            db.refresh(db_task)
     
     # 履歴追加
     status_history_entry = models.TaskStatusHistory(
@@ -217,6 +410,7 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
                 flag_modified(db_task, db_key)
 
     # 規則: 特定のSHOTに紐づかないタスク (shotID / shot_id が空) の場合、seqID を "SEQ_PM" で統一する
+    db_task.shot_id = _resolve_and_sync_shot_id(db, db_task.project_id, db_task.shot_id, db_task.shotID)
     if not db_task.shotID and not db_task.shot_id:
         db_task.seqID = "SEQ_PM"
 

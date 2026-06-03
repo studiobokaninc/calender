@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status, Form, UploadFile, File, Body, Query
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_, and_, func, text
 from typing import List, Optional
 from .. import models, schemas, database, security
+from ..crud.tasks import _resolve_dm_thread_id
 from ..database import get_db
 from ..security import get_current_user
 from datetime import datetime
@@ -254,17 +255,24 @@ def create_shot_comment(
 @router.post("/assets", response_model=schemas.AssetResponse, status_code=status.HTTP_201_CREATED)
 def upload_asset(
     file: UploadFile = File(...),
-    shot_id: int = Form(...),
+    shot_id: Optional[int] = Form(None),
     task_id: Optional[int] = Form(None),
     version: str = Form(...),
     db: Session = Depends(get_db),
     actor_id: int = Depends(get_actor_user_id)
 ):
+    # shot_idが指定されておらず、task_idがある場合はタスク情報から補完する
+    if shot_id is None and task_id is not None:
+        db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+        if db_task:
+            shot_id = db_task.shot_id
+
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     assets_dir = BASE_DIR / "static" / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
     
-    file_path = assets_dir / f"shot_{shot_id}_task_{task_id}_{version}_{file.filename}"
+    shot_id_str = str(shot_id) if shot_id is not None else "none"
+    file_path = assets_dir / f"shot_{shot_id_str}_task_{task_id}_{version}_{file.filename}"
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
         
@@ -350,13 +358,39 @@ def send_direct_message(
 ):
     recipient_id = dm_in.recipient_id
     thread_id = dm_in.thread_id
-    if not thread_id:
+    
+    if thread_id:
+        if thread_id >= 10000000:
+            # 3人以上の多人数スレッド（裏グループを引く）
+            gname = f"DM_Thread_{thread_id}"
+            group = db.query(models.Group).filter(models.Group.name == gname).first()
+            if not group:
+                raise HTTPException(status_code=404, detail="スレッドに対応するグループが見つかりません")
+            rows = db.query(models.UserGroup.user_id).filter(models.UserGroup.group_id == group.id).all()
+            participants = [row[0] for row in rows]
+            if actor_id not in participants:
+                raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")
+        else:
+            # 1対1スレッド
+            p1 = thread_id // 10000
+            p2 = thread_id % 10000
+            participants = [p1, p2]
+    else:
+        if not recipient_id:
+            raise HTTPException(status_code=400, detail="thread_id または recipient_id のいずれかが必要です")
+        participants = [actor_id, recipient_id]
         thread_id = min(actor_id, recipient_id) * 10000 + max(actor_id, recipient_id)
+
+    other_participants = [p for p in set(participants) if p != actor_id]
+    if not other_participants:
+        raise HTTPException(status_code=400, detail="有効な受信者が存在しません")
         
+    representative_id = other_participants[0]
+
     db_dm = models.DirectMessage(
         thread_id=thread_id,
         sender_id=actor_id,
-        recipient_id=recipient_id,
+        recipient_id=representative_id,
         body=dm_in.body,
         context_json=dm_in.context_json,
         created_at=now_jst_naive()
@@ -365,6 +399,50 @@ def send_direct_message(
     db.commit()
     db.refresh(db_dm)
     return db_dm
+
+@router.post("/dm/threads", response_model=schemas.DMThreadResponse, status_code=status.HTTP_201_CREATED)
+def create_dm_thread(
+    thread_in: schemas.DMThreadCreate,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    participants = thread_in.participant_ids
+    if len(participants) < 2:
+        raise HTTPException(status_code=400, detail="スレッドには少なくとも2人の参加者が必要です")
+        
+    try:
+        thread_id = _resolve_dm_thread_id(db, participants)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    existing = db.query(models.DirectMessage).filter(models.DirectMessage.thread_id == thread_id).first()
+    if not existing:
+        other_participants = [p for p in set(participants) if p != actor_id]
+        recipient_id = other_participants[0] if other_participants else participants[0]
+        
+        db_dm = models.DirectMessage(
+            thread_id=thread_id,
+            sender_id=actor_id,
+            recipient_id=recipient_id,
+            body="Thread started.",
+            created_at=now_jst_naive()
+        )
+        db.add(db_dm)
+        db.commit()
+        
+    if thread_in.task_id:
+        db_task = db.query(models.Task).filter(models.Task.id == thread_in.task_id).first()
+        if db_task:
+            db_task.thread_id = thread_id
+            db.commit()
+            
+    participants_info = []
+    for pid in sorted(list(set(participants))):
+        user = db.query(models.User).filter(models.User.id == pid).first()
+        name = user.full_name or user.username if user else f"User {pid}"
+        participants_info.append({"user_id": pid, "name": name})
+        
+    return {"thread_id": thread_id, "participants": participants_info}
 
 @router.post("/group_dm", response_model=schemas.GroupDirectMessageResponse, status_code=status.HTTP_201_CREATED)
 def send_group_direct_message(
@@ -978,25 +1056,80 @@ def get_my_dm_threads(
     db: Session = Depends(get_db),
     actor_id: int = Depends(get_actor_user_id)
 ):
+    # Use ORM to fetch distinct thread_ids for the current actor
+    dm_threads = db.query(models.DirectMessage.thread_id).filter(
+        (models.DirectMessage.sender_id == actor_id) | (models.DirectMessage.recipient_id == actor_id)
+    ).distinct().all()
+    dm_tids = [row[0] for row in dm_threads]
+    
+    # Use ORM to fetch group names matching 'DM_Thread_%' that actor is in
+    g_threads = db.query(models.Group.name).join(
+        models.UserGroup, models.Group.id == models.UserGroup.group_id
+    ).filter(
+        models.UserGroup.user_id == actor_id,
+        models.Group.name.like("DM_Thread_%")
+    ).all()
+    
+    g_tids = []
+    for row in g_threads:
+        try:
+            g_tids.append(int(row[0].replace("DM_Thread_", "")))
+        except ValueError:
+            continue
+            
+    all_tids = list(set(dm_tids + g_tids))
+    if not all_tids:
+        return []
+        
     dms = db.query(models.DirectMessage).filter(
-        or_(
-            models.DirectMessage.sender_id == actor_id,
-            models.DirectMessage.recipient_id == actor_id
-        )
+        models.DirectMessage.thread_id.in_(all_tids)
     ).order_by(models.DirectMessage.created_at.desc()).all()
     
+    group_participants = {}
+    if g_tids:
+        gnames = [f"DM_Thread_{tid}" for tid in g_tids]
+        # Query participants using ORM
+        p_rows = db.query(models.Group.name, models.UserGroup.user_id).join(
+            models.UserGroup, models.Group.id == models.UserGroup.group_id
+        ).filter(
+            models.Group.name.in_(gnames)
+        ).all()
+        for gname, uid in p_rows:
+            try:
+                tid = int(gname.replace("DM_Thread_", ""))
+                if tid not in group_participants:
+                    group_participants[tid] = set()
+                group_participants[tid].add(uid)
+            except ValueError:
+                continue
+                
     threads = {}
     for dm in dms:
         tid = dm.thread_id
         if tid not in threads:
-            other_id = dm.recipient_id if dm.sender_id == actor_id else dm.sender_id
-            other_user = db.query(models.User).filter(models.User.id == other_id).first()
+            if tid >= 10000000:
+                p_ids = list(group_participants.get(tid, {dm.sender_id, dm.recipient_id}))
+            else:
+                p1 = tid // 10000
+                p2 = tid % 10000
+                p_ids = [p1, p2]
+                
+            participants_info = []
+            for pid in sorted(list(set(p_ids))):
+                if pid == actor_id:
+                    participants_info.append({"user_id": actor_id, "name": "Me"})
+                else:
+                    user = db.query(models.User).filter(models.User.id == pid).first()
+                    name = user.full_name or user.username if user else f"User {pid}"
+                    participants_info.append({"user_id": pid, "name": name})
+                    
             threads[tid] = {
                 "thread_id": tid,
-                "participants": [{"user_id": actor_id, "name": "Me"}, {"user_id": other_id, "name": other_user.full_name or other_user.username if other_user else "Unknown"}],
+                "participants": participants_info,
                 "last_message": dm.body,
                 "updated_at": dm.created_at.isoformat()
             }
+            
     return list(threads.values())
 
 @router.get("/me/meeting_tasks", response_model=List[schemas.MeetingTaskResponse])

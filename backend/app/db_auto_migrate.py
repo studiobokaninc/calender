@@ -37,6 +37,12 @@ def check_and_migrate_db():
             cursor.execute("ALTER TABLE tasks ADD COLUMN check_items JSON")
             conn.commit()
             print("check_itemsカラムを追加しました。")
+
+        if 'thread_id' not in task_columns:
+            print("thread_idカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE tasks ADD COLUMN thread_id INTEGER")
+            conn.commit()
+            print("thread_idカラムを追加しました。")
             
         # notesテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(notes)")

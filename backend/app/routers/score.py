@@ -10,6 +10,9 @@ from datetime import datetime
 from ..timezone import now_jst_naive
 import shutil
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["score"])
 
@@ -288,6 +291,43 @@ def upload_asset(
     db.commit()
     db.refresh(db_asset)
     return db_asset
+
+@router.delete("/assets/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_asset(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    db_asset = db.query(models.Asset).filter(models.Asset.id == id).first()
+    if not db_asset:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="アセットが見つかりません")
+
+    # 削除権限の検証 (本人であるか、または admin ロールであること)
+    if current_user.role != "admin" and db_asset.created_by != actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="このアセットを削除する権限がありません"
+        )
+
+    # 物理ファイルの削除
+    if db_asset.file_path:
+        file_path = Path(db_asset.file_path)
+        if file_path.exists() and file_path.is_file():
+            try:
+                file_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to remove physical file {file_path}: {e}")
+
+    # 関連する LookDistribution の result_asset_id を NULL に更新する (ソフト参照のクリーンアップ)
+    db.query(models.LookDistribution).filter(models.LookDistribution.result_asset_id == id).update(
+        {models.LookDistribution.result_asset_id: None},
+        synchronize_session=False
+    )
+
+    # データベースレコードの削除
+    db.delete(db_asset)
+    db.commit()
 
 @router.post("/deliveries/{id}/receive", response_model=schemas.DeliveryResponse)
 def receive_delivery(

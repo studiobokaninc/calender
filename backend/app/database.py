@@ -23,9 +23,13 @@ from sqlalchemy import event
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA synchronous=NORMAL")
-    cursor.close()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass  # WAL mode unsupported on some filesystems (e.g. NTFS via WSL2)
+    finally:
+        cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

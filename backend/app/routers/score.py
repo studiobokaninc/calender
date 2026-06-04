@@ -956,6 +956,23 @@ def list_notifications(
             
     return query.order_by(models.Notification.created_at.desc()).all()
 
+@router.post("/notifications", response_model=schemas.Notification, status_code=status.HTTP_201_CREATED)
+def create_notification(
+    payload: schemas.NotificationCreate,
+    db: Session = Depends(get_db)
+):
+    db_notif = models.Notification(
+        recipient_id=payload.recipient_id,
+        title=payload.title,
+        body=payload.body,
+        type=payload.type,
+        meta=payload.meta or {},
+    )
+    db.add(db_notif)
+    db.commit()
+    db.refresh(db_notif)
+    return db_notif
+
 @router.get("/user_messages", response_model=List[schemas.UserMessage])
 def list_user_messages(
     shot_id: Optional[int] = None,
@@ -1172,6 +1189,70 @@ def get_my_dm_threads(
             
     return list(threads.values())
 
+@router.get("/dm/threads/{thread_id}/messages", response_model=List[schemas.DMMessageResponse])
+def get_dm_thread_messages(
+    thread_id: int,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    # Thread membership check
+    if thread_id >= 10000000:
+        gname = f"DM_Thread_{thread_id}"
+        group = db.query(models.Group).filter(models.Group.name == gname).first()
+        if not group:
+            raise HTTPException(status_code=404, detail="スレッドが見つかりません")
+        member = db.query(models.UserGroup).filter(
+            models.UserGroup.group_id == group.id,
+            models.UserGroup.user_id == actor_id
+        ).first()
+        if not member:
+            raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")
+    else:
+        p1 = thread_id // 10000
+        p2 = thread_id % 10000
+        if actor_id not in (p1, p2):
+            raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")
+
+    messages = db.query(models.DirectMessage).filter(
+        models.DirectMessage.thread_id == thread_id
+    ).order_by(models.DirectMessage.created_at.asc()).all()
+    return messages
+
+@router.post("/dm/threads/{thread_id}/read", response_model=schemas.DMReadResponse)
+def mark_dm_thread_read(
+    thread_id: int,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    # Thread membership check
+    if thread_id >= 10000000:
+        gname = f"DM_Thread_{thread_id}"
+        group = db.query(models.Group).filter(models.Group.name == gname).first()
+        if not group:
+            raise HTTPException(status_code=404, detail="スレッドが見つかりません")
+        member = db.query(models.UserGroup).filter(
+            models.UserGroup.group_id == group.id,
+            models.UserGroup.user_id == actor_id
+        ).first()
+        if not member:
+            raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")
+    else:
+        p1 = thread_id // 10000
+        p2 = thread_id % 10000
+        if actor_id not in (p1, p2):
+            raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")
+
+    unread = db.query(models.DirectMessage).filter(
+        models.DirectMessage.thread_id == thread_id,
+        models.DirectMessage.sender_id != actor_id,
+        models.DirectMessage.read_at == None  # noqa: E711
+    ).all()
+    now = now_jst_naive()
+    for msg in unread:
+        msg.read_at = now
+    db.commit()
+    return {"thread_id": thread_id, "read_count": len(unread)}
+
 @router.get("/me/meeting_tasks", response_model=List[schemas.MeetingTaskResponse])
 def get_my_meeting_tasks(
     status: Optional[str] = "pending",
@@ -1221,13 +1302,37 @@ def get_latest_routine(
         "previous_tasks": []
     }
 
-@router.get("/score_user_roles", response_model=List[schemas.ScoreUserRole])
-def list_score_user_roles(
+@router.get("/projects/{project_id}/roles", response_model=schemas.ProjectRolesResponse)
+def get_project_roles(
+    project_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """全てのScore制作ロールを取得"""
-    return db.query(models.ScoreUserRole).all()
+    """プロジェクトのDirector/PMなど制作ロールをまとめて返す。role名→user_id の辞書形式。"""
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="プロジェクトが見つかりません")
+    role_entries = db.query(models.ScoreUserRole).filter(
+        models.ScoreUserRole.project_id == project_id
+    ).all()
+    roles: dict = {}
+    for entry in role_entries:
+        if entry.role not in roles:
+            roles[entry.role] = entry.user_id
+    return schemas.ProjectRolesResponse(project_id=project_id, roles=roles)
+
+
+@router.get("/score_user_roles", response_model=List[schemas.ScoreUserRole])
+def list_score_user_roles(
+    project_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """全てのScore制作ロールを取得。project_id を指定するとそのプロジェクトのみ返す。"""
+    query = db.query(models.ScoreUserRole)
+    if project_id is not None:
+        query = query.filter(models.ScoreUserRole.project_id == project_id)
+    return query.all()
 
 
 @router.post("/score_user_roles", response_model=schemas.ScoreUserRole, status_code=status.HTTP_201_CREATED)

@@ -550,6 +550,7 @@ class DirectMessage(Base):
     body: Mapped[str] = mapped_column(Text)
     context_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    read_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
 class GroupDirectMessage(Base):
     __tablename__ = "group_direct_messages"
@@ -565,8 +566,10 @@ class Notification(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     type: Mapped[str] = mapped_column(String(50))
     body: Mapped[str] = mapped_column(Text)
+    meta: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
 

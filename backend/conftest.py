@@ -47,22 +47,26 @@ for _prefix in _PKG_PREFIXES:
             sys.modules[_key] = _make_module(_key)
 
 # ── テスト専用 DB 隔離設定 ────────────────────────────────────
-# conftest.py はテスト収集より先に実行されるため、ここで app.database.SessionLocal を
-# テスト用ファクトリに差し替えると unittest.TestCase.setUpClass の直接呼び出しも捕捉できる。
+# app.database の engine と SessionLocal を in-memory SQLite に差し替えてから
+# app.main を import する。こうすることで NTFS/exFAT 上の WAL pragma 失敗を回避し、
+# create_all もテスト用 engine で完結する。
 import os
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-_SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test_temp.db"
+_SQLALCHEMY_TEST_DATABASE_URL = "sqlite://"  # in-memory: NTFS I/O エラーを回避
 _test_engine = create_engine(
     _SQLALCHEMY_TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
 
-# 本番 SessionLocal をテスト用に差し替え（import 後のモジュール参照も置き換わる）
+# engine と SessionLocal を差し替え（app.main import より前に実行する必要がある）
 import app.database as _app_db
+_app_db.engine = _test_engine
 _app_db.SessionLocal = TestingSessionLocal
 
 from app.database import Base, get_db
@@ -71,17 +75,12 @@ from app.main import app as _fastapi_app  # モデル全登録を確実にする
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
-    """セッション開始時にテスト DB テーブルを作成し、終了時に破棄・削除する。"""
+    """セッション開始時にテスト DB テーブルを作成し、終了時に破棄する。"""
     Base.metadata.drop_all(bind=_test_engine)
     Base.metadata.create_all(bind=_test_engine)
     yield
     Base.metadata.drop_all(bind=_test_engine)
     _test_engine.dispose()
-    if os.path.exists("test_temp.db"):
-        try:
-            os.remove("test_temp.db")
-        except PermissionError:
-            pass
 
 
 @pytest.fixture(autouse=True)

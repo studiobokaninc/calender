@@ -625,6 +625,10 @@ class ScoreUserRole(ScoreUserRoleBase):
     class Config:
         from_attributes = True
 
+class ProjectRolesResponse(BaseModel):
+    project_id: int
+    roles: Dict[str, int]
+
 class RetakeTimecodeBase(BaseModel):
     timecode: str
     comment: Optional[str] = None
@@ -800,11 +804,17 @@ class GroupDirectMessageResponse(GroupDirectMessageBase):
 class NotificationBase(BaseModel):
     recipient_id: int
     type: str
+    title: Optional[str] = None
     body: str
+    meta: Optional[Dict[str, Any]] = None
     is_read: bool = False
 
-class NotificationCreate(NotificationBase):
-    pass
+class NotificationCreate(BaseModel):
+    recipient_id: int
+    title: str
+    body: str
+    type: str
+    meta: Optional[Dict[str, Any]] = None
 
 class Notification(NotificationBase):
     id: int
@@ -915,4 +925,19 @@ class DMThreadResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DMMessageResponse(BaseModel):
+    id: int
+    thread_id: int
+    sender_id: int
+    body: str
+    created_at: datetime
+    read_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class DMReadResponse(BaseModel):
+    thread_id: int
+    read_count: int
 

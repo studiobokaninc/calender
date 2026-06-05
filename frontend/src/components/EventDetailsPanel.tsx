@@ -78,6 +78,7 @@ interface EventDetailsPanelProps {
   onGoogleSyncToggle?: (eventId: number, currentSynced: boolean) => void;
   onUpdateTask?: (taskId: number, updates: any) => Promise<void>;
   totalCost?: number;
+  tasks?: Task[];
 }
 
 const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
@@ -100,6 +101,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   googleStatus,
   onGoogleSyncToggle,
   onUpdateTask,
+  tasks,
 }) => {
   const { user } = useAuth();
   const theme = useTheme();
@@ -287,7 +289,14 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                         due_date: selectedEvent.extendedProps.taskDueDate,
                         description: selectedEvent.extendedProps.description,
                         // 全てのフェーズを渡すことで、個別完了が可能になる
-                        phases: selectedEvent.extendedProps.phases
+                        phases: selectedEvent.extendedProps.phases,
+                        cost: selectedEvent.extendedProps.taskCost,
+                        priority: selectedEvent.extendedProps.taskPriority,
+                        type: selectedEvent.extendedProps.taskType,
+                        seqID: selectedEvent.extendedProps.seqID,
+                        shotID: selectedEvent.extendedProps.shotID,
+                        shot_id: selectedEvent.extendedProps.shot_id,
+                        dependsOn: selectedEvent.extendedProps.dependsOn,
                       } as Task
                     ) : (
                       {
@@ -302,11 +311,19 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                         start_date: selectedEvent.extendedProps.taskStartDate,
                         due_date: selectedEvent.extendedProps.taskDueDate,
                         description: selectedEvent.extendedProps.description,
-                        phases: selectedEvent.extendedProps.phases
+                        phases: selectedEvent.extendedProps.phases,
+                        cost: selectedEvent.extendedProps.taskCost,
+                        priority: selectedEvent.extendedProps.taskPriority,
+                        type: selectedEvent.extendedProps.taskType,
+                        seqID: selectedEvent.extendedProps.seqID,
+                        shotID: selectedEvent.extendedProps.shotID,
+                        shot_id: selectedEvent.extendedProps.shot_id,
+                        dependsOn: selectedEvent.extendedProps.dependsOn,
                       } as Task
                     )}
                     projects={projects}
                     users={users}
+                    tasks={tasks}
                     onUpdate={async (id, updates) => {
                       if (onUpdateTask) await onUpdateTask(id, updates);
                     }}

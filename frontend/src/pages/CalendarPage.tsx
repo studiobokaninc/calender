@@ -1351,6 +1351,7 @@ const CalendarPage: React.FC = () => {
                             googleStatus={googleStatus}
                             onGoogleSyncToggle={handleGoogleSyncEventToggle}
                             onUpdateTask={handleUpdateTask}
+                            tasks={tasks}
                         />
                     </Box>
                 )}
@@ -1552,6 +1553,7 @@ const CalendarPage: React.FC = () => {
                             onEventTypeFilterChange={handleEventTypeFilterChange}
                             projects={projects}
                             onUpdateTask={handleUpdateTask}
+                            tasks={tasks}
                         />
                     </Box>
                 </Drawer>

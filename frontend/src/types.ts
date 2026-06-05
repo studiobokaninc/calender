@@ -65,6 +65,7 @@ export interface Task {
     priority?: 'low' | 'medium' | 'high' | null;
     seqID?: string | null;
     shotID?: string | null;
+    shot_id?: number | null;
     isPhase?: boolean; // Added
     isCompleted?: boolean; // Added for Phase status
     isDelayed?: boolean; // Added for Phase status
@@ -159,6 +160,8 @@ export interface CalendarEvent {
     check_items?: { label: string; checked: boolean }[] | null;
     taskProgress?: number | null;
     shotID?: string | null;
+    seqID?: string | null;
+    shot_id?: number | null;
   };
 }
 

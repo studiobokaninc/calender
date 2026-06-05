@@ -83,6 +83,8 @@ export const taskToCalendarEvents = (
                 check_items: (task as any).check_items,
                 taskProgress: task.progress,
                 shotID: task.shotID ?? undefined,
+                seqID: task.seqID ?? undefined,
+                shot_id: task.shot_id ?? undefined,
             },
         });
     }

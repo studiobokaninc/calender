@@ -471,6 +471,13 @@ def check_and_migrate_db():
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_direct_messages_thread ON direct_messages(thread_id)")
 
+        # direct_messages.read_at カラムの追加（既読管理）
+        cursor.execute("PRAGMA table_info(direct_messages)")
+        dm_cols = [row[1] for row in cursor.fetchall()]
+        if dm_cols and 'read_at' not in dm_cols:
+            cursor.execute("ALTER TABLE direct_messages ADD COLUMN read_at DATETIME")
+            conn.commit()
+
         # group_direct_messages テーブルの作成
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS group_direct_messages (

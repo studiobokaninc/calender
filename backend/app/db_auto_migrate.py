@@ -324,13 +324,29 @@ def check_and_migrate_db():
             CREATE TABLE IF NOT EXISTS notifications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 recipient_id INTEGER NOT NULL,
+                title VARCHAR(255),
                 type VARCHAR(50),
                 body TEXT NOT NULL,
+                meta JSON,
                 is_read BOOLEAN DEFAULT 0,
                 created_at DATETIME,
                 FOREIGN KEY(recipient_id) REFERENCES users(id)
             )
         """)
+        
+        # notifications の既存のカラムを確認・追加
+        cursor.execute("PRAGMA table_info(notifications)")
+        notif_columns = [row[1] for row in cursor.fetchall()]
+        if 'title' not in notif_columns:
+            print("titleカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE notifications ADD COLUMN title VARCHAR(255)")
+            conn.commit()
+            print("titleカラムを追加しました。")
+        if 'meta' not in notif_columns:
+            print("metaカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE notifications ADD COLUMN meta JSON")
+            conn.commit()
+            print("metaカラムを追加しました。")
         
         # timecards
         cursor.execute("""

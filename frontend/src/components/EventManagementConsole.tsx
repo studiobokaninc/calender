@@ -108,26 +108,39 @@ const EventManagementConsole: React.FC = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'info' });
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchMetadata = useCallback(async () => {
     try {
-      const [projectsRes, eventsRes, usersRes, groupsRes] = await Promise.all([
+      const [projectsRes, usersRes, groupsRes] = await Promise.all([
         api.get<Project[]>('/projects'),
-        api.get<BackendEvent[]>('/calendar/events'),
         api.get<User[]>('/api/users'),
         api.get<Group[]>('/api/groups'),
       ]);
       setProjects(projectsRes.data);
-      setEvents(eventsRes.data);
       setUsers(usersRes.data);
       setGroups(groupsRes.data);
     } catch (err) {
       setError('データの取得に失敗しました');
+    }
+  }, []);
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      const eventsRes = await api.get<BackendEvent[]>('/calendar/events');
+      setEvents(eventsRes.data);
+    } catch (err) {
+      setError('イベントの取得に失敗しました');
+    }
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await Promise.all([fetchMetadata(), fetchEvents()]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchMetadata, fetchEvents]);
 
   useEffect(() => {
     fetchData();
@@ -155,7 +168,7 @@ const EventManagementConsole: React.FC = () => {
       await api.post('/calendar/events', apiData);
       setSnackbar({ open: true, message: 'イベントを作成しました', severity: 'success' });
       handleCloseAddEventModal();
-      await fetchData();
+      await fetchEvents();
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       const msg = Array.isArray(detail)
@@ -320,7 +333,7 @@ const EventManagementConsole: React.FC = () => {
       }
       setModalOpen(false);
       setSnackbar({ open: true, message: `${dates.length}件の定例イベントを作成しました`, severity: 'success' });
-      await fetchData();
+      await fetchEvents();
     } catch (e: any) {
       const detail = e?.response?.data?.detail;
       const msg = Array.isArray(detail)
@@ -358,8 +371,9 @@ const EventManagementConsole: React.FC = () => {
     setEditSaving(true);
     try {
       const startDate = editingEvent.start_time ? dayjs(editingEvent.start_time).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+      const endDate = editingEvent.end_time ? dayjs(editingEvent.end_time).format('YYYY-MM-DD') : startDate;
       const startISO = `${startDate}T${editForm.startTime}:00+09:00`;
-      const endISO = `${startDate}T${editForm.endTime}:00+09:00`;
+      const endISO = `${endDate}T${editForm.endTime}:00+09:00`;
       const participantsPayload = editForm.participants.map(p => ({
         type: p.type,
         id: parseInt(p.id.replace(/\D/g, ''), 10),
@@ -376,7 +390,7 @@ const EventManagementConsole: React.FC = () => {
       setSnackbar({ open: true, message: 'イベントを更新しました', severity: 'success' });
       setEditModalOpen(false);
       setEditingEvent(null);
-      await fetchData();
+      await fetchEvents();
     } catch (e) {
       setSnackbar({ open: true, message: '更新に失敗しました', severity: 'error' });
     } finally {
@@ -389,7 +403,7 @@ const EventManagementConsole: React.FC = () => {
     try {
       await api.delete(`/calendar/events/${ev.id}`);
       setSnackbar({ open: true, message: 'イベントを削除しました', severity: 'success' });
-      await fetchData();
+      await fetchEvents();
     } catch (e) {
       setSnackbar({ open: true, message: '削除に失敗しました', severity: 'error' });
     }

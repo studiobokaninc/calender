@@ -81,10 +81,10 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
         setLoading(true);
         setError(null);
         try {
-            const [projRes, taskRes, _evRes, userRes, groupRes, scoreRes] = await Promise.all([
+            const [projRes, taskRes, eventsRes, userRes, groupRes, scoreRes] = await Promise.all([
                 api.get<Project[]>('/projects'),
                 api.get<Task[]>('/tasks'),
-                api.get<BackendEvent[]>('/calendar/events'), // バックエンドイベントは別途処理
+                api.get<BackendEvent[]>('/calendar/events'),
                 api.get<User[]>('/api/users'),
                 api.get<Group[]>('/api/groups'),
                 eventStatusFilter !== 'all'
@@ -122,7 +122,11 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
             // グローバルキャッシュ更新
             updateGlobalData?.({ tasks: tasksData, projects: projectsData, users: usersData, groups: groupsData });
 
-            await fetchBackendEvents(projectsData);
+            // Promise.all で取得済みのイベントデータを直接処理（ウォーターフォール解消）
+            const processed = eventsRes.data
+                .map(be => backendEventToCalendarEvent(be, { user: user as any, projects: projectsData }))
+                .filter((e): e is CalendarEvent => e !== null);
+            setBackendEvents(processed);
         } catch (err) {
             setError('カレンダーデータの取得または処理に失敗しました。');
         } finally {

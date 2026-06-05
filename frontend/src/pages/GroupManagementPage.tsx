@@ -61,6 +61,9 @@ const GroupManagementPage: React.FC = () => {
   const [meetingSaving, setMeetingSaving] = useState(false);
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'info' });
+  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; message: string; onConfirm: () => void }>({ open: false, message: '', onConfirm: () => {} });
+  const openConfirmDialog = (message: string, onConfirm: () => void) => setConfirmDialog({ open: true, message, onConfirm });
+  const closeConfirmDialog = () => setConfirmDialog(d => ({ ...d, open: false }));
 
   // 日付フォーマット用のヘルパー関数
   const formatDate = (dateString: string | null | undefined): string => {
@@ -184,12 +187,12 @@ const GroupManagementPage: React.FC = () => {
 
       // 選択されたユーザーをグループに追加
       if (newGroupUsers.length > 0) {
-        for (const userId of newGroupUsers) {
-          try {
-            await api.post('/api/user_groups', { user_id: Number(userId), group_id: newGroup.id });
-          } catch (err) {
-            console.error(`Failed to add user ${userId} to group:`, err);
-          }
+        const results = await Promise.allSettled(
+          newGroupUsers.map(userId => api.post('/api/user_groups', { user_id: Number(userId), group_id: newGroup.id }))
+        );
+        const failed = results.filter(r => r.status === 'rejected');
+        if (failed.length > 0) {
+          console.error(`${failed.length}件のメンバー追加に失敗しました`);
         }
       }
 
@@ -267,46 +270,65 @@ const GroupManagementPage: React.FC = () => {
   const handleAddUserToGroup = async () => {
     if (!selectedGroup || usersToAdd.length === 0) return;
     try {
-      for (const userId of usersToAdd) {
-        await api.post('/api/user_groups', { user_id: Number(userId), group_id: selectedGroup.id });
+      const results = await Promise.allSettled(
+        usersToAdd.map(userId => api.post('/api/user_groups', { user_id: Number(userId), group_id: selectedGroup.id }))
+      );
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        console.error(`${failed.length}件の追加に失敗しました`);
       }
       const res = await api.get<UserGroup[]>(`/api/user_groups?group_id=${selectedGroup.id}`);
       setSelectedGroupMembers(res.data);
       handleCloseAddUserModal();
-      setSnackbar({ open: true, message: usersToAdd.length === 1 ? 'メンバーを追加しました' : `${usersToAdd.length}人を追加しました`, severity: 'success' });
+      const succeeded = results.length - failed.length;
+      setSnackbar({
+        open: true,
+        message: succeeded === 1 ? 'メンバーを追加しました' : `${succeeded}人を追加しました`,
+        severity: failed.length > 0 ? 'warning' : 'success',
+      });
     } catch (err) {
       console.error("Failed to add user to group:", err);
       setSnackbar({ open: true, message: 'ユーザーの追加に失敗しました', severity: 'error' });
     }
   };
 
-  const handleRemoveUser = async (userId: number) => {
+  const handleRemoveUser = (userId: number) => {
     if (!selectedGroup) return;
     const name = userMap.get(userId) || `ID ${userId}`;
-    if (!window.confirm(`${name} をグループ「${selectedGroup.name}」から外しますか？`)) return;
-    try {
-      await api.delete(`/api/user_groups/${String(userId)}/${String(selectedGroup.id)}`);
-      setSelectedGroupMembers(prev => prev.filter(ug => ug.user_id !== userId));
-      setSnackbar({ open: true, message: 'メンバーをグループから外しました', severity: 'success' });
-    } catch (err) {
-      setSnackbar({ open: true, message: 'グループから外すのに失敗しました', severity: 'error' });
-    }
+    openConfirmDialog(
+      `${name} をグループ「${selectedGroup.name}」から外しますか？`,
+      async () => {
+        closeConfirmDialog();
+        try {
+          await api.delete(`/api/user_groups/${String(userId)}/${String(selectedGroup.id)}`);
+          setSelectedGroupMembers(prev => prev.filter(ug => ug.user_id !== userId));
+          setSnackbar({ open: true, message: 'メンバーをグループから外しました', severity: 'success' });
+        } catch (err) {
+          setSnackbar({ open: true, message: 'グループから外すのに失敗しました', severity: 'error' });
+        }
+      }
+    );
   };
 
-  const handleDeleteGroup = async () => {
+  const handleDeleteGroup = () => {
     if (!selectedGroup) return;
-    if (!window.confirm(`グループ「${selectedGroup.name}」を削除してもよろしいですか？関連するメンバー割り当ても解除されます。`)) return;
-    try {
-      await api.delete(`/api/groups/${selectedGroup.id}`);
-      setSnackbar({ open: true, message: 'グループを削除しました', severity: 'success' });
-      setSelectedGroup(null);
-      await fetchInitialData();
-    } catch (err: unknown) {
-      const errMsg = err && typeof err === 'object' && 'response' in err && err.response && typeof (err.response as { data?: { detail?: string } }).data?.detail === 'string'
-        ? (err.response as { data: { detail: string } }).data.detail
-        : '不明なエラー';
-      setSnackbar({ open: true, message: `削除に失敗しました: ${errMsg}`, severity: 'error' });
-    }
+    openConfirmDialog(
+      `グループ「${selectedGroup.name}」を削除してもよろしいですか？関連するメンバー割り当ても解除されます。`,
+      async () => {
+        closeConfirmDialog();
+        try {
+          await api.delete(`/api/groups/${selectedGroup.id}`);
+          setSnackbar({ open: true, message: 'グループを削除しました', severity: 'success' });
+          setSelectedGroup(null);
+          await fetchInitialData();
+        } catch (err: unknown) {
+          const errMsg = err && typeof err === 'object' && 'response' in err && err.response && typeof (err.response as { data?: { detail?: string } }).data?.detail === 'string'
+            ? (err.response as { data: { detail: string } }).data.detail
+            : '不明なエラー';
+          setSnackbar({ open: true, message: `削除に失敗しました: ${errMsg}`, severity: 'error' });
+        }
+      }
+    );
   };
 
   const handleCloseSnackbar = (_?: React.SyntheticEvent | Event, reason?: string) => {
@@ -577,14 +599,19 @@ const GroupManagementPage: React.FC = () => {
                             <EditIcon />
                           </IconButton>
                         </Tooltip>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          startIcon={<PersonAddIcon />}
-                          onClick={handleOpenAddUserModal}
-                        >
-                          メンバー追加
-                        </Button>
+                        <Tooltip title={usersNotInSelectedGroup.length === 0 ? "全員このグループに所属しています" : ""}>
+                          <span>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              startIcon={<PersonAddIcon />}
+                              onClick={handleOpenAddUserModal}
+                              disabled={usersNotInSelectedGroup.length === 0}
+                            >
+                              メンバー追加
+                            </Button>
+                          </span>
+                        </Tooltip>
                         <Tooltip title={usersInSelectedGroup.length === 0 ? 'メンバーを追加してから会議を作成できます' : 'グループのメンバーを参加者とする会議を作成'}>
                           <span>
                             <Button
@@ -1093,6 +1120,18 @@ const GroupManagementPage: React.FC = () => {
             <Button onClick={handleCreateMeeting} variant="contained" disabled={meetingSaving || !meetingDate || !meetingStartTime || !meetingEndTime} startIcon={meetingSaving ? <CircularProgress size={16} /> : <MeetingRoomIcon />}>
               {meetingSaving ? '作成中...' : '会議を作成'}
             </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* 確認ダイアログ */}
+        <Dialog open={confirmDialog.open} onClose={closeConfirmDialog} maxWidth="xs" fullWidth>
+          <DialogTitle>確認</DialogTitle>
+          <DialogContent>
+            <Typography>{confirmDialog.message}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={closeConfirmDialog}>キャンセル</Button>
+            <Button onClick={confirmDialog.onConfirm} color="error" variant="contained">削除</Button>
           </DialogActions>
         </Dialog>
 

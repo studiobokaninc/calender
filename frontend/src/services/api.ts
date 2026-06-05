@@ -130,30 +130,6 @@ export const mockDataApi = {
     }
   },
 
-  // ユーザーデータのみをエクスポート
-  exportUserData: async () => {
-    try {
-      const response = await api.post('/admin/mock-data/export');
-      // 全データから必要な部分だけを抽出
-      const { users } = response.data;
-      return { users };
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  // イベントデータのみをエクスポート
-  exportEventData: async () => {
-    try {
-      const response = await api.post('/admin/mock-data/export');
-      // 全データから必要な部分だけを抽出
-      const { events } = response.data;
-      return { events };
-    } catch (error) {
-      throw error;
-    }
-  },
-
   // ユーザーデータとイベントデータを結合してインポート
   importCombinedData: async (userData: any, eventData: any) => {
     try {
@@ -369,24 +345,8 @@ export const userActivityApi = {
 
 // --- Shots API ---
 export const shotsApi = {
-  getShots: async (projectId?: number) => {
-    const response = await api.get('/api/shots', { params: { project_id: projectId } })
-    return response.data
-  },
-  getShot: async (id: number) => {
-    const response = await api.get(`/api/shots/${id}`)
-    return response.data
-  },
   createShot: async (shot: any) => {
     const response = await api.post('/api/shots', shot)
-    return response.data
-  },
-  updateShot: async (id: number, shot: any) => {
-    const response = await api.patch(`/api/shots/${id}`, shot)
-    return response.data
-  },
-  deleteShot: async (id: number) => {
-    const response = await api.delete(`/api/shots/${id}`)
     return response.data
   },
   getMyRetakes: async () => {
@@ -412,14 +372,6 @@ export const shotsApi = {
   },
   getLookDistributions: async (params?: { project_id?: number }) => {
     const response = await api.get('/api/look_distributions', { params })
-    return response.data
-  },
-  getTimecards: async (params?: { user_id?: number; date?: string }) => {
-    const response = await api.get('/api/timecards', { params })
-    return response.data
-  },
-  getRoutines: async (params?: { user_id?: number; date?: string }) => {
-    const response = await api.get('/api/routines', { params })
     return response.data
   },
   getNotifications: async (params?: { recipient_id?: number | string; project_id?: number }) => {

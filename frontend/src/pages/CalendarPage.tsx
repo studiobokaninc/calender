@@ -365,6 +365,14 @@ const CalendarPage: React.FC = () => {
         setEventTypeFilter((prev) => ({ ...prev, [typeKey]: checked }));
     };
 
+    const handleAllEventTypeOn = useCallback(() => {
+        setEventTypeFilter(prev => Object.fromEntries(Object.keys(prev).map(k => [k, true])));
+    }, []);
+
+    const handleAllEventTypeOff = useCallback(() => {
+        setEventTypeFilter(prev => Object.fromEntries(Object.keys(prev).map(k => [k, false])));
+    }, []);
+
     const handleDateClick = (arg: DateClickArg) => {
         if (isMobile) {
             setSelectedDate(arg.date);
@@ -530,7 +538,7 @@ const CalendarPage: React.FC = () => {
         return type;
     };
 
-    const renderEventContent = (eventInfo: any) => {
+    const renderEventContent = useCallback((eventInfo: any) => {
         const { type } = eventInfo.event.extendedProps;
         const title = eventInfo.event.title || '';
         const typeLabel = getEventTypeLabel(type);
@@ -768,7 +776,7 @@ const CalendarPage: React.FC = () => {
                 <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
             </div>
         );
-    };
+    }, []);
 
     const renderEventModal = () => {
         if (isPhaseEditModalOpen) {
@@ -1453,8 +1461,8 @@ const CalendarPage: React.FC = () => {
                                 イベントタイプ
                             </Typography>
                             <Box sx={{ display: 'flex', gap: 1 }}>
-                                <Button size="small" variant="text" onClick={() => Object.keys(eventTypeFilter).forEach(k => handleEventTypeFilterChange(k, true))}>全オン</Button>
-                                <Button size="small" variant="text" onClick={() => Object.keys(eventTypeFilter).forEach(k => handleEventTypeFilterChange(k, false))}>全オフ</Button>
+                                <Button size="small" variant="text" onClick={handleAllEventTypeOn}>全オン</Button>
+                                <Button size="small" variant="text" onClick={handleAllEventTypeOff}>全オフ</Button>
                             </Box>
                         </Box>
                         <FormGroup>

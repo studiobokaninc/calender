@@ -32,6 +32,7 @@ interface TaskQuickDetailProps {
     onUpdate: (taskId: number, updates: Partial<Task>) => Promise<void>;
     onEditFull?: (task: Task) => void;
     tasks?: Task[];
+    onEdit?: () => void;
 }
 
 const getTaskStatusColor = (status?: string | null) => {
@@ -65,7 +66,7 @@ const formatDate = (dateInput: string | null | undefined): string => {
     } catch { return '日付エラー'; }
 };
 
-export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects, users, onUpdate, onEditFull, tasks = [] }) => {
+export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects, users, onUpdate, onEditFull, tasks = [], onEdit }) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
     const project = projects.find(p => p.id === task.project_id);
@@ -107,22 +108,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
         setEditShotID(task.shotID || '');
         setEditShotRelId(task.shot_id || null);
         setEditDependsOn(task.dependsOn || []);
-    }, [
-        task.id,
-        task.name,
-        task.description,
-        task.project_id,
-        task.assigned_to,
-        task.start_date,
-        task.due_date,
-        task.cost,
-        task.priority,
-        task.type,
-        task.seqID,
-        task.shotID,
-        task.shot_id,
-        dependsOnStr
-    ]);
+    }, [task.id]);
 
     // Fetch shots when project selection changes
     React.useEffect(() => {
@@ -270,7 +256,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                     {isAdmin ? (
                         <TextField
                             value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
+                            onChange={(e) => { setEditName(e.target.value); onEdit?.(); }}
                             onBlur={handleNameBlur}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -312,7 +298,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                     {isAdmin ? (
                         <TextField
                             value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
+                            onChange={(e) => { setEditDescription(e.target.value); onEdit?.(); }}
                             onBlur={handleDescriptionBlur}
                             placeholder="説明を追加..."
                             multiline
@@ -495,7 +481,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                                 label="コスト（時間）"
                                                 type="number"
                                                 value={editCost}
-                                                onChange={(e) => setEditCost(e.target.value)}
+                                                onChange={(e) => { setEditCost(e.target.value); onEdit?.(); }}
                                                 onBlur={handleCostBlur}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -605,7 +591,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <TextField
                                             label="シーケンスID"
                                             value={editSeqID}
-                                            onChange={(e) => setEditSeqID(e.target.value)}
+                                            onChange={(e) => { setEditSeqID(e.target.value); onEdit?.(); }}
                                             onBlur={handleSeqIDBlur}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
@@ -623,7 +609,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <TextField
                                             label="ショットID"
                                             value={editShotID}
-                                            onChange={(e) => setEditShotID(e.target.value)}
+                                            onChange={(e) => { setEditShotID(e.target.value); onEdit?.(); }}
                                             onBlur={handleShotIDBlur}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {

@@ -143,6 +143,12 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
 
   const projectMap = useMemo(() => new Map((projects ?? []).map(p => [String(p.id), p])), [projects]);
 
+  const activeFilterCount = useMemo(() => {
+    const statusActive = eventStatusFilter !== 'all' ? 1 : 0;
+    const typeHidden = Object.values(eventTypeFilter).filter(v => !v).length;
+    return statusActive + typeHidden;
+  }, [eventStatusFilter, eventTypeFilter]);
+
   const getParticipantDisplayName = (p: Participant): string => {
     const idStr = String(p.id ?? '');
     if (p.type === 'user') return userMap.get(idStr) || idStr;
@@ -185,6 +191,16 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
           <IconButton onClick={onToggleMinimize} size="small" sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}>
             {isMinimized ? <ChevronLeftIcon fontSize="small" /> : <ChevronRightIcon fontSize="small" />}
           </IconButton>
+        </Tooltip>
+      )}
+      {isMinimized && !isMobile && activeFilterCount > 0 && (
+        <Tooltip title={`フィルタ適用中: ${activeFilterCount}件`}>
+          <Chip
+            label={activeFilterCount}
+            size="small"
+            color="primary"
+            sx={{ position: 'absolute', top: 44, right: 6, height: 20, fontSize: '0.65rem', '& .MuiChip-label': { px: 0.5 }, zIndex: 1 }}
+          />
         </Tooltip>
       )}
 

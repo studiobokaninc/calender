@@ -184,6 +184,7 @@ const TasksPage: React.FC = () => {
     const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false); // Drawer state
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [openDialog, setOpenDialog] = useState(false); // 従来のモーダルも残す（ダブルクリック時など）
     const [editTaskId, setEditTaskId] = useState<number | null>(null);
     const [currentTask, setCurrentTask] = useState<TaskFormData>({
@@ -252,11 +253,20 @@ const TasksPage: React.FC = () => {
     const [selectionModel, setSelectionModel] = useState<number[]>([]);
     const [bulkEditOpen, setBulkEditOpen] = useState(false);
     const [bulkEditSaving, setBulkEditSaving] = useState(false);
+    const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+    const [bulkConfirmCount, setBulkConfirmCount] = useState(0);
     const [bulkEditForm, setBulkEditForm] = useState<{ status: string; assigned_to: number | ''; due_date: string; priority: string }>({
         status: '', assigned_to: '', due_date: '', priority: ''
     });
 
-    const handleBulkEditApply = async () => {
+    const handleBulkEditApply = () => {
+        if (selectionModel.length === 0) return;
+        setBulkConfirmCount(selectionModel.length);
+        setBulkConfirmOpen(true);
+    };
+
+    const handleBulkEditApplyConfirmed = async () => {
+        setBulkConfirmOpen(false);
         const taskIds = selectionModel;
         if (taskIds.length === 0) return;
         const payload: { task_ids: number[]; status?: string; assigned_to?: number; due_date?: string; priority?: string } = { task_ids: taskIds };
@@ -533,6 +543,7 @@ const TasksPage: React.FC = () => {
         console.log(`[TasksPage] Updating task ${taskId}:`, updates);
         try {
             await api.put(`/tasks/${taskId}`, updates);
+            setHasUnsavedChanges(false);
             // ローカルステータスを更新して再フェッチなしで反映
             setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
             if (selectedTask && selectedTask.id === taskId) {
@@ -573,7 +584,7 @@ const TasksPage: React.FC = () => {
             }
             return statusMatch && projectMatch && assigneeMatch;
         });
-    }, [tasks, projects, onlineProjects, statusFilter, projectFilter, assigneeFilter]);
+    }, [tasks, projects, statusFilter, projectFilter, assigneeFilter]);
 
 
 
@@ -829,13 +840,21 @@ const TasksPage: React.FC = () => {
         {
             field: 'status', headerName: 'ステータス', minWidth: 80, width: 120, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
+                const statuses = ['todo', 'in-progress', 'review', 'completed', 'delayed'];
                 return (
                     <Chip
                         label={row.status || '未設定'}
                         size="small"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const current = row.status || 'todo';
+                            const nextIdx = (statuses.indexOf(current) + 1) % statuses.length;
+                            handleUpdateTaskQuick(row.id, { status: statuses[nextIdx] });
+                        }}
                         sx={{
                             backgroundColor: getTaskStatusColor(row.status),
                             color: 'white',
+                            cursor: 'pointer',
                             '& .MuiChip-label': { px: 1 }
                         }}
                     />
@@ -1338,6 +1357,7 @@ const TasksPage: React.FC = () => {
                                 }}
                             >
                                 <CardActionArea onClick={() => {
+                                    setHasUnsavedChanges(false);
                                     setSelectedTask(row as Task);
                                     setIsDrawerOpen(true);
                                 }}>
@@ -1476,6 +1496,7 @@ const TasksPage: React.FC = () => {
                                 handleEditTask(params.row as Task);
                             }}
                             onRowClick={(params) => {
+                                setHasUnsavedChanges(false);
                                 setSelectedTask(params.row as Task);
                                 setIsDrawerOpen(true);
                             }}
@@ -1522,14 +1543,22 @@ const TasksPage: React.FC = () => {
             <Drawer
                 anchor="right"
                 open={isDrawerOpen}
-                onClose={() => setIsDrawerOpen(false)}
+                onClose={() => {
+                    if (hasUnsavedChanges && !window.confirm('未保存の変更があります。閉じてもよろしいですか？')) return;
+                    setHasUnsavedChanges(false);
+                    setIsDrawerOpen(false);
+                }}
                 PaperProps={{
                     sx: { width: { xs: '100%', sm: 400 }, maxWidth: '100%' }
                 }}
             >
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="h6" sx={{ fontWeight: 600 }}>タスク詳細</Typography>
-                    <IconButton onClick={() => setIsDrawerOpen(false)}>
+                    <IconButton onClick={() => {
+                        if (hasUnsavedChanges && !window.confirm('未保存の変更があります。閉じてもよろしいですか？')) return;
+                        setHasUnsavedChanges(false);
+                        setIsDrawerOpen(false);
+                    }}>
                         <CloseIcon />
                     </IconButton>
                 </Box>
@@ -1539,6 +1568,7 @@ const TasksPage: React.FC = () => {
                         projects={projects}
                         users={users}
                         onUpdate={handleUpdateTaskQuick}
+                        onEdit={() => setHasUnsavedChanges(true)}
                     />
                 )}
                 <Box sx={{ p: 2, mt: 'auto', display: 'flex', gap: 1 }}>
@@ -1547,6 +1577,7 @@ const TasksPage: React.FC = () => {
                         variant="outlined"
                         startIcon={<EditIcon />}
                         onClick={() => {
+                            setHasUnsavedChanges(false);
                             setIsDrawerOpen(false);
                             handleEditTask(selectedTask!);
                         }}
@@ -1618,6 +1649,18 @@ const TasksPage: React.FC = () => {
                     <Button variant="contained" onClick={handleBulkEditApply} disabled={bulkEditSaving}>
                         {bulkEditSaving ? '適用中...' : '適用'}
                     </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* 一括編集確認ダイアログ */}
+            <Dialog open={bulkConfirmOpen} onClose={() => setBulkConfirmOpen(false)} maxWidth="xs">
+                <DialogTitle>確認</DialogTitle>
+                <DialogContent>
+                    <Typography>{bulkConfirmCount}件のタスクを一括更新しますか？</Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setBulkConfirmOpen(false)}>キャンセル</Button>
+                    <Button variant="contained" onClick={handleBulkEditApplyConfirmed}>更新</Button>
                 </DialogActions>
             </Dialog>
 
@@ -1805,7 +1848,7 @@ const TasksPage: React.FC = () => {
 
                             </Select>
                         </FormControl>
-                        <FormControl fullWidth size="small" disabled={!currentTask.project_id}>
+                        <FormControl fullWidth size="small">
                             <InputLabel>依存元タスク</InputLabel>
                             <Select
                                 multiple

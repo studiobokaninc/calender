@@ -237,6 +237,13 @@ class UserGroup(Base):
     created_at: Mapped[Optional[datetime]] = mapped_column()
     updated_at: Mapped[Optional[datetime]] = mapped_column()
 
+class DmThreadParticipant(Base):
+    __tablename__ = "dm_thread_participants"
+
+    thread_id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column()
+
 class Note(Base):
     __tablename__ = "notes"
 

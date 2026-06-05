@@ -401,12 +401,12 @@ def send_direct_message(
     
     if thread_id:
         if thread_id >= 10000000:
-            # 3人以上の多人数スレッド（裏グループを引く）
-            gname = f"DM_Thread_{thread_id}"
-            group = db.query(models.Group).filter(models.Group.name == gname).first()
-            if not group:
-                raise HTTPException(status_code=404, detail="スレッドに対応するグループが見つかりません")
-            rows = db.query(models.UserGroup.user_id).filter(models.UserGroup.group_id == group.id).all()
+            # 3人以上の多人数スレッド（dm_thread_participantsで参加者確認）
+            rows = db.query(models.DmThreadParticipant.user_id).filter(
+                models.DmThreadParticipant.thread_id == thread_id
+            ).all()
+            if not rows:
+                raise HTTPException(status_code=404, detail="スレッドに対応する参加者が見つかりません")
             participants = [row[0] for row in rows]
             if actor_id not in participants:
                 raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")
@@ -1119,46 +1119,27 @@ def get_my_dm_threads(
     ).distinct().all()
     dm_tids = [row[0] for row in dm_threads]
     
-    # Use ORM to fetch group names matching 'DM_Thread_%' that actor is in
-    g_threads = db.query(models.Group.name).join(
-        models.UserGroup, models.Group.id == models.UserGroup.group_id
-    ).filter(
-        models.UserGroup.user_id == actor_id,
-        models.Group.name.like("DM_Thread_%")
-    ).all()
-    
-    g_tids = []
-    for row in g_threads:
-        try:
-            g_tids.append(int(row[0].replace("DM_Thread_", "")))
-        except ValueError:
-            continue
-            
+    # actor_idが参加するDMスレッド(3人以上)のthread_idを取得
+    g_tids_rows = db.query(models.DmThreadParticipant.thread_id).filter(
+        models.DmThreadParticipant.user_id == actor_id
+    ).distinct().all()
+    g_tids = [row[0] for row in g_tids_rows]
+
     all_tids = list(set(dm_tids + g_tids))
     if not all_tids:
         return []
-        
+
     dms = db.query(models.DirectMessage).filter(
         models.DirectMessage.thread_id.in_(all_tids)
     ).order_by(models.DirectMessage.created_at.desc()).all()
-    
+
+    # 各thread_idの参加者を取得
     group_participants = {}
-    if g_tids:
-        gnames = [f"DM_Thread_{tid}" for tid in g_tids]
-        # Query participants using ORM
-        p_rows = db.query(models.Group.name, models.UserGroup.user_id).join(
-            models.UserGroup, models.Group.id == models.UserGroup.group_id
-        ).filter(
-            models.Group.name.in_(gnames)
+    for tid in g_tids:
+        members = db.query(models.DmThreadParticipant.user_id).filter(
+            models.DmThreadParticipant.thread_id == tid
         ).all()
-        for gname, uid in p_rows:
-            try:
-                tid = int(gname.replace("DM_Thread_", ""))
-                if tid not in group_participants:
-                    group_participants[tid] = set()
-                group_participants[tid].add(uid)
-            except ValueError:
-                continue
+        group_participants[tid] = set(uid for (uid,) in members)
                 
     threads = {}
     for dm in dms:
@@ -1197,13 +1178,9 @@ def get_dm_thread_messages(
 ):
     # Thread membership check
     if thread_id >= 10000000:
-        gname = f"DM_Thread_{thread_id}"
-        group = db.query(models.Group).filter(models.Group.name == gname).first()
-        if not group:
-            raise HTTPException(status_code=404, detail="スレッドが見つかりません")
-        member = db.query(models.UserGroup).filter(
-            models.UserGroup.group_id == group.id,
-            models.UserGroup.user_id == actor_id
+        member = db.query(models.DmThreadParticipant).filter(
+            models.DmThreadParticipant.thread_id == thread_id,
+            models.DmThreadParticipant.user_id == actor_id
         ).first()
         if not member:
             raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")
@@ -1226,13 +1203,9 @@ def mark_dm_thread_read(
 ):
     # Thread membership check
     if thread_id >= 10000000:
-        gname = f"DM_Thread_{thread_id}"
-        group = db.query(models.Group).filter(models.Group.name == gname).first()
-        if not group:
-            raise HTTPException(status_code=404, detail="スレッドが見つかりません")
-        member = db.query(models.UserGroup).filter(
-            models.UserGroup.group_id == group.id,
-            models.UserGroup.user_id == actor_id
+        member = db.query(models.DmThreadParticipant).filter(
+            models.DmThreadParticipant.thread_id == thread_id,
+            models.DmThreadParticipant.user_id == actor_id
         ).first()
         if not member:
             raise HTTPException(status_code=403, detail="このスレッドの参加者ではありません")

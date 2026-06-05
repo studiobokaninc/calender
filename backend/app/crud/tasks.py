@@ -155,79 +155,51 @@ def _get_project_supervisors(db: Session, project_id: int) -> List[int]:
 def _resolve_dm_thread_id(db: Session, participant_ids: List[int]) -> int:
     """参加者リストから一意のスレッドIDを取得または新規採番する。
     1対1の場合は既存の min*10000+max 規則を使用。
-    3人以上の場合は、参加者が一致する既存スレッドをグループから探すか、新規に採番する。
+    3人以上の場合は dm_thread_participants テーブルで参加者集合一致を検索する。
     """
     from sqlalchemy import func
     participants = sorted(list(set(participant_ids)))
     if len(participants) < 2:
         raise ValueError("スレッドには少なくとも2人の参加者が必要です")
-        
+
     if len(participants) == 2:
         return participants[0] * 10000 + participants[1]
-        
-    # 3人以上の場合、既存の裏グループ "DM_Thread_" を検索する
-    # 各グループのIDとそのメンバー集合をマップ化
-    rows = db.query(models.Group.id, models.Group.name, models.UserGroup.user_id)\
-        .join(models.UserGroup, models.Group.id == models.UserGroup.group_id)\
-        .filter(models.Group.name.like("DM_Thread_%"))\
-        .all()
-    
-    group_members = {}  # group_id: set(user_id)
-    group_name_map = {}  # group_id: name
-    for gid, gname, uid in rows:
-        if gid not in group_members:
-            group_members[gid] = set()
-            group_name_map[gid] = gname
-        group_members[gid].add(uid)
-        
+
+    # 3人以上: dm_thread_participants で参加者集合一致のthread_idを検索
     target_set = set(participants)
-    for gid, members in group_members.items():
-        if members == target_set:
-            # グループ名から thread_id を取り出す
-            name = group_name_map[gid]
-            try:
-                return int(name.replace("DM_Thread_", ""))
-            except ValueError:
-                continue
-                
-    # 一致する既存スレッドがなければ新規採番
-    max_dm_tid = db.query(func.max(models.DirectMessage.thread_id)).scalar() or 0
-    
-    max_g_tid = 0
-    for gname in group_name_map.values():
-        try:
-            tid = int(gname.replace("DM_Thread_", ""))
-            if tid > max_g_tid:
-                max_g_tid = tid
-        except ValueError:
-            continue
-            
-    new_tid = max(10000000, max_dm_tid + 1, max_g_tid + 1)
-    
-    # グループとメンバーの登録 (ORMを利用することで Enum の検証も正しく処理される)
-    group = models.Group(
-        name=f"DM_Thread_{new_tid}",
-        type=models.GroupType.CROSS_FUNCTIONAL,
-        created_at=now_jst_naive(),
-        updated_at=now_jst_naive()
-    )
-    db.add(group)
-    db.commit()
-    db.refresh(group)
-    
-    gid = group.id
-    
-    for pid in participants:
-        user_group = models.UserGroup(
-            user_id=pid,
-            group_id=gid,
-            role=models.GroupRole.MEMBER,
-            created_at=now_jst_naive(),
-            updated_at=now_jst_naive()
+    target_len = len(target_set)
+
+    # 候補: 参加者数が一致するthread_idを取得
+    rows = db.query(
+        models.DmThreadParticipant.thread_id,
+        func.count(models.DmThreadParticipant.user_id).label("cnt")
+    ).group_by(models.DmThreadParticipant.thread_id)\
+     .having(func.count(models.DmThreadParticipant.user_id) == target_len)\
+     .all()
+
+    for row in rows:
+        tid = row.thread_id
+        members = set(
+            uid for (uid,) in
+            db.query(models.DmThreadParticipant.user_id)
+              .filter(models.DmThreadParticipant.thread_id == tid).all()
         )
-        db.add(user_group)
+        if members == target_set:
+            return tid
+
+    # 新規採番
+    max_dm_tid = db.query(func.max(models.DirectMessage.thread_id)).scalar() or 0
+    max_dtp_tid = db.query(func.max(models.DmThreadParticipant.thread_id)).scalar() or 0
+    new_tid = max(10000000, max_dm_tid + 1, max_dtp_tid + 1)
+
+    for pid in participants:
+        db.add(models.DmThreadParticipant(
+            thread_id=new_tid,
+            user_id=pid,
+            created_at=now_jst_naive()
+        ))
     db.commit()
-    
+
     return new_tid
 
 def _send_dm_to_participants(db: Session, thread_id: int, sender_id: int, participant_ids: List[int], body: str):

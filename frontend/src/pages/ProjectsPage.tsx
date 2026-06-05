@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon } from '@mui/icons-material';
-import api from '../services/api';
-import { Project, Task } from '../types';
+import api, { fetchUsers, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
+import { Project, Task, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
@@ -100,6 +100,9 @@ const ProjectsPage: React.FC = () => {
     const { refreshGlobalData } = usePageState();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedProject, setSelectedProject] = useState<ProjectWithProgress | null>(null);
+    const [users, setUsers] = useState<User[]>([]);
+    const [directorId, setDirectorId] = useState<number | ''>('');
+    const [pmId, setPmId] = useState<number | ''>('');
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -174,6 +177,24 @@ const ProjectsPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
+    useEffect(() => {
+        fetchUsers().then(setUsers).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!openDialog) return;
+        if (isEditMode && currentProject.id !== null) {
+            fetchProjectRoles(currentProject.id as number).then((roles: any[]) => {
+                const director = roles.find((r: any) => r.role === 'director');
+                const pm = roles.find((r: any) => r.role === 'pm');
+                setDirectorId(director ? director.user_id : '');
+                setPmId(pm ? pm.user_id : '');
+            }).catch(() => {});
+        } else {
+            setDirectorId('');
+            setPmId('');
+        }
+    }, [openDialog, isEditMode, currentProject.id]);
 
     const filteredProjects: ProjectWithProgress[] = useMemo(() => {
         const filtered = projects.filter(project => {
@@ -302,15 +323,38 @@ const ProjectsPage: React.FC = () => {
                 display_status: currentProject.display_status
             };
 
+            const saveRoles = async (projectId: number) => {
+                const roles = await fetchProjectRoles(projectId);
+                const handleRole = async (roleType: 'director' | 'pm', userId: number | '') => {
+                    if (userId === '') return;
+                    const existing = roles.find((r: any) => r.role === roleType);
+                    if (existing) {
+                        if (existing.user_id !== userId) {
+                            await deleteScoreUserRole(existing.id);
+                            await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
+                        } else {
+                            await updateScoreUserRole(existing.id, { role: roleType });
+                        }
+                    } else {
+                        await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
+                    }
+                };
+                await handleRole('director', directorId);
+                await handleRole('pm', pmId);
+            };
+
             if (isEditMode && currentProject.id !== null) {
                 await api.put(`/projects/${currentProject.id}`, projectData);
+                await saveRoles(currentProject.id as number);
                 setSnackbar({
                     open: true,
                     message: 'プロジェクトが更新されました',
                     severity: 'success'
                 });
             } else {
-                await api.post('/projects', projectData);
+                const response = await api.post('/projects', projectData);
+                const newProjectId = response.data.id;
+                await saveRoles(newProjectId);
                 setSnackbar({
                     open: true,
                     message: 'プロジェクトが作成されました',
@@ -852,6 +896,34 @@ const ProjectsPage: React.FC = () => {
                             fullWidth
                             required
                         />
+                        <FormControl fullWidth required>
+                            <InputLabel>Director *</InputLabel>
+                            <Select
+                                value={directorId}
+                                label="Director *"
+                                onChange={(e) => setDirectorId(e.target.value as number)}
+                            >
+                                {users.map(u => (
+                                    <MenuItem key={u.id} value={u.id}>
+                                        {u.full_name || u.username || u.name || u.email}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl fullWidth required>
+                            <InputLabel>PM *</InputLabel>
+                            <Select
+                                value={pmId}
+                                label="PM *"
+                                onChange={(e) => setPmId(e.target.value as number)}
+                            >
+                                {users.map(u => (
+                                    <MenuItem key={u.id} value={u.id}>
+                                        {u.full_name || u.username || u.name || u.email}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                         <TextField
                             name="description"
                             label="説明"
@@ -934,7 +1006,12 @@ const ProjectsPage: React.FC = () => {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDialog}>キャンセル</Button>
-                    <Button onClick={handleSubmit} variant="contained" color="primary">
+                    <Button
+                        onClick={handleSubmit}
+                        variant="contained"
+                        color="primary"
+                        disabled={!isEditMode && (directorId === '' || pmId === '')}
+                    >
                         {isEditMode ? '更新' : '作成'}
                     </Button>
                 </DialogActions>

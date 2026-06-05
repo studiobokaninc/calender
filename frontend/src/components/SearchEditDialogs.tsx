@@ -4,7 +4,7 @@ import {
   Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography, Checkbox, FormControlLabel, IconButton,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import api, { mockDataApi } from '../services/api';
+import api, { mockDataApi, fetchUsers, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
 
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
 import EventAddModal from './EventAddModal';
@@ -32,13 +32,24 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
     color: '#1976d2',
     display_status: 'online',
   });
+  const [users, setUsers] = useState<User[]>([]);
+  const [directorId, setDirectorId] = useState<number | ''>('');
+  const [pmId, setPmId] = useState<number | ''>('');
+  const [existingRoles, setExistingRoles] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetchUsers().then(setUsers).catch(() => {});
+  }, [open]);
 
   useEffect(() => {
     if (!open || projectId == null) return;
     setError(null);
     setLoading(true);
-    api.get<Project>(`/projects/${projectId}`)
-      .then((res) => {
+    Promise.all([
+      api.get<Project>(`/projects/${projectId}`),
+      fetchProjectRoles(projectId).catch(() => []),
+    ]).then(([res, roles]) => {
         const p = res.data;
         const startStr = p.start_date ? (typeof p.start_date === 'string' ? p.start_date : (p.start_date as Date).toISOString?.()?.slice(0, 10)) : '';
         const endStr = p.end_date ? (typeof p.end_date === 'string' ? p.end_date : (p.end_date as Date).toISOString?.()?.slice(0, 10)) : '';
@@ -52,6 +63,11 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
           color: p.color ?? '#1976d2',
           display_status: p.display_status ?? 'online',
         });
+        setExistingRoles(roles as any[]);
+        const director = (roles as any[]).find((r: any) => r.role === 'director');
+        const pm = (roles as any[]).find((r: any) => r.role === 'pm');
+        setDirectorId(director ? director.user_id : '');
+        setPmId(pm ? pm.user_id : '');
       })
       .catch(() => setError('プロジェクトの取得に失敗しました'))
       .finally(() => setLoading(false));
@@ -78,6 +94,22 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
         color: form.color,
         display_status: form.display_status,
       });
+      const saveRole = async (roleType: 'director' | 'pm', userId: number | '') => {
+        if (userId === '') return;
+        const existing = existingRoles.find((r: any) => r.role === roleType);
+        if (existing) {
+          if (existing.user_id !== userId) {
+            await deleteScoreUserRole(existing.id);
+            await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
+          } else {
+            await updateScoreUserRole(existing.id, { role: roleType });
+          }
+        } else {
+          await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
+        }
+      };
+      await saveRole('director', directorId);
+      await saveRole('pm', pmId);
       onSaved();
       onClose();
     } catch {
@@ -98,6 +130,26 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField name="name" label="プロジェクト名" value={form.name} onChange={handleChange} fullWidth size="small" required />
             <TextField name="description" label="説明" value={form.description} onChange={handleChange} fullWidth multiline rows={2} size="small" />
+            <FormControl fullWidth size="small">
+              <InputLabel>Director</InputLabel>
+              <Select value={directorId} label="Director" onChange={(e) => setDirectorId(e.target.value as number)}>
+                {users.map(u => (
+                  <MenuItem key={u.id} value={u.id}>
+                    {u.full_name || u.username || u.name || u.email}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>PM</InputLabel>
+              <Select value={pmId} label="PM" onChange={(e) => setPmId(e.target.value as number)}>
+                {users.map(u => (
+                  <MenuItem key={u.id} value={u.id}>
+                    {u.full_name || u.username || u.name || u.email}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <FormControl fullWidth size="small">
               <InputLabel>進捗</InputLabel>
               <Select name="status" value={form.status} label="進捗" onChange={handleChange}>

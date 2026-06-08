@@ -438,6 +438,19 @@ def send_direct_message(
     db.add(db_dm)
     db.commit()
     db.refresh(db_dm)
+
+    from app.utils.webhook_sender import send_webhook_in_thread
+    send_webhook_in_thread("dm_thread.new_message", {
+        "calendar_project_id": None,
+        "data": {
+            "thread_id": db_dm.thread_id,
+            "message_id": db_dm.id,
+            "sender_id": db_dm.sender_id,
+            "body": db_dm.body,
+            "created_at": db_dm.created_at.isoformat() if db_dm.created_at else None,
+        },
+    })
+
     return db_dm
 
 @router.post("/dm/threads", response_model=schemas.DMThreadResponse, status_code=status.HTTP_201_CREATED)

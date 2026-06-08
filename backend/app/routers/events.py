@@ -51,10 +51,22 @@ async def create_event_endpoint(
 ):
     """新規イベントを作成"""
     created_event = crud.create_event(db=db, event=event_data)
-    
+
     from app.services.google_sync import auto_sync_event_bg
     background_tasks.add_task(auto_sync_event_bg, created_event.id)
-    
+
+    from app.utils.webhook_sender import send_webhook
+    background_tasks.add_task(send_webhook, "event.created", {
+        "calendar_project_id": created_event.project_id,
+        "data": {
+            "event_id": created_event.id,
+            "title": created_event.title,
+            "start_datetime": created_event.start_time.isoformat() if created_event.start_time else None,
+            "end_datetime": created_event.end_time.isoformat() if created_event.end_time else None,
+            "status": created_event.status,
+        },
+    })
+
     return created_event
 
 
@@ -77,10 +89,22 @@ async def update_event_endpoint(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="イベントステータスを変更する権限がありません")
 
     updated_event = crud.update_event(db=db, db_event=db_event, event_in=event_data)
-    
+
     from app.services.google_sync import auto_sync_event_bg
     background_tasks.add_task(auto_sync_event_bg, updated_event.id)
-    
+
+    from app.utils.webhook_sender import send_webhook
+    background_tasks.add_task(send_webhook, "event.updated", {
+        "calendar_project_id": updated_event.project_id,
+        "data": {
+            "event_id": updated_event.id,
+            "title": updated_event.title,
+            "start_datetime": updated_event.start_time.isoformat() if updated_event.start_time else None,
+            "end_datetime": updated_event.end_time.isoformat() if updated_event.end_time else None,
+            "status": updated_event.status,
+        },
+    })
+
     return updated_event
 
 

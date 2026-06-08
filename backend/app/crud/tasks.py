@@ -24,8 +24,8 @@ def _task_row_to_dict(row: Any, history_map: Dict[int, List[Dict[str, Any]]]) ->
     task_status = 'todo'
     if hasattr(row, 'status') and row.status:
         status_map = {
-            'TODO': 'todo', 'IN_PROGRESS': 'in-progress', 'REVIEW': 'review', 
-            'COMPLETED': 'completed', 'DELAYED': 'delayed'
+            'TODO': 'todo', 'IN_PROGRESS': 'in-progress', 'REVIEW': 'review',
+            'COMPLETED': 'completed', 'DELAYED': 'delayed', 'RETAKE': 'retake'
         }
         raw_status = row.status
         task_status = status_map.get(raw_status, raw_status.lower().replace('_', '-'))

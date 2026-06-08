@@ -26,6 +26,7 @@ class TaskStatus(str, enum.Enum):
     REVIEW = "review"
     COMPLETED = "completed"
     DELAYED = "delayed"
+    RETAKE = "retake"
 
 class TaskPriority(str, enum.Enum):
     HIGH = "HIGH"

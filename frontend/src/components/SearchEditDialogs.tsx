@@ -425,6 +425,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
                 <MenuItem value="review">レビュー中</MenuItem>
                 <MenuItem value="completed">完了</MenuItem>
                 <MenuItem value="delayed">遅延</MenuItem>
+                <MenuItem value="retake">リテイク</MenuItem>
               </Select>
             </FormControl>
             <FormControl fullWidth size="small">

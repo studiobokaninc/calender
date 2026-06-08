@@ -66,6 +66,7 @@ export const getTaskColor = (
         case 'review': return '#9C27B0';
         case 'delayed': return '#F44336';
         case 'completed': return '#9E9E9E';
+        case 'retake': return '#E91E63';
         default: return '#BDBDBD';
     }
 };

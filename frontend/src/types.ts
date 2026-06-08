@@ -1,5 +1,7 @@
 // Base types based on previous context
 
+export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'completed' | 'delayed' | 'retake';
+
 export interface Project {
   id: number;
   name: string;

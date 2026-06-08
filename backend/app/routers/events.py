@@ -57,14 +57,14 @@ async def create_event_endpoint(
 
     from app.utils.webhook_sender import send_webhook
     background_tasks.add_task(send_webhook, "event.created", {
-        "calendar_project_id": created_event.project_id,
-        "data": {
-            "event_id": created_event.id,
-            "title": created_event.title,
-            "start_datetime": created_event.start_time.isoformat() if created_event.start_time else None,
-            "end_datetime": created_event.end_time.isoformat() if created_event.end_time else None,
-            "status": created_event.status,
-        },
+        "event_id": created_event.id,
+        "title": created_event.title,
+        "start_at": created_event.start_time.isoformat() if created_event.start_time else None,
+        "end_at": created_event.end_time.isoformat() if created_event.end_time else None,
+        "attendees": created_event.user_ids or [],
+        "description": created_event.description,
+        "location": created_event.location,
+        "zoom_url": created_event.meeting_url,
     })
 
     return created_event
@@ -95,14 +95,15 @@ async def update_event_endpoint(
 
     from app.utils.webhook_sender import send_webhook
     background_tasks.add_task(send_webhook, "event.updated", {
-        "calendar_project_id": updated_event.project_id,
-        "data": {
-            "event_id": updated_event.id,
-            "title": updated_event.title,
-            "start_datetime": updated_event.start_time.isoformat() if updated_event.start_time else None,
-            "end_datetime": updated_event.end_time.isoformat() if updated_event.end_time else None,
-            "status": updated_event.status,
-        },
+        "event_id": updated_event.id,
+        "title": updated_event.title,
+        "start_at": updated_event.start_time.isoformat() if updated_event.start_time else None,
+        "end_at": updated_event.end_time.isoformat() if updated_event.end_time else None,
+        "attendees": updated_event.user_ids or [],
+        "description": updated_event.description,
+        "location": updated_event.location,
+        "zoom_url": updated_event.meeting_url,
+        "updated_by": current_user.id,
     })
 
     return updated_event

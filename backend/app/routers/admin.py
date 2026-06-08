@@ -118,6 +118,9 @@ async def import_csv_data(
     content = await file.read()
     decoded = _decode_csv_content(content)
 
+    # 改行コードの標準化 (\r\n および \r を \n に統一し、CR単体改行に対応)
+    decoded = decoded.replace('\r\n', '\n').replace('\r', '\n')
+
     reader = csv.reader(io.StringIO(decoded))
     rows = list(reader)
     
@@ -363,9 +366,9 @@ def get_csv_template(
     
     # タスク情報セクション
     writer.writerow(["タスク情報", "", "", "", "", "", "", "", ""])
-    writer.writerow(["タスク名", "期日", "説明", "担当者", "コスト", "タイプ(推奨:development,design,documentation,testing,review,meeting,fx,asset,animation,lighting,comp)", "seqID", "shotID", "依存タスク(複数ある場合はカンマ区切り)"])
+    writer.writerow(["タスク名", "期日", "説明", "担当者", "コスト", "タイプ(推奨:animation,layout,comp,fx,lighting,asset,programming,design,testing,documentation,shoot,gs,report,other)", "seqID", "shotID", "依存タスク(複数ある場合はカンマ区切り)"])
     writer.writerow(["タスク1", "2026/04/15", "タスクの詳細内容", "username", "16", "design", "SEQ001", "SHOT001", ""])
-    writer.writerow(["タスク2", "2026/04/20", "土日を考慮した開始日逆算が行われます", "username", "8", "development", "SEQ001", "SHOT002", "タスク1"])
+    writer.writerow(["タスク2", "2026/04/20", "土日を考慮した開始日逆算が行われます", "username", "8", "programming", "SEQ001", "SHOT002", "タスク1"])
     writer.writerow(["タスク3", "2026/04/25", "複数の依存関係を設定可能", "username", "24", "testing", "SEQ001", "SHOT003", "タスク1, タスク2"])
     
     return Response(
@@ -473,17 +476,33 @@ def _decode_csv_content(content: bytes) -> str:
     if content.startswith(b'\xef\xbb\xbf'):
         content = content[3:]
     
+    # 1. Clean UTF-8
     try:
         return content.decode("utf-8")
     except UnicodeDecodeError:
-        # Fallback to Shift-JIS if UTF-8 fails (for old Excel Japanese CSV)
-        try:
-            return content.decode("shift-jis")
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="CSVファイルの文字コードが読み取れません (UTF-8 または Shift-JIS を使用してください)"
-            )
+        pass
+        
+    # 2. Clean CP932 (Windows-Japanese extension of Shift-JIS)
+    try:
+        return content.decode("cp932")
+    except UnicodeDecodeError:
+        pass
+
+    # 3. Clean Shift-JIS
+    try:
+        return content.decode("shift-jis")
+    except UnicodeDecodeError:
+        pass
+
+    # 4. Robust Fallback: Decode with CP932 replacing invalid characters to prevent crash
+    try:
+        return content.decode("cp932", errors="replace")
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CSVファイルの文字コードが読み取れません (UTF-8 または Shift-JIS を使用してください)"
+        )
+
 
 def _find_user_by_identifier(db: Session, identifier: str) -> Optional[int]:
     """識別子 (username, full_name, name, email) からユーザーIDを検索するヘルパー"""
@@ -508,7 +527,7 @@ def _parse_csv_date(date_str: str) -> Optional[datetime]:
     if not date_str or not date_str.strip():
         return None
     date_str = date_str.strip()
-    for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y/%n/%d"):
+    for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y.%m.%d", "%Y/%n/%d"):
         try:
             return datetime.strptime(date_str, fmt)
         except Exception:

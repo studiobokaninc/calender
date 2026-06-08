@@ -15,12 +15,12 @@ _BACKOFF_DELAYS = [1, 2, 4]
 
 
 def _get_config() -> tuple[str, str]:
-    return os.getenv("WEBHOOK_URL", ""), os.getenv("WEBHOOK_SECRET", "")
+    return os.getenv("CALENDAR_WEBHOOK_URL", ""), os.getenv("CALENDAR_WEBHOOK_SECRET", "")
 
 
 def _build_signature(body: str, secret: str) -> str:
     digest = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
-    return f"sha256={digest}"
+    return digest
 
 
 async def send_webhook(event_type: str, payload: dict) -> None:
@@ -30,11 +30,12 @@ async def send_webhook(event_type: str, payload: dict) -> None:
     if not url or not secret:
         return
 
-    data = dict(payload)
-    data["event_type"] = event_type
-    data.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
-
-    body = json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+    envelope = {
+        "event": event_type,
+        "payload": payload,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    body = json.dumps(envelope, separators=(",", ":"), ensure_ascii=False)
     signature = _build_signature(body, secret)
     headers = {
         "Content-Type": "application/json",

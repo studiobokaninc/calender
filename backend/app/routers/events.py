@@ -112,6 +112,7 @@ async def update_event_endpoint(
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_event_endpoint(
     event_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
@@ -123,9 +124,22 @@ async def delete_event_endpoint(
     if current_user.role != 'admin':
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="イベントを削除する権限がありません")
 
+    webhook_payload = {
+        "event_id": db_event.id,
+        "title": db_event.title,
+        "start_at": db_event.start_time.isoformat() if db_event.start_time else None,
+        "end_at": db_event.end_time.isoformat() if db_event.end_time else None,
+        "attendees": db_event.user_ids or [],
+        "deleted_by": current_user.id,
+    }
+
     if google_cal.is_google_configured():
         from app.services.google_sync import delete_event_syncs
         delete_event_syncs(db, event_id)
 
     crud.delete_event(db=db, db_event=db_event)
+
+    from app.utils.webhook_sender import send_webhook
+    background_tasks.add_task(send_webhook, "event.deleted", webhook_payload)
+
     return None

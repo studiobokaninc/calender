@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { GridSortModel } from '@mui/x-data-grid';
+
+const GLOBAL_DATA_TTL_MS = 5 * 60 * 1000; // 5分
 
 // ページごとの状態を管理する型定義
 interface PageStates {
@@ -117,7 +119,7 @@ interface PageStateContextType {
   isInitialLoad: boolean;
   globalData: GlobalDataState;
   updateGlobalData: (data: Partial<GlobalDataState>) => void;
-  refreshGlobalData: () => Promise<void>;
+  refreshGlobalData: (options?: { force?: boolean }) => Promise<void>;
 }
 
 const PageStateContext = createContext<PageStateContextType | undefined>(undefined);
@@ -234,6 +236,8 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
     }));
   };
 
+  const lastFetchedRef = useRef<number>(0);
+
   const updateGlobalData = useCallback((data: Partial<GlobalDataState>) => {
     setGlobalData(prev => ({
       ...prev,
@@ -242,7 +246,11 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
     }));
   }, []);
 
-  const refreshGlobalData = useCallback(async () => {
+  const refreshGlobalData = useCallback(async (options?: { force?: boolean }) => {
+    if (!options?.force && Date.now() - lastFetchedRef.current < GLOBAL_DATA_TTL_MS) {
+      console.log('[PageStateContext] Cache hit, skipping refresh');
+      return;
+    }
     try {
       console.log('[PageStateContext] Starting global data refresh...');
 
@@ -263,13 +271,14 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
         groups: groups.length
       });
 
+      lastFetchedRef.current = Date.now();
       updateGlobalData({
         tasks,
         projects,
         users,
         groups,
         events: [], // イベントは各ページで生成されるため空配列
-        lastFetched: Date.now(),
+        lastFetched: lastFetchedRef.current,
       });
 
       console.log('[PageStateContext] Global data updated successfully');

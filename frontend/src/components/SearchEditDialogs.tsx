@@ -4,8 +4,8 @@ import {
   Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography, Checkbox, FormControlLabel, IconButton,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import api, { mockDataApi, fetchUsers, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
-
+import api, { mockDataApi, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
+import { usePageState } from '../contexts/PageStateContext';
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
 import EventAddModal from './EventAddModal';
 import { Group } from '../types';
@@ -19,6 +19,8 @@ interface ProjectEditDialogProps {
 }
 
 export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, projectId, onClose, onSaved }) => {
+  const { globalData } = usePageState();
+  const users = globalData.users as User[];
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,15 +34,9 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
     color: '#1976d2',
     display_status: 'online',
   });
-  const [users, setUsers] = useState<User[]>([]);
   const [directorId, setDirectorId] = useState<number | ''>('');
   const [pmId, setPmId] = useState<number | ''>('');
   const [existingRoles, setExistingRoles] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (!open) return;
-    fetchUsers().then(setUsers).catch(() => {});
-  }, [open]);
 
   useEffect(() => {
     if (!open || projectId == null) return;
@@ -81,6 +77,10 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
 
   const handleSubmit = async () => {
     if (projectId == null) return;
+    if (directorId === '' || pmId === '') {
+      setError('DirectorとPMは必須です');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -198,12 +198,13 @@ const TASK_TYPE_OPTIONS = [
 ];
 
 export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, onClose, onSaved }) => {
+  const { globalData } = usePageState();
+  const projects = globalData.projects as Project[];
+  const users = globalData.users as User[];
+  const tasks = globalData.tasks as Task[];
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [shots, setShots] = useState<{ id: number; shotID: string; seqID: string }[]>([]);
   const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
   const [form, setForm] = useState({
@@ -231,17 +232,9 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
     if (!open || taskId == null) return;
     setError(null);
     setLoading(true);
-    Promise.all([
-      api.get<Task>(`/tasks/${taskId}`),
-      api.get<Project[]>('/projects'),
-      api.get<User[]>('/api/users'),
-      api.get<Task[]>('/tasks'),
-    ])
-      .then(([taskRes, projRes, userRes, taskListRes]) => {
+    api.get<Task>(`/tasks/${taskId}`)
+      .then((taskRes) => {
         const t = taskRes.data;
-        setProjects(projRes.data);
-        setUsers(userRes.data);
-        setTasks(taskListRes.data);
         const dueStr = t.due_date ? (typeof t.due_date === 'string' ? t.due_date.slice(0, 10) : (t.due_date as Date).toISOString?.()?.slice(0, 10)) : '';
         const startStr = t.start_date ? (typeof t.start_date === 'string' ? t.start_date.slice(0, 10) : (t.start_date as Date).toISOString?.()?.slice(0, 10)) : '';
         setForm({
@@ -651,38 +644,29 @@ interface EventEditDialogProps {
 }
 
 export const EventEditDialog: React.FC<EventEditDialogProps> = ({ open, eventId, onClose, onSaved }) => {
+  const { globalData } = usePageState();
+  const projects = globalData.projects as Project[];
+  const users = globalData.users as User[];
+  const tasks = globalData.tasks as Task[];
+  const groups = globalData.groups as Group[];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [eventToEdit, setEventToEdit] = useState<CalendarEvent | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
 
   useEffect(() => {
     if (!open || eventId == null) return;
     setError(null);
     setEventToEdit(null);
     setLoading(true);
-    Promise.all([
-      api.get<BackendEvent>(`/calendar/events/${eventId}`),
-      api.get<Project[]>('/projects'),
-      api.get<User[]>('/api/users'),
-      api.get<Task[]>('/tasks'),
-      api.get<Group[]>('/api/groups'),
-    ])
-      .then(([eventRes, projRes, userRes, taskRes, groupRes]) => {
+    api.get<BackendEvent>(`/calendar/events/${eventId}`)
+      .then((eventRes) => {
         const be = eventRes.data;
-        setProjects(projRes.data);
-        setUsers(userRes.data);
-        setTasks(taskRes.data);
-        setGroups(groupRes.data);
-        const project = be.project_id ? projRes.data.find((p) => p.id === be.project_id) : undefined;
+        const project = be.project_id ? projects.find((p) => p.id === be.project_id) : undefined;
         setEventToEdit(backendEventToCalendarEvent(be, project?.display_status ?? undefined));
       })
       .catch(() => setError('イベントの取得に失敗しました'))
       .finally(() => setLoading(false));
-  }, [open, eventId]);
+  }, [open, eventId, projects]);
 
   const handleSave = async (modalData: any) => {
     if (eventId == null) return;

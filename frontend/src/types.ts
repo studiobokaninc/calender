@@ -186,8 +186,11 @@ export interface User {
   work_start_time?: string | null;
   work_end_time?: string | null;
   skills?: string[] | null;
-  avatar_url?: string | null; // DB準拠
-  iconUrl?: string | null;    // フロント後方互換
+  /** DBフィールド (users.avatar_url)。BE APIが返す生の値。新規コードはこちらを正とする。 */
+  avatar_url?: string | null;
+  /** 表示用変換値。BE レスポンスの avatar_url → iconUrl にマッピングして付与。
+   *  UIコンポーネント(Avatar等)は現状この値を参照。avatar_url への完全統一は将来対応。 */
+  iconUrl?: string | null;
   settings_json?: Record<string, any> | null;
   google_linked?: boolean;
   google_email?: string | null;
@@ -272,11 +275,13 @@ export interface TaskCreate {
   progress?: number;
 }
 
-// イベント作成用
+// イベント作成用 (MockDataImport経由でのみ使用)
+// 注意: start/end フィールドはモックデータ形式。BE APIは start_time/end_time を使用するため
+// 直接のAPI呼び出しには使用しないこと。BE スキーマとの乖離は要確認。
 export interface EventCreate {
   title: string;
-  start: string; // ISO形式
-  end: string;   // ISO形式
+  start: string; // ISO形式 (モックデータ用。BE API は start_time を使用)
+  end: string;   // ISO形式 (モックデータ用。BE API は end_time を使用)
   description?: string | null;
 }
 

@@ -311,6 +311,10 @@ const ProjectsPage: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        if (directorId === '' || pmId === '') {
+            setSnackbar({ open: true, message: 'DirectorとPMは必須です', severity: 'error' });
+            return;
+        }
         try {
             const projectData = {
                 name: currentProject.name,
@@ -1010,7 +1014,7 @@ const ProjectsPage: React.FC = () => {
                         onClick={handleSubmit}
                         variant="contained"
                         color="primary"
-                        disabled={!isEditMode && (directorId === '' || pmId === '')}
+                        disabled={directorId === '' || pmId === ''}
                     >
                         {isEditMode ? '更新' : '作成'}
                     </Button>

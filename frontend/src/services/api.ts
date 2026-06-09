@@ -2,6 +2,7 @@ import axios from 'axios';
 import { MockDataImport, NoteCreate, NoteUpdate } from '../types';
 
 // APIクライアントの設定
+// APIの呼び出しは baseURL(/api)相対で記述すること。/api プレフィックスの重複は docs/d1_api_prefix_note.md 参照。
 const baseURL = '/api'; // 相対パスに変更
 const api = axios.create({
   baseURL,

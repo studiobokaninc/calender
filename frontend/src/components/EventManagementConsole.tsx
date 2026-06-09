@@ -108,6 +108,10 @@ const EventManagementConsole: React.FC = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'info' });
 
+  // 削除確認ダイアログ
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingEvent, setDeletingEvent] = useState<BackendEvent | null>(null);
+
   const fetchMetadata = useCallback(async () => {
     try {
       const [projectsRes, usersRes, groupsRes] = await Promise.all([
@@ -398,14 +402,22 @@ const EventManagementConsole: React.FC = () => {
     }
   };
 
-  const handleDeleteEvent = async (ev: BackendEvent) => {
-    if (!window.confirm(`「${ev.title}」を削除してもよろしいですか？`)) return;
+  const handleDeleteEvent = (ev: BackendEvent) => {
+    setDeletingEvent(ev);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingEvent) return;
+    setDeleteConfirmOpen(false);
     try {
-      await api.delete(`/calendar/events/${ev.id}`);
+      await api.delete(`/calendar/events/${deletingEvent.id}`);
       setSnackbar({ open: true, message: 'イベントを削除しました', severity: 'success' });
       await fetchEvents();
     } catch (e) {
       setSnackbar({ open: true, message: '削除に失敗しました', severity: 'error' });
+    } finally {
+      setDeletingEvent(null);
     }
   };
 
@@ -938,6 +950,17 @@ const EventManagementConsole: React.FC = () => {
         groups={groups}
         eventTypesOnly
       />
+
+      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>イベントの削除</DialogTitle>
+        <DialogContent>
+          <Typography>「{deletingEvent?.title}」を削除してもよろしいですか？</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>キャンセル</Button>
+          <Button onClick={handleConfirmDelete} color="error" variant="contained">削除</Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar open={snackbar.open} autoHideDuration={5000} onClose={() => setSnackbar(s => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert onClose={() => setSnackbar(s => ({ ...s, open: false }))} severity={snackbar.severity} sx={{ width: '100%' }}>

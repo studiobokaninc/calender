@@ -514,3 +514,13 @@ export interface ScoreUserRole {
   project_id: number;
   role: string;
 }
+
+export interface Asset {
+  id: number;
+  shot_id: number | null;
+  task_id: number | null;
+  version: string;
+  file_path: string;
+  created_by: number;
+  created_at: string;
+}

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MockDataImport, NoteCreate, NoteUpdate } from '../types';
+import { MockDataImport, NoteCreate, NoteUpdate, Asset } from '../types';
 
 // APIクライアントの設定
 // APIの呼び出しは baseURL(/api)相対で記述すること。/api プレフィックスの重複は docs/d1_api_prefix_note.md 参照。
@@ -397,4 +397,18 @@ export const shotsApi = {
   },
 
 }
+
+// --- Assets API ---
+export const fetchAssets = async (params: {
+  shot_id?: number;
+  task_id?: number;
+  project_id?: number;
+}): Promise<Asset[]> => {
+  const response = await api.get('/api/assets', { params });
+  return response.data;
+};
+
+export const deleteAsset = async (assetId: number): Promise<void> => {
+  await api.delete(`/api/assets/${assetId}`);
+};
 

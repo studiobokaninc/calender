@@ -37,8 +37,8 @@ import {
     SwapHoriz as ChangeIcon,
     Palette as LookIcon,
 } from '@mui/icons-material';
-import api, { mockDataApi, fetchProjects, fetchUsers, shotsApi } from '../services/api';
-import { Project, Task, User, Retake, Trouble, ChangeRequest, LookDistribution, Notification, UserMessage } from '../types';
+import api, { mockDataApi, fetchProjects, fetchUsers, shotsApi, fetchAssets } from '../services/api';
+import { Project, Task, User, Retake, Trouble, ChangeRequest, LookDistribution, Notification, UserMessage, Asset } from '../types';
 import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,6 +51,7 @@ import { TroublesList } from '../components/score/TroublesList';
 import { ChangeRequestsList } from '../components/score/ChangeRequestsList';
 import { LookDistributionsList } from '../components/score/LookDistributionsList';
 import { ProductionHistory } from '../components/score/ProductionHistory';
+import { AssetsList } from '../components/score/AssetsList';
 
 interface TaskInfo {
     id: number;
@@ -125,6 +126,7 @@ const ProductionTrackerPage: React.FC = () => {
         troubles: Trouble[];
         messages: UserMessage[];
     } | null>(null);
+    const [shotAssets, setShotAssets] = useState<Asset[]>([]);
     const [isShotDrawerOpen, setIsShotDrawerOpen] = useState(false);
     const [isShotLoading, setIsShotLoading] = useState(false);
 
@@ -274,21 +276,34 @@ const ProductionTrackerPage: React.FC = () => {
         setSelectedShot(shot);
         setIsShotDrawerOpen(true);
         setIsShotLoading(true);
+        setShotAssets([]);
         try {
-            const [shotRetakes, shotTroubles, shotMessages] = await Promise.all([
+            const [shotRetakes, shotTroubles, shotMessages, assets] = await Promise.all([
                 shotsApi.getRetakes({ shot_id: shot.id }),
                 shotsApi.getTroubles({ shot_id: shot.id }),
-                shotsApi.getUserMessages({ shot_id: shot.id })
+                shotsApi.getUserMessages({ shot_id: shot.id }),
+                fetchAssets({ shot_id: shot.id }),
             ]);
             setShotDetails({
                 retakes: shotRetakes,
                 troubles: shotTroubles,
                 messages: shotMessages
             });
+            setShotAssets(assets);
         } catch (err) {
             console.error('Failed to fetch shot details', err);
         } finally {
             setIsShotLoading(false);
+        }
+    };
+
+    const refreshShotAssets = async () => {
+        if (!selectedShot) return;
+        try {
+            const assets = await fetchAssets({ shot_id: selectedShot.id });
+            setShotAssets(assets);
+        } catch (err) {
+            console.error('Failed to refresh assets', err);
         }
     };
 
@@ -505,6 +520,18 @@ const ProductionTrackerPage: React.FC = () => {
                                             <RefreshIcon color="primary" /> ショット内メッセージ ({shotDetails?.messages.length || 0})
                                         </Typography>
                                         <ProductionHistory notifications={[]} messages={shotDetails?.messages || []} />
+                                    </Box>
+
+                                    <Box>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            アセット ({shotAssets.length})
+                                        </Typography>
+                                        <AssetsList
+                                            assets={shotAssets}
+                                            compact={true}
+                                            onDeleted={refreshShotAssets}
+                                            users={users}
+                                        />
                                     </Box>
                                 </>
                             )}

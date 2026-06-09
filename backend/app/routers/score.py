@@ -255,6 +255,25 @@ def create_shot_comment(
     db.refresh(db_msg)
     return db_msg
 
+@router.get("/assets", response_model=List[schemas.AssetResponse])
+def list_assets(
+    shot_id: Optional[int] = Query(None),
+    task_id: Optional[int] = Query(None),
+    project_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    q = db.query(models.Asset)
+    if shot_id is not None:
+        q = q.filter(models.Asset.shot_id == shot_id)
+    if task_id is not None:
+        q = q.filter(models.Asset.task_id == task_id)
+    if project_id is not None:
+        shot_ids = [row.id for row in db.query(models.Shot.id).filter(models.Shot.project_id == project_id).all()]
+        task_ids = [row.id for row in db.query(models.Task.id).filter(models.Task.project_id == project_id).all()]
+        q = q.filter(or_(models.Asset.shot_id.in_(shot_ids), models.Asset.task_id.in_(task_ids)))
+    return q.all()
+
 @router.post("/assets", response_model=schemas.AssetResponse, status_code=status.HTTP_201_CREATED)
 def upload_asset(
     file: UploadFile = File(...),

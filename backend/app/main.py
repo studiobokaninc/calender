@@ -95,6 +95,12 @@ static_dir = BASE_DIR / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
+# /uploads/avatars を直接マウント (StaticFiles = 無認証, img タグで取得可)
+# DBに /uploads/avatars/xxx 形式で保存されたエントリも含め全て配信できるようにする
+avatar_upload_dir = static_dir / "uploads" / "avatars"
+avatar_upload_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads/avatars", StaticFiles(directory=str(avatar_upload_dir)), name="avatars")
+
 @app.on_event("startup")
 async def startup_event():
     try:

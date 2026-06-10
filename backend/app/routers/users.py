@@ -197,8 +197,8 @@ async def upload_user_avatar(
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    
-    return {"avatar_url": f"/api/users/{user_id}/avatar"}
+
+    return {"avatar_url": relative_path}
 
 
 # --- User Profile Expansion APIs (§5-bis) ---

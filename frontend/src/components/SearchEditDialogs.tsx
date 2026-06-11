@@ -416,6 +416,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
                 <MenuItem value="todo">未着手</MenuItem>
                 <MenuItem value="in-progress">進行中</MenuItem>
                 <MenuItem value="review">レビュー中</MenuItem>
+                <MenuItem value="approved">承認済</MenuItem>
                 <MenuItem value="completed">完了</MenuItem>
                 <MenuItem value="delayed">遅延</MenuItem>
                 <MenuItem value="retake">リテイク</MenuItem>

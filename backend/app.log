@@ -16980,3 +16980,88 @@ Traceback (most recent call last):
            ^^^^^^^^^^^^
 AssertionError: Data should not be empty
 2026-06-02 13:19:03,003 - app.routers.holidays - ERROR - Failed to calculate holidays for year 2026: No module named 'holidays'
+2026-06-10 16:05:42,182 - app.routers.metrics - ERROR - Error counting shots for metrics: (sqlite3.OperationalError) no such column: shots.cut
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT shots.id AS shots_id, shots.project_id AS shots_project_id, shots.seq_code AS shots_seq_code, shots.shot_code AS shots_shot_code, shots.display_order AS shots_display_order, shots.status AS shots_status, shots.thumbnail_url AS shots_thumbnail_url, shots.description AS shots_description, shots.created_at AS shots_created_at, shots.updated_at AS shots_updated_at, shots.cut AS shots_cut, shots.sl_no AS shots_sl_no, shots.frame_in AS shots_frame_in, shots.frame_out AS shots_frame_out, shots.duration AS shots_duration, shots.second AS shots_second, shots.frame_rem AS shots_frame_rem, shots.action AS shots_action, shots.dialogue AS shots_dialogue, shots.bg AS shots_bg, shots.ch AS shots_ch, shots.prop AS shots_prop, shots.task_lay AS shots_task_lay, shots.task_anim AS shots_task_anim, shots.task_fx AS shots_task_fx, shots.task_lighting AS shots_task_lighting, shots.task_comp AS shots_task_comp, shots.note AS shots_note, shots.is_deleted AS shots_is_deleted, shots.deleted_at AS shots_deleted_at 
+FROM shots JOIN projects ON projects.id = shots.project_id 
+WHERE projects.display_status = ?) AS anon_1]
+[parameters: ('online',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-10 16:05:42,800 - app.routers.metrics - ERROR - Error counting shots for metrics: (sqlite3.OperationalError) no such column: shots.cut
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT shots.id AS shots_id, shots.project_id AS shots_project_id, shots.seq_code AS shots_seq_code, shots.shot_code AS shots_shot_code, shots.display_order AS shots_display_order, shots.status AS shots_status, shots.thumbnail_url AS shots_thumbnail_url, shots.description AS shots_description, shots.created_at AS shots_created_at, shots.updated_at AS shots_updated_at, shots.cut AS shots_cut, shots.sl_no AS shots_sl_no, shots.frame_in AS shots_frame_in, shots.frame_out AS shots_frame_out, shots.duration AS shots_duration, shots.second AS shots_second, shots.frame_rem AS shots_frame_rem, shots.action AS shots_action, shots.dialogue AS shots_dialogue, shots.bg AS shots_bg, shots.ch AS shots_ch, shots.prop AS shots_prop, shots.task_lay AS shots_task_lay, shots.task_anim AS shots_task_anim, shots.task_fx AS shots_task_fx, shots.task_lighting AS shots_task_lighting, shots.task_comp AS shots_task_comp, shots.note AS shots_note, shots.is_deleted AS shots_is_deleted, shots.deleted_at AS shots_deleted_at 
+FROM shots JOIN projects ON projects.id = shots.project_id 
+WHERE projects.display_status = ?) AS anon_1]
+[parameters: ('online',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-10 16:05:51,127 - app.routers.metrics - ERROR - Error counting shots for metrics: (sqlite3.OperationalError) no such column: shots.cut
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT shots.id AS shots_id, shots.project_id AS shots_project_id, shots.seq_code AS shots_seq_code, shots.shot_code AS shots_shot_code, shots.display_order AS shots_display_order, shots.status AS shots_status, shots.thumbnail_url AS shots_thumbnail_url, shots.description AS shots_description, shots.created_at AS shots_created_at, shots.updated_at AS shots_updated_at, shots.cut AS shots_cut, shots.sl_no AS shots_sl_no, shots.frame_in AS shots_frame_in, shots.frame_out AS shots_frame_out, shots.duration AS shots_duration, shots.second AS shots_second, shots.frame_rem AS shots_frame_rem, shots.action AS shots_action, shots.dialogue AS shots_dialogue, shots.bg AS shots_bg, shots.ch AS shots_ch, shots.prop AS shots_prop, shots.task_lay AS shots_task_lay, shots.task_anim AS shots_task_anim, shots.task_fx AS shots_task_fx, shots.task_lighting AS shots_task_lighting, shots.task_comp AS shots_task_comp, shots.note AS shots_note, shots.is_deleted AS shots_is_deleted, shots.deleted_at AS shots_deleted_at 
+FROM shots JOIN projects ON projects.id = shots.project_id 
+WHERE projects.display_status = ?) AS anon_1]
+[parameters: ('online',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-10 16:05:51,459 - app.routers.metrics - ERROR - Error counting shots for metrics: (sqlite3.OperationalError) no such column: shots.cut
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT shots.id AS shots_id, shots.project_id AS shots_project_id, shots.seq_code AS shots_seq_code, shots.shot_code AS shots_shot_code, shots.display_order AS shots_display_order, shots.status AS shots_status, shots.thumbnail_url AS shots_thumbnail_url, shots.description AS shots_description, shots.created_at AS shots_created_at, shots.updated_at AS shots_updated_at, shots.cut AS shots_cut, shots.sl_no AS shots_sl_no, shots.frame_in AS shots_frame_in, shots.frame_out AS shots_frame_out, shots.duration AS shots_duration, shots.second AS shots_second, shots.frame_rem AS shots_frame_rem, shots.action AS shots_action, shots.dialogue AS shots_dialogue, shots.bg AS shots_bg, shots.ch AS shots_ch, shots.prop AS shots_prop, shots.task_lay AS shots_task_lay, shots.task_anim AS shots_task_anim, shots.task_fx AS shots_task_fx, shots.task_lighting AS shots_task_lighting, shots.task_comp AS shots_task_comp, shots.note AS shots_note, shots.is_deleted AS shots_is_deleted, shots.deleted_at AS shots_deleted_at 
+FROM shots JOIN projects ON projects.id = shots.project_id 
+WHERE projects.display_status = ?) AS anon_1]
+[parameters: ('online',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-11 13:03:51,620 - app.routers.metrics - ERROR - Error counting shots for metrics: (sqlite3.OperationalError) no such column: shots.cut
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT shots.id AS shots_id, shots.project_id AS shots_project_id, shots.seq_code AS shots_seq_code, shots.shot_code AS shots_shot_code, shots.display_order AS shots_display_order, shots.status AS shots_status, shots.thumbnail_url AS shots_thumbnail_url, shots.description AS shots_description, shots.created_at AS shots_created_at, shots.updated_at AS shots_updated_at, shots.cut AS shots_cut, shots.sl_no AS shots_sl_no, shots.frame_in AS shots_frame_in, shots.frame_out AS shots_frame_out, shots.duration AS shots_duration, shots.second AS shots_second, shots.frame_rem AS shots_frame_rem, shots.action AS shots_action, shots.dialogue AS shots_dialogue, shots.bg AS shots_bg, shots.ch AS shots_ch, shots.prop AS shots_prop, shots.task_lay AS shots_task_lay, shots.task_anim AS shots_task_anim, shots.task_fx AS shots_task_fx, shots.task_lighting AS shots_task_lighting, shots.task_comp AS shots_task_comp, shots.note AS shots_note, shots.is_deleted AS shots_is_deleted, shots.deleted_at AS shots_deleted_at 
+FROM shots JOIN projects ON projects.id = shots.project_id 
+WHERE projects.display_status = ?) AS anon_1]
+[parameters: ('online',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-11 13:03:51,975 - app.routers.metrics - ERROR - Error counting shots for metrics: (sqlite3.OperationalError) no such column: shots.cut
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT shots.id AS shots_id, shots.project_id AS shots_project_id, shots.seq_code AS shots_seq_code, shots.shot_code AS shots_shot_code, shots.display_order AS shots_display_order, shots.status AS shots_status, shots.thumbnail_url AS shots_thumbnail_url, shots.description AS shots_description, shots.created_at AS shots_created_at, shots.updated_at AS shots_updated_at, shots.cut AS shots_cut, shots.sl_no AS shots_sl_no, shots.frame_in AS shots_frame_in, shots.frame_out AS shots_frame_out, shots.duration AS shots_duration, shots.second AS shots_second, shots.frame_rem AS shots_frame_rem, shots.action AS shots_action, shots.dialogue AS shots_dialogue, shots.bg AS shots_bg, shots.ch AS shots_ch, shots.prop AS shots_prop, shots.task_lay AS shots_task_lay, shots.task_anim AS shots_task_anim, shots.task_fx AS shots_task_fx, shots.task_lighting AS shots_task_lighting, shots.task_comp AS shots_task_comp, shots.note AS shots_note, shots.is_deleted AS shots_is_deleted, shots.deleted_at AS shots_deleted_at 
+FROM shots JOIN projects ON projects.id = shots.project_id 
+WHERE projects.display_status = ?) AS anon_1]
+[parameters: ('online',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-11 13:35:34,299 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-11 13:35:34,446 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-11 13:35:34,696 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-06-11 13:35:34,697 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-06-11 13:35:34,698 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-06-11 13:35:34,698 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-06-11 13:35:34,699 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-11 13:35:34,704 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-06-11 13:35:34,705 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-06-11 13:35:34,706 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-06-11 13:35:34,706 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-06-11 13:35:34,707 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-06-11 13:35:53,051 - app.routers.metrics - ERROR - Error counting shots for metrics: (sqlite3.OperationalError) no such column: shots.cut
+[SQL: SELECT count(*) AS count_1 
+FROM (SELECT shots.id AS shots_id, shots.project_id AS shots_project_id, shots.seq_code AS shots_seq_code, shots.shot_code AS shots_shot_code, shots.display_order AS shots_display_order, shots.status AS shots_status, shots.thumbnail_url AS shots_thumbnail_url, shots.description AS shots_description, shots.created_at AS shots_created_at, shots.updated_at AS shots_updated_at, shots.cut AS shots_cut, shots.sl_no AS shots_sl_no, shots.frame_in AS shots_frame_in, shots.frame_out AS shots_frame_out, shots.duration AS shots_duration, shots.second AS shots_second, shots.frame_rem AS shots_frame_rem, shots.action AS shots_action, shots.dialogue AS shots_dialogue, shots.bg AS shots_bg, shots.ch AS shots_ch, shots.prop AS shots_prop, shots.task_lay AS shots_task_lay, shots.task_anim AS shots_task_anim, shots.task_fx AS shots_task_fx, shots.task_lighting AS shots_task_lighting, shots.task_comp AS shots_task_comp, shots.note AS shots_note, shots.is_deleted AS shots_is_deleted, shots.deleted_at AS shots_deleted_at 
+FROM shots JOIN projects ON projects.id = shots.project_id 
+WHERE projects.display_status = ?) AS anon_1]
+[parameters: ('online',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-11 13:35:57,446 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-11 13:35:57,557 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-11 13:35:57,711 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-06-11 13:35:57,712 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-06-11 13:35:57,713 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-06-11 13:35:57,713 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-06-11 13:35:57,714 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-11 13:35:57,721 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-06-11 13:35:57,722 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-06-11 13:35:57,722 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-06-11 13:35:57,723 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-06-11 13:35:57,724 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-06-11 13:38:54,471 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-11 13:38:54,550 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-11 13:38:54,670 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-06-11 13:38:54,671 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-06-11 13:38:54,672 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-06-11 13:38:54,672 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-06-11 13:38:54,673 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-11 13:38:54,677 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-06-11 13:38:54,678 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-06-11 13:38:54,678 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-06-11 13:38:54,679 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-06-11 13:38:54,679 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message

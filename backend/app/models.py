@@ -24,6 +24,7 @@ class TaskStatus(str, enum.Enum):
     TODO = "todo"
     IN_PROGRESS = "in-progress"
     REVIEW = "review"
+    APPROVED = "approved"
     COMPLETED = "completed"
     DELAYED = "delayed"
     RETAKE = "retake"
@@ -136,6 +137,29 @@ class Shot(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+    # --- shotlist import columns (cmd_481) ---
+    cut = Column(String(20), nullable=True, index=True)
+    sl_no = Column(Integer, nullable=True)
+    frame_in = Column(Integer, nullable=True)
+    frame_out = Column(Integer, nullable=True)
+    duration = Column(Integer, nullable=True)
+    second = Column(Integer, nullable=True)
+    frame_rem = Column(Integer, nullable=True)
+    action = Column(Text, nullable=True)
+    dialogue = Column(Text, nullable=True)
+    bg = Column(Text, nullable=True)
+    ch = Column(Text, nullable=True)
+    prop = Column(Text, nullable=True)
+    task_lay = Column(Text, nullable=True)
+    task_anim = Column(Text, nullable=True)
+    task_fx = Column(Text, nullable=True)
+    task_lighting = Column(Text, nullable=True)
+    task_comp = Column(Text, nullable=True)
+    note = Column(Text, nullable=True)
+    is_deleted = Column(Boolean(create_constraint=False), nullable=False,
+                        default=False, server_default='0')
+    deleted_at = Column(DateTime, nullable=True)
 
     project: Mapped["Project"] = relationship("Project")
 
@@ -620,3 +644,18 @@ class ReferenceMaterial(Base):
     file_path: Mapped[str] = mapped_column(Text)  # file path or url
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+
+
+class ProjectColumnSetting(Base):
+    __tablename__ = "project_column_settings"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    field_key = Column(String(30), nullable=False)
+    is_enabled = Column(Boolean(create_constraint=False), nullable=False,
+                        default=True, server_default='1')
+    display_order = Column(Integer, nullable=True)
+    display_label = Column(String(50), nullable=True)
+    __table_args__ = (
+        UniqueConstraint("project_id", "field_key", name="uix_pcs_project_field"),
+    )

@@ -21,13 +21,17 @@ SHOT_CODE_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,49}$")
 @router.get("", response_model=List[schemas.ShotResponse])
 def get_shots(
     project_id: Optional[int] = Query(None, description="プロジェクトIDでフィルタ"),
+    include_deleted: bool = Query(False, description="論理削除済みshotを含める"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
     query = db.query(models.Shot)
     if project_id is not None:
         query = query.filter(models.Shot.project_id == project_id)
-    return query.all()
+    if not include_deleted:
+        query = query.filter(models.Shot.is_deleted == False)  # noqa: E712
+    shots = query.order_by(models.Shot.display_order).all()
+    return shots
 
 @router.get("/{id}", response_model=schemas.ShotResponse)
 def get_shot(
@@ -108,8 +112,7 @@ def update_shot(
 
     if shot_in.display_order is not None:
         shot.display_order = shot_in.display_order
-    if shot_in.status is not None:
-        shot.status = shot_in.status
+    # status は自動導出値のため手動更新を無視
     if shot_in.thumbnail_url is not None:
         shot.thumbnail_url = shot_in.thumbnail_url
     if shot_in.description is not None:

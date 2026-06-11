@@ -13,6 +13,39 @@ from .base import _parse_datetime, _parse_int_safe, _safe_json_load
 
 logger = logging.getLogger(__name__)
 
+_DONE_STATUSES = {"completed"}
+_APPROVED_OR_DONE = {"approved", "completed"}
+
+
+def _recalc_shot_status(db: Session, shot_id: int) -> None:
+    """Shot に紐づく全Taskのstatusを集計し、shot.statusを自動更新する。
+    commit は呼び出し側(update_task)のトランザクションに委譲。
+    """
+    shot = db.query(models.Shot).filter(models.Shot.id == shot_id).first()
+    if shot is None:
+        return
+
+    tasks = db.query(models.Task).filter(models.Task.shot_id == shot_id).all()
+    statuses = [
+        (t.status.value if hasattr(t.status, "value") else t.status)
+        for t in tasks if t.status is not None
+    ]
+
+    if not statuses:
+        new_status = "planning"
+    elif all(s in _DONE_STATUSES for s in statuses):
+        new_status = "completed"
+    elif all(s in _APPROVED_OR_DONE for s in statuses):
+        new_status = "approved"
+    elif any(s != "todo" for s in statuses):
+        new_status = "in_progress"
+    else:
+        new_status = "planning"
+
+    if shot.status != new_status:
+        shot.status = new_status
+
+
 def get_task(db: Session, task_id: int) -> Optional[models.Task]:
     """ID でタスクを取得"""
     return db.query(models.Task).filter(models.Task.id == task_id).first()
@@ -25,7 +58,7 @@ def _task_row_to_dict(row: Any, history_map: Dict[int, List[Dict[str, Any]]]) ->
     if hasattr(row, 'status') and row.status:
         status_map = {
             'TODO': 'todo', 'IN_PROGRESS': 'in-progress', 'REVIEW': 'review',
-            'COMPLETED': 'completed', 'DELAYED': 'delayed', 'RETAKE': 'retake'
+            'APPROVED': 'approved', 'COMPLETED': 'completed', 'DELAYED': 'delayed', 'RETAKE': 'retake'
         }
         raw_status = row.status
         task_status = status_map.get(raw_status, raw_status.lower().replace('_', '-'))
@@ -332,8 +365,10 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         changed_by=db_task.assigned_to
     )
     db.add(status_history_entry)
+    if db_task.shot_id is not None:
+        _recalc_shot_status(db, db_task.shot_id)
     db.commit()
-    
+
     return db_task
 
 def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) -> models.Task:
@@ -397,6 +432,9 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             changed_by=db_task.assigned_to
         ))
 
+    if db_task.shot_id is not None:
+        _recalc_shot_status(db, db_task.shot_id)
+
     db.commit()
     db.refresh(db_task)
     return db_task
@@ -414,10 +452,14 @@ def bulk_update_tasks(db: Session, task_ids: List[int], updates: dict) -> int:
 
 def delete_task(db: Session, db_task: models.Task) -> None:
     """タスクを削除"""
+    shot_id = db_task.shot_id  # 削除前に退避
     # 履歴も削除
     db.execute(text("DELETE FROM task_status_history WHERE task_id = :tid"), {"tid": db_task.id})
     db.delete(db_task)
     db.commit()
+    if shot_id is not None:
+        _recalc_shot_status(db, shot_id)
+        db.commit()
 
 def get_task_by_name(db: Session, name: str) -> Optional[models.Task]:
     """タスク名からタスクを取得"""

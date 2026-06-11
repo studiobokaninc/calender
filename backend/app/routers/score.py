@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, and_, func, text
 from typing import List, Optional
 from .. import models, schemas, database, security
-from ..crud.tasks import _resolve_dm_thread_id
+from ..crud.tasks import _resolve_dm_thread_id, _recalc_shot_status
 from ..database import get_db
 from ..security import get_current_user
 from datetime import datetime
@@ -73,14 +73,45 @@ def approve_shot(
     db_shot = db.query(models.Shot).filter(models.Shot.id == id).first()
     if not db_shot:
         raise HTTPException(status_code=404, detail="Shot not found")
-    
-    db_shot.status = "completed"
+
+    tasks = db.query(models.Task).filter(models.Task.shot_id == id).all()
+    for t in tasks:
+        if t.status == models.TaskStatus.COMPLETED:
+            continue  # 完了済みタスクはAPPROVEDへ降格させない
+        t.status = models.TaskStatus.APPROVED
+        db.add(models.TaskStatusHistory(
+            task_id=t.id,
+            status=t.status,
+            changed_at=now_jst_naive(),
+            changed_by=actor_id
+        ))
+    _recalc_shot_status(db, id)
     db_shot.updated_at = now_jst_naive()
-    
-    # 承認履歴などを記録する仕組みが必要な場合はここに追加
     db.commit()
     db.refresh(db_shot)
     return db_shot
+
+
+@router.post("/tasks/{task_id}/approve")
+def approve_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db_task.status = models.TaskStatus.APPROVED
+    db.add(models.TaskStatusHistory(
+        task_id=db_task.id,
+        status=db_task.status,
+        changed_at=now_jst_naive(),
+        changed_by=actor_id
+    ))
+    if db_task.shot_id:
+        _recalc_shot_status(db, db_task.shot_id)
+    db.commit()
+    return {"message": "approved", "task_id": task_id}
 
 @router.post("/look_distributions", response_model=schemas.LookDistribution, status_code=status.HTTP_201_CREATED)
 def create_look_distribution(

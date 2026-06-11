@@ -40,6 +40,7 @@ const getTaskStatusColor = (status?: string | null) => {
         case 'todo': return '#2196F3';           // 青: 未着手
         case 'in-progress': return '#FF9800';    // オレンジ: 進行中
         case 'review': return '#9C27B0';        // 紫: 確認中
+        case 'approved': return '#4CAF50';      // 緑: 承認済
         case 'completed': return '#9E9E9E';     // グレー: 完了
         case 'delayed': return '#F44336';       // 赤: 遅延
         case 'retake': return '#E91E63';        // マゼンタ: リテイク
@@ -52,6 +53,7 @@ const getTaskStatusLabel = (status?: string | null) => {
         case 'todo': return '未着手';
         case 'in-progress': return '進行中';
         case 'review': return '確認中';
+        case 'approved': return '承認済';
         case 'completed': return '完了';
         case 'delayed': return '遅延';
         case 'retake': return 'リテイク';
@@ -348,7 +350,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                             <TaskAltIcon fontSize="small" color="primary" /> ステータス
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {['todo', 'in-progress', 'review', 'completed', 'delayed', 'retake'].map((s) => (
+                            {['todo', 'in-progress', 'review', 'approved', 'completed', 'delayed', 'retake'].map((s) => (
                                 <Chip
                                     key={s}
                                     label={getTaskStatusLabel(s)}

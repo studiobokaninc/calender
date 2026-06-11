@@ -622,6 +622,51 @@ const CalendarPage: React.FC = () => {
             );
         }
 
+        const isPhase = eventInfo.event.extendedProps.isPhase;
+        if (!isListView && !isTimeGrid && !isPhase) {
+            const projectIdRaw = eventInfo.event.extendedProps?.projectId;
+            const projectName = projectIdRaw != null
+                ? projectsMap.get(String(projectIdRaw))?.name
+                : undefined;
+            const shotID = eventInfo.event.extendedProps?.shotID;
+            return (
+                <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                    <span style={{
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        lineHeight: '1.2'
+                    }} title={projectName || typeLabel}>
+                        {projectName || typeLabel}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', minWidth: 0 }}>
+                        {shotID && (
+                            <span style={{
+                                fontSize: '0.75rem',
+                                opacity: 0.7,
+                                flexShrink: 0,
+                                whiteSpace: 'nowrap'
+                            }}>
+                                {shotID}
+                            </span>
+                        )}
+                        <span className="calendar-event-title" style={{
+                            fontSize: '0.75rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 1,
+                            minWidth: 0
+                        }} title={title}>
+                            {title}
+                        </span>
+                    </div>
+                </div>
+            );
+        }
+
         const normalizedType = type?.toLowerCase();
         if (type === 'project' || (isMultiDay && normalizedType !== 'milestone' && normalizedType !== 'deadline')) {
             return (
@@ -776,7 +821,7 @@ const CalendarPage: React.FC = () => {
                 <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }} title={title}>{title}</span>
             </div>
         );
-    }, []);
+    }, [projectsMap]);
 
     const renderEventModal = () => {
         if (isPhaseEditModalOpen) {

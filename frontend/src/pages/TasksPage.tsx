@@ -285,7 +285,7 @@ const TasksPage: React.FC = () => {
             setBulkEditOpen(false);
             setSelectionModel([] as number[]);
             setBulkEditForm({ status: '', assigned_to: '', due_date: '', priority: '' });
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             fetchData();
         } catch (err: any) {
             setSnackbar({ open: true, message: err?.response?.data?.detail || '一括更新に失敗しました', severity: 'error' });
@@ -364,7 +364,7 @@ const TasksPage: React.FC = () => {
         const handleCsvImportCompleted = async () => {
             // CSVインポート完了時はグローバルデータの更新を待つ
             if (refreshGlobalData) {
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
             }
         };
 
@@ -382,21 +382,21 @@ const TasksPage: React.FC = () => {
         const handleProjectDeleted = async () => {
             // プロジェクト削除時はタスクも削除されるため、グローバルデータの更新を待つ
             if (refreshGlobalData) {
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
             }
         };
 
         const handleProjectUpdated = async () => {
             // プロジェクト更新時はタスクデータも再取得
             if (refreshGlobalData) {
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
             }
         };
 
         const handleProjectStatusUpdated = async () => {
             // プロジェクト表示ステータス更新時はタスクデータも再取得
             if (refreshGlobalData) {
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
             }
         };
 
@@ -607,7 +607,7 @@ const TasksPage: React.FC = () => {
 
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
             }
 
             setSnackbar({
@@ -736,7 +736,7 @@ const TasksPage: React.FC = () => {
 
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
             }
         } catch (err: any) {
 
@@ -1934,7 +1934,7 @@ const TasksPage: React.FC = () => {
                 onClose={() => setEditTaskId(null)}
                 onSaved={() => {
                     setEditTaskId(null);
-                    if (refreshGlobalData) refreshGlobalData();
+                    if (refreshGlobalData) refreshGlobalData({ force: true });
                     setSnackbar({ open: true, message: 'タスクが更新されました', severity: 'success' });
                 }}
             />

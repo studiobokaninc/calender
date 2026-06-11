@@ -64,6 +64,7 @@ export const getTaskColor = (
         case 'todo': return '#2196F3';
         case 'in-progress': return '#FF9800';
         case 'review': return '#9C27B0';
+        case 'approved': return '#4CAF50';
         case 'delayed': return '#F44336';
         case 'completed': return '#9E9E9E';
         case 'retake': return '#E91E63';

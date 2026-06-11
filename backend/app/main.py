@@ -45,7 +45,9 @@ from .routers import (
     external as external_router,
     shots as shots_router,
     score as score_router,
-    holidays as holidays_router
+    holidays as holidays_router,
+    project_column_settings as project_column_settings_router,
+    shot_import as shot_import_router
 )
 print("Main: ルーター読み込み完了")
 
@@ -156,6 +158,8 @@ app.include_router(admin_router.router)
 app.include_router(external_router.router)
 app.include_router(shots_router.router)
 app.include_router(score_router.router)
+app.include_router(project_column_settings_router.router)
+app.include_router(shot_import_router.router)
 
 # §1 プレフィックス不整合対策: URL Prefix 二重化 (エイリアス・ルーティング)
 app.include_router(projects_router.router, prefix="/api")

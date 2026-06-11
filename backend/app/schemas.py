@@ -325,6 +325,26 @@ class ShotBase(BaseModel):
     status: Optional[str] = "planning"
     thumbnail_url: Optional[str] = None
     description: Optional[str] = None
+    cut: Optional[str] = None
+    sl_no: Optional[int] = None
+    frame_in: Optional[int] = None
+    frame_out: Optional[int] = None
+    duration: Optional[int] = None
+    second: Optional[int] = None
+    frame_rem: Optional[int] = None
+    action: Optional[str] = None
+    dialogue: Optional[str] = None
+    bg: Optional[str] = None
+    ch: Optional[str] = None
+    prop: Optional[str] = None
+    task_lay: Optional[str] = None
+    task_anim: Optional[str] = None
+    task_fx: Optional[str] = None
+    task_lighting: Optional[str] = None
+    task_comp: Optional[str] = None
+    note: Optional[str] = None
+    is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
 
 class ShotCreate(ShotBase):
     pass
@@ -350,6 +370,23 @@ class ShotProgressResponse(BaseModel):
     total_tasks: int
     completed_tasks: int
     average_progress: float
+
+# --- ProjectColumnSetting Schemas ---
+
+class ProjectColumnSettingBase(BaseModel):
+    field_key: str
+    is_enabled: bool = True
+    display_order: Optional[int] = None
+    display_label: Optional[str] = None
+
+class ProjectColumnSettingCreate(ProjectColumnSettingBase):
+    project_id: int
+
+class ProjectColumnSettingResponse(ProjectColumnSettingBase):
+    id: int
+    project_id: int
+    class Config:
+        from_attributes = True
 
 # --- Note Schemas ---
 
@@ -940,4 +977,29 @@ class DMMessageResponse(BaseModel):
 class DMReadResponse(BaseModel):
     thread_id: int
     read_count: int
+
+
+# --- Shot Import Schemas ---
+
+class ShotImportWarning(BaseModel):
+    row: int
+    field: str
+    level: str = "warning"
+    message: str
+
+class ShotImportPreview(BaseModel):
+    total: int
+    to_insert: int
+    to_update: int
+    to_delete_candidates: int
+    unchanged: int
+    warnings: List[ShotImportWarning]
+    preview_rows: List[dict]
+
+class ShotImportResult(BaseModel):
+    inserted: int
+    updated: int
+    deleted_candidates: int
+    skipped: int
+    warnings: List[ShotImportWarning]
 

@@ -163,7 +163,12 @@ body[data-theme='dark'] .fc-day-sun a.fc-daygrid-day-number {
   color: rgba(255, 255, 255, 0.7) !important; /* 土日は少しトーンを落とす */
 }
 
-/* FullCalendar Popover (More link) */
+/* FullCalendar Popover (More link) — scrollable body */
+.fc-more-popover .fc-popover-body {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
 body[data-theme='dark'] .fc-popover {
   background-color: #1e1e1e !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;

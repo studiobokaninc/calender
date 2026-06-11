@@ -411,4 +411,18 @@ export const fetchAssets = async (params: {
 export const deleteAsset = async (assetId: number): Promise<void> => {
   await api.delete(`/api/assets/${assetId}`);
 };
+
+export const importShotlist = async (
+  projectId: number,
+  file: File,
+  dryRun: boolean = true
+): Promise<any> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post(
+    `/api/projects/${projectId}/shots/import?dry_run=${dryRun}`,
+    formData
+  );
+  return response.data;
+};
 

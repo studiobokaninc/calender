@@ -632,7 +632,7 @@ const CalendarPage: React.FC = () => {
             return (
                 <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '1px' }}>
                     <span style={{
-                        fontSize: '0.8rem',
+                        fontSize: '0.9rem',
                         fontWeight: 700,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -644,7 +644,7 @@ const CalendarPage: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', minWidth: 0 }}>
                         {shotID && (
                             <span style={{
-                                fontSize: '0.75rem',
+                                fontSize: '0.85rem',
                                 opacity: 0.7,
                                 flexShrink: 0,
                                 whiteSpace: 'nowrap'
@@ -653,7 +653,7 @@ const CalendarPage: React.FC = () => {
                             </span>
                         )}
                         <span className="calendar-event-title" style={{
-                            fontSize: '0.75rem',
+                            fontSize: '0.9rem',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',

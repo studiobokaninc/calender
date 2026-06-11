@@ -37,6 +37,7 @@ import {
 import api, { exportMockData, importMockData } from '../services/api'; // API関数をインポート
 import { MockDataImport } from '../types'; // 型をインポート
 import CsvParser from './CsvParser';
+import ShotlistImporter from './ShotlistImporter';
 import { transformImportData } from '../utils/transformImportData';
 
 const MockDataConsole: React.FC = () => {
@@ -321,6 +322,9 @@ const MockDataConsole: React.FC = () => {
 
       {/* CSVパーサー */}
       <CsvParser />
+
+      {/* ショットリスト Excel インポート */}
+      <ShotlistImporter />
 
       {/* バックアップセクション */}
       <Paper sx={{ p: 3 }}>

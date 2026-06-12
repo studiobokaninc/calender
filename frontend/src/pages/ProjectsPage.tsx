@@ -92,7 +92,7 @@ const ProjectsPage: React.FC = () => {
         color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'),
         display_status: 'online'
     });
-    const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({
+    const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'warning' }>({
         open: false,
         message: '',
         severity: 'success'
@@ -115,7 +115,7 @@ const ProjectsPage: React.FC = () => {
                 api.get<Task[]>('/tasks'),
                 api.get<Record<string, {shots: number, retakes: number, troubles: number}>>('/api/projects/summary').catch(() => ({ data: {} })),
                 fetchUsers().catch(() => [] as User[]),
-                api.get<{id: number; user_id: number; project_id: number; role: string}[]>('/score_user_roles').catch(() => ({ data: [] })),
+                api.get<{id: number; user_id: number; project_id: number; role: string}[]>('/api/score_user_roles').catch(() => ({ data: [] })),
             ]);
 
             const projectsData = projectsResponse.data;
@@ -353,24 +353,35 @@ const ProjectsPage: React.FC = () => {
 
             const saveRoles = async (projectId: number) => {
                 const roles = await fetchProjectRoles(projectId);
-                // 既存の director / pm ロールを一旦削除する
-                for (const r of roles) {
-                    if (r.role === 'director' || r.role === 'pm') {
-                        await deleteScoreUserRole(r.id);
+                const toDelete = roles.filter((r: any) => r.role === 'director' || r.role === 'pm');
+                const toKeep = roles.filter((r: any) => r.role !== 'director' && r.role !== 'pm');
+                for (const r of toDelete) {
+                    await deleteScoreUserRole(r.id);
+                }
+                // upsert: 他ロールが残存している場合はPATCH、なければPOST
+                const upsertRole = async (userId: number, role: string) => {
+                    const existing = toKeep.find((r: any) => r.user_id === userId);
+                    if (existing) {
+                        await updateScoreUserRole(existing.id, { role });
+                    } else {
+                        await createScoreUserRole({ user_id: userId, project_id: projectId, role });
                     }
-                }
-                // 新しいロールを登録する
-                if (directorId) {
-                    await createScoreUserRole({ user_id: directorId as number, project_id: projectId, role: 'director' });
-                }
-                if (pmId) {
-                    await createScoreUserRole({ user_id: pmId as number, project_id: projectId, role: 'pm' });
-                }
+                };
+                if (directorId) await upsertRole(directorId as number, 'director');
+                if (pmId) await upsertRole(pmId as number, 'pm');
             };
 
             if (isEditMode && currentProject.id !== null) {
                 await api.put(`/projects/${currentProject.id}`, projectData);
-                await saveRoles(currentProject.id as number);
+                try {
+                    await saveRoles(currentProject.id as number);
+                } catch (roleErr) {
+                    console.error('Director/PMロール保存失敗:', roleErr);
+                    setSnackbar({ open: true, message: 'プロジェクトは更新されましたがDirector/PMロールの設定に失敗しました', severity: 'warning' });
+                    setOpenDialog(false);
+                    await fetchData();
+                    return;
+                }
                 setSnackbar({
                     open: true,
                     message: 'プロジェクトが更新されました',
@@ -379,7 +390,15 @@ const ProjectsPage: React.FC = () => {
             } else {
                 const response = await api.post('/projects', projectData);
                 const newProjectId = response.data.id;
-                await saveRoles(newProjectId);
+                try {
+                    await saveRoles(newProjectId);
+                } catch (roleErr) {
+                    console.error('Director/PMロール保存失敗:', roleErr);
+                    setSnackbar({ open: true, message: 'プロジェクトは作成されましたがDirector/PMロールの設定に失敗しました', severity: 'warning' });
+                    setOpenDialog(false);
+                    await fetchData();
+                    return;
+                }
                 setSnackbar({
                     open: true,
                     message: 'プロジェクトが作成されました',

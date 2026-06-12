@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from typing import List, Optional, Any, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -15,6 +16,15 @@ logger = logging.getLogger(__name__)
 
 _DONE_STATUSES = {"completed"}
 _APPROVED_OR_DONE = {"approved", "completed"}
+
+# shots.py SHOT_CODE_REGEX と同一パターン（routers→crud の逆依存回避のため inline 定義）。
+# API(POST/PATCH /api/shots)はこの正規表現で shot_code を検証するため、
+# get_or_create_shot もこれに不適合な値は作成しない（APIで管理不能なshotを生まない）。
+_SHOT_CODE_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,49}$")
+
+# REGEX には適合するが shot として扱わない予約語（殿御裁可 2026-06-12 / cmd_493）。
+# "master" は通知 body 等に誤マッチするため明示的に除外する。大小文字を無視して比較。
+_SKIP_SHOT_CODES = {"master"}
 
 
 def _recalc_shot_status(db: Session, shot_id: int) -> None:
@@ -44,6 +54,48 @@ def _recalc_shot_status(db: Session, shot_id: int) -> None:
 
     if shot.status != new_status:
         shot.status = new_status
+
+
+def get_or_create_shot(db: Session, project_id: int, seq_code: str, shot_code: str) -> Optional[int]:
+    """(project_id, seq_code, shot_code) で shots を get-or-create し shot.id を返す。
+
+    seqID→seq_code / shotID→shot_code をそのまま採用（seq_code='sq01' のハードコードはしない）。
+    入力が空文字/None/空白のみなら None を返す（スキップ）。ゴミ値はそのまま取り込む（殿方針 2026-06-12）。
+    一意性は DB UNIQUE(project_id, seq_code, shot_code) に委ね、存在チェックで重複作成を防ぐ。
+    commit は呼び出し側に委譲（flush で id を確定）。
+    """
+    seq_code = (seq_code or "").strip()
+    shot_code = (shot_code or "").strip()
+    if not seq_code or not shot_code or not project_id:
+        return None
+
+    # shot_code が API の SHOT_CODE_REGEX に不適合なら作成しない（スキップ→tasks.shot_id は NULL のまま）。
+    # seq_code はフィルタ対象外（FQ 等の値を許容）。
+    if not _SHOT_CODE_REGEX.match(shot_code):
+        return None
+
+    # 予約語（master 等）は REGEX 適合でも shot 化しない（通知誤マッチ回避）。
+    if shot_code.lower() in _SKIP_SHOT_CODES:
+        return None
+
+    shot = db.query(models.Shot).filter(
+        models.Shot.project_id == project_id,
+        models.Shot.seq_code == seq_code,
+        models.Shot.shot_code == shot_code,
+    ).first()
+    if shot:
+        return shot.id
+
+    shot = models.Shot(
+        project_id=project_id,
+        seq_code=seq_code,
+        shot_code=shot_code,
+        display_order=0,
+        status="planning",
+    )
+    db.add(shot)
+    db.flush()
+    return shot.id
 
 
 def get_task(db: Session, task_id: int) -> Optional[models.Task]:

@@ -1,4 +1,8 @@
+import os
+import re
+import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -10,6 +14,19 @@ from ..database import get_db
 from ..utils.import_parser import parse_xlsx
 
 router = APIRouter(prefix="/api/projects", tags=["shot_import"])
+
+_STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "static"
+_THUMBNAIL_DIR = _STATIC_DIR / "uploads" / "thumbnails"
+_THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _save_thumbnail(image_bytes: bytes, shot_code: str, fmt: str = "png") -> str:
+    """Save image bytes to thumbnails dir and return the static URL path."""
+    safe_code = re.sub(r'[^A-Za-z0-9_\-]', '_', shot_code) if shot_code else "shot"
+    filename = f"{safe_code}_{uuid.uuid4().hex[:8]}.{fmt}"
+    dest = _THUMBNAIL_DIR / filename
+    dest.write_bytes(image_bytes)
+    return f"/static/uploads/thumbnails/{filename}"
 
 
 @router.post(
@@ -109,6 +126,9 @@ async def import_shots(
 
     inserted_count = 0
     for parsed in deduped_insert:
+        thumb_url = parsed.thumbnail_url
+        if thumb_url is None and parsed.image_data is not None:
+            thumb_url = _save_thumbnail(parsed.image_data, parsed.cut or "shot", parsed.image_format or "png")
         shot = models.Shot(
             project_id=project_id,
             seq_code="SL_",
@@ -131,7 +151,7 @@ async def import_shots(
             task_lighting=parsed.task_lighting,
             task_comp=parsed.task_comp,
             note=parsed.note,
-            thumbnail_url=parsed.thumbnail_url,
+            thumbnail_url=thumb_url,
             is_deleted=False,
             display_order=parsed.sl_no or 0,
             created_at=now,
@@ -142,6 +162,9 @@ async def import_shots(
 
     updated_count = 0
     for existing_shot, parsed in to_update:
+        thumb_url = parsed.thumbnail_url
+        if thumb_url is None and parsed.image_data is not None:
+            thumb_url = _save_thumbnail(parsed.image_data, parsed.cut or "shot", parsed.image_format or "png")
         existing_shot.sl_no = parsed.sl_no
         existing_shot.frame_in = parsed.frame_in
         existing_shot.frame_out = parsed.frame_out
@@ -159,7 +182,7 @@ async def import_shots(
         existing_shot.task_lighting = parsed.task_lighting
         existing_shot.task_comp = parsed.task_comp
         existing_shot.note = parsed.note
-        existing_shot.thumbnail_url = parsed.thumbnail_url
+        existing_shot.thumbnail_url = thumb_url
         existing_shot.updated_at = now
         updated_count += 1
 

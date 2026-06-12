@@ -250,6 +250,13 @@ async def import_csv_data(
             task_obj.type = t_type
             task_obj.seqID = seq_id
             task_obj.shotID = shot_id
+            # get-or-create shot FK (seqID→seq_code / shotID→shot_code)。空のみスキップ。
+            _seq = (seq_id or '').strip()
+            _shot = (shot_id or '').strip()
+            if _seq and _shot:
+                resolved_shot_id = crud.get_or_create_shot(db, project.id, _seq, _shot)
+                if resolved_shot_id:
+                    task_obj.shot_id = resolved_shot_id
             task_obj.status = models.TaskStatus.TODO
             task_obj.priority = models.TaskPriority.MEDIUM
             task_obj.updated_at = now_jst_naive()

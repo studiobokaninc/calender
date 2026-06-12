@@ -11,7 +11,8 @@ from .projects import (
     delete_project_with_cascade, complete_tasks_for_project
 )
 from .tasks import (
-    get_task, get_task_by_name, get_tasks, create_task, update_task, bulk_update_tasks, delete_task
+    get_task, get_task_by_name, get_tasks, create_task, update_task, bulk_update_tasks, delete_task,
+    get_or_create_shot
 )
 from .events import (
     get_event, get_events, create_event, update_event, delete_event

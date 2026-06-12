@@ -245,16 +245,16 @@ export const fetchGroups = async () => (await api.get('/api/groups')).data;
 export const fetchEvents = async () => (await api.get('/calendar/events')).data;
 
 export const fetchProjectRoles = async (projectId: number) =>
-  (await api.get('/score_user_roles', { params: { project_id: projectId } })).data;
+  (await api.get('/api/score_user_roles', { params: { project_id: projectId } })).data;
 
 export const createScoreUserRole = async (payload: { user_id: number; project_id: number; role: string }) =>
-  (await api.post('/score_user_roles', payload)).data;
+  (await api.post('/api/score_user_roles', payload)).data;
 
 export const updateScoreUserRole = async (id: number, payload: { role: string }) =>
-  (await api.patch(`/score_user_roles/${id}`, payload)).data;
+  (await api.patch(`/api/score_user_roles/${id}`, payload)).data;
 
 export const deleteScoreUserRole = async (id: number) =>
-  (await api.delete(`/score_user_roles/${id}`)).data;
+  (await api.delete(`/api/score_user_roles/${id}`)).data;
 
 export default api;
 

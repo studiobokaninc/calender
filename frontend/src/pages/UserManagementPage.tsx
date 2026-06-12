@@ -152,7 +152,7 @@ const UserManagementPage: React.FC = () => {
           console.warn("グループデータの取得に失敗しましたが、続行します");
           return { data: [] };
         }),
-        api.get('/score_user_roles').catch(() => ({ data: [] }))
+        api.get('/api/score_user_roles').catch(() => ({ data: [] }))
       ]);
       setUsers(usersResponse.data);
       setTasks(tasksResponse.data);

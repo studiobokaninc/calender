@@ -1,4 +1,6 @@
 import re
+import zipfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -75,6 +77,112 @@ def is_skip_row(row_data: dict) -> bool:
     return all_none
 
 
+def extract_embedded_images(ws, file_bytes: bytes = None) -> dict:
+    """Returns {data_row_index: (image_bytes, format)} for embedded images.
+
+    data_row_index is 0-based counting from the first data row (after header).
+    Tries openpyxl first; falls back to drawing1.xml direct parse for TwoCellAnchor
+    files where openpyxl returns no images.
+    """
+    image_map = {}
+
+    # --- openpyxl path ---
+    openpyxl_images = list(getattr(ws, '_images', []))
+    if openpyxl_images:
+        for img in openpyxl_images:
+            try:
+                anchor = img.anchor
+                if not hasattr(anchor, '_from'):
+                    continue
+                data_row = anchor._from.row - 1  # _from.row is 0-indexed; row 0 = header
+                if data_row < 0:
+                    continue
+                image_bytes = img._data()
+                if image_bytes:
+                    fmt = (getattr(img, 'format', None) or 'png').lower()
+                    image_map[data_row] = (image_bytes, fmt)
+            except Exception:
+                pass
+        return image_map
+
+    # --- fallback: drawing1.xml direct parse ---
+    if file_bytes is None:
+        return image_map
+
+    _NS_XDR = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing'
+    _NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    _NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    _NS_PKG = 'http://schemas.openxmlformats.org/package/2006/relationships'
+
+    try:
+        from io import BytesIO
+        with zipfile.ZipFile(BytesIO(file_bytes), 'r') as zf:
+            names = set(zf.namelist())
+
+            # Find first drawing XML
+            drawing_xml = None
+            for n in sorted(names):
+                if re.match(r'xl/drawings/drawing\d+\.xml$', n):
+                    drawing_xml = n
+                    break
+            if not drawing_xml:
+                return image_map
+
+            rels_path = drawing_xml.replace('drawings/', 'drawings/_rels/') + '.rels'
+            if rels_path not in names:
+                return image_map
+
+            # Build rId → media path mapping
+            rels_root = ET.fromstring(zf.read(rels_path))
+            id_to_media = {}
+            for rel in rels_root.findall(f'{{{_NS_PKG}}}Relationship'):
+                rid = rel.get('Id')
+                target = rel.get('Target', '')
+                # target is relative: '../media/image1.JPG' → 'xl/media/image1.JPG'
+                media_path = 'xl/' + re.sub(r'^\.\./', '', target)
+                id_to_media[rid] = media_path
+
+            # Parse anchors
+            tree = ET.fromstring(zf.read(drawing_xml))
+            for anchor_tag in (
+                f'{{{_NS_XDR}}}twoCellAnchor',
+                f'{{{_NS_XDR}}}oneCellAnchor',
+                f'{{{_NS_XDR}}}absoluteAnchor',
+            ):
+                for anchor in tree.findall(anchor_tag):
+                    from_elem = anchor.find(f'{{{_NS_XDR}}}from')
+                    if from_elem is None:
+                        continue
+                    row_elem = from_elem.find(f'{{{_NS_XDR}}}row')
+                    if row_elem is None:
+                        continue
+                    # drawing XML row is 0-indexed; header=row0, first data=row1
+                    anchor_row = int(row_elem.text)
+                    data_row = anchor_row - 1
+                    if data_row < 0:
+                        continue
+
+                    blip = anchor.find(f'.//{{{_NS_A}}}blip')
+                    if blip is None:
+                        continue
+                    rid = blip.get(f'{{{_NS_R}}}embed')
+                    if rid not in id_to_media:
+                        continue
+                    media_path = id_to_media[rid]
+                    if media_path not in names:
+                        continue
+
+                    img_bytes = zf.read(media_path)
+                    ext = media_path.rsplit('.', 1)[-1].lower() if '.' in media_path else 'jpg'
+                    if ext == 'jpeg':
+                        ext = 'jpg'
+                    image_map[data_row] = (img_bytes, ext)
+    except Exception:
+        pass
+
+    return image_map
+
+
 @dataclass
 class ParsedShot:
     cut: Optional[str]
@@ -97,6 +205,8 @@ class ParsedShot:
     note: Optional[str]
     thumbnail_url: Optional[str]
     row_number: int
+    image_data: Optional[bytes] = None
+    image_format: Optional[str] = None
 
 
 @dataclass
@@ -120,6 +230,8 @@ def parse_xlsx(file_bytes: bytes, sheet_name: Optional[str] = None) -> ParseResu
 
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
     ws = wb[sheet_name] if sheet_name else wb.active
+
+    embedded_images = extract_embedded_images(ws, file_bytes=file_bytes)
 
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
@@ -221,6 +333,11 @@ def parse_xlsx(file_bytes: bytes, sheet_name: Optional[str] = None) -> ParseResu
             })
             thumbnail_url = None
 
+        # Use embedded image only when no URL column value is present (URL column takes priority)
+        img_data, img_fmt = None, None
+        if thumbnail_url is None and row_idx in embedded_images:
+            img_data, img_fmt = embedded_images[row_idx]
+
         shot = ParsedShot(
             cut=cut,
             sl_no=sl_no,
@@ -242,6 +359,8 @@ def parse_xlsx(file_bytes: bytes, sheet_name: Optional[str] = None) -> ParseResu
             note=_cell_to_str(raw.get("note")),
             thumbnail_url=thumbnail_url,
             row_number=excel_row,
+            image_data=img_data,
+            image_format=img_fmt,
         )
         shots.append(shot)
 

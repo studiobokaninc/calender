@@ -99,26 +99,40 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
         color: form.color,
         display_status: form.display_status,
       });
-      // 既存の director / pm ロールを一旦削除する
-      for (const r of existingRoles) {
-        if (r.role === 'director' || r.role === 'pm') {
-          await deleteScoreUserRole(r.id);
+    } catch {
+      setError('プロジェクトの保存に失敗しました');
+      setSaving(false);
+      return;
+    }
+    // ロール保存: 失敗しても保存自体は成功
+    try {
+      const toDelete = existingRoles.filter(r => r.role === 'director' || r.role === 'pm');
+      const toKeep = existingRoles.filter(r => r.role !== 'director' && r.role !== 'pm');
+      for (const r of toDelete) {
+        await deleteScoreUserRole(r.id);
+      }
+      // upsert: 他ロールが残存している場合はPATCH、なければPOST
+      const upsertRole = async (userId: number, role: string) => {
+        const existing = toKeep.find(r => r.user_id === userId);
+        if (existing) {
+          await updateScoreUserRole(existing.id, { role });
+        } else {
+          await createScoreUserRole({ user_id: userId, project_id: projectId!, role });
         }
-      }
-      // 新しいロールを登録する
-      if (directorId) {
-        await createScoreUserRole({ user_id: directorId as number, project_id: projectId, role: 'director' });
-      }
-      if (pmId) {
-        await createScoreUserRole({ user_id: pmId as number, project_id: projectId, role: 'pm' });
-      }
+      };
+      if (directorId) await upsertRole(directorId as number, 'director');
+      if (pmId) await upsertRole(pmId as number, 'pm');
+    } catch (roleErr) {
+      console.error('Director/PMロール保存失敗:', roleErr);
+      setError('プロジェクトは保存されましたがDirector/PMロールの設定に失敗しました');
+      setSaving(false);
       onSaved();
       onClose();
-    } catch {
-      setError('保存に失敗しました');
-    } finally {
-      setSaving(false);
+      return;
     }
+    onSaved();
+    onClose();
+    setSaving(false);
   };
 
   if (!open) return null;

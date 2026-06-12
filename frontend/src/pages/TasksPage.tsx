@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { TaskLabel } from '@/components/common/TaskLabel';
 import { useNavigate } from 'react-router-dom';
 import {
     Box, Typography, CircularProgress, Paper, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
@@ -814,14 +815,7 @@ const TasksPage: React.FC = () => {
         {
             field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, hideable: false, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
-                const text = row.name || '-';
-                return (
-                    <Tooltip title={text} followCursor>
-                        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {text}
-                        </Box>
-                    </Tooltip>
-                );
+                return <TaskLabel shotId={row.shotID} title={row.name || '-'} />;
             }
         },
         {

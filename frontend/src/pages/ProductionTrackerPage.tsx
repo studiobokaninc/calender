@@ -52,6 +52,7 @@ import { ChangeRequestsList } from '../components/score/ChangeRequestsList';
 import { LookDistributionsList } from '../components/score/LookDistributionsList';
 import { ProductionHistory } from '../components/score/ProductionHistory';
 import { AssetsList } from '../components/score/AssetsList';
+import { TaskLabel } from '@/components/common/TaskLabel';
 
 interface TaskInfo {
     id: number;
@@ -482,7 +483,7 @@ const ProductionTrackerPage: React.FC = () => {
                                             {tasks.map(t => (
                                                 <Paper key={t.id} variant="outlined" sx={{ p: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 1.5 }}>
                                                     <Box>
-                                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{t.name}</Typography>
+                                                        <TaskLabel shotId={selectedShot.shotID} title={t.name} fontSize="0.875rem" />
                                                         <Typography variant="caption" color="text.secondary">{t.assignee || '未アサイン'}</Typography>
                                                     </Box>
                                                     <Typography variant="caption" sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: getStatusColor(t.status), color: 'white', fontWeight: 800 }}>

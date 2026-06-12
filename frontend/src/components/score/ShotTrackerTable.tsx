@@ -24,6 +24,7 @@ import {
     ReportProblem as TroubleIcon,
 } from '@mui/icons-material';
 import { User } from '../../types';
+import { formatTaskLabel } from '../../utils/taskLabel';
 
 interface TaskInfo {
     id: number;
@@ -95,7 +96,7 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
         }
     };
 
-    const renderTaskCell = (tasks: TaskInfo[] | undefined) => {
+    const renderTaskCell = (tasks: TaskInfo[] | undefined, shotID?: string) => {
         if (!tasks || tasks.length === 0) return <Box sx={{ opacity: 0.1, py: 1 }}>-</Box>;
 
         return (
@@ -105,7 +106,7 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
                     const label = getStatusLabel(task.status);
 
                     return (
-                        <Tooltip key={task.id} title={`${task.name}${task.assignee ? ` (担当: ${task.assignee})` : ''}${task.due_date ? ` [〆: ${task.due_date}]` : ''}`} arrow>
+                        <Tooltip key={task.id} title={`${formatTaskLabel(shotID, task.name)}${task.assignee ? ` (担当: ${task.assignee})` : ''}${task.due_date ? ` [〆: ${task.due_date}]` : ''}`} arrow>
                             <Box
                                 sx={{
                                     p: 1,
@@ -139,7 +140,7 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
                                     )}
                                 </Box>
                                 <Typography variant="caption" noWrap sx={{ fontWeight: 700, fontSize: '0.85rem' }}>
-                                    {task.name}
+                                    {formatTaskLabel(shotID, task.name)}
                                 </Typography>
                             </Box>
                         </Tooltip>
@@ -300,7 +301,7 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
                                         </TableCell>
                                         {(data?.types ?? []).map((type) => (
                                             <TableCell key={type} sx={{ verticalAlign: 'top', minWidth: 200, borderRight: `1px solid ${alpha(theme.palette.divider, 0.05)}` }}>
-                                                {renderTaskCell(shot.tasks[type])}
+                                                {renderTaskCell(shot.tasks[type], shot.shotID)}
                                             </TableCell>
                                         ))}
                                     </TableRow>

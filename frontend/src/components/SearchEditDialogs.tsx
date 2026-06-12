@@ -9,6 +9,7 @@ import { usePageState } from '../contexts/PageStateContext';
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
 import EventAddModal from './EventAddModal';
 import { Group } from '../types';
+import { TaskLabel } from '@/components/common/TaskLabel';
 
 // --- ProjectEditDialog ---
 interface ProjectEditDialogProps {
@@ -81,6 +82,10 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
       setError('DirectorとPMは必須です');
       return;
     }
+    if (directorId === pmId) {
+      setError('DirectorとPMには異なるユーザーを指定してください');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -94,22 +99,19 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
         color: form.color,
         display_status: form.display_status,
       });
-      const saveRole = async (roleType: 'director' | 'pm', userId: number | '') => {
-        if (userId === '') return;
-        const existing = existingRoles.find((r: any) => r.role === roleType);
-        if (existing) {
-          if (existing.user_id !== userId) {
-            await deleteScoreUserRole(existing.id);
-            await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
-          } else {
-            await updateScoreUserRole(existing.id, { role: roleType });
-          }
-        } else {
-          await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
+      // 既存の director / pm ロールを一旦削除する
+      for (const r of existingRoles) {
+        if (r.role === 'director' || r.role === 'pm') {
+          await deleteScoreUserRole(r.id);
         }
-      };
-      await saveRole('director', directorId);
-      await saveRole('pm', pmId);
+      }
+      // 新しいロールを登録する
+      if (directorId) {
+        await createScoreUserRole({ user_id: directorId as number, project_id: projectId, role: 'director' });
+      }
+      if (pmId) {
+        await createScoreUserRole({ user_id: pmId as number, project_id: projectId, role: 'pm' });
+      }
       onSaved();
       onClose();
     } catch {
@@ -506,7 +508,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
               >
                 {dependOptions.map((task) => (
                   <MenuItem key={task.id} value={`task-${task.id}`}>
-                    {task.name}
+                    <TaskLabel shotId={task.shotID} title={task.name} />
                   </MenuItem>
                 ))}
                 <Divider />

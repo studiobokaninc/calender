@@ -174,6 +174,7 @@ app.include_router(knowledge_router.router, prefix="/api", tags=["Knowledge Base
 app.include_router(meeting_tasks_router.router, prefix="/api", tags=["Meeting Tasks"])
 app.include_router(tts_router.router, prefix="/api/tts", tags=["TTS"])
 app.include_router(ask_router.router, prefix="/api", tags=["Ask"])
+app.include_router(score_router.router, prefix="/api")
 
 
 # §2 新規 API ルーターのインクルード

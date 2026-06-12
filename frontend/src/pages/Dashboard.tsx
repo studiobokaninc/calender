@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { TaskLabel } from '@/components/common/TaskLabel'
 import { useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -585,7 +586,7 @@ const Dashboard: React.FC = () => {
                     <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : (item.isPhase ? 'secondary.light' : 'warning.light'), color: item.type === 'event' ? 'info.dark' : (item.isPhase ? 'secondary.dark' : 'warning.dark') }}>{item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}</Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} noWrap>{item.name}</Typography>
+                        <TaskLabel shotId={item.shotID} title={item.name} />
                         <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
@@ -593,9 +594,9 @@ const Dashboard: React.FC = () => {
                           <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                           <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{item.projectName}</Typography>
                         </Box>
-                        {(item.seqID || item.shotID) && (
+                        {item.seqID && (
                           <Typography variant="caption" sx={{ ml: 1, px: 0.75, py: 0.1, borderRadius: 0.5, bgcolor: 'action.selected', color: 'text.secondary', fontWeight: 600, fontSize: '0.7rem' }}>
-                            {item.seqID}{item.shotID ? ` / ${item.shotID}` : ''}
+                            {item.seqID}
                           </Typography>
                         )}
                       </Box>
@@ -625,15 +626,12 @@ const Dashboard: React.FC = () => {
                     <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'warning.light', color: 'warning.dark' }}><TaskIcon sx={{ fontSize: 18 }} /></Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} noWrap>{t.name}</Typography>
+                        <TaskLabel shotId={t.shotLabel} title={t.name} />
                         <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'warning.main', color: 'white', fontWeight: 600, fontSize: '0.75rem' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                         <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{t.projectName || ''}</Typography>
-                        {t.shotLabel && (
-                          <Typography component="span" variant="caption" sx={{ px: 0.6, py: 0.1, borderRadius: 0.5, bgcolor: 'info.light', color: 'info.dark', fontSize: '0.75rem', fontWeight: 500 }}>{t.shotLabel}</Typography>
-                        )}
                         {t.assigneeName && (
                           <Typography variant="caption" sx={{ ml: 0.5, px: 0.75, py: 0.1, borderRadius: 0.5, bgcolor: 'action.selected', color: 'text.secondary', fontSize: '0.75rem' }}>担当: {t.assigneeName}</Typography>
                         )}
@@ -664,15 +662,12 @@ const Dashboard: React.FC = () => {
                     <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'error.light', color: 'error.dark' }}><TaskIcon sx={{ fontSize: 18 }} /></Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.primary', lineHeight: 1.35 }} noWrap>{t.name}</Typography>
+                        <TaskLabel shotId={t.shotLabel} title={t.name} />
                         <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.main', color: 'white', fontWeight: 600, fontSize: '0.75rem' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                         <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{t.projectName || ''}</Typography>
-                        {t.shotLabel && (
-                          <Typography component="span" variant="caption" sx={{ px: 0.6, py: 0.1, borderRadius: 0.5, bgcolor: 'info.light', color: 'info.dark', fontSize: '0.75rem', fontWeight: 500 }}>{t.shotLabel}</Typography>
-                        )}
                         {t.assigneeName && (
                           <Typography variant="caption" sx={{ ml: 0.5, px: 0.75, py: 0.1, borderRadius: 0.5, bgcolor: 'action.selected', color: 'text.secondary', fontSize: '0.75rem' }}>担当: {t.assigneeName}</Typography>
                         )}

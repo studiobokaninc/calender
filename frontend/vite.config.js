@@ -73,3 +73,4 @@ export default defineConfig({
         },
     },
 });
+// Restart trigger: 1

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { formatTaskLabel } from '../utils/taskLabel'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import {
@@ -1167,13 +1168,13 @@ const ChatPage: React.FC = () => {
                   {myCategorizedTasks.delayed.map(t => (
                     <Tooltip key={t.id} enterTouchDelay={0} leaveTouchDelay={4000} title={
                       <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t.name}</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{formatTaskLabel(t.shotID, t.name)}</Typography>
                         <Typography variant="caption" display="block">プロジェクト: {globalData?.projects?.find((p: any) => p.id === t.project_id)?.name || '未設定'}</Typography>
                         <Typography variant="caption" display="block">期日: {t.due_date ? format(parseISO(t.due_date), 'yyyy/MM/dd') : '未設定'}</Typography>
                       </Box>
                     } arrow>
                       <Chip
-                        label={t.name}
+                        label={formatTaskLabel(t.shotID, t.name)}
                         size="small"
                         color="error"
                         variant={(t as any).isPhase ? "outlined" : "filled"}
@@ -1193,13 +1194,13 @@ const ChatPage: React.FC = () => {
                   {myCategorizedTasks.today.map(t => (
                     <Tooltip key={t.id} enterTouchDelay={0} leaveTouchDelay={4000} title={
                       <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t.name}</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{formatTaskLabel(t.shotID, t.name)}</Typography>
                         <Typography variant="caption" display="block">プロジェクト: {globalData?.projects?.find((p: any) => p.id === t.project_id)?.name || '未設定'}</Typography>
                         <Typography variant="caption" display="block">期日: {t.due_date ? format(parseISO(t.due_date), 'yyyy/MM/dd') : '未設定'}</Typography>
                       </Box>
                     } arrow>
                       <Chip
-                        label={t.name}
+                        label={formatTaskLabel(t.shotID, t.name)}
                         size="small"
                         color="primary"
                         variant={(t as any).isPhase ? "outlined" : "filled"}
@@ -1219,13 +1220,13 @@ const ChatPage: React.FC = () => {
                   {myCategorizedTasks.dueSoon.map(t => (
                     <Tooltip key={t.id} enterTouchDelay={0} leaveTouchDelay={4000} title={
                       <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t.name}</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{formatTaskLabel(t.shotID, t.name)}</Typography>
                         <Typography variant="caption" display="block">プロジェクト: {globalData?.projects?.find((p: any) => p.id === t.project_id)?.name || '未設定'}</Typography>
                         <Typography variant="caption" display="block">期日: {t.due_date ? format(parseISO(t.due_date), 'yyyy/MM/dd') : '未設定'}</Typography>
                       </Box>
                     } arrow>
                       <Chip
-                        label={t.name}
+                        label={formatTaskLabel(t.shotID, t.name)}
                         size="small"
                         color="warning"
                         variant={(t as any).isPhase ? "outlined" : "filled"}
@@ -1245,13 +1246,13 @@ const ChatPage: React.FC = () => {
                   {myCategorizedTasks.other.map(t => (
                     <Tooltip key={t.id} enterTouchDelay={0} leaveTouchDelay={4000} title={
                       <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{t.name}</Typography>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>{formatTaskLabel(t.shotID, t.name)}</Typography>
                         <Typography variant="caption" display="block">プロジェクト: {globalData?.projects?.find((p: any) => p.id === t.project_id)?.name || '未設定'}</Typography>
                         <Typography variant="caption" display="block">期日: {t.due_date ? format(parseISO(t.due_date), 'yyyy/MM/dd') : '未設定'}</Typography>
                       </Box>
                     } arrow>
                       <Chip
-                        label={t.name}
+                        label={formatTaskLabel(t.shotID, t.name)}
                         size="small"
                         variant="outlined"
                         sx={{ justifyContent: 'flex-start', maxWidth: 200, borderStyle: (t as any).isPhase ? 'dashed' : 'solid' }}

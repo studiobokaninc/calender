@@ -49,6 +49,8 @@ interface ProjectWithProgress extends Project {
     shots?: number;
     retakes?: number;
     troubles?: number;
+    directorName?: string;
+    pmName?: string;
 }
 
 interface ProjectFormData {
@@ -108,15 +110,30 @@ const ProjectsPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [projectsResponse, tasksResponse, summaryResponse] = await Promise.all([
+            const [projectsResponse, tasksResponse, summaryResponse, usersData, rolesData] = await Promise.all([
                 api.get<Project[]>('/projects'),
                 api.get<Task[]>('/tasks'),
-                api.get<Record<string, {shots: number, retakes: number, troubles: number}>>('/api/projects/summary').catch(() => ({ data: {} }))
+                api.get<Record<string, {shots: number, retakes: number, troubles: number}>>('/api/projects/summary').catch(() => ({ data: {} })),
+                fetchUsers().catch(() => [] as User[]),
+                api.get<{id: number; user_id: number; project_id: number; role: string}[]>('/score_user_roles').catch(() => ({ data: [] })),
             ]);
 
             const projectsData = projectsResponse.data;
             const tasksData = tasksResponse.data;
             const scoreSummary = (summaryResponse as any).data || {};
+            const allUsers: User[] = usersData as User[];
+            const allRoles: {id: number; user_id: number; project_id: number; role: string}[] = (rolesData as any).data || [];
+
+            const userNameById = allUsers.reduce((acc, u) => {
+                acc[u.id] = u.full_name || u.username || (u as any).name || u.email || String(u.id);
+                return acc;
+            }, {} as Record<number, string>);
+
+            const rolesByProject = allRoles.reduce((acc, r) => {
+                if (!acc[r.project_id]) acc[r.project_id] = {};
+                acc[r.project_id][r.role] = r.user_id;
+                return acc;
+            }, {} as Record<number, Record<string, number>>);
 
             const tasksByProjectId = tasksData.reduce((acc, task) => {
                 const projId = task.project_id;
@@ -132,7 +149,8 @@ const ProjectsPage: React.FC = () => {
             const projectsWithProgress = projectsData.map((project): ProjectWithProgress => {
                 const relatedTasks = tasksByProjectId[String(project.id)] || [];
                 const summary = scoreSummary[String(project.id)] || { shots: 0, retakes: 0, troubles: 0 };
-                
+                const projRoles = rolesByProject[project.id as number] || {};
+
                 const totalCost = relatedTasks.reduce((sum, task) => sum + (Number(task.cost) || 0), 0);
                 const completedCost = relatedTasks.reduce((sum, task) => {
                     const cost = Number(task.cost) || 0;
@@ -160,6 +178,8 @@ const ProjectsPage: React.FC = () => {
                     shots: summary.shots,
                     retakes: summary.retakes,
                     troubles: summary.troubles,
+                    directorName: projRoles['director'] ? userNameById[projRoles['director']] : undefined,
+                    pmName: projRoles['pm'] ? userNameById[projRoles['pm']] : undefined,
                 };
             });
 
@@ -315,6 +335,10 @@ const ProjectsPage: React.FC = () => {
             setSnackbar({ open: true, message: 'DirectorとPMは必須です', severity: 'error' });
             return;
         }
+        if (directorId === pmId) {
+            setSnackbar({ open: true, message: 'DirectorとPMには異なるユーザーを指定してください', severity: 'error' });
+            return;
+        }
         try {
             const projectData = {
                 name: currentProject.name,
@@ -329,22 +353,19 @@ const ProjectsPage: React.FC = () => {
 
             const saveRoles = async (projectId: number) => {
                 const roles = await fetchProjectRoles(projectId);
-                const handleRole = async (roleType: 'director' | 'pm', userId: number | '') => {
-                    if (userId === '') return;
-                    const existing = roles.find((r: any) => r.role === roleType);
-                    if (existing) {
-                        if (existing.user_id !== userId) {
-                            await deleteScoreUserRole(existing.id);
-                            await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
-                        } else {
-                            await updateScoreUserRole(existing.id, { role: roleType });
-                        }
-                    } else {
-                        await createScoreUserRole({ user_id: userId as number, project_id: projectId, role: roleType });
+                // 既存の director / pm ロールを一旦削除する
+                for (const r of roles) {
+                    if (r.role === 'director' || r.role === 'pm') {
+                        await deleteScoreUserRole(r.id);
                     }
-                };
-                await handleRole('director', directorId);
-                await handleRole('pm', pmId);
+                }
+                // 新しいロールを登録する
+                if (directorId) {
+                    await createScoreUserRole({ user_id: directorId as number, project_id: projectId, role: 'director' });
+                }
+                if (pmId) {
+                    await createScoreUserRole({ user_id: pmId as number, project_id: projectId, role: 'pm' });
+                }
             };
 
             if (isEditMode && currentProject.id !== null) {
@@ -483,6 +504,26 @@ const ProjectsPage: React.FC = () => {
                     }}
                 />
             )
+        },
+        {
+            field: 'directorName',
+            headerName: 'Director',
+            width: 130,
+            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => (
+                <Typography variant="body2" sx={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {params.row.directorName || '-'}
+                </Typography>
+            ),
+        },
+        {
+            field: 'pmName',
+            headerName: 'PM',
+            width: 130,
+            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => (
+                <Typography variant="body2" sx={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {params.row.pmName || '-'}
+                </Typography>
+            ),
         },
         {
             field: 'progress', headerName: '進捗率(%)', width: 140, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {

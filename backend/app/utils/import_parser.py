@@ -197,7 +197,7 @@ def parse_xlsx(file_bytes: bytes, sheet_name: Optional[str] = None) -> ParseResu
                 })
             # WARNING 2: duration/in-out 矛盾
             if duration is not None:
-                expected_duration = frame_out - frame_in
+                expected_duration = frame_out - frame_in + 1  # inclusive: out=84,in=1 → 84 frames
                 if duration != expected_duration:
                     warnings.append({
                         "row": excel_row,

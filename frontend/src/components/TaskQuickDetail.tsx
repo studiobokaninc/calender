@@ -21,6 +21,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
 import { useAuth } from '../contexts/AuthContext';
 import { mockDataApi } from '../services/api';
+import { TaskLabel } from '@/components/common/TaskLabel';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -295,7 +296,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                             letterSpacing: '-0.01em',
                             fontSize: '1.4rem'
                         }}>
-                            {task.name}
+                            <TaskLabel shotId={task.shotID} title={task.name} fontSize="1.4rem" />
                         </Typography>
                     )}
 

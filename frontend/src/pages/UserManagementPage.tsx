@@ -27,6 +27,7 @@ import PhaseEditModal from '../components/PhaseEditModal';
 import { SelectChangeEvent } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid } from 'date-fns';
+import { formatTaskLabel } from '../utils/taskLabel';
 
 /** タスクの表示カテゴリ（今日 / 遅延 / 期限間近 / その他）。1タスク1カテゴリで重複表示しない */
 export type TaskDisplayCategory = 'today' | 'delayed' | 'dueSoon' | 'other';
@@ -763,7 +764,7 @@ const UserManagementPage: React.FC = () => {
                                         <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
-                                            label={t.name}
+                                            label={formatTaskLabel(t.shotID, t.name)}
                                             variant={isPhase ? "outlined" : "filled"}
                                             sx={{
                                               bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE'),
@@ -792,7 +793,7 @@ const UserManagementPage: React.FC = () => {
                                         <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
-                                            label={t.name}
+                                            label={formatTaskLabel(t.shotID, t.name)}
                                             variant={isPhase ? "outlined" : "filled"}
                                             sx={{
                                               bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD'),
@@ -821,7 +822,7 @@ const UserManagementPage: React.FC = () => {
                                         <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
-                                            label={t.name}
+                                            label={formatTaskLabel(t.shotID, t.name)}
                                             variant={isPhase ? "outlined" : "filled"}
                                             sx={{
                                               bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0'),
@@ -848,7 +849,7 @@ const UserManagementPage: React.FC = () => {
                                         <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — クリックで編集`} slotProps={taskTooltipSlotProps}>
                                           <Chip
                                             size="small"
-                                            label={t.name}
+                                            label={formatTaskLabel(t.shotID, t.name)}
                                             variant="outlined"
                                             sx={{
                                               maxWidth: 200,
@@ -933,7 +934,7 @@ const UserManagementPage: React.FC = () => {
                                       <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
-                                          label={t.name}
+                                          label={formatTaskLabel(t.shotID, t.name)}
                                           variant={isPhase ? "outlined" : "filled"}
                                           sx={{
                                             bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(198, 40, 40, 0.22)' : '#FFEBEE'),
@@ -961,7 +962,7 @@ const UserManagementPage: React.FC = () => {
                                       <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
-                                          label={t.name}
+                                          label={formatTaskLabel(t.shotID, t.name)}
                                           variant={isPhase ? "outlined" : "filled"}
                                           sx={{
                                             bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(21, 101, 192, 0.22)' : '#E3F2FD'),
@@ -989,7 +990,7 @@ const UserManagementPage: React.FC = () => {
                                       <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'} / 期日: ${t.due_date ? new Date(t.due_date).toLocaleDateString('ja-JP') : '—'} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
-                                          label={t.name}
+                                          label={formatTaskLabel(t.shotID, t.name)}
                                           variant={isPhase ? "outlined" : "filled"}
                                           sx={{
                                             bgcolor: isPhase ? 'transparent' : (isDarkMode ? 'rgba(230, 81, 0, 0.22)' : '#FFF3E0'),
@@ -1017,7 +1018,7 @@ const UserManagementPage: React.FC = () => {
                                       <Tooltip key={t.id} title={`📁 ${info?.projectNames[t.project_id ?? 0] || '—'}${t.due_date ? ` / 期日: ${new Date(t.due_date).toLocaleDateString('ja-JP')}` : ''} — クリックで編集`} slotProps={taskTooltipSlotProps} enterTouchDelay={0} leaveTouchDelay={1500}>
                                         <Chip
                                           size="small"
-                                          label={t.name}
+                                          label={formatTaskLabel(t.shotID, t.name)}
                                           variant="outlined"
                                           sx={{
                                             cursor: 'pointer',

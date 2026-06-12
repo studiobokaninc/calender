@@ -245,7 +245,7 @@ export const fetchGroups = async () => (await api.get('/api/groups')).data;
 export const fetchEvents = async () => (await api.get('/calendar/events')).data;
 
 export const fetchProjectRoles = async (projectId: number) =>
-  (await api.get(`/api/projects/${projectId}/roles`)).data;
+  (await api.get('/score_user_roles', { params: { project_id: projectId } })).data;
 
 export const createScoreUserRole = async (payload: { user_id: number; project_id: number; role: string }) =>
   (await api.post('/score_user_roles', payload)).data;

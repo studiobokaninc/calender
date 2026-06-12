@@ -15,6 +15,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import ja from 'date-fns/locale/ja';
 import { Project, User, Group, CalendarEvent, Task } from '../types';
+import { formatTaskLabel } from '../utils/taskLabel';
 
 import { DateClickArg } from '@fullcalendar/interaction';
 
@@ -1553,7 +1554,7 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                         .filter(t => t.status !== 'completed' && t.status !== 'cancelled')
                         .map(t => (
                           <MenuItem key={t.id} value={String(t.id)}>
-                            {t.name || `Task ${t.id}`}
+                            {formatTaskLabel(t.shotID, t.name || `Task ${t.id}`)}
                           </MenuItem>
                         ))}
                     </Select>

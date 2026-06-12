@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Task, User, Project } from '../types';
+import { formatTaskLabel } from '../utils/taskLabel';
 import {
     Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
     FormControl, InputLabel, Select, MenuItem, Checkbox, ListItemText, OutlinedInput, Tooltip as MuiTooltip, IconButton, useMediaQuery, useTheme, Card, CardContent, Divider, Grid, Chip
@@ -59,7 +60,7 @@ const calculateDelayedTaskData = (
 
         return {
             id: task.id,
-            title: task.name,
+            title: formatTaskLabel(task.shotID, task.name),
             assigneeId: assignee?.id || -1,
             assigneeName: assignee?.full_name || assignee?.username || '不明',
             projectId: project?.id || null,

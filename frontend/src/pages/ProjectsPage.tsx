@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon, FormatListBulleted as ShotListIcon } from '@mui/icons-material';
 import api, { fetchUsers, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
 import { Project, Task, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -651,6 +651,29 @@ const ProjectsPage: React.FC = () => {
                 );
             },
         },
+        {
+            field: 'shotlist',
+            headerName: 'ショットリスト',
+            width: 120,
+            sortable: false,
+            filterable: false,
+            hideable: false,
+            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => (
+                <Tooltip title="ショットリストを表示">
+                    <Button
+                        size="small"
+                        startIcon={<ShotListIcon fontSize="small" />}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/projects/${params.row.id}/shotlist`);
+                        }}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem', px: 1 }}
+                    >
+                        一覧
+                    </Button>
+                </Tooltip>
+            ),
+        },
         ...(isAdmin ? [{
             field: 'actions',
             headerName: '操作',
@@ -936,6 +959,18 @@ const ProjectsPage: React.FC = () => {
                                             {project.end_date ? format(new Date(project.end_date), 'MM/dd') : '-'}
                                         </Typography>
                                     </Box>
+                                </Box>
+                                <Box sx={{ mt: 1.5 }}>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<ShotListIcon fontSize="small" />}
+                                        onClick={() => navigate(`/projects/${project.id}/shotlist`)}
+                                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                                        fullWidth
+                                    >
+                                        ショットリスト
+                                    </Button>
                                 </Box>
                             </CardContent>
                         </Card>

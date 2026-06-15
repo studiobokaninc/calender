@@ -403,19 +403,34 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             <Box sx={{ mt: 1.5 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>この日の予定 ({dailyEvents.length} 件)</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {dailyEvents.map(ev => (
-                  <Paper
-                    key={ev.id}
-                    elevation={1}
-                    sx={{ p: 1.25, cursor: 'pointer', borderLeft: 4, borderColor: getCardColor(ev), '&:hover': { bgcolor: 'action.hover' } }}
-                    onClick={() => onEventSelect(ev)}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {getTypeIcon(ev.extendedProps?.type)}
-                      <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{ev.title}</Typography>
-                    </Box>
-                  </Paper>
-                ))}
+                {dailyEvents.map(ev => {
+                  const type = ev.extendedProps?.type?.toLowerCase();
+                  const isPhase = ev.extendedProps?.isPhase;
+                  const projectId = ev.extendedProps?.projectId;
+                  let displayTitle = ev.title;
+
+                  if (type === 'task' || isPhase || projectId) {
+                    const project = projectId ? projectMap.get(String(projectId)) : null;
+                    const projectName = project?.name || '';
+                    const shotID = ev.extendedProps?.shotID || '';
+                    displayTitle = [projectName, shotID, ev.title].filter(Boolean).join('_');
+                  }
+                  return (
+                    <Paper
+                      key={ev.id}
+                      elevation={1}
+                      sx={{ p: 1.25, cursor: 'pointer', borderLeft: 4, borderColor: getCardColor(ev), '&:hover': { bgcolor: 'action.hover' } }}
+                      onClick={() => onEventSelect(ev)}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {getTypeIcon(ev.extendedProps?.type)}
+                        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={displayTitle}>
+                          {displayTitle}
+                        </Typography>
+                      </Box>
+                    </Paper>
+                  );
+                })}
               </Box>
             </Box>
           ) : selectedDate ? (

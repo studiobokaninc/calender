@@ -17,8 +17,15 @@ import {
   Breadcrumbs,
   Link,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Snackbar,
+  IconButton,
 } from '@mui/material';
-import { OpenInNew as OpenInNewIcon } from '@mui/icons-material';
+import { OpenInNew as OpenInNewIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchAdminTimecards,
@@ -28,12 +35,19 @@ import {
   fetchAdminDeliveries,
   fetchAdminReferenceMaterials,
   fetchAdminDMThreads,
+  fetchAdminScoreUserRoles,
+  fetchAdminTroubles,
+  updateScoreUserRole,
+  patchAdminTroubleResolve,
+  patchAdminTroubleReopen,
+  patchAdminNotificationRead,
 } from '../services/api';
 
 const PAGE_LIMIT = 50;
 
 const cellSx = { fontSize: '0.8rem', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 };
-const headerSx = { fontSize: '0.75rem', fontWeight: 700, bgcolor: 'grey.100' };
+const headerSx = { fontSize: '0.75rem', fontWeight: 700, bgcolor: 'action.selected' };
+const actionCellSx = { fontSize: '0.8rem', whiteSpace: 'nowrap' as const, width: 110 };
 
 function TruncatedCell({ value }: { value: unknown }) {
   const text = value == null ? '—' : String(value);
@@ -72,6 +86,135 @@ function DataTable({ rows, columns }: { rows: Record<string, unknown>[]; columns
   );
 }
 
+// Notification tab: 既読ボタン付き
+function NotificationTable({ rows, onRead }: { rows: Record<string, unknown>[]; onRead: (id: number) => void }) {
+  const COLS = ['id', 'recipient_id', 'sender_id', 'content', 'is_read', 'created_at'];
+  if (!rows || rows.length === 0) {
+    return <Typography sx={{ p: 2, color: 'text.secondary', fontSize: '0.85rem' }}>データなし</Typography>;
+  }
+  return (
+    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 480 }}>
+      <Table size="small" stickyHeader>
+        <TableHead>
+          <TableRow>
+            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{col}</TableCell>)}
+            <TableCell sx={headerSx}>操作</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rows.map((row, i) => (
+            <TableRow key={i} hover>
+              {COLS.map((col) => <TruncatedCell key={col} value={row[col]} />)}
+              <TableCell sx={actionCellSx}>
+                {!row.is_read && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.7rem', py: 0, px: 0.5 }}
+                    onClick={() => onRead(row.id as number)}
+                  >
+                    既読にする
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
+// Trouble tab: 解決/再オープンボタン付き
+function TroubleTable({ rows, onAction }: { rows: Record<string, unknown>[]; onAction: (id: number, action: 'resolve' | 'reopen') => void }) {
+  const COLS = ['id', 'shot_code', 'category', 'description', 'severity', 'status', 'reporter_name', 'created_at'];
+  if (!rows || rows.length === 0) {
+    return <Typography sx={{ p: 2, color: 'text.secondary', fontSize: '0.85rem' }}>データなし</Typography>;
+  }
+  return (
+    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 480 }}>
+      <Table size="small" stickyHeader>
+        <TableHead>
+          <TableRow>
+            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{col}</TableCell>)}
+            <TableCell sx={headerSx}>操作</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rows.map((row, i) => {
+            const isResolved = String(row.status ?? '') === 'resolved';
+            return (
+              <TableRow key={i} hover>
+                {COLS.map((col) => <TruncatedCell key={col} value={row[col]} />)}
+                <TableCell sx={actionCellSx}>
+                  {isResolved ? (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="warning"
+                      sx={{ fontSize: '0.7rem', py: 0, px: 0.5 }}
+                      onClick={() => onAction(row.id as number, 'reopen')}
+                    >
+                      再オープン
+                    </Button>
+                  ) : (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="success"
+                      sx={{ fontSize: '0.7rem', py: 0, px: 0.5 }}
+                      onClick={() => onAction(row.id as number, 'resolve')}
+                    >
+                      解決
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
+// ScoreUserRole tab: ロール編集ボタン付き
+function ScoreUserRoleTable({ rows, onEdit }: { rows: Record<string, unknown>[]; onEdit: (id: number, currentRole: string) => void }) {
+  const COLS = ['id', 'user_id', 'project_id', 'role'];
+  if (!rows || rows.length === 0) {
+    return <Typography sx={{ p: 2, color: 'text.secondary', fontSize: '0.85rem' }}>データなし</Typography>;
+  }
+  return (
+    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 480 }}>
+      <Table size="small" stickyHeader>
+        <TableHead>
+          <TableRow>
+            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{col}</TableCell>)}
+            <TableCell sx={headerSx}>操作</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {rows.map((row, i) => (
+            <TableRow key={i} hover>
+              {COLS.map((col) => <TruncatedCell key={col} value={row[col]} />)}
+              <TableCell sx={actionCellSx}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: '0.7rem', py: 0, px: 0.5 }}
+                  onClick={() => onEdit(row.id as number, String(row.role ?? ''))}
+                >
+                  編集
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+}
+
 interface SectionState {
   data: Record<string, unknown>[];
   loading: boolean;
@@ -89,6 +232,12 @@ function useSection(fetcher: (p: { limit: number; offset: number }) => Promise<a
   return { ...state, load };
 }
 
+interface ToastState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error';
+}
+
 const TABS = [
   { label: 'Notification', key: 'notification' },
   { label: 'Timecard', key: 'timecard' },
@@ -97,11 +246,20 @@ const TABS = [
   { label: 'Delivery', key: 'delivery' },
   { label: 'Reference Material', key: 'reference_material' },
   { label: 'DM Threads', key: 'dm_thread' },
+  { label: 'ScoreUserRole', key: 'score_user_role' },
+  { label: 'Trouble', key: 'trouble' },
 ];
 
 export default function ScoreDataAdminPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState(0);
+
+  const [toast, setToast] = useState<ToastState>({ open: false, message: '', severity: 'success' });
+  const showToast = (message: string, severity: 'success' | 'error') =>
+    setToast({ open: true, message, severity });
+
+  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; id: number; action: 'resolve' | 'reopen' }>({ open: false, id: 0, action: 'resolve' });
+  const [roleDialog, setRoleDialog] = useState<{ open: boolean; id: number; role: string }>({ open: false, id: 0, role: '' });
 
   const notifications = useSection(fetchAdminNotifications);
   const timecards = useSection(fetchAdminTimecards);
@@ -110,8 +268,10 @@ export default function ScoreDataAdminPage() {
   const deliveries = useSection(fetchAdminDeliveries);
   const referenceMaterials = useSection(fetchAdminReferenceMaterials);
   const dmThreads = useSection(fetchAdminDMThreads);
+  const scoreUserRoles = useSection(fetchAdminScoreUserRoles);
+  const troubles = useSection(fetchAdminTroubles);
 
-  const sections = [notifications, timecards, routines, userMessages, deliveries, referenceMaterials, dmThreads];
+  const sections = [notifications, timecards, routines, userMessages, deliveries, referenceMaterials, dmThreads, scoreUserRoles, troubles];
 
   useEffect(() => {
     sections[tab].load();
@@ -120,6 +280,82 @@ export default function ScoreDataAdminPage() {
 
   const { data, loading, error } = sections[tab];
   const columns = data.length > 0 ? Object.keys(data[0]) : [];
+
+  const handleNotificationRead = async (id: number) => {
+    try {
+      await patchAdminNotificationRead(id);
+      showToast('既読にしました', 'success');
+      notifications.load();
+    } catch (e: any) {
+      showToast(e?.response?.data?.detail ?? '更新エラー', 'error');
+    }
+  };
+
+  const handleTroubleAction = (id: number, action: 'resolve' | 'reopen') => {
+    setConfirmDialog({ open: true, id, action });
+  };
+
+  const handleTroubleConfirm = async () => {
+    const { id, action } = confirmDialog;
+    setConfirmDialog((d) => ({ ...d, open: false }));
+    try {
+      if (action === 'resolve') {
+        await patchAdminTroubleResolve(id);
+        showToast('解決済みにしました', 'success');
+      } else {
+        await patchAdminTroubleReopen(id);
+        showToast('再オープンしました', 'success');
+      }
+      troubles.load();
+    } catch (e: any) {
+      showToast(e?.response?.data?.detail ?? '更新エラー', 'error');
+    }
+  };
+
+  const handleRoleEdit = (id: number, currentRole: string) => {
+    setRoleDialog({ open: true, id, role: currentRole });
+  };
+
+  const handleRoleSave = async () => {
+    const { id, role } = roleDialog;
+    setRoleDialog((d) => ({ ...d, open: false }));
+    try {
+      await updateScoreUserRole(id, { role });
+      showToast('ロールを更新しました', 'success');
+      scoreUserRoles.load();
+    } catch (e: any) {
+      showToast(e?.response?.data?.detail ?? '更新エラー', 'error');
+    }
+  };
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <CircularProgress size={28} />
+        </Box>
+      );
+    }
+    if (error) {
+      return (
+        <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
+          {error}
+          {tab >= 4 && tab <= 6 && ' (BE未実装のEPは接続後に利用可能になります)'}
+        </Alert>
+      );
+    }
+    const tabKey = TABS[tab].key;
+    if (tabKey === 'notification') {
+      return <NotificationTable rows={data} onRead={handleNotificationRead} />;
+    }
+    if (tabKey === 'trouble') {
+      return <TroubleTable rows={data} onAction={handleTroubleAction} />;
+    }
+    if (tabKey === 'score_user_role') {
+      return <ScoreUserRoleTable rows={data} onEdit={handleRoleEdit} />;
+    }
+    return <DataTable rows={data} columns={columns} />;
+  };
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200 }}>
@@ -132,7 +368,7 @@ export default function ScoreDataAdminPage() {
 
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
         <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1rem' }}>
-          Score連携データ管理 (Phase1: 閲覧のみ)
+          Score連携データ管理
         </Typography>
         <Button
           size="small"
@@ -146,7 +382,7 @@ export default function ScoreDataAdminPage() {
       </Box>
 
       <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
-        このページは管理者専用の閲覧ページです。制作系データ (Shot / Retake / Trouble 等) は
+        このページは管理者専用です。制作系データ (Shot / Retake / Trouble 等) は
         <Button size="small" onClick={() => navigate('/production-tracker')} sx={{ fontSize: '0.8rem', p: 0, ml: 0.5, textTransform: 'none' }}>
           ProductionTracker
         </Button>
@@ -179,24 +415,78 @@ export default function ScoreDataAdminPage() {
             </Button>
           </Box>
 
-          {loading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress size={28} />
-            </Box>
-          )}
-
-          {!loading && error && (
-            <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
-              {error}
-              {(tab >= 4) && ' (BE未実装のEPは接続後に利用可能になります)'}
-            </Alert>
-          )}
-
-          {!loading && !error && (
-            <DataTable rows={data as Record<string, unknown>[]} columns={columns} />
-          )}
+          {renderContent()}
         </Box>
       </Paper>
+
+      {/* Trouble 確認ダイアログ */}
+      <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog((d) => ({ ...d, open: false }))}>
+        <DialogTitle sx={{ fontSize: '0.95rem' }}>確認</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: '0.85rem' }}>
+            {confirmDialog.action === 'resolve'
+              ? 'このトラブルを解決済みにしますか？'
+              : 'このトラブルを再オープンしますか？'}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialog((d) => ({ ...d, open: false }))} sx={{ fontSize: '0.8rem' }}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleTroubleConfirm}
+            variant="contained"
+            color={confirmDialog.action === 'resolve' ? 'success' : 'warning'}
+            sx={{ fontSize: '0.8rem' }}
+          >
+            {confirmDialog.action === 'resolve' ? '解決' : '再オープン'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ScoreUserRole ロール編集ダイアログ */}
+      <Dialog open={roleDialog.open} onClose={() => setRoleDialog((d) => ({ ...d, open: false }))}>
+        <DialogTitle sx={{ fontSize: '0.95rem' }}>ロール編集</DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <TextField
+            label="Role"
+            value={roleDialog.role}
+            onChange={(e) => setRoleDialog((d) => ({ ...d, role: e.target.value }))}
+            size="small"
+            fullWidth
+            sx={{ mt: 1, '& .MuiInputBase-input': { fontSize: '0.85rem' } }}
+            helperText="例: director, pm, member"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRoleDialog((d) => ({ ...d, open: false }))} sx={{ fontSize: '0.8rem' }}>
+            キャンセル
+          </Button>
+          <Button onClick={handleRoleSave} variant="contained" sx={{ fontSize: '0.8rem' }}>
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Toast */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3000}
+        onClose={() => setToast((t) => ({ ...t, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          severity={toast.severity}
+          sx={{ fontSize: '0.85rem' }}
+          action={
+            <IconButton size="small" onClick={() => setToast((t) => ({ ...t, open: false }))}>
+              <CloseIcon fontSize="inherit" />
+            </IconButton>
+          }
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

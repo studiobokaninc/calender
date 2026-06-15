@@ -355,6 +355,27 @@ export interface Shot {
   retakes_count?: number;
   troubles_count?: number;
   tasks?: { [type: string]: Task[] };
+  // Content fields (ShotBase/ShotResponse)
+  cut?: string | null;
+  sl_no?: number | null;
+  frame_in?: number | null;
+  frame_out?: number | null;
+  duration?: number | null;
+  second?: number | null;
+  frame_rem?: number | null;
+  action?: string | null;
+  dialogue?: string | null;
+  bg?: string | null;
+  ch?: string | null;
+  prop?: string | null;
+  task_lay?: string | null;
+  task_anim?: string | null;
+  task_fx?: string | null;
+  task_lighting?: string | null;
+  task_comp?: string | null;
+  note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface Retake {

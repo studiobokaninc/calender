@@ -1,9 +1,9 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select
 
-from .. import models, security
+from .. import models, schemas, security
 from ..database import get_db
 
 router = APIRouter(tags=["score_admin"])
@@ -131,3 +131,19 @@ def list_dm_threads(
         "limit": limit,
         "items": result,
     }
+
+
+@router.patch("/notifications/{id}/read", response_model=schemas.Notification)
+def admin_read_notification(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """Admin: mark any user's notification as read (cross-user)."""
+    db_notif = db.query(models.Notification).filter(models.Notification.id == id).first()
+    if not db_notif:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    db_notif.is_read = True
+    db.commit()
+    db.refresh(db_notif)
+    return db_notif

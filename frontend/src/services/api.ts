@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { MockDataImport, NoteCreate, NoteUpdate, Asset } from '../types';
+import { appendLog } from '../utils/opLog';
 
 // APIクライアントの設定
 // APIの呼び出しは baseURL(/api)相対で記述すること。/api プレフィックスの重複は docs/d1_api_prefix_note.md 参照。
@@ -21,6 +22,12 @@ let globalAuthErrorCallback: AuthErrorCallback | null = null;
 export const setAuthErrorCallback = (callback: AuthErrorCallback) => {
   globalAuthErrorCallback = callback;
 };
+
+// opLog: API呼び出しをログ記録 (url のみ、body には触れない)
+api.interceptors.request.use(config => {
+  if (config.url) appendLog(`[api] ${config.method?.toUpperCase()} ${config.url}`);
+  return config;
+});
 
 // ★★★ リクエストインターセプター - 認証を確認 ★★★
 api.interceptors.request.use(
@@ -434,6 +441,25 @@ export const fetchAdminDMThreads = async (params?: { limit?: number; offset?: nu
   return response.data.items;
 };
 
+export const fetchAdminScoreUserRoles = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/score_user_roles', { params });
+  return response.data;
+};
+
+export const fetchAdminTroubles = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/troubles', { params });
+  return response.data;
+};
+
+export const patchAdminTroubleResolve = async (id: number): Promise<any> =>
+  (await api.patch(`/api/troubles/${id}/resolve`)).data;
+
+export const patchAdminTroubleReopen = async (id: number): Promise<any> =>
+  (await api.patch(`/api/troubles/${id}/reopen`)).data;
+
+export const patchAdminNotificationRead = async (id: number): Promise<any> =>
+  (await api.patch(`/api/admin/score/notifications/${id}/read`)).data;
+
 // --- Assets API ---
 export const fetchAssets = async (params: {
   shot_id?: number;
@@ -448,6 +474,12 @@ export const deleteAsset = async (assetId: number): Promise<void> => {
   await api.delete(`/api/assets/${assetId}`);
 };
 
+export const fetchShots = (projectId: number) =>
+  api.get(`/api/shots`, { params: { project_id: projectId } });
+
+export const updateShot = (id: number, payload: Record<string, unknown>) =>
+  api.patch(`/api/shots/${id}`, payload);
+
 export const importShotlist = async (
   projectId: number,
   file: File,
@@ -461,4 +493,16 @@ export const importShotlist = async (
   );
   return response.data;
 };
+
+// ---- BugReport ----
+export const createBugReport = (payload: {
+  title: string; description: string; severity?: string;
+  page_url?: string; operation_log?: string;
+}) => api.post('/bug_reports', payload).then(r => r.data);
+
+export const getBugReportsRecent = () =>
+  api.get('/bug_reports/recent').then(r => r.data);
+
+export const exportBugReportsCsv = () =>
+  api.get('/bug_reports/export.csv', { responseType: 'blob' }).then(r => r.data as Blob);
 

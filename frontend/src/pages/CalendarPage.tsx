@@ -685,7 +685,7 @@ const CalendarPage: React.FC = () => {
         if (type?.toLowerCase() === 'milestone') {
             return (
                 <div className="calendar-event-inner milestone-event-content" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
-                    <span className="calendar-event-type-badge" style={{ marginRight: '4px', fontSize: '0.65rem', padding: '1px 4px', backgroundColor: '#FFD700', color: '#000' }}>マイルストーン</span>
+                    <span className="calendar-event-type-badge" style={{ marginRight: '4px', fontSize: '0.65rem', padding: '1px 4px' }}>マイルストーン</span>
                     <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 700 }} title={title}>{title}</span>
                 </div>
             );
@@ -775,7 +775,7 @@ const CalendarPage: React.FC = () => {
             return (
                 <div className="calendar-event-inner calendar-event-generic" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
                     <span className="calendar-event-type-badge calendar-event-type-generic" style={{ marginRight: '4px', fontSize: '0.65rem' }}>予定</span>
-                    {isTimedEvent && <span className="calendar-event-time" style={{ fontWeight: 600, marginRight: '4px', color: 'rgba(0,0,0,0.6)' }}>{timeText}</span>}
+                    {isTimedEvent && <span className="calendar-event-time" style={{ fontWeight: 600, marginRight: '4px', opacity: 0.8 }}>{timeText}</span>}
                     <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 500 }} title={displayTitle}>
                         {title}
                     </span>
@@ -1159,18 +1159,40 @@ const CalendarPage: React.FC = () => {
                         .fc-list-event:hover td { background-color: ${isDark ? '#2c2c2e' : '#f1f3f4'} !important; }
 
                         .fc-daygrid-day-frame {
-                            min-height: ${isSmallScreen ? '80px' : '120px'} !important;
-                            height: ${isSmallScreen ? '80px' : '120px'} !important;
+                            min-height: ${isSmallScreen ? '100px' : '160px'} !important;
+                            height: ${isSmallScreen ? '100px' : '160px'} !important;
                         }
-                        .fc-daygrid-body tr { height: ${isSmallScreen ? '80px' : '120px'} !important; }
+                        .fc-daygrid-body tr { height: ${isSmallScreen ? '100px' : '160px'} !important; }
                         .fc-daygrid-day-events {
-                            height: ${isSmallScreen ? '80px' : '120px'} !important;
-                            min-height: ${isSmallScreen ? '80px' : '120px'} !important;
-                            max-height: ${isSmallScreen ? '80px' : '120px'} !important;
+                            height: auto !important;
+                            min-height: 0 !important;
+                            max-height: ${isSmallScreen ? '80px' : '135px'} !important;
+                            overflow: hidden !important;
+                            margin-bottom: 2px !important;
                         }
                         .fc-daygrid-day-top {
                             height: ${isSmallScreen ? '16px' : '20px'} !important;
                             min-height: ${isSmallScreen ? '16px' : '20px'} !important;
+                        }
+
+                        /* Timed events (meetings, generic events, workshops, etc.) styled without background */
+                        .fc-event.custom-event,
+                        .fc-daygrid-event.custom-event,
+                        .fc-timegrid-event.custom-event,
+                        .fc-list-event.custom-event {
+                            background: transparent !important;
+                            background-color: transparent !important;
+                            border: none !important;
+                            box-shadow: none !important;
+                        }
+                        .fc-daygrid-event.custom-event {
+                            padding: 2px 4px !important;
+                            margin: 1px 2px !important;
+                        }
+                        .fc-event.custom-event:hover,
+                        .fc-daygrid-event.custom-event:hover,
+                        .fc-timegrid-event.custom-event:hover {
+                            background-color: ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'} !important;
                         }
 
                         .fc-event.deadline-event-wrapper,
@@ -1182,14 +1204,61 @@ const CalendarPage: React.FC = () => {
                             box-shadow: none !important;
                         }
 
-                        .deadline-event-content, .milestone-event-content {
-                            color: #d32f2f;
+                        .deadline-event-content,
+                        .milestone-event-content {
+                            color: #d32f2f !important;
                             background: none !important;
                             border: none !important;
                             font-weight: bold;
                             overflow: hidden;
                             white-space: nowrap;
                             text-overflow: ellipsis;
+                        }
+
+                        /* Badges inside custom and styled events (meetings, workshops, generic, deadlines, milestones) */
+                        .fc-event.custom-event .calendar-event-type-badge,
+                        .fc-daygrid-event.custom-event .calendar-event-type-badge,
+                        .fc-timegrid-event.custom-event .calendar-event-type-badge,
+                        .fc-list-event.custom-event .calendar-event-type-badge,
+                        .deadline-event-content .calendar-event-type-badge,
+                        .milestone-event-content .calendar-event-type-badge {
+                            background: transparent !important;
+                            border: 1px solid currentColor !important;
+                            color: inherit !important;
+                            padding: 0px 3px !important;
+                            font-weight: 700 !important;
+                        }
+
+                        /* Ensure child text inside inherits custom colors */
+                        .fc-event.custom-event,
+                        .fc-event.custom-event *,
+                        .fc-daygrid-event.custom-event,
+                        .fc-daygrid-event.custom-event *,
+                        .fc-timegrid-event.custom-event,
+                        .fc-timegrid-event.custom-event *,
+                        .fc-list-event.custom-event,
+                        .fc-list-event.custom-event * {
+                            color: inherit !important;
+                        }
+
+                        /* Category-specific color mapping for custom events */
+                        .meeting-event {
+                            color: #1976d2 !important;
+                        }
+                        .workshop-event {
+                            color: #00897b !important;
+                        }
+                        .generic-event {
+                            color: #2196f3 !important;
+                        }
+
+                        /* Status-specific grey styling for non-task events */
+                        .fc-event.grey-event.custom-event,
+                        .fc-event.grey-event.custom-event *,
+                        .fc-event.grey-event.deadline-event-wrapper *,
+                        .fc-event.grey-event.milestone-event-wrapper * {
+                            color: ${isDark ? '#8a9096' : '#9e9e9e'} !important;
+                            text-decoration: line-through !important;
                         }
 
                         .fc-event.completed-project-event { background-color: #9E9E9E !important; border-color: #9E9E9E !important; }
@@ -1228,6 +1297,7 @@ const CalendarPage: React.FC = () => {
                         ref={calendarRef}
                         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
                         initialView={isMobile ? "listMonth" : "dayGridMonth"}
+                        eventDisplay="block"
                         headerToolbar={isMobile ? {
                             left: 'prev,next today',
                             center: 'title',
@@ -1253,7 +1323,7 @@ const CalendarPage: React.FC = () => {
                         height={isMobile ? "auto" : "100%"}
                         fixedWeekCount={true}
                         showNonCurrentDates={true}
-                        dayMaxEvents={5}
+                        dayMaxEvents={true}
                         dateClick={handleDateClick}
                         select={handleSelect}
                         eventClick={handleEventClick}
@@ -1298,7 +1368,7 @@ const CalendarPage: React.FC = () => {
                                 classes.push('custom-event', 'workshop-event');
                             } else if (normalizedType === 'generic' || normalizedType === 'event') {
                                 classes.push('custom-event', 'generic-event');
-                            } else {
+                            } else if (normalizedType !== 'task' && normalizedType !== 'project' && normalizedType !== 'deadline' && normalizedType !== 'milestone') {
                                 classes.push('custom-event');
                             }
 
@@ -1318,6 +1388,17 @@ const CalendarPage: React.FC = () => {
 
                             if (isMultiDay && type !== 'project') {
                                 arg.el.classList.add('project-event');
+                            }
+
+                            // Apply transparent background and colored text for custom events (meetings, generic events, workshops)
+                            if (arg.el.classList.contains('custom-event')) {
+                                const bg = arg.event.backgroundColor || arg.event.borderColor;
+                                if (bg) {
+                                    arg.el.style.setProperty('background-color', 'transparent', 'important');
+                                    arg.el.style.setProperty('border-color', 'transparent', 'important');
+                                    arg.el.style.setProperty('box-shadow', 'none', 'important');
+                                    arg.el.style.setProperty('color', bg, 'important');
+                                }
                             }
 
                             const eventType = type?.toLowerCase();

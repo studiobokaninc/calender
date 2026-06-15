@@ -230,6 +230,21 @@ def resolve_trouble(
     db.refresh(db_trouble)
     return db_trouble
 
+@router.patch("/troubles/{id}/reopen", response_model=schemas.Trouble)
+def reopen_trouble(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_active_admin)
+):
+    """Admin: re-open a resolved trouble report (idempotent)."""
+    db_trouble = db.query(models.Trouble).filter(models.Trouble.id == id).first()
+    if not db_trouble:
+        raise HTTPException(status_code=404, detail="Trouble report not found")
+    db_trouble.status = "open"
+    db.commit()
+    db.refresh(db_trouble)
+    return db_trouble
+
 @router.post("/messages", response_model=schemas.UserMessage, status_code=status.HTTP_201_CREATED)
 def send_message(
     msg_in: schemas.UserMessageCreate,

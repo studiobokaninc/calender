@@ -265,12 +265,14 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                             onBlur={handleNameBlur}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
+                                    e.preventDefault();
                                     (e.target as HTMLInputElement).blur();
                                 }
                             }}
                             placeholder="タスク名"
                             fullWidth
                             variant="standard"
+                            multiline
                             InputProps={{
                                 disableUnderline: true,
                                 style: {
@@ -296,7 +298,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                             letterSpacing: '-0.01em',
                             fontSize: '1.4rem'
                         }}>
-                            <TaskLabel shotId={task.shotID} title={task.name} fontSize="1.4rem" />
+                            <TaskLabel shotId={task.shotID} title={task.name} fontSize="1.4rem" whiteSpace="normal" />
                         </Typography>
                     )}
 

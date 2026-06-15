@@ -54,6 +54,7 @@ import {
   SmartToy as AIRecommendedIcon,
 } from '@mui/icons-material'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
+import BugReportIcon from '@mui/icons-material/BugReport'
 import LightModeIcon from '@mui/icons-material/LightMode'
 import { useAuth } from '../contexts/AuthContext'
 import { useThemeMode } from '../contexts/ThemeModeContext'
@@ -156,6 +157,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
     { text: 'Score連携データ管理', icon: <StorageIcon />, path: '/admin/score-data', isAdmin: true },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
+    { text: 'バグ報告', icon: <BugReportIcon />, path: '/bug_report' },
   ]
 
   const [currentTitleColor, setCurrentTitleColor] = useState('inherit')
@@ -308,7 +310,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       return true
     } else {
       // 一般ユーザーは特定の項目のみ表示
-      return ['/calendar', '/chat', '/notes', '/knowledge'].includes(item.path)
+      return ['/calendar', '/chat', '/notes', '/knowledge', '/bug_report'].includes(item.path)
     }
   })
 

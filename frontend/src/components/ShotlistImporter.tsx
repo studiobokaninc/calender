@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -68,6 +68,10 @@ const ShotlistImporter: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const projects: { id: number; name: string }[] = (globalData as any).projects ?? [];
+
+  useEffect(() => {
+    refreshGlobalData();
+  }, [refreshGlobalData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;

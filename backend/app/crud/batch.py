@@ -25,12 +25,15 @@ def _perform_task_auto_update(db: Session, task: models.Task) -> bool:
     today = now.date()
     updated = False
 
+    change_source = None
+
     # 1. 開始日が過ぎていて TODO なら自動で進行中に
     if task.status == models.TaskStatus.TODO and task.start_date:
         start_date = task.start_date.date() if hasattr(task.start_date, 'date') else task.start_date
         if start_date <= today and not task.auto_started:
             task.status = models.TaskStatus.IN_PROGRESS
             task.auto_started = True
+            change_source = 'auto_start'
             updated = True
 
     # 2. 締切が過ぎていて完了していなければ自動で遅延に
@@ -39,6 +42,7 @@ def _perform_task_auto_update(db: Session, task: models.Task) -> bool:
         if due_date < today and not task.auto_delayed:
             task.status = models.TaskStatus.DELAYED
             task.auto_delayed = True
+            change_source = 'auto_delay'
             updated = True
 
     if updated:
@@ -47,7 +51,8 @@ def _perform_task_auto_update(db: Session, task: models.Task) -> bool:
             task_id=task.id,
             status=task.status,
             changed_at=now,
-            changed_by=task.assigned_to
+            changed_by=task.assigned_to,
+            change_source=change_source
         ))
     
     return updated

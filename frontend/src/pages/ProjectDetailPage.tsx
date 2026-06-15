@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Typography, Paper, Grid, CircularProgress, Alert, Breadcrumbs, Link, Chip, List, ListItem, ListItemText, Avatar, Divider, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Snackbar } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom'; // 名前衝突を避ける
+import { Link as RouterLink, useNavigate } from 'react-router-dom'; // 名前衝突を避ける
 import api from '../services/api';
 import { Project, Task, User, Group } from '../types'; // 必要な型をインポート
 
@@ -14,7 +14,8 @@ const progressMap: { [key: string]: number } = {
 };
 
 const ProjectDetailPage: React.FC = () => {
-  const { projectId } = useParams<{ projectId: string }>(); // URLからprojectIdを取得
+  const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]); // ★ 全ユーザーリスト用の state
@@ -238,13 +239,20 @@ const ProjectDetailPage: React.FC = () => {
           </Grid>
 
           <Grid item xs={12}>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
               <Chip
                 label={`進捗: ${progressPercentage}% `}
                 color={progressPercentage === 100 ? 'success' : 'primary'}
               />
               <Chip label={`タスク数: ${totalTasks} `} />
               <Chip label={`総コスト: ${totalCost.toLocaleString()} 円`} />
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => navigate(`/projects/${projectId}/shotlist`)}
+              >
+                ショットリスト
+              </Button>
             </Box>
           </Grid>
         </Grid>

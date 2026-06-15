@@ -7,19 +7,20 @@ interface TaskLabelProps {
   title: string;
   fontSize?: string;
   maxWidth?: string | number;
+  whiteSpace?: 'normal' | 'nowrap' | 'pre-wrap';
 }
 
-export function TaskLabel({ shotId, title, fontSize = '0.85rem', maxWidth }: TaskLabelProps) {
+export function TaskLabel({ shotId, title, fontSize = '0.85rem', maxWidth, whiteSpace = 'nowrap' }: TaskLabelProps) {
   const label = formatTaskLabel(shotId, title);
   return (
-    <Tooltip title={label} placement="top">
+    <Tooltip title={label} placement="top" disableHoverListener={whiteSpace !== 'nowrap'}>
       <Typography
         component="span"
         sx={{
           fontSize,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          overflow: whiteSpace === 'nowrap' ? 'hidden' : 'visible',
+          textOverflow: whiteSpace === 'nowrap' ? 'ellipsis' : 'clip',
+          whiteSpace: whiteSpace,
           display: 'block',
           maxWidth: maxWidth ?? '100%',
         }}

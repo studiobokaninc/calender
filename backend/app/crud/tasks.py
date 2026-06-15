@@ -415,7 +415,8 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         task_id=db_task.id,
         status=db_task.status,
         changed_at=db_task.created_at or now_jst_naive(),
-        changed_by=db_task.assigned_to
+        changed_by=db_task.assigned_to,
+        change_source='manual'
     )
     db.add(status_history_entry)
     if db_task.shot_id is not None:
@@ -482,7 +483,8 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             task_id=db_task.id,
             status=new_status,
             changed_at=db_task.updated_at,
-            changed_by=db_task.assigned_to
+            changed_by=db_task.assigned_to,
+            change_source='manual'
         ))
 
     if db_task.shot_id is not None:

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr, validator, root_validator, computed_field
-from typing import Optional, List, Dict, Any, ForwardRef
+from typing import Optional, List, Dict, Any, ForwardRef, Literal
 from datetime import datetime, date, timezone
 from . import models # models をインポート
 
@@ -356,6 +356,14 @@ class ShotUpdate(BaseModel):
     status: Optional[str] = None
     thumbnail_url: Optional[str] = None
     description: Optional[str] = None
+    cut: Optional[str] = None
+    frame_in: Optional[int] = None
+    frame_out: Optional[int] = None
+    action: Optional[str] = None
+    dialogue: Optional[str] = None
+    bg: Optional[str] = None
+    ch: Optional[str] = None
+    prop: Optional[str] = None
 
 class ShotResponse(ShotBase):
     id: int
@@ -1002,4 +1010,32 @@ class ShotImportResult(BaseModel):
     deleted_candidates: int
     skipped: int
     warnings: List[ShotImportWarning]
+
+# ---- BugReport ----
+class BugReportCreate(BaseModel):
+    title: str
+    description: str
+    severity: Literal["low", "medium", "high", "critical"] = "medium"
+    page_url: Optional[str] = None
+    operation_log: Optional[str] = None
+
+class BugReportResponse(BaseModel):
+    id: int
+    reporter_name: str
+    title: str
+    severity: str
+    status: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class BugReportRecentItem(BaseModel):
+    id: int
+    reporter_name: str
+    title: str
+    severity: str
+    status: str
+    created_at: datetime
+    class Config:
+        from_attributes = True
 

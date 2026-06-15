@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Box, CssBaseline, CircularProgress } from '@mui/material';
 import { useAuth } from './contexts/AuthContext'; // Import useAuth
@@ -30,6 +30,9 @@ import ProductionTrackerPage from './pages/ProductionTrackerPage';
 import AIRecommendedTasksPage from './pages/AIRecommendedTasksPage';
 import GalaxyPage from './pages/GalaxyPage';
 import ScoreDataAdminPage from './pages/ScoreDataAdminPage';
+import ShotListPage from './pages/ShotListPage';
+import BugReportPage from './pages/BugReportPage';
+import { initOpLogListeners } from './utils/opLog';
 
 // ★★★ PrivateRoute component ★★★
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -57,6 +60,8 @@ const DefaultRedirect: React.FC = () => {
 
 const App: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => { initOpLogListeners(); }, []);
 
   if (isLoading) {
     return (
@@ -94,6 +99,7 @@ const App: React.FC = () => {
             <Route path="projects" element={<AdminRoute><ProjectsPage /></AdminRoute>} />
             <Route path="tasks" element={<AdminRoute><TasksPage /></AdminRoute>} />
             <Route path="notes" element={<NotesPage />} />
+            <Route path="bug_report" element={<BugReportPage />} />
             <Route path="ai-tasks" element={<AdminRoute><AIRecommendedTasksPage /></AdminRoute>} />
             <Route path="meetings" element={<AdminRoute><MeetingMinutesPage /></AdminRoute>} />
             <Route path="galaxy" element={<AdminRoute><GalaxyPage /></AdminRoute>} />
@@ -101,6 +107,7 @@ const App: React.FC = () => {
             {/* /eventsは/event-managementに統一（MetricsのEventsタブは/metrics?tab=eventsで直接アクセス可能） */}
             <Route path="events" element={<AdminRoute><Navigate to="/event-management" replace /></AdminRoute>} />
             <Route path="projects/:projectId" element={<AdminRoute><ProjectDetailPage /></AdminRoute>} />
+            <Route path="projects/:projectId/shotlist" element={<AdminRoute><ShotListPage /></AdminRoute>} />
             <Route path="production-tracker" element={<AdminRoute><ProductionTrackerPage /></AdminRoute>} />
             <Route path="admin/users" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
 

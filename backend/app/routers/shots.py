@@ -121,6 +121,22 @@ def update_shot(
         shot.thumbnail_url = shot_in.thumbnail_url
     if shot_in.description is not None:
         shot.description = shot_in.description
+    if shot_in.cut is not None:
+        shot.cut = shot_in.cut
+    if shot_in.frame_in is not None:
+        shot.frame_in = shot_in.frame_in
+    if shot_in.frame_out is not None:
+        shot.frame_out = shot_in.frame_out
+    if shot_in.action is not None:
+        shot.action = shot_in.action
+    if shot_in.dialogue is not None:
+        shot.dialogue = shot_in.dialogue
+    if shot_in.bg is not None:
+        shot.bg = shot_in.bg
+    if shot_in.ch is not None:
+        shot.ch = shot_in.ch
+    if shot_in.prop is not None:
+        shot.prop = shot_in.prop
 
     db.commit()
     db.refresh(shot)

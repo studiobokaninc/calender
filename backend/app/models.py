@@ -119,6 +119,7 @@ class TaskStatusHistory(Base):
     status: Mapped[TaskStatus] = mapped_column()
     changed_at: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
     changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
+    change_source: Mapped[Optional[str]] = mapped_column(String, nullable=True, default='manual')
 
     task: Mapped["Task"] = relationship(back_populates="status_history")
 
@@ -659,3 +660,18 @@ class ProjectColumnSetting(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "field_key", name="uix_pcs_project_field"),
     )
+
+class BugReport(Base):
+    __tablename__ = "bug_reports"
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    reporter_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    reporter_name: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text)
+    severity: Mapped[str] = mapped_column(String(20), default="medium")
+    page_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    operation_log: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    user_agent: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
+    updated_at: Mapped[datetime] = mapped_column(default=now_jst_naive, onupdate=now_jst_naive)

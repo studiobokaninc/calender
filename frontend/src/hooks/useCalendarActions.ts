@@ -334,6 +334,17 @@ export const useCalendarActions = ({
         }
     }, [refreshGlobalData, refetch]);
 
+    // 非タスクイベントの一括更新 (保存ボタン方式)
+    // ────────────────────────────────────────────────────────────────────────
+    const handleUpdateEvent = useCallback(async (eventId: number, updates: any) => {
+        try {
+            await api.put(`/calendar/events/${eventId}`, updates);
+            refetch();
+        } catch (error) {
+            alert("イベントの更新に失敗しました。");
+        }
+    }, [refetch]);
+
     // ────────────────────────────────────────────────────────────────────────
     // Phase 削除 (フェーズ詳細モーダルから)
     // ────────────────────────────────────────────────────────────────────────
@@ -535,6 +546,7 @@ export const useCalendarActions = ({
         handleDeleteEvent,
         handleSavePhase,
         handleUpdateTask,
+        handleUpdateEvent,
         handleDeletePhase,
         handleEventDrop,
         handleEventResize,

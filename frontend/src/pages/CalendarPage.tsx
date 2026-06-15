@@ -145,6 +145,7 @@ const CalendarPage: React.FC = () => {
         handleDeleteEvent,
         handleSavePhase,
         handleUpdateTask,
+        handleUpdateEvent,
         handleDeletePhase,
         handleEventDrop,
         handleEventResize,
@@ -1404,6 +1405,7 @@ const CalendarPage: React.FC = () => {
                             googleStatus={googleStatus}
                             onGoogleSyncToggle={handleGoogleSyncEventToggle}
                             onUpdateTask={handleUpdateTask}
+                            onUpdateEvent={handleUpdateEvent}
                             tasks={tasks}
                         />
                     </Box>
@@ -1606,6 +1608,7 @@ const CalendarPage: React.FC = () => {
                             onEventTypeFilterChange={handleEventTypeFilterChange}
                             projects={projects}
                             onUpdateTask={handleUpdateTask}
+                            onUpdateEvent={handleUpdateEvent}
                             tasks={tasks}
                         />
                     </Box>

@@ -154,6 +154,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
+    { text: 'Score連携データ管理', icon: <StorageIcon />, path: '/admin/score-data', isAdmin: true },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
   ]
 

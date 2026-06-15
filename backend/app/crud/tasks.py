@@ -18,9 +18,10 @@ _DONE_STATUSES = {"completed"}
 _APPROVED_OR_DONE = {"approved", "completed"}
 
 # shots.py SHOT_CODE_REGEX と同一パターン（routers→crud の逆依存回避のため inline 定義）。
+# ★案B緩和（cmd_496 / 2026-06-12）で両所を同時更新。shots.py:SHOT_CODE_REGEX と必ず一致させること。
 # API(POST/PATCH /api/shots)はこの正規表現で shot_code を検証するため、
 # get_or_create_shot もこれに不適合な値は作成しない（APIで管理不能なshotを生まない）。
-_SHOT_CODE_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,49}$")
+_SHOT_CODE_REGEX = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._~\-]{0,48}[A-Za-z0-9])?$")
 
 # REGEX には適合するが shot として扱わない予約語（殿御裁可 2026-06-12 / cmd_493）。
 # "master" は通知 body 等に誤マッチするため明示的に除外する。大小文字を無視して比較。

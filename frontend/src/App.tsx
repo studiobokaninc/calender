@@ -29,6 +29,7 @@ import KnowledgePage from './pages/KnowledgePage';
 import ProductionTrackerPage from './pages/ProductionTrackerPage';
 import AIRecommendedTasksPage from './pages/AIRecommendedTasksPage';
 import GalaxyPage from './pages/GalaxyPage';
+import ScoreDataAdminPage from './pages/ScoreDataAdminPage';
 
 // ★★★ PrivateRoute component ★★★
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -109,6 +110,7 @@ const App: React.FC = () => {
             <Route path="admin/groups" element={<AdminRoute><GroupManagementPage /></AdminRoute>} />
             <Route path="admin/data" element={<AdminRoute><MockDataConsole /></AdminRoute>} />
             <Route path="admin/user-activities" element={<AdminRoute><UserActivityPage /></AdminRoute>} />
+            <Route path="admin/score-data" element={<AdminRoute><ScoreDataAdminPage /></AdminRoute>} />
             <Route path="admin/*" element={<AdminRoute><Navigate to="/metrics" replace /></AdminRoute>} />
 
             <Route path="*" element={<DefaultRedirect />} />

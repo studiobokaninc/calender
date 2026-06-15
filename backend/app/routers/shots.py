@@ -14,9 +14,13 @@ router = APIRouter(prefix="/api/shots", tags=["Shots"])
 # 例: seq01, C, OP, SQ001, A, ep01, scene-1
 SEQ_CODE_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,49}$")
 
-# shot_code: 1〜50文字の英数字・アンダースコア・ハイフン（大文字小文字不問）
-# 例: shot010, C001, 0010, shot_01, 001
-SHOT_CODE_REGEX = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{0,49}$")
+# shot_code: 1〜50文字。先頭・末尾は英数字、中間に URLセーフ記号（. _ ~ -）を許可（大文字小文字不問）。
+# 案B緩和（cmd_496 / 殿御裁可 2026-06-12）: 型縛りを緩め、中間ドット等URLセーフ記号を許可（例 c01.v2）。
+# 末尾を英数字に固定することで、cmd_493 で除外確定した末尾ドット値（例 "LookDev."）は引き続き排除し、
+# 空白・日本語・スラッシュ・バックスラッシュ・% 等のSQL/URL/制御危険文字も除外。
+# （score.py の Notification.body.contains(shot_code) fuzzy join を空文字/危険文字から守るため非空＋文字種を維持。）
+# 例: shot010, C001, shot_01, c01.v2 / 不可: "LookDev."(末尾ドット), "data deriver"(空白), 日本語
+SHOT_CODE_REGEX = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._~\-]{0,48}[A-Za-z0-9])?$")
 
 @router.get("", response_model=List[schemas.ShotResponse])
 def get_shots(

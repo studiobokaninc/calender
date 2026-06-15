@@ -398,6 +398,42 @@ export const shotsApi = {
 
 }
 
+// --- Score Admin APIs (Phase1: read-only) ---
+export const fetchAdminTimecards = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/timecards', { params });
+  return response.data;
+};
+
+export const fetchAdminRoutines = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/routines', { params });
+  return response.data;
+};
+
+export const fetchAdminNotifications = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/notifications', { params });
+  return response.data;
+};
+
+export const fetchAdminUserMessages = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/user_messages', { params });
+  return response.data;
+};
+
+export const fetchAdminDeliveries = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/admin/score/deliveries', { params });
+  return response.data.items;
+};
+
+export const fetchAdminReferenceMaterials = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/admin/score/reference_materials', { params });
+  return response.data.items;
+};
+
+export const fetchAdminDMThreads = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/admin/score/dm/threads', { params });
+  return response.data.items;
+};
+
 // --- Assets API ---
 export const fetchAssets = async (params: {
   shot_id?: number;

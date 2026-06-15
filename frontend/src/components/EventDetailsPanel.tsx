@@ -4,6 +4,7 @@ import { Box, Typography, Divider, Paper, Chip, IconButton, Button, Tooltip, For
 import { useAuth } from '../contexts/AuthContext';
 import { CalendarEvent, Project, User, Group, Participant, Task } from '../types';
 import { TaskQuickDetail } from './TaskQuickDetail';
+import { EventQuickEdit } from './EventQuickEdit';
 import { format, isSameDay, parseISO, isValid, startOfDay, endOfDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -77,6 +78,7 @@ interface EventDetailsPanelProps {
   googleStatus?: { configured: boolean; connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] };
   onGoogleSyncToggle?: (eventId: number, currentSynced: boolean) => void;
   onUpdateTask?: (taskId: number, updates: any) => Promise<void>;
+  onUpdateEvent?: (eventId: number, updates: any) => Promise<void>;
   totalCost?: number;
   tasks?: Task[];
 }
@@ -101,6 +103,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   googleStatus,
   onGoogleSyncToggle,
   onUpdateTask,
+  onUpdateEvent,
   tasks,
 }) => {
   const { user } = useAuth();
@@ -277,14 +280,26 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               <Divider sx={{ my: 1.5 }} />
 
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                {selectedEvent.extendedProps?.description && selectedEvent.extendedProps?.type?.toLowerCase() !== 'task' && (
-                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>{selectedEvent.extendedProps.description}</Typography>
+                {/* 非タスクイベント: インライン編集パネル */}
+                {selectedEvent.extendedProps?.type?.toLowerCase() !== 'task' && !selectedEvent.extendedProps?.isPhase && onUpdateEvent && (
+                  <EventQuickEdit
+                    event={selectedEvent}
+                    onUpdate={onUpdateEvent}
+                  />
                 )}
-                {selectedEvent.extendedProps?.location && (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <LocationOnIcon fontSize="small" color="action" />
-                    <Typography variant="body2">{selectedEvent.extendedProps.location}</Typography>
-                  </Box>
+                {/* 非タスクイベント(onUpdateEvent未設定の場合): read-only表示 */}
+                {selectedEvent.extendedProps?.type?.toLowerCase() !== 'task' && !selectedEvent.extendedProps?.isPhase && !onUpdateEvent && (
+                  <>
+                    {selectedEvent.extendedProps?.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>{selectedEvent.extendedProps.description}</Typography>
+                    )}
+                    {selectedEvent.extendedProps?.location && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LocationOnIcon fontSize="small" color="action" />
+                        <Typography variant="body2">{selectedEvent.extendedProps.location}</Typography>
+                      </Box>
+                    )}
+                  </>
                 )}
 
                 {/* タスク・段階目標固有の情報表示 */}

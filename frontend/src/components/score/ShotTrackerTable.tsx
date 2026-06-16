@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Box,
     Typography,
@@ -16,12 +16,16 @@ import {
     Stack,
     LinearProgress,
     Avatar,
-    Badge
+    Badge,
+    Dialog,
+    DialogContent,
+    IconButton,
 } from '@mui/material';
 import {
     Error as ErrorIcon,
     History as HistoryIcon,
     ReportProblem as TroubleIcon,
+    Close as CloseIcon,
 } from '@mui/icons-material';
 import { User } from '../../types';
 import { formatTaskLabel } from '../../utils/taskLabel';
@@ -69,6 +73,7 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
     onShotClick
 }) => {
     const theme = useTheme();
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -162,6 +167,7 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
     if (!data && !loading) return null;
 
     return (
+        <>
         <TableContainer
             component={Paper}
             sx={{
@@ -262,7 +268,14 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
                                         }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
                                                 {shot.thumbnail_url ? (
-                                                    <Avatar src={shot.thumbnail_url} variant="rounded" sx={{ width: 48, height: 27 }} />
+                                                    <Tooltip title="クリックで拡大" placement="top">
+                                                        <Avatar
+                                                            src={shot.thumbnail_url}
+                                                            variant="rounded"
+                                                            sx={{ width: 48, height: 27, cursor: 'zoom-in' }}
+                                                            onClick={(e) => { e.stopPropagation(); setLightboxUrl(shot.thumbnail_url!); }}
+                                                        />
+                                                    </Tooltip>
                                                 ) : (
                                                     <Box sx={{ width: 48, height: 27, bgcolor: 'divider', borderRadius: 0.5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                         <Typography variant="caption" sx={{ fontSize: 8 }}>NO IMG</Typography>
@@ -312,5 +325,44 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
                 </TableBody>
             </Table>
         </TableContainer>
+        <Dialog
+            open={!!lightboxUrl}
+            onClose={() => setLightboxUrl(null)}
+            maxWidth="lg"
+            fullWidth
+            PaperProps={{ sx: { bgcolor: theme.palette.grey[900], m: 1 } }}
+        >
+            <DialogContent sx={{ p: 0, position: 'relative' }}>
+                <IconButton
+                    onClick={() => setLightboxUrl(null)}
+                    sx={{
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        color: 'white',
+                        bgcolor: alpha(theme.palette.common.black, 0.5),
+                        zIndex: 1,
+                        '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.7) },
+                    }}
+                >
+                    <CloseIcon />
+                </IconButton>
+                {lightboxUrl && (
+                    <Box
+                        component="img"
+                        src={lightboxUrl}
+                        alt="サムネイル拡大"
+                        sx={{
+                            width: '100%',
+                            height: 'auto',
+                            maxHeight: '90vh',
+                            objectFit: 'contain',
+                            display: 'block',
+                        }}
+                    />
+                )}
+            </DialogContent>
+        </Dialog>
+        </>
     );
 };

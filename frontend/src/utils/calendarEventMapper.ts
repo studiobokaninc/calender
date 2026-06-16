@@ -10,29 +10,60 @@ import { getTaskColor, getProjectColor, getEventColor, normalizeEventType } from
 // Sort
 // ────────────────────────────────────────────────────────────────────────────
 
+export const getEventRank = (event: CalendarEvent): number => {
+    if (event.extendedProps?.isPhase) {
+        return 6; // 段階目標
+    }
+    const type = (event.extendedProps?.type || '').toLowerCase();
+    switch (type) {
+        case 'project':
+            return 1; // プロジェクト
+        case 'milestone':
+            return 2; // マイルストーン
+        case 'deadline':
+            return 3; // 締切
+        case 'generic':
+        case 'event':
+            return 4; // 通常イベント
+        case 'meeting':
+            return 5; // 会議
+        case 'workshop':
+            return 7; // ワークショップ
+        case 'task':
+            return 8; // タスク
+        default:
+            return 9; // その他
+    }
+};
+
 export const sortEventsForDisplay = (eventsToSort: CalendarEvent[]): CalendarEvent[] => {
     return [...eventsToSort].sort((a, b) => {
-        const aStart = a.start ? new Date(a.start).getTime() : 0;
-        const bStart = b.start ? new Date(b.start).getTime() : 0;
-        const aIsAllDay = a.allDay;
-        const bIsAllDay = b.allDay;
-        const aType = a.extendedProps.type;
-        const bType = b.extendedProps.type;
-        const aProjectStart = a.extendedProps.projectStartDate ? new Date(a.extendedProps.projectStartDate).getTime() : 0;
-        const bProjectStart = b.extendedProps.projectStartDate ? new Date(b.extendedProps.projectStartDate).getTime() : 0;
+        const rankA = getEventRank(a);
+        const rankB = getEventRank(b);
 
-        if (aType === 'project' && bType !== 'project') return -1;
-        if (aType !== 'project' && bType === 'project') return 1;
-        if (aType === 'project' && bType === 'project') {
+        if (rankA !== rankB) {
+            return rankA - rankB;
+        }
+
+        const typeLower = (a.extendedProps?.type || '').toLowerCase();
+
+        if (typeLower === 'project') {
+            const aProjectStart = a.extendedProps.projectStartDate ? new Date(a.extendedProps.projectStartDate).getTime() : 0;
+            const bProjectStart = b.extendedProps.projectStartDate ? new Date(b.extendedProps.projectStartDate).getTime() : 0;
             return aProjectStart - bProjectStart || (a.title || '').localeCompare(b.title || '');
         }
-        if (aType === 'task' && bType !== 'task') return -1;
-        if (aType !== 'task' && bType === 'task') return 1;
-        if (aType === 'task' && bType === 'task') {
+
+        if (typeLower === 'task' || a.extendedProps?.isPhase) {
             const aDueDate = a.extendedProps.taskDueDate ? new Date(a.extendedProps.taskDueDate).getTime() : 0;
             const bDueDate = b.extendedProps.taskDueDate ? new Date(b.extendedProps.taskDueDate).getTime() : 0;
             return aDueDate - bDueDate || (a.title || '').localeCompare(b.title || '');
         }
+
+        const aStart = a.start ? new Date(a.start).getTime() : 0;
+        const bStart = b.start ? new Date(b.start).getTime() : 0;
+        const aIsAllDay = a.allDay;
+        const bIsAllDay = b.allDay;
+
         if (aIsAllDay && !bIsAllDay) return -1;
         if (!aIsAllDay && bIsAllDay) return 1;
         return aStart - bStart || (a.title || '').localeCompare(b.title || '');

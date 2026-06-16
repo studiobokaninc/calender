@@ -56,6 +56,7 @@ import { useCalendarActions } from '../hooks/useCalendarActions';
 
 // utils
 import { getEventColor, getTaskColor } from '../utils/calendarEventColors';
+import { getEventRank } from '../utils/calendarEventMapper';
 
 const DOUBLE_CLICK_THRESHOLD = 400;
 
@@ -93,6 +94,8 @@ const CalendarPage: React.FC = () => {
     const [isPhaseEditModalOpen, setIsPhaseEditModalOpen] = useState(false);
     const [modalEventToEdit, setModalEventToEdit] = useState<CalendarEvent | null>(null);
     const [dateClickArg, setDateClickArg] = useState<DateClickArg | null>(null);
+
+    const [selectedUser, setSelectedUser] = useState<string>('all');
 
     const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
     const [mobileEventDetailsOpen, setMobileEventDetailsOpen] = useState(false);
@@ -183,6 +186,9 @@ const CalendarPage: React.FC = () => {
             if (calendarState.eventTypeFilter) {
                 setEventTypeFilter(calendarState.eventTypeFilter);
             }
+            if (calendarState.filterAssignee) {
+                setSelectedUser(calendarState.filterAssignee);
+            }
             stateRestored.current = true;
         }
     }, [calendarState]);
@@ -199,9 +205,10 @@ const CalendarPage: React.FC = () => {
                 selectedEvent: selectedEvent,
                 filterStatus: eventStatusFilter,
                 eventTypeFilter,
+                filterAssignee: selectedUser,
             });
         }
-    }, [selectedDate, selectedEvent, eventStatusFilter, eventTypeFilter, updateCalendarState]);
+    }, [selectedDate, selectedEvent, eventStatusFilter, eventTypeFilter, selectedUser, updateCalendarState]);
 
     // ────────────────────────────────────────────────────────────────────────
     // イベントフィルタリング ＆ 色計算
@@ -249,9 +256,39 @@ const CalendarPage: React.FC = () => {
             const typeKeyForFilter = (typeKey === 'event' || typeKey === 'generic') ? 'generic' : typeKey;
             const typeFilterPass = eventTypeFilter[typeKeyForFilter] !== false;
 
-            return projectFilterPass && typeFilterPass;
+            // ユーザーフィルタ
+            let userFilterPass = true;
+            if (selectedUser !== 'all') {
+                if (typeKey === 'task') {
+                    const assigneeId = event.extendedProps?.taskAssigneeId;
+                    userFilterPass = assigneeId != null && String(assigneeId) === selectedUser;
+                } else if (typeKey === 'project' || typeKey === 'group') {
+                    userFilterPass = true;
+                } else {
+                    const eventProjectId = event.extendedProps?.projectId;
+                    if (eventProjectId) {
+                        // タスクが振られているプロジェクトのものしか表示されないようにする
+                        const hasTaskInProject = tasks.some(
+                            (t) => t.project_id != null &&
+                            String(t.project_id) === String(eventProjectId) &&
+                            t.assigned_to != null &&
+                            String(t.assigned_to) === selectedUser
+                        );
+                        userFilterPass = hasTaskInProject;
+                    } else {
+                        const participants = event.extendedProps?.participants;
+                        if (participants && participants.length > 0) {
+                            userFilterPass = participants.some(p => p.type === 'user' && String(p.id) === selectedUser);
+                        } else {
+                            userFilterPass = true;
+                        }
+                    }
+                }
+            }
+
+            return projectFilterPass && typeFilterPass && userFilterPass;
         });
-    }, [rawEvents, eventStatusFilter, eventTypeFilter, projectsMap]);
+    }, [rawEvents, eventStatusFilter, eventTypeFilter, projectsMap, selectedUser, tasks]);
 
     // FullCalendar に引き渡すためのイベントリスト構築
     const eventsForFullCalendar = useMemo(() => {
@@ -361,6 +398,10 @@ const CalendarPage: React.FC = () => {
     // ────────────────────────────────────────────────────────────────────────
     const handleEventStatusFilterChange = (event: any) => {
         setEventStatusFilter(event.target.value);
+    };
+
+    const handleUserFilterChange = (event: any) => {
+        setSelectedUser(event.target.value);
     };
 
     const handleEventTypeFilterChange = (typeKey: string, checked: boolean) => {
@@ -1316,6 +1357,21 @@ const CalendarPage: React.FC = () => {
                             right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                         }}
                         events={eventsForFullCalendar}
+                        eventOrder={(a: any, b: any) => {
+                            const rankA = getEventRank(a);
+                            const rankB = getEventRank(b);
+                            if (rankA !== rankB) return rankA - rankB;
+
+                            const aAllDay = a.allDay ? 1 : 0;
+                            const bAllDay = b.allDay ? 1 : 0;
+                            if (aAllDay !== bAllDay) return bAllDay - aAllDay;
+
+                            const aStart = a.start ? new Date(a.start).getTime() : 0;
+                            const bStart = b.start ? new Date(b.start).getTime() : 0;
+                            if (aStart !== bStart) return aStart - bStart;
+
+                            return (a.title || '').localeCompare(b.title || '');
+                        }}
                         locale={'ja'}
                         timeZone={'Asia/Tokyo'}
                         slotMinTime="05:00:00"
@@ -1496,6 +1552,8 @@ const CalendarPage: React.FC = () => {
                             onUpdateTask={handleUpdateTask}
                             onUpdateEvent={handleUpdateEvent}
                             tasks={tasks}
+                            userFilter={selectedUser}
+                            onUserFilterChange={handleUserFilterChange}
                         />
                     </Box>
                 )}
@@ -1587,6 +1645,22 @@ const CalendarPage: React.FC = () => {
                                 {projects.map((p) => (
                                     <MenuItem key={p.id} value={String(p.id)}>
                                         {p.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <FormControl fullWidth sx={{ mb: 2 }}>
+                            <InputLabel>ユーザー</InputLabel>
+                            <Select
+                                value={selectedUser}
+                                label="ユーザー"
+                                onChange={handleUserFilterChange}
+                            >
+                                <MenuItem value="all">すべて</MenuItem>
+                                {users.map((u) => (
+                                    <MenuItem key={u.id} value={String(u.id)}>
+                                        {u.name || u.username || u.email}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -1699,6 +1773,8 @@ const CalendarPage: React.FC = () => {
                             onUpdateTask={handleUpdateTask}
                             onUpdateEvent={handleUpdateEvent}
                             tasks={tasks}
+                            userFilter={selectedUser}
+                            onUserFilterChange={handleUserFilterChange}
                         />
                     </Box>
                 </Drawer>

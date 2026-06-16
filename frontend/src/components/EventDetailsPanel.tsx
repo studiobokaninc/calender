@@ -81,6 +81,8 @@ interface EventDetailsPanelProps {
   onUpdateEvent?: (eventId: number, updates: any) => Promise<void>;
   totalCost?: number;
   tasks?: Task[];
+  userFilter?: string;
+  onUserFilterChange?: (event: any) => void;
 }
 
 const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
@@ -105,6 +107,8 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   onUpdateTask,
   onUpdateEvent,
   tasks,
+  userFilter = 'all',
+  onUserFilterChange,
 }) => {
   const { user } = useAuth();
   const theme = useTheme();
@@ -148,9 +152,10 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
 
   const activeFilterCount = useMemo(() => {
     const statusActive = eventStatusFilter !== 'all' ? 1 : 0;
+    const userActive = userFilter !== 'all' ? 1 : 0;
     const typeHidden = Object.values(eventTypeFilter).filter(v => !v).length;
-    return statusActive + typeHidden;
-  }, [eventStatusFilter, eventTypeFilter]);
+    return statusActive + userActive + typeHidden;
+  }, [eventStatusFilter, userFilter, eventTypeFilter]);
 
   const getParticipantDisplayName = (p: Participant): string => {
     const idStr = String(p.id ?? '');
@@ -226,6 +231,14 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
               <MenuItem value="all">すべてのプロジェクト</MenuItem>
               {projects.filter(p => p.display_status !== 'offline').map(p => (
                 <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 140, mb: 1 }}>
+            <Select value={userFilter} onChange={onUserFilterChange} displayEmpty>
+              <MenuItem value="all">すべてのユーザー</MenuItem>
+              {users.map(u => (
+                <MenuItem key={u.id} value={String(u.id)}>{u.name || u.username || u.email}</MenuItem>
               ))}
             </Select>
           </FormControl>

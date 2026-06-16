@@ -24,6 +24,7 @@ import {
     TextField,
     Tabs,
     Tab,
+    Tooltip,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
@@ -133,6 +134,7 @@ const ProductionTrackerPage: React.FC = () => {
 
     const [isAddShotDialogOpen, setIsAddShotDialogOpen] = useState(false);
     const [newShot, setNewShot] = useState({ seq_code: '', shot_code: '', description: '' });
+    const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
     const stats = useMemo(() => {
         const data = filteredTrackerData || trackerData;
@@ -472,6 +474,30 @@ const ProductionTrackerPage: React.FC = () => {
                                 <Typography variant="body2">シーケンス: <strong>{selectedShot.shotID.split('_')[0]}</strong></Typography>
                             </Paper>
 
+                            {selectedShot.thumbnail_url && (
+                                <Box>
+                                    <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 1 }}>サムネイル</Typography>
+                                    <Tooltip title="クリックで拡大" placement="top">
+                                        <Box
+                                            component="img"
+                                            src={selectedShot.thumbnail_url}
+                                            alt="サムネイル"
+                                            onClick={() => setLightboxUrl(selectedShot.thumbnail_url!)}
+                                            sx={{
+                                                width: '100%',
+                                                height: 'auto',
+                                                maxHeight: 200,
+                                                objectFit: 'contain',
+                                                borderRadius: 2,
+                                                cursor: 'zoom-in',
+                                                border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                                                display: 'block',
+                                            }}
+                                        />
+                                    </Tooltip>
+                                </Box>
+                            )}
+
                             <Box>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <AssignmentIcon color="action" /> タスク状況
@@ -626,6 +652,46 @@ const ProductionTrackerPage: React.FC = () => {
                     if (selectedProjectId) loadTabData(selectedProjectId as number, activeTab);
                 }}
             />
+
+            {/* サムネイル拡大表示 */}
+            <Dialog
+                open={!!lightboxUrl}
+                onClose={() => setLightboxUrl(null)}
+                maxWidth="lg"
+                fullWidth
+                PaperProps={{ sx: { bgcolor: theme.palette.grey[900], m: 1 } }}
+            >
+                <DialogContent sx={{ p: 0, position: 'relative' }}>
+                    <IconButton
+                        onClick={() => setLightboxUrl(null)}
+                        sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            color: 'white',
+                            bgcolor: alpha(theme.palette.common.black, 0.5),
+                            zIndex: 1,
+                            '&:hover': { bgcolor: alpha(theme.palette.common.black, 0.7) },
+                        }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                    {lightboxUrl && (
+                        <Box
+                            component="img"
+                            src={lightboxUrl}
+                            alt="サムネイル拡大"
+                            sx={{
+                                width: '100%',
+                                height: 'auto',
+                                maxHeight: '90vh',
+                                objectFit: 'contain',
+                                display: 'block',
+                            }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </Box>
     );
 };

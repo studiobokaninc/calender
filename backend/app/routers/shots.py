@@ -123,10 +123,18 @@ def update_shot(
         shot.description = shot_in.description
     if shot_in.cut is not None:
         shot.cut = shot_in.cut
+    if shot_in.sl_no is not None:
+        shot.sl_no = shot_in.sl_no
     if shot_in.frame_in is not None:
         shot.frame_in = shot_in.frame_in
     if shot_in.frame_out is not None:
         shot.frame_out = shot_in.frame_out
+    if shot_in.duration is not None:
+        shot.duration = shot_in.duration
+    if shot_in.second is not None:
+        shot.second = shot_in.second
+    if shot_in.frame_rem is not None:
+        shot.frame_rem = shot_in.frame_rem
     if shot_in.action is not None:
         shot.action = shot_in.action
     if shot_in.dialogue is not None:
@@ -137,6 +145,18 @@ def update_shot(
         shot.ch = shot_in.ch
     if shot_in.prop is not None:
         shot.prop = shot_in.prop
+    if shot_in.task_lay is not None:
+        shot.task_lay = shot_in.task_lay
+    if shot_in.task_anim is not None:
+        shot.task_anim = shot_in.task_anim
+    if shot_in.task_fx is not None:
+        shot.task_fx = shot_in.task_fx
+    if shot_in.task_lighting is not None:
+        shot.task_lighting = shot_in.task_lighting
+    if shot_in.task_comp is not None:
+        shot.task_comp = shot_in.task_comp
+    if shot_in.note is not None:
+        shot.note = shot_in.note
 
     db.commit()
     db.refresh(shot)

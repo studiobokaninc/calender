@@ -480,6 +480,13 @@ export const fetchShots = (projectId: number) =>
 export const updateShot = (id: number, payload: Record<string, unknown>) =>
   api.patch(`/api/shots/${id}`, payload);
 
+export const uploadShotThumbnail = async (file: File): Promise<{ url: string }> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post('/notes/upload-image', formData);
+  return response.data;
+};
+
 export const importShotlist = async (
   projectId: number,
   file: File,

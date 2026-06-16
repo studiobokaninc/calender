@@ -1,15 +1,34 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon, FormatListBulleted as ShotListIcon } from '@mui/icons-material';
+import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link, Grid, Divider } from '@mui/material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon, FormatListBulleted as ShotListIcon, Person as PersonIcon, CalendarToday as CalendarIcon, Movie as MovieIcon, Replay as ReplayIcon, Warning as WarningIcon } from '@mui/icons-material';
 import api, { fetchUsers, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
 import { Project, Task, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
-import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import ProjectDeleteDialog from '../components/ProjectDeleteDialog';
 import CsvParser from '../components/CsvParser';
+
+// Helper function to determine sort priority by display status (online first)
+const displayStatusOrder = (s: string): number => {
+    if (s === 'online') return 0;
+    if (s === 'offline') return 1;
+    return 2;
+};
+
+// Helper function to determine sort priority by status (delayed first, completed last)
+const statusOrder = (s: string): number => {
+    switch (s) {
+        case 'delayed': return 0;
+        case 'in-progress': return 1;
+        case 'planning': return 2;
+        case 'on-hold': return 3;
+        case 'cancelled': return 4;
+        case 'completed': return 5;
+        default: return 6;
+    }
+};
 
 // Helper function to get project status color
 const getProjectStatusColor = (status?: string): string => {
@@ -113,16 +132,16 @@ const ProjectsPage: React.FC = () => {
             const [projectsResponse, tasksResponse, summaryResponse, usersData, rolesData] = await Promise.all([
                 api.get<Project[]>('/projects'),
                 api.get<Task[]>('/tasks'),
-                api.get<Record<string, {shots: number, retakes: number, troubles: number}>>('/api/projects/summary').catch(() => ({ data: {} })),
+                api.get<Record<string, { shots: number, retakes: number, troubles: number }>>('/api/projects/summary').catch(() => ({ data: {} })),
                 fetchUsers().catch(() => [] as User[]),
-                api.get<{id: number; user_id: number; project_id: number; role: string}[]>('/api/score_user_roles').catch(() => ({ data: [] })),
+                api.get<{ id: number; user_id: number; project_id: number; role: string }[]>('/api/score_user_roles').catch(() => ({ data: [] })),
             ]);
 
             const projectsData = projectsResponse.data;
             const tasksData = tasksResponse.data;
             const scoreSummary = (summaryResponse as any).data || {};
             const allUsers: User[] = usersData as User[];
-            const allRoles: {id: number; user_id: number; project_id: number; role: string}[] = (rolesData as any).data || [];
+            const allRoles: { id: number; user_id: number; project_id: number; role: string }[] = (rolesData as any).data || [];
 
             const userNameById = allUsers.reduce((acc, u) => {
                 acc[u.id] = u.full_name || u.username || (u as any).name || u.email || String(u.id);
@@ -198,7 +217,7 @@ const ProjectsPage: React.FC = () => {
     }, [fetchData]);
 
     useEffect(() => {
-        fetchUsers().then(setUsers).catch(() => {});
+        fetchUsers().then(setUsers).catch(() => { });
     }, []);
 
     useEffect(() => {
@@ -209,7 +228,7 @@ const ProjectsPage: React.FC = () => {
                 const pm = roles.find((r: any) => r.role === 'pm');
                 setDirectorId(director ? director.user_id : '');
                 setPmId(pm ? pm.user_id : '');
-            }).catch(() => {});
+            }).catch(() => { });
         } else {
             setDirectorId('');
             setPmId('');
@@ -221,14 +240,24 @@ const ProjectsPage: React.FC = () => {
             const statusMatch = projectStatusFilter === '' || project.status === projectStatusFilter;
             return statusMatch;
         });
-        // 新しいものが先に表示されるようソート（created_at 降順、なければ id 降順）
+        // オンライン優先、進捗ステータス順。同一ステータス内は created_at 降順・id 降順
         return [...filtered].sort((a, b) => {
+            const aDisp = a.display_status || 'online';
+            const bDisp = b.display_status || 'online';
+            const dispDiff = displayStatusOrder(aDisp) - displayStatusOrder(bDisp);
+            if (dispDiff !== 0) return dispDiff;
+
+            const sd = statusOrder(a.status || '') - statusOrder(b.status || '');
+            if (sd !== 0) return sd;
+
             const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
             const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
             if (bTime !== aTime) return bTime - aTime;
             return (b.id ?? 0) - (a.id ?? 0);
         });
     }, [projects, projectStatusFilter]);
+
+
 
     const handleAddProject = () => {
         setIsEditMode(false);
@@ -446,282 +475,6 @@ const ProjectsPage: React.FC = () => {
         }
     };
 
-    // DataGrid用のカラム定義
-    const columns: GridColDef[] = [
-        { field: 'id', headerName: 'ID', width: 80, hideable: true },
-        { field: 'name', headerName: 'プロジェクト名', minWidth: 120, flex: 1, hideable: false },
-        { field: 'description', headerName: '説明', width: 200, flex: 1 },
-        {
-            field: 'status', headerName: '進捗', width: 120, renderCell: (params) => (
-                <Chip label={params.value as string} style={{ background: getProjectStatusColor(params.value as string), color: '#fff' }} />
-            )
-        },
-        {
-            field: 'priority', headerName: '優先度', width: 120, renderCell: (params) => (
-                <Chip label={params.value || '未設定'} style={{ background: getPriorityColor(params.value as string), color: '#fff' }} />
-            )
-        },
-        {
-            field: 'start_date', headerName: '開始日', width: 120, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-                const row = params.row;
-                if (!row || !row.start_date) return '-';
-                try {
-                    const date = new Date(row.start_date);
-                    return date.toLocaleDateString('ja-JP', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit'
-                    });
-                } catch {
-                    return '-';
-                }
-            }
-        },
-        {
-            field: 'end_date', headerName: '終了日', width: 120, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-                const row = params.row;
-                if (!row || !row.end_date) return '-';
-                try {
-                    const date = new Date(row.end_date);
-                    return date.toLocaleDateString('ja-JP', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit'
-                    });
-                } catch {
-                    return '-';
-                }
-            }
-        },
-        {
-            field: 'shots', headerName: 'ショット数', width: 110, renderCell: (params) => (
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{params.value || 0}</Typography>
-            )
-        },
-        {
-            field: 'retakes', headerName: 'リテイク', width: 110, renderCell: (params) => (
-                <Chip
-                    label={params.value || 0}
-                    size="small"
-                    sx={{
-                        bgcolor: (params.value as number) > 0 ? 'warning.light' : 'action.hover',
-                        color: (params.value as number) > 0 ? 'warning.dark' : 'text.disabled',
-                        fontWeight: 700
-                    }}
-                />
-            )
-        },
-        {
-            field: 'troubles', headerName: 'トラブル', width: 110, renderCell: (params) => (
-                <Chip
-                    label={params.value || 0}
-                    size="small"
-                    sx={{
-                        bgcolor: (params.value as number) > 0 ? 'error.light' : 'action.hover',
-                        color: (params.value as number) > 0 ? 'error.dark' : 'text.disabled',
-                        fontWeight: 700
-                    }}
-                />
-            )
-        },
-        {
-            field: 'directorName',
-            headerName: 'Director',
-            width: 130,
-            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => (
-                <Typography variant="body2" sx={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {params.row.directorName || '-'}
-                </Typography>
-            ),
-        },
-        {
-            field: 'pmName',
-            headerName: 'PM',
-            width: 130,
-            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => (
-                <Typography variant="body2" sx={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {params.row.pmName || '-'}
-                </Typography>
-            ),
-        },
-        {
-            field: 'progress', headerName: '進捗率(%)', width: 140, renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-                const value = Number(params.value) || 0;
-                return (
-                    <Box sx={{ position: 'relative', width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <LinearProgress variant="determinate" value={value} sx={{ height: 20, borderRadius: 4, width: '100%' }} />
-                        <Typography variant="body2" sx={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: value > 50 ? '#fff' : '#333', fontSize: '0.8rem' }}>
-                            {value}%
-                        </Typography>
-                    </Box>
-                );
-            }
-        },
-        {
-            field: 'display_status',
-            headerName: '表示ステータス',
-            width: 140,
-            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-                const row = params.row;
-                const value = typeof params.value === 'string' ? params.value : 'online';
-                const label = displayStatusOptions.find(opt => opt.value === value)?.label ?? value;
-                const statusColor = getDisplayStatusColor(value);
-                if (!isAdmin) {
-                    return (
-                        <Chip
-                            label={label}
-                            size="small"
-                            sx={{
-                                backgroundColor: statusColor,
-                                color: '#fff',
-                                fontSize: '0.75rem',
-                                height: 24,
-                                fontWeight: 500
-                            }}
-                        />
-                    );
-                }
-                return (
-                    <Select
-                        size="small"
-                        value={value}
-                        onChange={async (e: SelectChangeEvent) => {
-                            const newStatus = e.target.value as string;
-                            try {
-                                await api.put(`/projects/${row.id}`, { display_status: newStatus });
-                                setProjects((prev) => prev.map(p => p.id === row.id ? { ...p, display_status: newStatus } : p));
-                                setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
-                                // グローバルデータを更新して他のページにも反映
-                                if (refreshGlobalData) {
-                                    console.log('[ProjectsPage] Refreshing global data after display status update...');
-                                    await refreshGlobalData();
-                                    console.log('[ProjectsPage] Global data refresh completed for display status update');
-                                    // プロジェクト表示ステータス更新完了を通知するカスタムイベントを発火
-                                    console.log('[ProjectsPage] Dispatching projectStatusUpdated event...');
-                                    window.dispatchEvent(new CustomEvent('projectStatusUpdated', {
-                                        detail: { projectId: row.id, newStatus }
-                                    }));
-                                }
-                            } catch (err) {
-                                setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
-                            }
-                        }}
-                        sx={{
-                            minWidth: 100,
-                            fontSize: '0.75rem',
-                            backgroundColor: statusColor,
-                            color: '#fff',
-                            '& .MuiSelect-select': {
-                                color: '#fff',
-                                fontWeight: 500
-                            },
-                            '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: statusColor
-                            },
-                            '&:hover .MuiOutlinedInput-notchedOutline': {
-                                borderColor: statusColor
-                            },
-                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                borderColor: statusColor
-                            }
-                        }}
-                        MenuProps={{
-                            PaperProps: {
-                                sx: { fontSize: '0.75rem' }
-                            }
-                        }}
-                    >
-                        {displayStatusOptions.map(opt => (
-                            <MenuItem
-                                key={opt.value}
-                                value={opt.value}
-                                sx={{
-                                    fontSize: '0.75rem',
-                                    backgroundColor: opt.value === value ? statusColor : 'transparent',
-                                    color: opt.value === value ? '#fff' : 'inherit',
-                                    '&:hover': {
-                                        backgroundColor: opt.value === value ? statusColor : 'rgba(0, 0, 0, 0.04)'
-                                    }
-                                }}
-                            >
-                                {opt.label}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                );
-            },
-        },
-        {
-            field: 'shotlist',
-            headerName: 'ショットリスト',
-            width: 120,
-            sortable: false,
-            filterable: false,
-            hideable: false,
-            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => (
-                <Tooltip title="ショットリストを表示">
-                    <Button
-                        size="small"
-                        startIcon={<ShotListIcon fontSize="small" />}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/projects/${params.row.id}/shotlist`);
-                        }}
-                        sx={{ textTransform: 'none', fontSize: '0.75rem', px: 1 }}
-                    >
-                        一覧
-                    </Button>
-                </Tooltip>
-            ),
-        },
-        ...(isAdmin ? [{
-            field: 'actions',
-            headerName: '操作',
-            width: 120,
-            sortable: false,
-            filterable: false,
-            headerAlign: 'center' as const,
-            align: 'center' as const,
-            hideable: false,
-            renderCell: (params: GridRenderCellParams<any, ProjectWithProgress>) => {
-                const row = params.row;
-                return (
-                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                        <Tooltip title="編集">
-                            <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditProject(row);
-                                }}
-                                sx={{
-                                    color: 'primary.main',
-                                    '&:hover': { backgroundColor: 'primary.light', color: 'white' }
-                                }}
-                            >
-                                <EditIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="削除">
-                            <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(row);
-                                }}
-                                sx={{
-                                    color: 'error.main',
-                                    '&:hover': { backgroundColor: 'error.light', color: 'white' }
-                                }}
-                            >
-                                <DeleteIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                    </Box>
-                );
-            },
-        } as GridColDef] : []),
-    ];
 
     if (loading && projects.length === 0) {
         return <CircularProgress />;
@@ -807,181 +560,216 @@ const ProjectsPage: React.FC = () => {
                 </Box>
             )}
 
-            {!isMobile ? (
-                <Paper
-                    elevation={0}
-                    sx={{
-                        flex: 1,
-                        minHeight: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        borderRadius: 2,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        overflow: 'hidden',
-                    }}
-                >
-                    <Box sx={{ flex: 1, minHeight: 0, width: '100%' }}>
-                        <DataGrid<ProjectWithProgress>
-                            rows={filteredProjects}
-                            columns={columns}
-                            initialState={{
-                                pagination: { paginationModel: { pageSize: 10, page: 0 } },
-                            }}
-                            pageSizeOptions={[10, 20, 50]}
-                            checkboxSelection={false}
-                            disableRowSelectionOnClick
-                            getRowId={(row) => row.id}
-                            rowHeight={40}
-                            onRowDoubleClick={isAdmin ? (params) => {
-                                handleEditProject(params.row);
-                            } : undefined}
-                            sx={{
-                                height: '100%',
-                                '& .MuiDataGrid-columnHeaders': {
-                                    background: isDark ? theme.palette.action.hover : '#f5f5f5',
-                                    fontSize: '0.8rem'
-                                },
-                                '& .MuiDataGrid-cell': {
-                                    alignItems: 'center',
-                                    fontSize: '0.8rem',
-                                    cursor: 'pointer'
-                                },
-                                '& .MuiDataGrid-row:hover': {
-                                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
-                                },
-                                '& .MuiDataGrid-pinnedColumns': {
-                                    backgroundColor: 'background.paper',
-                                    boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
-                                }
-                            }}
-                        />
-                    </Box>
-                </Paper>
-            ) : (
-                <Stack spacing={2}>
-                    {filteredProjects.map((project) => (
-                        <Card
-                            key={project.id}
-                            elevation={0}
-                            sx={{
-                                borderRadius: 3,
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                position: 'relative',
-                                overflow: 'visible'
-                            }}
-                        >
-                            <CardContent sx={{ p: 2 }}>
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                                    <Typography variant="h6" sx={{ fontWeight: 700, fontSize: '1rem', flex: 1, mr: 1 }}>
-                                        {project.name}
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                        <Chip
-                                            label={project.status}
-                                            size="small"
-                                            sx={{
-                                                backgroundColor: getProjectStatusColor(project.status ?? undefined),
-                                                color: '#fff',
-                                                fontSize: '0.7rem',
-                                                height: 20
-                                            }}
-                                        />
-                                        {isAdmin && (
-                                            <IconButton size="small" onClick={() => handleEditProject(project)} sx={{ ml: 0.5 }}>
-                                                <EditIcon fontSize="small" />
-                                            </IconButton>
-                                        )}
-                                    </Box>
-                                </Box>
+            {/* テーブルのように縦にスタックされたカードリスト */}
+            <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}>
+                <Grid container spacing={2}>
+                    {filteredProjects.map((project) => {
+                        const dispStatus = typeof project.display_status === 'string' ? project.display_status : 'online';
+                        const dispLabel = displayStatusOptions.find(opt => opt.value === dispStatus)?.label ?? dispStatus;
+                        const dispColor = getDisplayStatusColor(dispStatus);
+                        return (
+                            <Grid item xs={12} key={project.id}>
+                                <Card
+                                    elevation={0}
+                                    sx={{
+                                        borderRadius: 3,
+                                        border: '1px solid',
+                                        borderColor: 'divider',
+                                        borderLeft: `5px solid ${project.color || theme.palette.divider}`,
+                                        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                        '&:hover': {
+                                            transform: 'translateY(-2px)',
+                                            boxShadow: 2
+                                        },
+                                        cursor: isAdmin ? 'pointer' : 'default',
+                                    }}
+                                    onClick={isAdmin ? () => handleEditProject(project) : undefined}
+                                >
+                                    <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                                        <Grid container spacing={2} alignItems="center">
+                                            {/* 左エリア: 名前、ステータス、説明 */}
+                                            <Grid item xs={12} md={5}>
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.25rem', mr: 1, wordBreak: 'break-word' }}>
+                                                            {project.name}
+                                                        </Typography>
+                                                        {isAdmin && (
+                                                            <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                                                <Tooltip title="編集">
+                                                                    <IconButton size="small" onClick={() => handleEditProject(project)} sx={{ color: 'primary.main', p: 0.5 }}>
+                                                                        <EditIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                                <Tooltip title="削除">
+                                                                    <IconButton size="small" onClick={() => handleDeleteClick(project)} sx={{ color: 'error.main', p: 0.5 }}>
+                                                                        <DeleteIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                            </Box>
+                                                        )}
+                                                    </Box>
 
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.85rem' }}>
-                                    {project.description || '説明なし'}
-                                </Typography>
+                                                    {/* ステータスバッジ群 */}
+                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                                                        <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.8rem', height: 26, fontWeight: 700 }} />
+                                                        <Chip label={project.priority || '未設定'} size="small" variant="outlined" sx={{ fontSize: '0.8rem', height: 26, borderColor: getPriorityColor(project.priority ?? undefined), color: getPriorityColor(project.priority ?? undefined), fontWeight: 700 }} />
+                                                        {isAdmin ? (
+                                                            <Select
+                                                                size="small"
+                                                                value={dispStatus}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                onChange={async (e: SelectChangeEvent) => {
+                                                                    const newStatus = e.target.value as string;
+                                                                    try {
+                                                                        await api.put(`/projects/${project.id}`, { display_status: newStatus });
+                                                                        setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, display_status: newStatus } : p));
+                                                                        setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
+                                                                        if (refreshGlobalData) {
+                                                                            await refreshGlobalData();
+                                                                            window.dispatchEvent(new CustomEvent('projectStatusUpdated', { detail: { projectId: project.id, newStatus } }));
+                                                                        }
+                                                                    } catch {
+                                                                        setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
+                                                                    }
+                                                                }}
+                                                                sx={{ height: 26, fontSize: '0.8rem', fontWeight: 700, backgroundColor: dispColor, color: '#fff', '& .MuiSelect-select': { color: '#fff', py: 0, px: 1 }, '& .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: dispColor } }}
+                                                            >
+                                                                {displayStatusOptions.map(opt => (
+                                                                    <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.8rem' }}>{opt.label}</MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        ) : (
+                                                            <Chip label={dispLabel} size="small" sx={{ backgroundColor: dispColor, color: '#fff', fontSize: '0.8rem', height: 26, fontWeight: 700 }} />
+                                                        )}
+                                                    </Box>
 
-                                <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                                    <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>Shots:</Typography>
-                                        <Typography variant="caption" sx={{ fontWeight: 700 }}>{project.shots || 0}</Typography>
-                                    </Box>
-                                    <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: (project.retakes || 0) > 0 ? 'warning.light' : 'action.hover', border: '1px solid', borderColor: (project.retakes || 0) > 0 ? 'warning.main' : 'divider', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        <Typography variant="caption" sx={{ fontWeight: 600, color: (project.retakes || 0) > 0 ? 'warning.dark' : 'text.secondary' }}>Retakes:</Typography>
-                                        <Typography variant="caption" sx={{ fontWeight: 700, color: (project.retakes || 0) > 0 ? 'warning.dark' : 'inherit' }}>{project.retakes || 0}</Typography>
-                                    </Box>
-                                    <Box sx={{ px: 1, py: 0.5, borderRadius: 1, bgcolor: (project.troubles || 0) > 0 ? 'error.light' : 'action.hover', border: '1px solid', borderColor: (project.troubles || 0) > 0 ? 'error.main' : 'divider', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        <Typography variant="caption" sx={{ fontWeight: 600, color: (project.troubles || 0) > 0 ? 'error.dark' : 'text.secondary' }}>Troubles:</Typography>
-                                        <Typography variant="caption" sx={{ fontWeight: 700, color: (project.troubles || 0) > 0 ? 'error.dark' : 'inherit' }}>{project.troubles || 0}</Typography>
-                                    </Box>
-                                </Box>
+                                                    {/* 説明 */}
+                                                    {project.description && (
+                                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
+                                                            {project.description}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Grid>
 
-                                <Box sx={{ mb: 1 }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                        <Typography variant="caption" color="text.secondary">進捗率</Typography>
-                                        <Typography variant="caption" sx={{ fontWeight: 700 }}>{project.progress}%</Typography>
-                                    </Box>
-                                    <LinearProgress
-                                        variant="determinate"
-                                        value={project.progress}
-                                        sx={{
-                                            height: 8,
-                                            borderRadius: 4,
-                                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                                            '& .MuiLinearProgress-bar': {
-                                                borderRadius: 4,
-                                                background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
-                                            }
-                                        }}
-                                    />
-                                </Box>
+                                            {/* 中央エリア: 担当者、期間 */}
+                                            <Grid item xs={12} md={3}>
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, borderLeft: { md: '1px solid' }, borderRight: { md: '1px solid' }, borderColor: { md: 'divider' }, pl: { md: 3 }, pr: { md: 2 } }}>
+                                                    {/* Director / PM */}
+                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
+                                                            <Box>
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>Director</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'text.primary' }}>{project.directorName || '-'}</Typography>
+                                                            </Box>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
+                                                            <Box>
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>PM</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'text.primary' }}>{project.pmName || '-'}</Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    </Box>
 
-                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                                    <Box>
-                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>優先度</Typography>
-                                        <Chip
-                                            label={project.priority || '未設定'}
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{
-                                                height: 20,
-                                                fontSize: '0.7rem',
-                                                borderColor: getPriorityColor(project.priority ?? undefined),
-                                                color: getPriorityColor(project.priority ?? undefined),
-                                                mt: 0.5
-                                            }}
-                                        />
-                                    </Box>
-                                    <Box sx={{ textAlign: 'right' }}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.7rem' }}>期間</Typography>
-                                        <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                                            {project.start_date ? format(new Date(project.start_date), 'MM/dd') : '-'}
-                                            ～
-                                            {project.end_date ? format(new Date(project.end_date), 'MM/dd') : '-'}
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                                <Box sx={{ mt: 1.5 }}>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={<ShotListIcon fontSize="small" />}
-                                        onClick={() => navigate(`/projects/${project.id}/shotlist`)}
-                                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
-                                        fullWidth
-                                    >
-                                        ショットリスト
-                                    </Button>
-                                </Box>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                                    {/* 期間 */}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                        <CalendarIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>期間</Typography>
+                                                            <Typography variant="body2" sx={{ fontSize: '0.9rem', fontWeight: 700, color: 'text.primary' }}>
+                                                                {project.start_date ? new Date(project.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
+                                                                ～
+                                                                {project.end_date ? new Date(project.end_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Box>
+                                            </Grid>
+
+                                            {/* 右エリア: 進捗、数値、ボタン */}
+                                            <Grid item xs={12} md={4}>
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pl: { md: 2 } }}>
+                                                    {/* Shots / Retakes / Troubles (ミニダッシュボード) と進捗率を横並びに */}
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                                                        {/* 統計ボックス */}
+                                                        <Box sx={{ display: 'flex', gap: 0.75, flex: 1 }}>
+                                                            <Box sx={{ px: 1, py: 0.5, borderRadius: 1.5, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.65rem' }}>Shots</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1rem' }}>{project.shots || 0}</Typography>
+                                                            </Box>
+                                                            <Box sx={{ px: 1, py: 0.5, borderRadius: 1.5, bgcolor: (project.retakes || 0) > 0 ? (isDark ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.retakes || 0) > 0 ? 'warning.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.retakes || 0) > 0 ? 'warning.main' : 'text.secondary', fontSize: '0.65rem' }}>Retakes</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1rem', color: (project.retakes || 0) > 0 ? 'warning.main' : 'inherit' }}>{project.retakes || 0}</Typography>
+                                                            </Box>
+                                                            <Box sx={{ px: 1, py: 0.5, borderRadius: 1.5, bgcolor: (project.troubles || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.troubles || 0) > 0 ? 'error.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.troubles || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.65rem' }}>Troubles</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1rem', color: (project.troubles || 0) > 0 ? 'error.main' : 'inherit' }}>{project.troubles || 0}</Typography>
+                                                            </Box>
+                                                        </Box>
+
+                                                        {/* 進捗率テキスト */}
+                                                        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block', fontWeight: 600 }}>進捗率</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.1rem', color: theme.palette.primary.main }}>{project.progress}%</Typography>
+                                                        </Box>
+                                                    </Box>
+
+                                                    {/* 進捗バーとショットリストボタンを横に並べる */}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                        <Box sx={{ flex: 1 }}>
+                                                            <LinearProgress
+                                                                variant="determinate"
+                                                                value={project.progress}
+                                                                sx={{
+                                                                    height: 10,
+                                                                    borderRadius: 5,
+                                                                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                                                                    '& .MuiLinearProgress-bar': {
+                                                                        borderRadius: 5,
+                                                                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </Box>
+                                                        <Button
+                                                            size="small"
+                                                            variant="outlined"
+                                                            startIcon={<ShotListIcon sx={{ fontSize: '0.9rem' }} />}
+                                                            onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}/shotlist`); }}
+                                                            sx={{
+                                                                textTransform: 'none',
+                                                                fontSize: '0.8rem',
+                                                                fontWeight: 600,
+                                                                borderRadius: 2,
+                                                                py: 0.5,
+                                                                px: 1.5,
+                                                                whiteSpace: 'nowrap',
+                                                                flexShrink: 0
+                                                            }}
+                                                        >
+                                                            ショットリスト
+                                                        </Button>
+                                                    </Box>
+                                                </Box>
+                                            </Grid>
+                                        </Grid>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                        );
+                    })}
                     {filteredProjects.length === 0 && (
-                        <Box sx={{ textAlign: 'center', py: 5 }}>
-                            <Typography color="text.secondary">プロジェクトがありません</Typography>
-                        </Box>
+                        <Grid item xs={12}>
+                            <Box sx={{ textAlign: 'center', py: 5 }}>
+                                <Typography color="text.secondary">プロジェクトがありません</Typography>
+                            </Box>
+                        </Grid>
                     )}
-                </Stack>
-            )}
+                </Grid>
+            </Box>
 
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth fullScreen={isMobile}>
                 <DialogTitle>{isEditMode ? 'プロジェクト編集' : '新規プロジェクト'}</DialogTitle>

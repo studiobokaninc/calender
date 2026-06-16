@@ -420,13 +420,23 @@ class ShotUpdate(BaseModel):
     thumbnail_url: Optional[str] = None
     description: Optional[str] = None
     cut: Optional[str] = None
+    sl_no: Optional[int] = None
     frame_in: Optional[int] = None
     frame_out: Optional[int] = None
+    duration: Optional[int] = None
+    second: Optional[int] = None
+    frame_rem: Optional[int] = None
     action: Optional[str] = None
     dialogue: Optional[str] = None
     bg: Optional[str] = None
     ch: Optional[str] = None
     prop: Optional[str] = None
+    task_lay: Optional[str] = None
+    task_anim: Optional[str] = None
+    task_fx: Optional[str] = None
+    task_lighting: Optional[str] = None
+    task_comp: Optional[str] = None
+    note: Optional[str] = None
 
 class ShotResponse(ShotBase):
     id: int

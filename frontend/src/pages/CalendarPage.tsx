@@ -256,34 +256,39 @@ const CalendarPage: React.FC = () => {
             const typeKeyForFilter = (typeKey === 'event' || typeKey === 'generic') ? 'generic' : typeKey;
             const typeFilterPass = eventTypeFilter[typeKeyForFilter] !== false;
 
-            // ユーザーフィルタ
+            // ユーザーフィルタ (OR合成: a担当タスク / b関与プロジェクト / c参加者)
             let userFilterPass = true;
             if (selectedUser !== 'all') {
-                if (typeKey === 'task') {
-                    const assigneeId = event.extendedProps?.taskAssigneeId;
-                    userFilterPass = assigneeId != null && String(assigneeId) === selectedUser;
-                } else if (typeKey === 'project' || typeKey === 'group') {
-                    userFilterPass = true;
-                } else {
-                    const eventProjectId = event.extendedProps?.projectId;
-                    if (eventProjectId) {
-                        // タスクが振られているプロジェクトのものしか表示されないようにする
-                        const hasTaskInProject = tasks.some(
-                            (t) => t.project_id != null &&
+                // (a) 担当タスク
+                const isAssignedTask =
+                    typeKey === 'task' &&
+                    event.extendedProps?.taskAssigneeId != null &&
+                    String(event.extendedProps.taskAssigneeId) === selectedUser;
+
+                // (b) ユーザー関与プロジェクトのイベント
+                const eventProjectId = event.extendedProps?.projectId;
+                const isInUserProject =
+                    eventProjectId != null &&
+                    tasks.some(
+                        (t) =>
+                            t.project_id != null &&
                             String(t.project_id) === String(eventProjectId) &&
                             t.assigned_to != null &&
                             String(t.assigned_to) === selectedUser
-                        );
-                        userFilterPass = hasTaskInProject;
-                    } else {
-                        const participants = event.extendedProps?.participants;
-                        if (participants && participants.length > 0) {
-                            userFilterPass = participants.some(p => p.type === 'user' && String(p.id) === selectedUser);
-                        } else {
-                            userFilterPass = true;
-                        }
-                    }
-                }
+                    );
+
+                // (c) 参加者イベント
+                const participants = event.extendedProps?.participants;
+                const isParticipant =
+                    participants != null &&
+                    participants.length > 0 &&
+                    participants.some(
+                        (p) => p.type === 'user' && String(p.id) === selectedUser
+                    );
+
+                userFilterPass = typeKey === 'task'
+                    ? isAssignedTask
+                    : isInUserProject || isParticipant;
             }
 
             return projectFilterPass && typeFilterPass && userFilterPass;

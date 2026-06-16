@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import { parseISO, addDays, startOfDay, format as formatDateFnsOriginal } from 'date-fns';
 import api from '../services/api';
 import { CalendarEvent, BackendEvent, Task, Project, User } from '../types';
+import { usePageState } from '../contexts/PageStateContext';
 
 interface UseCalendarActionsOptions {
     user: User | null;
@@ -19,7 +20,7 @@ interface UseCalendarActionsOptions {
     setIsAddModalOpen: (open: boolean) => void;
     setIsPhaseEditModalOpen: (open: boolean) => void;
     refetch: () => void;
-    refreshGlobalData?: () => Promise<void>;
+    refreshGlobalData?: (options?: { force?: boolean }) => Promise<void>;
 }
 
 export const useCalendarActions = ({
@@ -36,6 +37,7 @@ export const useCalendarActions = ({
     refetch,
     refreshGlobalData,
 }: UseCalendarActionsOptions) => {
+    const { globalData, updateGlobalData } = usePageState();
 
     const formatForApi = useCallback((d: Date | null, allDay: boolean): string | undefined => {
         if (!d) return undefined;
@@ -325,14 +327,43 @@ export const useCalendarActions = ({
     // タスクのみの更新 (チェックリスト・成果物など)
     // ────────────────────────────────────────────────────────────────────────
     const handleUpdateTask = useCallback(async (taskId: number, updates: any) => {
+        // Optimistic update: instantly refresh tasks inside globalData to make calendar cards update immediately
+        if (globalData && updateGlobalData) {
+            const updatedTasks = globalData.tasks.map(t => {
+                if (t.id === taskId) {
+                    const taskUpdate: any = {};
+                    if (updates.name !== undefined) taskUpdate.name = updates.name;
+                    if (updates.description !== undefined) taskUpdate.description = updates.description;
+                    if (updates.status !== undefined) taskUpdate.status = updates.status;
+                    if (updates.due_date !== undefined) taskUpdate.due_date = updates.due_date;
+                    if (updates.project_id !== undefined) taskUpdate.project_id = updates.project_id;
+                    if (updates.assigned_to !== undefined) taskUpdate.assigned_to = updates.assigned_to;
+                    if (updates.cost !== undefined) taskUpdate.cost = updates.cost;
+                    if (updates.dependsOn !== undefined) taskUpdate.dependsOn = updates.dependsOn;
+                    if (updates.start_date !== undefined) taskUpdate.start_date = updates.start_date;
+                    if (updates.priority !== undefined) taskUpdate.priority = updates.priority;
+                    if (updates.type !== undefined) taskUpdate.type = updates.type;
+                    if (updates.seqID !== undefined) taskUpdate.seqID = updates.seqID;
+                    if (updates.shotID !== undefined) taskUpdate.shotID = updates.shotID;
+                    if (updates.phases !== undefined) taskUpdate.phases = updates.phases;
+                    if (updates.deliverables !== undefined) taskUpdate.deliverables = updates.deliverables;
+                    if (updates.check_items !== undefined) taskUpdate.check_items = updates.check_items;
+                    return { ...t, ...taskUpdate };
+                }
+                return t;
+            });
+            updateGlobalData({ tasks: updatedTasks });
+        }
+
         try {
             await api.put(`/tasks/${taskId}`, updates);
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             refetch();
         } catch (error) {
             alert("タスクの更新に失敗しました。");
+            refetch(); // Revert state from backend if it failed
         }
-    }, [refreshGlobalData, refetch]);
+    }, [globalData, updateGlobalData, refreshGlobalData, refetch]);
 
     // 非タスクイベントの一括更新 (保存ボタン方式)
     // ────────────────────────────────────────────────────────────────────────

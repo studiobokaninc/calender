@@ -67,7 +67,8 @@ const ShotlistImporter: React.FC = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const projects: { id: number; name: string }[] = (globalData as any).projects ?? [];
+  const projects: { id: number; name: string; display_status?: string }[] = (globalData as any).projects ?? [];
+  const onlineProjects = projects.filter((p) => p.display_status === 'online');
 
   useEffect(() => {
     refreshGlobalData();
@@ -156,7 +157,7 @@ const ShotlistImporter: React.FC = () => {
               setResult(null);
             }}
           >
-            {projects.map((p) => (
+            {onlineProjects.map((p) => (
               <MenuItem key={p.id} value={p.id}>
                 <Typography
                   noWrap

@@ -185,6 +185,27 @@ class StatusHistoryBase(BaseModel):
     changed_at: datetime
     changed_by: Optional[int]
 
+    @validator('status', pre=True)
+    def validate_status(cls, v):
+        if v is None:
+            return None
+        if hasattr(v, "value"):
+            s = str(v.value)
+        else:
+            s = str(v)
+        s = s.strip().lower().replace('_', '-')
+        status_map = {
+            'todo': 'todo',
+            'in-progress': 'in-progress',
+            'in_progress': 'in-progress',
+            'review': 'review',
+            'approved': 'approved',
+            'completed': 'completed',
+            'delayed': 'delayed',
+            'retake': 'retake'
+        }
+        return status_map.get(s, s)
+
 class StatusHistoryCreate(BaseModel):
     status: str
     changed_by: Optional[int]
@@ -244,6 +265,27 @@ class TaskBase(BaseModel):
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
 
+    @validator('status', pre=True)
+    def validate_status(cls, v):
+        if v is None:
+            return None
+        if hasattr(v, "value"):
+            s = str(v.value)
+        else:
+            s = str(v)
+        s = s.strip().lower().replace('_', '-')
+        status_map = {
+            'todo': 'todo',
+            'in-progress': 'in-progress',
+            'in_progress': 'in-progress',
+            'review': 'review',
+            'approved': 'approved',
+            'completed': 'completed',
+            'delayed': 'delayed',
+            'retake': 'retake'
+        }
+        return status_map.get(s, s)
+
     @validator('type', pre=True)
     def validate_task_type(cls, v):
         if v is None:
@@ -281,6 +323,27 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     phases: Optional[List[Dict[str, Any]]] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
+
+    @validator('status', pre=True)
+    def validate_status_update(cls, v):
+        if v is None:
+            return None
+        if hasattr(v, "value"):
+            s = str(v.value)
+        else:
+            s = str(v)
+        s = s.strip().lower().replace('_', '-')
+        status_map = {
+            'todo': 'todo',
+            'in-progress': 'in-progress',
+            'in_progress': 'in-progress',
+            'review': 'review',
+            'approved': 'approved',
+            'completed': 'completed',
+            'delayed': 'delayed',
+            'retake': 'retake'
+        }
+        return status_map.get(s, s)
 
     @validator('type', pre=True)
     def validate_task_type_update(cls, v):

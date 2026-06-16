@@ -501,7 +501,9 @@ const UserManagementPage: React.FC = () => {
       setIsPhaseEditModalOpen(true);
       return;
     }
-    setTaskEditId(task.id);
+    // 詳細ドロワーを開く
+    setSelectedTaskForDetail(task);
+    setIsDrawerOpen(true);
   };
 
   const handleTaskClick = (task: Task) => {

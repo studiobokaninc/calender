@@ -57,7 +57,7 @@ import { useCalendarActions } from '../hooks/useCalendarActions';
 // utils
 import { getEventColor, getTaskColor } from '../utils/calendarEventColors';
 
-const DOUBLE_CLICK_THRESHOLD = 300;
+const DOUBLE_CLICK_THRESHOLD = 400;
 
 const CalendarPage: React.FC = () => {
     const theme = useTheme();
@@ -111,6 +111,7 @@ const CalendarPage: React.FC = () => {
     const lastClickTimeRef = useRef<number>(0);
     const lastClickedEventIdRef = useRef<string | null>(null);
     const stateRestored = useRef(false);
+    const clickTimeoutRef = useRef<any>(null);
 
     // ────────────────────────────────────────────────────────────────────────
     // カスタムフックの適用
@@ -382,16 +383,23 @@ const CalendarPage: React.FC = () => {
             return;
         }
 
-        const now = new Date().getTime();
-        const clickTime = now;
-
-        if (user?.role === 'admin' && clickTime - lastClickTimeRef.current < DOUBLE_CLICK_THRESHOLD) {
-            handleOpenAddModal({ start: arg.date, allDay: arg.allDay } as DateSelectArg);
-        } else {
+        if (user?.role !== 'admin') {
             setSelectedDate(arg.date);
             setSelectedEventId(null);
+            return;
         }
-        lastClickTimeRef.current = clickTime;
+
+        if (clickTimeoutRef.current) {
+            clearTimeout(clickTimeoutRef.current);
+            clickTimeoutRef.current = null;
+            handleOpenAddModal({ start: arg.date, allDay: arg.allDay } as DateSelectArg);
+        } else {
+            clickTimeoutRef.current = setTimeout(() => {
+                setSelectedDate(arg.date);
+                setSelectedEventId(null);
+                clickTimeoutRef.current = null;
+            }, 400);
+        }
     };
 
     const handleEventClick = (clickInfo: any) => {

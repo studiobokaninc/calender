@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Divider, TextField, Button, FormControlLabel,
-    Switch, IconButton, useTheme
+    Switch, IconButton, useTheme, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CloseIcon from '@mui/icons-material/Close';
@@ -13,12 +13,13 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { parseISO, isValid, format as dateFnsFormat } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { CalendarEvent } from '../types';
+import { CalendarEvent, Project } from '../types';
 
 interface EventQuickEditProps {
     event: CalendarEvent;
     onUpdate: (eventId: number, updates: any) => Promise<void>;
     onClose?: () => void;
+    projects: Project[];
 }
 
 const parseDate = (val: string | Date | null | undefined): Date | null => {
@@ -37,7 +38,7 @@ const formatForApi = (d: Date | null, allDay: boolean): string | null => {
         : dateFnsFormat(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
 };
 
-export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate, onClose }) => {
+export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate, onClose, projects }) => {
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
 
@@ -49,6 +50,7 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
     const [allDay, setAllDay] = useState(event.allDay ?? false);
     const [startDate, setStartDate] = useState<Date | null>(parseDate(event.start));
     const [endDate, setEndDate] = useState<Date | null>(parseDate(event.end));
+    const [projectId, setProjectId] = useState<number | ''>(event.extendedProps?.projectId ? Number(event.extendedProps.projectId) : '');
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -58,6 +60,7 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
         setAllDay(event.allDay ?? false);
         setStartDate(parseDate(event.start));
         setEndDate(parseDate(event.end));
+        setProjectId(event.extendedProps?.projectId ? Number(event.extendedProps.projectId) : '');
     }, [event.id]);
 
     const handleSave = async () => {
@@ -74,6 +77,7 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
                 allDay: allDay,
                 start_time: formatForApi(startDate, allDay),
                 end_time: formatForApi(endDate, allDay),
+                project_id: projectId === '' ? null : projectId,
             };
             await onUpdate(eventId, updates);
             if (onClose) onClose();
@@ -109,6 +113,22 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
                     required
                     sx={inputSx}
                 />
+
+                <FormControl fullWidth size="small" sx={inputSx}>
+                    <InputLabel id="event-project-select-label">プロジェクト</InputLabel>
+                    <Select
+                        labelId="event-project-select-label"
+                        id="event-project-select"
+                        value={projectId}
+                        label="プロジェクト"
+                        onChange={(e) => setProjectId(e.target.value === '' ? '' : Number(e.target.value))}
+                    >
+                        <MenuItem value=""><em>未設定</em></MenuItem>
+                        {projects.map((p) => (
+                            <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
 
                 <FormControlLabel
                     control={

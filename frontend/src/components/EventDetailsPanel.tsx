@@ -285,6 +285,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                   <EventQuickEdit
                     event={selectedEvent}
                     onUpdate={onUpdateEvent}
+                    projects={projects}
                   />
                 )}
                 {/* 非タスクイベント(onUpdateEvent未設定の場合): read-only表示 */}

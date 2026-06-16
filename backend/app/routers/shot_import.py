@@ -104,7 +104,12 @@ async def import_shots(
     ]
 
     if dry_run:
-        preview_rows = [vars(p) for p in parse_result.shots[:5]]
+        preview_rows = []
+        for p in parse_result.shots[:5]:
+            d = vars(p).copy()
+            d.pop("image_data", None)
+            d.pop("image_format", None)
+            preview_rows.append(d)
         return schemas.ShotImportPreview(
             total=len(parse_result.shots),
             to_insert=len(to_insert),
@@ -114,6 +119,7 @@ async def import_shots(
             warnings=[schemas.ShotImportWarning(**w) for w in parse_result.warnings],
             preview_rows=preview_rows,
         )
+
 
     # BUG3修正: INSERTリストの重複cutを排除（先出し優先）
     seen_cuts = set()

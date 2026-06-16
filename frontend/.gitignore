@@ -25,3 +25,6 @@ dist-ssr
 *.pyc
 *.pyo
 *.pyi
+.env
+.env.local
+.env.*

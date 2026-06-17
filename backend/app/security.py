@@ -2,7 +2,7 @@ import os
 from typing import Annotated, Optional, Union
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -108,6 +108,28 @@ def authenticate_user(db: Session, username: str, password: str) -> Union[models
     if not getattr(db_user, "is_active", True):
         return False
     return db_user
+
+
+async def verify_readonly_token(
+    x_readonly_token: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+) -> None:
+    """Score向け read-only トークン検証。CLI_BYPASS_TOKEN とは完全別系統。"""
+    readonly_token = os.getenv("SCORE_READONLY_TOKEN")
+    if not readonly_token:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="SCORE_READONLY_TOKEN がサーバーに設定されていません。",
+        )
+    bearer_token = None
+    if authorization and authorization.startswith("Bearer "):
+        bearer_token = authorization.split("Bearer ", 1)[1].strip()
+    candidate = x_readonly_token or bearer_token
+    if not candidate or candidate != readonly_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="有効な read-only トークンが必要です。X-Readonly-Token ヘッダまたは Authorization: Bearer を使用してください。",
+        )
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

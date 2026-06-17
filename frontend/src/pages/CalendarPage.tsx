@@ -607,60 +607,77 @@ const CalendarPage: React.FC = () => {
             Math.floor((eventInfo.event.end.getTime() - eventInfo.event.start.getTime()) / (1000 * 60 * 60 * 24)) > 1;
 
         if (isListView) {
+            const projectIdRawList = eventInfo.event.extendedProps?.projectId;
+            const projectNameList = projectIdRawList != null
+                ? projectsMap.get(String(projectIdRawList))?.name
+                : undefined;
+
             if (type === 'project') {
                 return (
-                    <div className="calendar-list-project-content" style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.7 }}>
-                        <span className="calendar-event-type-badge calendar-event-type-project" style={{ fontSize: '0.6rem', padding: '1px 3px' }}>
-                            P
-                        </span>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{title}</span>
+                    <div className="calendar-list-project-content" style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.8 }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{title}</span>
                     </div>
                 );
             }
 
-            const shotID = type === 'task' ? eventInfo.event.extendedProps.shotID : null;
+            const shotIDList = eventInfo.event.extendedProps?.shotID || null;
 
             return (
-                <div className="calendar-list-event-content" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '1px 0' }}>
-                    <span className={`calendar-event-type-badge calendar-event-type-${(type || 'generic').toLowerCase()}`} style={{
-                        fontSize: '0.65rem',
-                        padding: '1px 5px',
-                        minWidth: '50px',
-                        textAlign: 'center'
-                    }}>
-                        {typeLabel}
-                    </span>
-                    {shotID && (
-                        <span style={{ fontWeight: 600, fontSize: '0.875rem', marginRight: '-4px' }}>{shotID}_</span>
+                <div className="calendar-list-event-content" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '1px 0', overflow: 'hidden' }}>
+                    {projectNameList && (
+                        <span style={{ fontSize: '0.9rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{projectNameList}</span>
                     )}
-                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{title}</span>
+                    {shotIDList && (
+                        <span style={{ fontWeight: 600, fontSize: '0.9rem', opacity: 0.7, whiteSpace: 'nowrap', flexShrink: 0 }}>{shotIDList}_</span>
+                    )}
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={title}>{title}</span>
                 </div>
             );
         }
 
         if (isTimeGrid && !eventInfo.event.allDay) {
             const timeText = eventInfo.timeText;
+            const projectIdRawTG = eventInfo.event.extendedProps?.projectId;
+            const projectNameTG = projectIdRawTG != null
+                ? projectsMap.get(String(projectIdRawTG))?.name
+                : undefined;
+            const shotIDTG = eventInfo.event.extendedProps?.shotID;
             return (
                 <div className="calendar-timegrid-event-content" style={{
                     padding: '2px 4px',
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'center',
-                    gap: '2px',
+                    justifyContent: 'flex-start',
+                    gap: '1px',
                     overflow: 'hidden'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                        <span className={`calendar-event-type-badge calendar-event-type-${(type || 'generic').toLowerCase()}`} style={{
-                            fontSize: '0.6rem',
-                            padding: '1px 3px',
-                            flexShrink: 0
-                        }}>
-                            {typeLabel}
-                        </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, justifyContent: 'space-between' }}>
                         <span style={{
                             fontWeight: 700,
-                            fontSize: '0.8rem',
+                            fontSize: '0.9rem',
+                            lineHeight: '1.2',
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }} title={projectNameTG || title}>
+                            {projectNameTG || title}
+                        </span>
+                        {timeText && (
+                            <span style={{ fontSize: '0.7rem', fontWeight: 600, opacity: 0.85, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                {timeText}
+                            </span>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', minWidth: 0 }}>
+                        {shotIDTG && (
+                            <span style={{ fontSize: '0.8rem', opacity: 0.7, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                {shotIDTG}
+                            </span>
+                        )}
+                        <span style={{
+                            fontSize: '0.85rem',
                             lineHeight: '1.2',
                             flex: 1,
                             overflow: 'hidden',
@@ -668,9 +685,6 @@ const CalendarPage: React.FC = () => {
                             whiteSpace: 'nowrap'
                         }} title={title}>
                             {title}
-                        </span>
-                        <span style={{ fontSize: '0.6rem', fontWeight: 600, opacity: 0.8, flexShrink: 0 }}>
-                            {timeText}
                         </span>
                     </div>
                 </div>
@@ -1341,7 +1355,11 @@ const CalendarPage: React.FC = () => {
                             border: none !important;
                             border-left: 3px solid rgba(0,0,0,0.2) !important;
                         }
-                        .fc-timegrid-slot { height: 28px !important; }
+                        .fc-timegrid-slot { height: 40px !important; }
+                        .fc-timegrid-slot-label { font-size: 0.75rem !important; color: ${isDark ? '#9aa0a6' : '#5f6368'} !important; }
+                        .fc-list-event-title { font-size: 0.9rem !important; }
+                        .fc-list-event-time { font-size: 0.85rem !important; color: ${isDark ? '#9aa0a6' : '#5f6368'} !important; }
+                        .fc-list-day-cushion a { font-size: 0.85rem !important; }
                     `}</style>
 
                     {error && <Typography color="error" sx={{ px: 1 }}>{error}</Typography>}

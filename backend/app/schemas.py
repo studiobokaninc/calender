@@ -1112,3 +1112,147 @@ class BugReportRecentItem(BaseModel):
     class Config:
         from_attributes = True
 
+
+# --- Readonly API Schemas (Score向け read-only 広域参照API) ---
+
+class ReadonlyProject(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    color: Optional[str] = None
+    display_status: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyShot(BaseModel):
+    id: int
+    project_id: int
+    seq_code: str
+    shot_code: str
+    display_order: Optional[int] = None
+    status: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    description: Optional[str] = None
+    cut: Optional[str] = None
+    sl_no: Optional[int] = None
+    frame_in: Optional[int] = None
+    frame_out: Optional[int] = None
+    duration: Optional[int] = None
+    second: Optional[int] = None
+    frame_rem: Optional[int] = None
+    action: Optional[str] = None
+    dialogue: Optional[str] = None
+    bg: Optional[str] = None
+    ch: Optional[str] = None
+    prop: Optional[str] = None
+    task_lay: Optional[str] = None
+    task_anim: Optional[str] = None
+    task_fx: Optional[str] = None
+    task_lighting: Optional[str] = None
+    task_comp: Optional[str] = None
+    note: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyTask(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    name: str
+    description: Optional[str] = None
+    assigned_to: Optional[int] = None
+    due_date: Optional[datetime] = None
+    start_date: Optional[datetime] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    type: Optional[str] = None
+    progress: Optional[int] = None
+    dependsOn: Optional[List[Any]] = None
+    shotID: Optional[str] = None
+    seqID: Optional[str] = None
+    shot_id: Optional[int] = None
+    phases: Optional[List[Any]] = None
+    deliverables: Optional[str] = None
+    check_items: Optional[List[Any]] = None
+    display_status: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyUser(BaseModel):
+    id: int
+    name: Optional[str] = None
+    full_name: Optional[str] = None
+    username: Optional[str] = None
+    role: Optional[str] = None
+    avatar_url: Optional[str] = None
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyEvent(BaseModel):
+    id: int
+    project_id: Optional[int] = None
+    title: str
+    description: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    location: Optional[str] = None
+    type: Optional[str] = None
+    allDay: Optional[bool] = None
+    status: Optional[str] = None
+    user_ids: Optional[List[int]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    date: Optional[str] = None
+    time: Optional[str] = None
+    duration_minutes: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyScoreUserRole(BaseModel):
+    id: int
+    user_id: int
+    project_id: int
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyNotification(BaseModel):
+    id: int
+    type: str
+    is_read: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyListResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    items: List[Any]
+

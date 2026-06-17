@@ -490,14 +490,16 @@ export const uploadShotThumbnail = async (file: File): Promise<{ url: string }> 
 export const importShotlist = async (
   projectId: number,
   file: File,
-  dryRun: boolean = true
+  dryRun: boolean = true,
+  seqCode?: string
 ): Promise<any> => {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await api.post(
-    `/api/projects/${projectId}/shots/import?dry_run=${dryRun}`,
-    formData
-  );
+  let url = `/api/projects/${projectId}/shots/import?dry_run=${dryRun}`;
+  if (seqCode) {
+    url += `&seq_code=${encodeURIComponent(seqCode)}`;
+  }
+  const response = await api.post(url, formData);
   return response.data;
 };
 

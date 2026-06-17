@@ -17477,3 +17477,37 @@ FROM task_status_history
 WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ORDER BY task_status_history.changed_at]
 [parameters: (1880, 1881, 1882, 1883, 1884, 1885, 1886, 1887, 1888, 1889, 1890, 1891, 1892, 1893, 1894, 1895, 1896, 1897, 1898, 1899, 1900, 1901, 1902, 1903, 1904, 1905, 1906, 1907, 1908, 1909, 1910, 1911, 1912, 1913, 1914, 1915, 1916, 1917, 1918, 1919, 1920, 1921, 1922, 1923, 1924, 1925, 1926, 1927, 1928, 1929 ... 543 parameters truncated ... 2820, 2821, 2822, 2823, 2824, 2825, 2826, 2827, 2828, 2829, 2830, 2831, 2832, 2833, 2834, 2835, 2836, 2837, 2838, 2839, 2840, 2841, 2842, 2843, 2844, 2845, 2846, 2847, 2848, 2849, 2850, 2851, 2852, 2853, 2854, 2855, 2856, 2857, 2858, 2859, 2860, 2861, 2862, 2863, 2864, 2865, 2866, 2867, 2868, 2869)]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-06-17 14:54:34,462 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=
+2026-06-17 14:54:41,279 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.deleted error=
+2026-06-17 15:24:42,193 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-17 15:24:42,477 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-17 15:24:43,795 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-17 15:24:43,804 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-17 15:24:43,805 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-17 15:24:43,805 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-17 15:24:43,806 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-17 15:24:43,806 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-17 15:24:43,812 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-17 15:24:43,871 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-17 15:24:43,880 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-17 15:24:43,881 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-17 15:24:43,881 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-17 15:24:43,882 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-17 15:24:43,882 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-17 15:24:43,894 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-17 15:28:54,596 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-17 15:28:55,101 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-17 15:28:56,090 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-17 15:28:56,097 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-17 15:28:56,098 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-17 15:28:56,098 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-17 15:28:56,098 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-17 15:28:56,098 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-17 15:28:56,105 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-17 15:28:56,141 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-17 15:28:56,149 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-17 15:28:56,149 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-17 15:28:56,149 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-17 15:28:56,149 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-17 15:28:56,150 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-17 15:28:56,159 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down

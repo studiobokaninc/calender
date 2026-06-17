@@ -39,6 +39,7 @@ async def import_shots(
     file: UploadFile = File(...),
     dry_run: bool = Query(True),
     sheet_name: Optional[str] = Query(None),
+    seq_code: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user),
 ):
@@ -46,12 +47,16 @@ async def import_shots(
     if not (filename.endswith(".xlsx") or filename.endswith(".csv")):
         raise HTTPException(status_code=400, detail="xlsx/csv のみ対応")
 
+    target_seq_code = seq_code.strip() if seq_code and seq_code.strip() else "SEQ_PM"
+
     contents = await file.read()
     parse_result = parse_xlsx(contents, sheet_name=sheet_name)
 
     # BUG2修正: is_deleted 不問で全shot取得（論理削除済レコードも含む）
+    # シーケンスID毎にショットを一意とするため、該当プロジェクトかつ該当シーケンスのショットのみ取得
     existing = db.query(models.Shot).filter(
-        models.Shot.project_id == project_id
+        models.Shot.project_id == project_id,
+        models.Shot.seq_code == target_seq_code
     ).all()
     existing_by_cut = {s.cut: s for s in existing if s.cut is not None}
 
@@ -70,6 +75,7 @@ async def import_shots(
             else:
                 # BUG1修正: 全18列で差分比較
                 has_diff = any([
+                    existing_shot.seq_code != target_seq_code,
                     existing_shot.sl_no != parsed.sl_no,
                     existing_shot.frame_in != parsed.frame_in,
                     existing_shot.frame_out != parsed.frame_out,
@@ -109,6 +115,7 @@ async def import_shots(
             d = vars(p).copy()
             d.pop("image_data", None)
             d.pop("image_format", None)
+            d["seq_code"] = target_seq_code
             preview_rows.append(d)
         return schemas.ShotImportPreview(
             total=len(parse_result.shots),
@@ -137,7 +144,7 @@ async def import_shots(
             thumb_url = _save_thumbnail(parsed.image_data, parsed.cut or "shot", parsed.image_format or "png")
         shot = models.Shot(
             project_id=project_id,
-            seq_code="SL_",
+            seq_code=target_seq_code,
             shot_code=parsed.cut,
             cut=parsed.cut,
             sl_no=parsed.sl_no,
@@ -171,6 +178,7 @@ async def import_shots(
         thumb_url = parsed.thumbnail_url
         if thumb_url is None and parsed.image_data is not None:
             thumb_url = _save_thumbnail(parsed.image_data, parsed.cut or "shot", parsed.image_format or "png")
+        existing_shot.seq_code = target_seq_code
         existing_shot.sl_no = parsed.sl_no
         existing_shot.frame_in = parsed.frame_in
         existing_shot.frame_out = parsed.frame_out

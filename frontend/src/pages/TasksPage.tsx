@@ -5,7 +5,7 @@ import {
     Box, Typography, CircularProgress, Paper, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
     Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, useTheme, Drawer, useMediaQuery,
-    Card, CardContent, CardActionArea, Avatar, Breadcrumbs, Link
+    Card, CardContent, CardActionArea, Avatar, Breadcrumbs, Link, Popover, List, ListItemButton, ListItemText
 } from '@mui/material';
 import {
     Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon,
@@ -46,28 +46,43 @@ const formatDate = (dateInput: string | Date | null | undefined): string => {
 
 
 
-// Helper function to get task status color (similar to EventDetailsPanel)
+// カレンダー（calendarEventColors.ts）と色・ラベルを統一
 const getTaskStatusColor = (status?: string | null): string => {
-    switch (status) {
-        case 'todo': return '#2196F3';
-        case 'in-progress': return '#FF9800';
-        case 'review': return '#9C27B0';
-        case 'delayed': return '#F44336';
-        case 'completed': return '#9E9E9E';
-        default: return '#BDBDBD';
+    switch (status?.toLowerCase()) {
+        case 'todo':        return '#2196F3';  // 青: 未着手
+        case 'in-progress': return '#FF9800';  // オレンジ: 進行中
+        case 'review':      return '#9C27B0';  // 紫: レビュー中
+        case 'approved':    return '#4CAF50';  // 緑: 承認済
+        case 'delayed':     return '#F44336';  // 赤: 遅延
+        case 'completed':   return '#9E9E9E';  // グレー: 完了
+        case 'retake':      return '#E91E63';  // マゼンタ: リテイク
+        default:            return '#BDBDBD';
     }
 };
 
 const getTaskStatusLabel = (status?: string | null): string => {
-    switch (status) {
-        case 'todo': return '未着手';
+    switch (status?.toLowerCase()) {
+        case 'todo':        return '未着手';
         case 'in-progress': return '進行中';
-        case 'review': return 'レビュー中';
-        case 'delayed': return '遅延';
-        case 'completed': return '完了';
-        default: return status || '未定';
+        case 'review':      return 'レビュー中';
+        case 'approved':    return '承認済';
+        case 'delayed':     return '遅延';
+        case 'completed':   return '完了';
+        case 'retake':      return 'リテイク';
+        default:            return status || '未定';
     }
 };
+
+// ステータス選択肢（タスクページで使う全ステータス）
+const TASK_STATUS_OPTIONS = [
+    { value: 'todo',        label: '未着手' },
+    { value: 'in-progress', label: '進行中' },
+    { value: 'review',      label: 'レビュー中' },
+    { value: 'approved',    label: '承認済' },
+    { value: 'delayed',     label: '遅延' },
+    { value: 'completed',   label: '完了' },
+    { value: 'retake',      label: 'リテイク' },
+];
 
 const isDatePast = (dateStr: string | null | undefined): boolean => {
     if (!dateStr) return false;
@@ -148,7 +163,7 @@ const TasksPage: React.FC = () => {
         page: 0,
         pageSize: 15,
     });
-    const [sortModel, setSortModel] = useState<GridSortModel>([]);
+    const [sortModel, setSortModel] = useState<GridSortModel>([{ field: '_statusOrder', sort: 'asc' }]);
     const [stateRestored, setStateRestored] = useState(false);
 
     // フィルターの前回値を記憶するためのref
@@ -168,7 +183,7 @@ const TasksPage: React.FC = () => {
             setProjectFilter(tasksState.projectFilter);
             setAssigneeFilter(tasksState.assigneeFilter);
             setPaginationModel(tasksState.paginationModel);
-            setSortModel(tasksState.sortModel);
+            setSortModel(tasksState.sortModel?.length > 0 ? tasksState.sortModel : [{ field: '_statusOrder', sort: 'asc' }]);
             // 状態復元時は前回値も更新（ページリセットを防ぐため）
             prevFiltersRef.current = {
                 statusFilter: tasksState.statusFilter,
@@ -249,6 +264,9 @@ const TasksPage: React.FC = () => {
     // ステータス履歴表示用の状態
     const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+
+    // ステータス選択ポップオーバー用の状態
+    const [statusPopover, setStatusPopover] = useState<{ anchor: HTMLElement; taskId: number } | null>(null);
 
     // 一括編集（選択された行IDの配列）
     const [selectionModel, setSelectionModel] = useState<number[]>([]);
@@ -799,6 +817,17 @@ const TasksPage: React.FC = () => {
             } catch { return 0; }
         };
 
+        // ステータス表示優先度（小さいほど上に表示）
+        const STATUS_ORDER: Record<string, number> = {
+            'delayed':     1,  // 遅延（最上位）
+            'in-progress': 2,  // 進行中
+            'review':      3,  // レビュー中
+            'retake':      4,  // リテイク
+            'todo':        5,  // 未着手
+            'approved':    6,  // 承認済
+            'completed':   7,  // 完了（最下位）
+        };
+
         return (filteredTasks ?? []).map(t => ({
             ...t,
             _projectName: nameByProjectId.get(t.project_id as any) ?? '',
@@ -806,12 +835,24 @@ const TasksPage: React.FC = () => {
             _dueTs: toTs(t.due_date),
             _dependsText: dependsText(t),
             _actionsSortKey: t.id ?? 0,
+            _statusOrder: STATUS_ORDER[t.status?.toLowerCase() ?? ''] ?? 5,
         }));
     }, [filteredTasks, projects, tasks]);
 
 
     // DataGrid用のカラム定義
     const columns: GridColDef[] = useMemo(() => [
+        {
+            // \u975e\u8868\u793a\u30bd\u30fc\u30c8\u30ad\u30fc\uff08\u30b9\u30c6\u30fc\u30bf\u30b9\u512a\u5148\u5ea6\uff09
+            field: '_statusOrder',
+            headerName: '\u30b9\u30c6\u30fc\u30bf\u30b9\u9806',
+            width: 0,
+            minWidth: 0,
+            hideable: true,
+            sortable: true,
+            renderCell: () => null,
+            sortComparator: (a, b) => Number(a ?? 5) - Number(b ?? 5),
+        },
         {
             field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, hideable: false, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
@@ -832,23 +873,21 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'status', headerName: 'ステータス', minWidth: 80, width: 120, renderCell: (params: GridRenderCellParams) => {
+            field: 'status', headerName: 'ステータス', minWidth: 100, width: 130, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
-                const statuses = ['todo', 'in-progress', 'review', 'completed', 'delayed'];
                 return (
                     <Chip
-                        label={row.status || '未設定'}
+                        label={getTaskStatusLabel(row.status)}
                         size="small"
                         onClick={(e) => {
                             e.stopPropagation();
-                            const current = row.status || 'todo';
-                            const nextIdx = (statuses.indexOf(current) + 1) % statuses.length;
-                            handleUpdateTaskQuick(row.id, { status: statuses[nextIdx] });
+                            setStatusPopover({ anchor: e.currentTarget as HTMLElement, taskId: row.id });
                         }}
                         sx={{
                             backgroundColor: getTaskStatusColor(row.status),
                             color: 'white',
                             cursor: 'pointer',
+                            fontWeight: 600,
                             '& .MuiChip-label': { px: 1 }
                         }}
                     />
@@ -1159,12 +1198,17 @@ const TasksPage: React.FC = () => {
                                         if (!selected || selected === 'all' || selected === '') {
                                             return '全て';
                                         }
-                                        return selected;
+                                        return getTaskStatusLabel(selected as string);
                                     }}
                                 >
                                     <MenuItem value="all">全て</MenuItem>
-                                    {statusOptions.map(status => (
-                                        <MenuItem key={status} value={status}>{status}</MenuItem>
+                                    {TASK_STATUS_OPTIONS.map(opt => (
+                                        <MenuItem key={opt.value} value={opt.value}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getTaskStatusColor(opt.value) }} />
+                                                {opt.label}
+                                            </Box>
+                                        </MenuItem>
                                     ))}
                                 </Select>
                             </FormControl>
@@ -1496,6 +1540,7 @@ const TasksPage: React.FC = () => {
                             }}
                             disableColumnMenu={false}
                             disableColumnSelector={false}
+                            columnVisibilityModel={{ _statusOrder: false }}
                             sx={{
                                 height: '100%',
                                 '& .MuiDataGrid-columnHeaders': {
@@ -2020,12 +2065,17 @@ const TasksPage: React.FC = () => {
                                 if (!selected || selected === 'all' || selected === '') {
                                     return '全て';
                                 }
-                                return selected;
+                                return getTaskStatusLabel(selected as string);
                             }}
                         >
                             <MenuItem value="all">全て</MenuItem>
-                            {statusOptions.map(status => (
-                                <MenuItem key={status} value={status}>{status}</MenuItem>
+                            {TASK_STATUS_OPTIONS.map(opt => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getTaskStatusColor(opt.value) }} />
+                                        {opt.label}
+                                    </Box>
+                                </MenuItem>
                             ))}
                         </Select>
                     </FormControl>
@@ -2156,6 +2206,49 @@ const TasksPage: React.FC = () => {
                     )}
                 </Box>
             )}
+            {/* ステータス選択ポップオーバー */}
+            <Popover
+                open={Boolean(statusPopover)}
+                anchorEl={statusPopover?.anchor}
+                onClose={() => setStatusPopover(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                slotProps={{ paper: { sx: { borderRadius: 2, minWidth: 140, boxShadow: 4, overflow: 'hidden' } } }}
+            >
+                <List dense disablePadding>
+                    {TASK_STATUS_OPTIONS.map((opt) => (
+                        <ListItemButton
+                            key={opt.value}
+                            onClick={async () => {
+                                if (statusPopover) {
+                                    await handleUpdateTaskQuick(statusPopover.taskId, { status: opt.value });
+                                    setStatusPopover(null);
+                                }
+                            }}
+                            sx={{
+                                py: 1,
+                                px: 1.5,
+                                '&:hover': { bgcolor: `${getTaskStatusColor(opt.value)}22` }
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: '50%',
+                                    bgcolor: getTaskStatusColor(opt.value),
+                                    mr: 1.5,
+                                    flexShrink: 0,
+                                }}
+                            />
+                            <ListItemText
+                                primary={opt.label}
+                                primaryTypographyProps={{ sx: { fontSize: '0.875rem', fontWeight: 500 } }}
+                            />
+                        </ListItemButton>
+                    ))}
+                </List>
+            </Popover>
         </Box >
     );
 };

@@ -22,6 +22,7 @@ import {
   DialogContentText,
   DialogActions,
   Chip,
+  TextField,
 } from '@mui/material';
 import {
   TableChart as TableChartIcon,
@@ -59,6 +60,7 @@ interface ShotImportResult {
 const ShotlistImporter: React.FC = () => {
   const { globalData, refreshGlobalData } = usePageState();
   const [projectId, setProjectId] = useState<number | ''>('');
+  const [seqCode, setSeqCode] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +95,7 @@ const ShotlistImporter: React.FC = () => {
     setPreview(null);
     setResult(null);
     try {
-      const data = await importShotlist(projectId as number, file, true);
+      const data = await importShotlist(projectId as number, file, true, seqCode || undefined);
       setPreview(data as ShotImportPreview);
     } catch (err: any) {
       const detail = err?.response?.data?.detail ?? err?.message ?? '不明なエラー';
@@ -109,7 +111,7 @@ const ShotlistImporter: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await importShotlist(projectId as number, file, false);
+      const data = await importShotlist(projectId as number, file, false, seqCode || undefined);
       setResult(data as ShotImportResult);
       setPreview(null);
       await refreshGlobalData({ force: true });
@@ -170,6 +172,19 @@ const ShotlistImporter: React.FC = () => {
             ))}
           </Select>
         </FormControl>
+
+        <TextField
+          size="small"
+          label="SEQID (任意)"
+          placeholder="未入力時は SEQ_PM"
+          value={seqCode}
+          onChange={(e) => {
+            setSeqCode(e.target.value);
+            setPreview(null);
+            setResult(null);
+          }}
+          sx={{ minWidth: 180 }}
+        />
 
         <input
           ref={fileInputRef}

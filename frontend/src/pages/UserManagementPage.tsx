@@ -912,16 +912,19 @@ const UserManagementPage: React.FC = () => {
                                   </Box>
                                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                                     {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ height: 20, fontSize: '0.65rem' }} />}
-                                    {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => (
-                                      <Tooltip key={idx} title={projects.find(p => p.id === sr.project_id)?.name || 'Project'}>
-                                        <Chip
-                                          label={sr.role.toUpperCase()}
-                                          size="small"
-                                          variant="outlined"
-                                          sx={{ height: 20, fontSize: '0.6rem', borderColor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.main }}
-                                        />
-                                      </Tooltip>
-                                    ))}
+                                    {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => {
+                                      const projName = projects.find(p => p.id === sr.project_id)?.name;
+                                      return (
+                                        <Tooltip key={idx} title={projName ? `プロジェクト: ${projName}` : 'プロジェクト情報なし'} arrow>
+                                          <Chip
+                                            label={sr.role.toUpperCase()}
+                                            size="small"
+                                            variant="outlined"
+                                            sx={{ height: 20, fontSize: '0.6rem', borderColor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.main, maxWidth: 180 }}
+                                          />
+                                        </Tooltip>
+                                      );
+                                    })}
                                     {isAdmin && (
                                       <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit" sx={{ p: 0.5, ml: 'auto' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                     )}
@@ -1219,15 +1222,19 @@ const UserManagementPage: React.FC = () => {
                                 {user.role === 'admin' && (
                                   <Chip label="管理者" size="small" color="secondary" />
                                 )}
-                                {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => (
-                                  <Chip
-                                    key={idx}
-                                    label={sr.role.toUpperCase()}
-                                    size="small"
-                                    variant="outlined"
-                                    sx={{ fontSize: '0.65rem', height: 20 }}
-                                  />
-                                ))}
+                                {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => {
+                                  const projName = projects.find(p => p.id === sr.project_id)?.name;
+                                  return (
+                                    <Tooltip key={idx} title={projName ? `プロジェクト: ${projName}` : 'プロジェクト情報なし'} arrow>
+                                      <Chip
+                                        label={sr.role.toUpperCase()}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ fontSize: '0.65rem', height: 20, maxWidth: 200 }}
+                                      />
+                                    </Tooltip>
+                                  );
+                                })}
                               </Box>
                               <Typography variant="body2" color="text.secondary">
                                 {user.email || 'メール未設定'}

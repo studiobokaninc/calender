@@ -26,6 +26,10 @@ import {
   Link,
   Snackbar,
   Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { Edit as EditIcon, Close as CloseIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
@@ -93,6 +97,36 @@ const ShotListPage: React.FC = () => {
   const [dragOverShotId, setDragOverShotId] = useState<number | null>(null);
   const [dialogDragOver, setDialogDragOver] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const [selectedSeq, setSelectedSeq] = useState<string>('all');
+
+  const seqCodes = React.useMemo(() => {
+    const codes = new Set(shots.map(s => s.seq_code).filter(Boolean));
+    return Array.from(codes).sort();
+  }, [shots]);
+
+  const sortedAndFilteredShots = React.useMemo(() => {
+    let result = [...shots];
+    
+    // Sort by seq_code and then shot_code or sl_no
+    result.sort((a, b) => {
+      const seqCompare = (a.seq_code || '').localeCompare(b.seq_code || '');
+      if (seqCompare !== 0) return seqCompare;
+      
+      return (a.shot_code || '').localeCompare(b.shot_code || '');
+    });
+
+    // Filter by selected sequence
+    if (selectedSeq !== 'all') {
+      result = result.filter(s => s.seq_code === selectedSeq);
+    }
+    
+    return result;
+  }, [shots, selectedSeq]);
+
+  useEffect(() => {
+    setSelectedSeq('all');
+  }, [projectId]);
 
   const load = useCallback(async () => {
     if (!projectId) return;
@@ -194,6 +228,20 @@ const ShotListPage: React.FC = () => {
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="h5">ショットリスト — {projectName}</Typography>
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel id="seq-filter-label">シーケンス</InputLabel>
+          <Select
+            labelId="seq-filter-label"
+            value={selectedSeq}
+            label="シーケンス"
+            onChange={(e) => setSelectedSeq(e.target.value)}
+          >
+            <MenuItem value="all">すべて表示</MenuItem>
+            {seqCodes.map(code => (
+              <MenuItem key={code} value={code}>{code}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <Button
           variant="outlined"
           size="small"
@@ -237,7 +285,7 @@ const ShotListPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {shots.map((shot) => {
+                {sortedAndFilteredShots.map((shot) => {
                   const sc = STATUS_CONFIG[shot.status] ?? { label: shot.status, color: 'default' as StatusColor };
                   return (
                     <TableRow key={shot.id} hover>

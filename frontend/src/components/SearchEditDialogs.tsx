@@ -448,8 +448,8 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
             </FormControl>
             <TextField name="cost" label="コスト" type="number" value={form.cost} onChange={handleChange} fullWidth size="small" inputProps={{ min: 0, step: 0.1 }} />
             <FormControl fullWidth size="small" disabled={!form.project_id}>
-              <InputLabel>ショット（Scoreプロジェクト）</InputLabel>
-              <Select name="shot_id" value={form.shot_id ?? ''} label="ショット（Scoreプロジェクト）" onChange={handleChange}>
+              <InputLabel>既存IDセット</InputLabel>
+              <Select name="shot_id" value={form.shot_id ?? ''} label="既存IDセット" onChange={handleChange}>
                 {!form.project_id ? (
                   <MenuItem value="" disabled>プロジェクトを先に選択してください</MenuItem>
                 ) : shots.length === 0 ? (

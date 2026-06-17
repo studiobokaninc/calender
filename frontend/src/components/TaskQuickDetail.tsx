@@ -550,10 +550,10 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
 
                                 {/* Shot Link */}
                                 <FormControl fullWidth size="small" disabled={!editProjectId}>
-                                    <InputLabel>ショット（Scoreプロジェクト）</InputLabel>
+                                    <InputLabel>既存IDセット</InputLabel>
                                     <Select
                                         value={editShotRelId ?? ''}
-                                        label="ショット（Scoreプロジェクト）"
+                                        label="既存IDセット"
                                         onChange={async (e) => {
                                             const val = e.target.value;
                                             if (val === '') {

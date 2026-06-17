@@ -465,7 +465,7 @@ const TasksPage: React.FC = () => {
         return () => {
             container.removeEventListener('wheel', handleWheel as EventListener);
         };
-    }, []);
+    }, [loading, error, isMobile]);
 
     // フィルター変更時にページをリセット（実際に値が変わった時のみ）
     useEffect(() => {
@@ -854,7 +854,7 @@ const TasksPage: React.FC = () => {
             sortComparator: (a, b) => Number(a ?? 5) - Number(b ?? 5),
         },
         {
-            field: 'name', headerName: 'タスク名', minWidth: 80, flex: 1, hideable: false, renderCell: (params: GridRenderCellParams) => {
+            field: 'name', headerName: 'タスク名', minWidth: 220, width: 280, flex: 1.5, hideable: false, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return <TaskLabel shotId={row.shotID} title={row.name || '-'} />;
             }
@@ -1523,7 +1523,7 @@ const TasksPage: React.FC = () => {
                                 setSelectionModel(ids);
                             }}
                             sortingMode="client"
-                            sortingOrder={['asc', 'desc']}
+                            sortingOrder={['asc', 'desc', null]}
                             sortModel={sortModel}
                             onSortModelChange={setSortModel}
                             paginationModel={paginationModel}
@@ -1814,11 +1814,11 @@ const TasksPage: React.FC = () => {
                             inputProps={{ step: '0.1' }}
                         />
                         <FormControl fullWidth size="small" disabled={!currentTask.project_id}>
-                            <InputLabel>ショット（Scoreプロジェクト）</InputLabel>
+                            <InputLabel>既存IDセット</InputLabel>
                             <Select
                                 name="shot_id"
                                 value={currentTask.shot_id ?? ''}
-                                label="ショット（Scoreプロジェクト）"
+                                label="既存IDセット"
                                 onChange={handleSelectChange}
                             >
                                 {!currentTask.project_id ? (

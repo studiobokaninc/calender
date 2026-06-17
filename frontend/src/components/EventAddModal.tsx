@@ -1315,10 +1315,10 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                 {/* ショット選択（Scoreプロジェクト連携） */}
                 <Grid item xs={12}>
                   <FormControl fullWidth size="small" disabled={!formData.projectId}>
-                    <InputLabel>ショット（Scoreプロジェクト）</InputLabel>
+                    <InputLabel>既存IDセット</InputLabel>
                     <Select
                       value={formData.taskShotRelId ?? ''}
-                      label="ショット（Scoreプロジェクト）"
+                      label="既存IDセット"
                       onChange={(e) => {
                         const val = e.target.value as number | '';
                         if (val === '') {

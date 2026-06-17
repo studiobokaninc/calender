@@ -691,6 +691,38 @@ const CalendarPage: React.FC = () => {
             );
         }
 
+        if (isTimeGrid && eventInfo.event.allDay) {
+            const projectIdRawAD = eventInfo.event.extendedProps?.projectId;
+            const projectNameAD = projectIdRawAD != null
+                ? projectsMap.get(String(projectIdRawAD))?.name
+                : undefined;
+            const shotIDAD = eventInfo.event.extendedProps?.shotID || null;
+            return (
+                <div className="calendar-allday-event-content" style={{
+                    display: 'flex', alignItems: 'center',
+                    gap: '6px', padding: '0 4px',
+                    overflow: 'hidden', width: '100%'
+                }}>
+                    {projectNameAD && (
+                        <span style={{ fontWeight: 700, fontSize: '0.9rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {projectNameAD}
+                        </span>
+                    )}
+                    {shotIDAD && (
+                        <span style={{ fontWeight: 600, fontSize: '0.85rem', opacity: 0.7, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {shotIDAD}_
+                        </span>
+                    )}
+                    <span style={{
+                        fontWeight: 600, fontSize: '0.9rem',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                    }} title={title}>
+                        {title}
+                    </span>
+                </div>
+            );
+        }
+
         const isPhase = eventInfo.event.extendedProps.isPhase;
         if (!isListView && !isTimeGrid && !isPhase) {
             const projectIdRaw = eventInfo.event.extendedProps?.projectId;
@@ -1349,6 +1381,11 @@ const CalendarPage: React.FC = () => {
                         .calendar-event-type-deadline { background: #d32f2f; color: #fff; }
                         .calendar-event-type-meeting { background: #1976d2; color: #fff; }
                         .calendar-event-type-workshop { background: #00897b; color: #fff; }
+
+                        .calendar-allday-event-content {
+                            font-size: 0.9rem;
+                            line-height: 1.2;
+                        }
 
                         .fc-timegrid-event {
                             border-radius: 4px !important;

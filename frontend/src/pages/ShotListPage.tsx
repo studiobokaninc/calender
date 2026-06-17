@@ -31,9 +31,9 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
-import { Edit as EditIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Close as CloseIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
-import api, { fetchShots, updateShot, uploadShotThumbnail } from '../services/api';
+import api, { fetchShots, updateShot, uploadShotThumbnail, deleteShot } from '../services/api';
 import { Shot } from '../types';
 
 type StatusColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
@@ -203,6 +203,20 @@ const ShotListPage: React.FC = () => {
       setSnackbar({ open: true, message: e.response?.data?.detail || '保存に失敗しました', severity: 'error' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (shot: Shot) => {
+    if (!window.confirm(`ショット「${shot.seq_code} / ${shot.shot_code}」を削除してもよろしいですか？\n※このショットに紐づくタスクの連携は解除されます。`)) {
+      return;
+    }
+    try {
+      await deleteShot(shot.id);
+      setSnackbar({ open: true, message: 'ショットを削除しました', severity: 'success' });
+      load();
+    } catch (e: any) {
+      const msg = e.response?.data?.detail || e.message || '削除に失敗しました';
+      setSnackbar({ open: true, message: msg, severity: 'error' });
     }
   };
 
@@ -381,9 +395,14 @@ const ShotListPage: React.FC = () => {
                       <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', minWidth: 100 }}>{shot.task_comp ?? '—'}</TableCell>
                       <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', minWidth: 150 }}>{shot.note ?? '—'}</TableCell>
                       <TableCell>
-                        <IconButton size="small" onClick={() => openEdit(shot)} aria-label="編集">
-                          <EditIcon fontSize="small" />
-                        </IconButton>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          <IconButton size="small" onClick={() => openEdit(shot)} aria-label="編集">
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => handleDelete(shot)} aria-label="削除" color="error">
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   );

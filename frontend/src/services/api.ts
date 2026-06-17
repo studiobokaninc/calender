@@ -480,6 +480,9 @@ export const fetchShots = (projectId: number) =>
 export const updateShot = (id: number, payload: Record<string, unknown>) =>
   api.patch(`/api/shots/${id}`, payload);
 
+export const deleteShot = (id: number) =>
+  api.delete(`/api/shots/${id}`);
+
 export const uploadShotThumbnail = async (file: File): Promise<{ url: string }> => {
   const formData = new FormData();
   formData.append('file', file);

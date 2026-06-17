@@ -70,6 +70,9 @@ interface ProjectWithProgress extends Project {
     troubles?: number;
     directorName?: string;
     pmName?: string;
+    inProgressCount: number;
+    delayedCount: number;
+    completedCount: number;
 }
 
 interface ProjectFormData {
@@ -189,6 +192,41 @@ const ProjectsPage: React.FC = () => {
 
                 const progress = totalCost > 0 ? Math.round((completedCost / totalCost) * 100) : 0;
 
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+
+                let inProgressCount = 0;
+                let delayedCount = 0;
+                let completedCount = 0;
+
+                relatedTasks.forEach(task => {
+                    const status = (task.status || 'todo').toLowerCase();
+                    const isCompleted = status === 'completed' || status === 'approved';
+                    
+                    let isDelayed = status === 'delayed';
+                    if (!isCompleted && !isDelayed && task.due_date) {
+                        try {
+                            const due = parseISO(task.due_date);
+                            if (isValid(due)) {
+                                due.setHours(0, 0, 0, 0);
+                                if (due < todayStart) {
+                                    isDelayed = true;
+                                }
+                            }
+                        } catch (e) {
+                            // ignore parsing error
+                        }
+                    }
+
+                    if (isCompleted) {
+                        completedCount++;
+                    } else if (isDelayed) {
+                        delayedCount++;
+                    } else if (status === 'in-progress' || status === 'review' || status === 'retake') {
+                        inProgressCount++;
+                    }
+                });
+
                 return {
                     ...project,
                     totalCost,
@@ -199,6 +237,9 @@ const ProjectsPage: React.FC = () => {
                     troubles: summary.troubles,
                     directorName: projRoles['director'] ? userNameById[projRoles['director']] : undefined,
                     pmName: projRoles['pm'] ? userNameById[projRoles['pm']] : undefined,
+                    inProgressCount,
+                    delayedCount,
+                    completedCount,
                 };
             });
 
@@ -567,19 +608,21 @@ const ProjectsPage: React.FC = () => {
                         const dispStatus = typeof project.display_status === 'string' ? project.display_status : 'online';
                         const dispLabel = displayStatusOptions.find(opt => opt.value === dispStatus)?.label ?? dispStatus;
                         const dispColor = getDisplayStatusColor(dispStatus);
+                        const isProjectDelayed = project.status === 'delayed' || (project.delayedCount || 0) > 0;
                         return (
                             <Grid item xs={12} key={project.id}>
                                 <Card
                                     elevation={0}
                                     sx={{
                                         borderRadius: 3,
-                                        border: '1px solid',
-                                        borderColor: 'divider',
+                                        border: isProjectDelayed ? '2px solid' : '1px solid',
+                                        borderColor: isProjectDelayed ? 'error.main' : 'divider',
                                         borderLeft: `5px solid ${project.color || theme.palette.divider}`,
+                                        boxShadow: isProjectDelayed ? '0 0 8px rgba(244, 67, 54, 0.2)' : 'none',
                                         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                                         '&:hover': {
                                             transform: 'translateY(-2px)',
-                                            boxShadow: 2
+                                            boxShadow: isProjectDelayed ? '0 4px 12px rgba(244, 67, 54, 0.3)' : 2
                                         },
                                         cursor: isAdmin ? 'pointer' : 'default',
                                     }}
@@ -590,10 +633,33 @@ const ProjectsPage: React.FC = () => {
                                             {/* 左エリア: 名前、ステータス、説明 */}
                                             <Grid item xs={12} md={5}>
                                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                        <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.25rem', mr: 1, wordBreak: 'break-word' }}>
-                                                            {project.name}
-                                                        </Typography>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                                            <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.25rem', wordBreak: 'break-word' }}>
+                                                                {project.name}
+                                                            </Typography>
+                                                            {isProjectDelayed && (
+                                                                <Chip
+                                                                    icon={<WarningIcon sx={{ color: '#fff !important', fontSize: '0.9rem !important' }} />}
+                                                                    label="遅延あり"
+                                                                    size="small"
+                                                                    sx={{
+                                                                        backgroundColor: 'error.main',
+                                                                        color: '#fff',
+                                                                        fontWeight: 800,
+                                                                        fontSize: '0.75rem',
+                                                                        height: 22,
+                                                                        pl: 0.5,
+                                                                        animation: 'pulse 2s infinite',
+                                                                        '@keyframes pulse': {
+                                                                            '0%': { opacity: 0.9 },
+                                                                            '50%': { opacity: 0.67 },
+                                                                            '100%': { opacity: 0.9 },
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </Box>
                                                         {isAdmin && (
                                                             <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                                                                 <Tooltip title="編集">
@@ -716,29 +782,28 @@ const ProjectsPage: React.FC = () => {
                                             {/* 右エリア: 進捗、数値、ボタン */}
                                             <Grid item xs={12} md={4}>
                                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pl: { md: 2 } }}>
-                                                    {/* Shots / Retakes / Troubles (ミニダッシュボード) と進捗率を横並びに */}
                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                                                        {/* 統計ボックス */}
-                                                        <Box sx={{ display: 'flex', gap: 0.75, flex: 1 }}>
-                                                            <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>Shots</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem' }}>{project.shots || 0}</Typography>
-                                                            </Box>
-                                                            <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.retakes || 0) > 0 ? (isDark ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.retakes || 0) > 0 ? 'warning.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.retakes || 0) > 0 ? 'warning.main' : 'text.secondary', fontSize: '0.75rem' }}>Retakes</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.retakes || 0) > 0 ? 'warning.main' : 'inherit' }}>{project.retakes || 0}</Typography>
-                                                            </Box>
-                                                            <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.troubles || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.troubles || 0) > 0 ? 'error.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.troubles || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.75rem' }}>Troubles</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.troubles || 0) > 0 ? 'error.main' : 'inherit' }}>{project.troubles || 0}</Typography>
-                                                            </Box>
-                                                        </Box>
+                                                         {/* 統計ボックス */}
+                                                         <Box sx={{ display: 'flex', gap: 0.75, flex: 1 }}>
+                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.inProgressCount || 0) > 0 ? (isDark ? 'rgba(33, 150, 243, 0.15)' : 'rgba(33, 150, 243, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'text.secondary', fontSize: '0.75rem' }}>進行中</Typography>
+                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'inherit' }}>{project.inProgressCount || 0}</Typography>
+                                                             </Box>
+                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.delayedCount || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.delayedCount || 0) > 0 ? 'error.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.delayedCount || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.75rem' }}>遅延中</Typography>
+                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.delayedCount || 0) > 0 ? 'error.main' : 'inherit' }}>{project.delayedCount || 0}</Typography>
+                                                             </Box>
+                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.completedCount || 0) > 0 ? (isDark ? 'rgba(76, 175, 80, 0.15)' : 'rgba(76, 175, 80, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.completedCount || 0) > 0 ? 'success.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.completedCount || 0) > 0 ? 'success.main' : 'text.secondary', fontSize: '0.75rem' }}>完了</Typography>
+                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.completedCount || 0) > 0 ? 'success.main' : 'inherit' }}>{project.completedCount || 0}</Typography>
+                                                             </Box>
+                                                         </Box>
 
-                                                        {/* 進捗率テキスト */}
-                                                        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block', fontWeight: 600 }}>進捗率</Typography>
-                                                            <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.1rem', color: theme.palette.primary.main }}>{project.progress}%</Typography>
-                                                        </Box>
+                                                         {/* 進捗率テキスト */}
+                                                         <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                                                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block', fontWeight: 600 }}>進捗率</Typography>
+                                                             <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.1rem', color: theme.palette.primary.main }}>{project.progress}%</Typography>
+                                                         </Box>
                                                     </Box>
 
                                                     {/* 進捗バーとショットリストボタンを横に並べる */}

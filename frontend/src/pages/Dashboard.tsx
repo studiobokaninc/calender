@@ -684,16 +684,7 @@ const Dashboard: React.FC = () => {
       {/* 達成度ゲージ（XPバー）- プロジェクト別カルーセル */}
       {metrics && metrics.project_metrics && metrics.project_metrics.length > 0 && (
         <Box sx={{ mb: 4 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.9rem' }}>プロジェクト別タスク達成度</Typography>
-            <IconButton 
-              size="small" 
-              onClick={() => navigate('/galaxy')} 
-              sx={{ color: 'text.secondary', opacity: 0.3, '&:hover': { opacity: 1 } }}
-            >
-              ★
-            </IconButton>
-          </Stack>
+          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1.5, fontSize: '0.9rem' }}>プロジェクト別タスク達成度</Typography>
           
           <Box sx={{ position: 'relative', px: { xs: 0, sm: 4 } }}>
             {/* 左ボタン */}

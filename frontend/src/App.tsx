@@ -28,7 +28,6 @@ import MeetingMinutesPage from './pages/MeetingMinutesPage';
 import KnowledgePage from './pages/KnowledgePage';
 import ProductionTrackerPage from './pages/ProductionTrackerPage';
 import AIRecommendedTasksPage from './pages/AIRecommendedTasksPage';
-import GalaxyPage from './pages/GalaxyPage';
 import ScoreDataAdminPage from './pages/ScoreDataAdminPage';
 import ShotListPage from './pages/ShotListPage';
 import BugReportPage from './pages/BugReportPage';
@@ -102,7 +101,6 @@ const App: React.FC = () => {
             <Route path="bug_report" element={<BugReportPage />} />
             <Route path="ai-tasks" element={<AdminRoute><AIRecommendedTasksPage /></AdminRoute>} />
             <Route path="meetings" element={<AdminRoute><MeetingMinutesPage /></AdminRoute>} />
-            <Route path="galaxy" element={<AdminRoute><GalaxyPage /></AdminRoute>} />
             <Route path="knowledge" element={<AdminRoute><KnowledgePage /></AdminRoute>} />
             {/* /eventsは/event-managementに統一（MetricsのEventsタブは/metrics?tab=eventsで直接アクセス可能） */}
             <Route path="events" element={<AdminRoute><Navigate to="/event-management" replace /></AdminRoute>} />

@@ -810,7 +810,21 @@ def get_score_production_tracker(
             "thumbnail_url": s.thumbnail_url,
             "retakes_count": retake_map.get(s.id, 0),
             "troubles_count": trouble_map.get(s.id, 0),
-            "tasks": shot_tasks_map.get(s.id, {})
+            "tasks": shot_tasks_map.get(s.id, {}),
+            "cut": s.cut,
+            "description": s.description,
+            "action": s.action,
+            "dialogue": s.dialogue,
+            "bg": s.bg,
+            "ch": s.ch,
+            "prop": s.prop,
+            "note": s.note,
+            "frame_in": s.frame_in,
+            "frame_out": s.frame_out,
+            "duration": s.duration,
+            "second": s.second,
+            "frame_rem": s.frame_rem,
+            "sl_no": s.sl_no,
         })
 
     # ショットに紐づかないタスクがある場合、またはショットが1つもない場合

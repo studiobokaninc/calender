@@ -69,7 +69,7 @@ def update_project(db: Session, db_project: models.Project, project_in: schemas.
 
 def delete_project_with_cascade(db: Session, project_id: int) -> bool:
     """
-    プロジェクトを関連データ（タスク・履歴等）を含めて安全に削除する。
+    プロジェクトを関連データ（タスク・ショット・イベント・履歴等）を含めて安全に削除する。
     Routerに分散していた複雑なロジックをここに集約。
     """
     try:
@@ -105,6 +105,8 @@ def delete_project_with_cascade(db: Session, project_id: int) -> bool:
         # 4. メインテーブルの削除
         db.execute(delete(models.Task).where(models.Task.project_id == project_id))
         db.execute(delete(models.Event).where(models.Event.project_id == project_id))
+        # ショット（ショットリストデータ）を削除
+        db.execute(delete(models.Shot).where(models.Shot.project_id == project_id))
         db.execute(delete(models.Project).where(models.Project.id == project_id))
         
         db.commit()

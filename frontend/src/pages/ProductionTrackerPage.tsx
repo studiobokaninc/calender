@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     Box,
     Typography,
@@ -25,6 +26,7 @@ import {
     Tabs,
     Tab,
     Tooltip,
+    Grid,
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
@@ -71,6 +73,20 @@ interface ShotData {
     retakes_count: number;
     troubles_count: number;
     tasks: { [type: string]: TaskInfo[] };
+    cut?: string | null;
+    description?: string | null;
+    action?: string | null;
+    dialogue?: string | null;
+    bg?: string | null;
+    ch?: string | null;
+    prop?: string | null;
+    note?: string | null;
+    frame_in?: number | null;
+    frame_out?: number | null;
+    duration?: number | null;
+    second?: number | null;
+    frame_rem?: number | null;
+    sl_no?: number | null;
 }
 
 interface SequenceData {
@@ -81,6 +97,8 @@ interface SequenceData {
 const ProductionTrackerPage: React.FC = () => {
     const theme = useTheme();
     const { user } = useAuth();
+    const [searchParams] = useSearchParams();
+    const queryProjectId = searchParams.get('project');
     const [projects, setProjects] = useState<Project[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<number | ''>('');
@@ -193,7 +211,13 @@ const ProductionTrackerPage: React.FC = () => {
                 setProjects(onlineProjects);
                 setUsers(usersData);
 
-                if (onlineProjects && onlineProjects.length > 0) {
+                // Use project query parameter if present
+                const queryIdNum = queryProjectId ? parseInt(queryProjectId, 10) : null;
+                const hasQueryProject = queryIdNum && onlineProjects.some((p: Project) => p.id === queryIdNum);
+
+                if (hasQueryProject) {
+                    setSelectedProjectId(queryIdNum as number);
+                } else if (onlineProjects && onlineProjects.length > 0) {
                     setSelectedProjectId(onlineProjects[0].id);
                 }
             } catch (err) {
@@ -202,7 +226,7 @@ const ProductionTrackerPage: React.FC = () => {
             }
         };
         loadInitialData();
-    }, []);
+    }, [queryProjectId]);
 
     useEffect(() => {
         if (selectedProjectId !== '') {
@@ -468,11 +492,82 @@ const ProductionTrackerPage: React.FC = () => {
                     
                     {selectedShot && (
                         <Stack spacing={4}>
-                            <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), borderRadius: 2 }}>
-                                <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700, mb: 1 }}>基本情報</Typography>
-                                <Typography variant="body2">ステータス: <strong>{selectedShot.status}</strong></Typography>
-                                <Typography variant="body2">シーケンス: <strong>{selectedShot.shotID.split('_')[0]}</strong></Typography>
+                            <Paper sx={{ p: 2.5, bgcolor: alpha(theme.palette.primary.main, 0.03), border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+                                <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, fontSize: '0.9rem' }}>基本情報</Typography>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>ステータス</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.status}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>No. (順序)</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.sl_no ?? '—'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>カット</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.cut ?? '—'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>フレームイン</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.frame_in ?? '—'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>フレームアウト</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.frame_out ?? '—'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>デュレーション</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.duration ?? '—'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>秒数</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.second != null ? `${selectedShot.second}s` : '—'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>余りフレーム</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedShot.frame_rem ?? '—'}</Typography>
+                                    </Grid>
+                                    <Grid item xs={6} sm={4}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>BG / CH / PROP</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                            {selectedShot.bg || '—'} / {selectedShot.ch || '—'} / {selectedShot.prop || '—'}
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
                             </Paper>
+
+                            {/* 説明・アクション・セリフ */}
+                            {(selectedShot.description || selectedShot.action || selectedShot.dialogue || selectedShot.note) && (
+                                <Paper sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
+                                    <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, fontSize: '0.9rem' }}>ショット詳細メタデータ</Typography>
+                                    <Stack spacing={2}>
+                                        {selectedShot.description && (
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>説明</Typography>
+                                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', mt: 0.5 }}>{selectedShot.description}</Typography>
+                                            </Box>
+                                        )}
+                                        {selectedShot.action && (
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>アクション</Typography>
+                                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', mt: 0.5 }}>{selectedShot.action}</Typography>
+                                            </Box>
+                                        )}
+                                        {selectedShot.dialogue && (
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>セリフ</Typography>
+                                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', mt: 0.5 }}>{selectedShot.dialogue}</Typography>
+                                            </Box>
+                                        )}
+                                        {selectedShot.note && (
+                                            <Box>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>ノート / 備考</Typography>
+                                                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', mt: 0.5, color: 'warning.main' }}>{selectedShot.note}</Typography>
+                                            </Box>
+                                        )}
+                                    </Stack>
+                                </Paper>
+                            )}
 
                             {selectedShot.thumbnail_url && (
                                 <Box>

@@ -585,11 +585,11 @@ const ProjectsPage: React.FC = () => {
                                     }}
                                     onClick={isAdmin ? () => handleEditProject(project) : undefined}
                                 >
-                                    <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                                    <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
                                         <Grid container spacing={2} alignItems="center">
                                             {/* 左エリア: 名前、ステータス、説明 */}
                                             <Grid item xs={12} md={5}>
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                         <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.25rem', mr: 1, wordBreak: 'break-word' }}>
                                                             {project.name}
@@ -612,8 +612,8 @@ const ProjectsPage: React.FC = () => {
 
                                                     {/* ステータスバッジ群 */}
                                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
-                                                        <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.8rem', height: 26, fontWeight: 700 }} />
-                                                        <Chip label={project.priority || '未設定'} size="small" variant="outlined" sx={{ fontSize: '0.8rem', height: 26, borderColor: getPriorityColor(project.priority ?? undefined), color: getPriorityColor(project.priority ?? undefined), fontWeight: 700 }} />
+                                                        <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
+                                                        <Chip label={project.priority || '未設定'} size="small" variant="outlined" sx={{ fontSize: '0.85rem', height: 30, borderColor: getPriorityColor(project.priority ?? undefined), color: getPriorityColor(project.priority ?? undefined), fontWeight: 700 }} />
                                                         {isAdmin ? (
                                                             <Select
                                                                 size="small"
@@ -633,22 +633,45 @@ const ProjectsPage: React.FC = () => {
                                                                         setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
                                                                     }
                                                                 }}
-                                                                sx={{ height: 26, fontSize: '0.8rem', fontWeight: 700, backgroundColor: dispColor, color: '#fff', '& .MuiSelect-select': { color: '#fff', py: 0, px: 1 }, '& .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: dispColor } }}
+                                                                sx={{ height: 30, fontSize: '0.85rem', fontWeight: 700, backgroundColor: dispColor, color: '#fff', '& .MuiSelect-select': { color: '#fff', py: 0, px: 1 }, '& .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: dispColor } }}
                                                             >
                                                                 {displayStatusOptions.map(opt => (
-                                                                    <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.8rem' }}>{opt.label}</MenuItem>
+                                                                    <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.85rem' }}>{opt.label}</MenuItem>
                                                                 ))}
                                                             </Select>
                                                         ) : (
-                                                            <Chip label={dispLabel} size="small" sx={{ backgroundColor: dispColor, color: '#fff', fontSize: '0.8rem', height: 26, fontWeight: 700 }} />
+                                                            <Chip label={dispLabel} size="small" sx={{ backgroundColor: dispColor, color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
                                                         )}
                                                     </Box>
 
                                                     {/* 説明 */}
                                                     {project.description && (
-                                                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>
-                                                            {project.description}
-                                                        </Typography>
+                                                        <Box
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            sx={{
+                                                                maxHeight: '76px',
+                                                                overflowY: 'auto',
+                                                                pr: 0.5,
+                                                                '&::-webkit-scrollbar': {
+                                                                    width: '4px',
+                                                                },
+                                                                '&::-webkit-scrollbar-track': {
+                                                                    background: 'transparent',
+                                                                    borderRadius: '2px',
+                                                                },
+                                                                '&::-webkit-scrollbar-thumb': {
+                                                                    background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
+                                                                    borderRadius: '2px',
+                                                                    '&:hover': {
+                                                                        background: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+                                                                    }
+                                                                },
+                                                            }}
+                                                        >
+                                                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1.1rem', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                                {project.description}
+                                                            </Typography>
+                                                        </Box>
                                                     )}
                                                 </Box>
                                             </Grid>
@@ -659,27 +682,28 @@ const ProjectsPage: React.FC = () => {
                                                     {/* Director / PM */}
                                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
+                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
                                                             <Box>
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>Director</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'text.primary' }}>{project.directorName || '-'}</Typography>
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>Director</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.directorName || '-'}</Typography>
                                                             </Box>
                                                         </Box>
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
+                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
                                                             <Box>
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>PM</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'text.primary' }}>{project.pmName || '-'}</Typography>
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>PM</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.pmName || '-'}</Typography>
                                                             </Box>
                                                         </Box>
                                                     </Box>
 
+                                                    <Divider />
                                                     {/* 期間 */}
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                        <CalendarIcon sx={{ color: 'text.secondary', fontSize: '1.1rem' }} />
+                                                        <CalendarIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
                                                         <Box>
-                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>期間</Typography>
-                                                            <Typography variant="body2" sx={{ fontSize: '0.9rem', fontWeight: 700, color: 'text.primary' }}>
+                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>期間</Typography>
+                                                            <Typography variant="body2" sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'text.primary' }}>
                                                                 {project.start_date ? new Date(project.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
                                                                 ～
                                                                 {project.end_date ? new Date(project.end_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
@@ -696,17 +720,17 @@ const ProjectsPage: React.FC = () => {
                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
                                                         {/* 統計ボックス */}
                                                         <Box sx={{ display: 'flex', gap: 0.75, flex: 1 }}>
-                                                            <Box sx={{ px: 1, py: 0.5, borderRadius: 1.5, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.65rem' }}>Shots</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1rem' }}>{project.shots || 0}</Typography>
+                                                            <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.75rem' }}>Shots</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem' }}>{project.shots || 0}</Typography>
                                                             </Box>
-                                                            <Box sx={{ px: 1, py: 0.5, borderRadius: 1.5, bgcolor: (project.retakes || 0) > 0 ? (isDark ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.retakes || 0) > 0 ? 'warning.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.retakes || 0) > 0 ? 'warning.main' : 'text.secondary', fontSize: '0.65rem' }}>Retakes</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1rem', color: (project.retakes || 0) > 0 ? 'warning.main' : 'inherit' }}>{project.retakes || 0}</Typography>
+                                                            <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.retakes || 0) > 0 ? (isDark ? 'rgba(255, 152, 0, 0.15)' : 'rgba(255, 152, 0, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.retakes || 0) > 0 ? 'warning.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.retakes || 0) > 0 ? 'warning.main' : 'text.secondary', fontSize: '0.75rem' }}>Retakes</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.retakes || 0) > 0 ? 'warning.main' : 'inherit' }}>{project.retakes || 0}</Typography>
                                                             </Box>
-                                                            <Box sx={{ px: 1, py: 0.5, borderRadius: 1.5, bgcolor: (project.troubles || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.troubles || 0) > 0 ? 'error.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.troubles || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.65rem' }}>Troubles</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1rem', color: (project.troubles || 0) > 0 ? 'error.main' : 'inherit' }}>{project.troubles || 0}</Typography>
+                                                            <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.troubles || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.troubles || 0) > 0 ? 'error.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: (project.troubles || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.75rem' }}>Troubles</Typography>
+                                                                <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.troubles || 0) > 0 ? 'error.main' : 'inherit' }}>{project.troubles || 0}</Typography>
                                                             </Box>
                                                         </Box>
 

@@ -8,6 +8,7 @@ import listPlugin from '@fullcalendar/list';
 import { DateSelectArg, DayCellMountArg } from '@fullcalendar/core';
 import {
     Box,
+    Badge,
     Button,
     CircularProgress,
     IconButton,
@@ -59,6 +60,11 @@ import { getEventColor, getTaskColor } from '../utils/calendarEventColors';
 import { getEventRank } from '../utils/calendarEventMapper';
 
 const DOUBLE_CLICK_THRESHOLD = 400;
+
+const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
+    task: true, meeting: true, deadline: true, milestone: true,
+    workshop: true, generic: true, project: false, group: true,
+};
 
 const CalendarPage: React.FC = () => {
     const theme = useTheme();
@@ -295,6 +301,13 @@ const CalendarPage: React.FC = () => {
         });
     }, [rawEvents, eventStatusFilter, eventTypeFilter, projectsMap, selectedUser, tasks]);
 
+    const activeFilterCount = useMemo(() => {
+        const statusActive = eventStatusFilter !== 'all' ? 1 : 0;
+        const userActive = selectedUser !== 'all' ? 1 : 0;
+        const typeHidden = Object.entries(eventTypeFilter).filter(([key, v]) => v !== (DEFAULT_EVENT_TYPE_FILTER[key] ?? true)).length;
+        return statusActive + userActive + typeHidden;
+    }, [eventStatusFilter, selectedUser, eventTypeFilter]);
+
     // FullCalendar に引き渡すためのイベントリスト構築
     const eventsForFullCalendar = useMemo(() => {
         return filteredEvents.map((event) => {
@@ -419,6 +432,12 @@ const CalendarPage: React.FC = () => {
 
     const handleAllEventTypeOff = useCallback(() => {
         setEventTypeFilter(prev => Object.fromEntries(Object.keys(prev).map(k => [k, false])));
+    }, []);
+
+    const handleClearAllFilters = useCallback(() => {
+        setEventStatusFilter('all');
+        setSelectedUser('all');
+        setEventTypeFilter({ task: true, meeting: true, deadline: true, milestone: true, workshop: true, generic: true, project: false, group: true });
     }, []);
 
     const handleDateClick = (arg: DateClickArg) => {
@@ -730,6 +749,7 @@ const CalendarPage: React.FC = () => {
                 ? projectsMap.get(String(projectIdRaw))?.name
                 : undefined;
             const shotID = eventInfo.event.extendedProps?.shotID;
+            const isProjectEvent = type === 'project';
             return (
                 <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '1px' }}>
                     <span style={{
@@ -742,8 +762,8 @@ const CalendarPage: React.FC = () => {
                     }} title={projectName || typeLabel}>
                         {projectName || typeLabel}
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', minWidth: 0 }}>
-                        {shotID && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', minWidth: 0, minHeight: '1.2em' }}>
+                        {!isProjectEvent && shotID && (
                             <span style={{
                                 fontSize: '0.85rem',
                                 opacity: 0.7,
@@ -753,16 +773,21 @@ const CalendarPage: React.FC = () => {
                                 {shotID}
                             </span>
                         )}
-                        <span className="calendar-event-title" style={{
-                            fontSize: '0.9rem',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 1,
-                            minWidth: 0
-                        }} title={title}>
-                            {title}
-                        </span>
+                        {!isProjectEvent && (
+                            <span className="calendar-event-title" style={{
+                                fontSize: '0.9rem',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 1,
+                                minWidth: 0
+                            }} title={title}>
+                                {title}
+                            </span>
+                        )}
+                        {isProjectEvent && (
+                            <span style={{ visibility: 'hidden' }}>&nbsp;</span>
+                        )}
                     </div>
                 </div>
             );
@@ -1088,7 +1113,9 @@ const CalendarPage: React.FC = () => {
                             minHeight: 48,
                         }}
                     >
-                        <FilterListIcon />
+                        <Badge badgeContent={activeFilterCount} color="primary" invisible={activeFilterCount === 0}>
+                            <FilterListIcon />
+                        </Badge>
                     </IconButton>
                     {user?.role === 'admin' && (
                         <Button
@@ -1260,14 +1287,11 @@ const CalendarPage: React.FC = () => {
 
                         .fc-daygrid-day-frame {
                             min-height: ${isSmallScreen ? '100px' : '160px'} !important;
-                            height: ${isSmallScreen ? '100px' : '160px'} !important;
                         }
-                        .fc-daygrid-body tr { height: ${isSmallScreen ? '100px' : '160px'} !important; }
+                        .fc-daygrid-body tr { min-height: ${isSmallScreen ? '100px' : '160px'} !important; }
                         .fc-daygrid-day-events {
                             height: auto !important;
                             min-height: 0 !important;
-                            max-height: ${isSmallScreen ? '80px' : '135px'} !important;
-                            overflow: hidden !important;
                             margin-bottom: 2px !important;
                         }
                         .fc-daygrid-day-top {
@@ -1361,6 +1385,25 @@ const CalendarPage: React.FC = () => {
                             text-decoration: line-through !important;
                         }
 
+                        /* Project-specific styles for solid bar rendering spanning cells */
+                        .fc-event.project-event {
+                            border-radius: 4px !important;
+                            padding: 2px 6px !important;
+                            margin: 1px 2px !important;
+                            color: #ffffff !important;
+                            box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important;
+                            border-style: solid !important;
+                            border-width: 1px !important;
+                        }
+                        .fc-event.project-event .calendar-event-title,
+                        .fc-event.project-event * {
+                            color: #ffffff !important;
+                        }
+                        .fc-event.project-event:hover {
+                            filter: brightness(0.95) !important;
+                            box-shadow: 0 2px 5px rgba(0,0,0,0.2) !important;
+                        }
+
                         .fc-event.completed-project-event { background-color: #9E9E9E !important; border-color: #9E9E9E !important; }
                         .fc-event.completed-project-event.deadline-event-wrapper { background: none !important; }
                         .fc-event.completed-project-event .deadline-event-content { color: #757575 !important; }
@@ -1447,7 +1490,7 @@ const CalendarPage: React.FC = () => {
                         height={isMobile ? "auto" : "100%"}
                         fixedWeekCount={true}
                         showNonCurrentDates={true}
-                        dayMaxEvents={true}
+                        dayMaxEvents={isMobile ? 2 : (isSmallScreen ? 3 : 4)}
                         dateClick={handleDateClick}
                         select={handleSelect}
                         eventClick={handleEventClick}
@@ -1496,24 +1539,10 @@ const CalendarPage: React.FC = () => {
                                 classes.push('custom-event');
                             }
 
-                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end &&
-                                Math.floor((arg.event.end.getTime() - arg.event.start.getTime()) / (1000 * 60 * 60 * 24)) > 1;
-
-                            if (isMultiDay && type !== 'project' && normalizedType !== 'milestone' && normalizedType !== 'deadline') {
-                                classes.push('project-event');
-                            }
-
                             return classes;
                         }}
                         eventDidMount={(arg) => {
                             const type = arg.event.extendedProps.type;
-                            const isMultiDay = arg.event.allDay && arg.event.start && arg.event.end &&
-                                arg.event.start.getTime() !== arg.event.end.getTime();
-
-                            if (isMultiDay && type !== 'project') {
-                                arg.el.classList.add('project-event');
-                            }
-
                             // Apply transparent background and colored text for custom events (meetings, generic events, workshops)
                             if (arg.el.classList.contains('custom-event')) {
                                 const bg = arg.event.backgroundColor || arg.event.borderColor;
@@ -1614,6 +1643,7 @@ const CalendarPage: React.FC = () => {
                             tasks={tasks}
                             userFilter={selectedUser}
                             onUserFilterChange={handleUserFilterChange}
+                            onClearAllFilters={handleClearAllFilters}
                         />
                     </Box>
                 )}
@@ -1685,7 +1715,7 @@ const CalendarPage: React.FC = () => {
                     }}
                 >
                     <Box sx={{ p: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifycontent: 'space-between', mb: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                             <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1.1rem' }}>
                                 フィルター
                             </Typography>
@@ -1761,6 +1791,16 @@ const CalendarPage: React.FC = () => {
                                 />
                             ))}
                         </FormGroup>
+                        <Button
+                            fullWidth
+                            variant="outlined"
+                            color="secondary"
+                            disabled={activeFilterCount === 0}
+                            sx={{ mt: 2 }}
+                            onClick={() => { handleClearAllFilters(); setMobileFilterOpen(false); }}
+                        >
+                            フィルタをすべてクリア ({activeFilterCount}件適用中)
+                        </Button>
                     </Box>
                 </Drawer>
             )}
@@ -1835,6 +1875,7 @@ const CalendarPage: React.FC = () => {
                             tasks={tasks}
                             userFilter={selectedUser}
                             onUserFilterChange={handleUserFilterChange}
+                            onClearAllFilters={handleClearAllFilters}
                         />
                     </Box>
                 </Drawer>

@@ -394,37 +394,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                             }}>
                                 {/* Project & Assignee */}
                                 <Grid container spacing={1.5}>
-                                    <Grid item xs={6}>
-                                        <FormControl fullWidth size="small">
-                                            <InputLabel>プロジェクト</InputLabel>
-                                            <Select
-                                                value={editProjectId}
-                                                label="プロジェクト"
-                                                onChange={async (e) => {
-                                                    const val = e.target.value;
-                                                    const newProjId = val ? Number(val) : null;
-                                                    setEditProjectId(val);
-                                                    setEditShotRelId(null);
-                                                    setEditSeqID('');
-                                                    setEditShotID('');
-                                                    setEditDependsOn([]);
-                                                    await onUpdate(task.id, {
-                                                        project_id: newProjId,
-                                                        shot_id: null,
-                                                        seqID: null,
-                                                        shotID: null,
-                                                        dependsOn: []
-                                                    });
-                                                }}
-                                            >
-                                                <MenuItem value=""><em>未設定</em></MenuItem>
-                                                {projects.map((p) => (
-                                                    <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
-                                    </Grid>
-                                    <Grid item xs={6}>
+                                    <Grid item xs={12}>
                                         <FormControl fullWidth size="small">
                                             <InputLabel>担当者</InputLabel>
                                             <Select

@@ -70,6 +70,7 @@ interface ProjectWithProgress extends Project {
     troubles?: number;
     directorName?: string;
     pmName?: string;
+    todoCount: number;
     inProgressCount: number;
     delayedCount: number;
     completedCount: number;
@@ -192,38 +193,22 @@ const ProjectsPage: React.FC = () => {
 
                 const progress = totalCost > 0 ? Math.round((completedCost / totalCost) * 100) : 0;
 
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-
+                let todoCount = 0;
                 let inProgressCount = 0;
                 let delayedCount = 0;
                 let completedCount = 0;
 
                 relatedTasks.forEach(task => {
                     const status = (task.status || 'todo').toLowerCase();
-                    const isCompleted = status === 'completed' || status === 'approved';
                     
-                    let isDelayed = status === 'delayed';
-                    if (!isCompleted && !isDelayed && task.due_date) {
-                        try {
-                            const due = parseISO(task.due_date);
-                            if (isValid(due)) {
-                                due.setHours(0, 0, 0, 0);
-                                if (due < todayStart) {
-                                    isDelayed = true;
-                                }
-                            }
-                        } catch (e) {
-                            // ignore parsing error
-                        }
-                    }
-
-                    if (isCompleted) {
+                    if (status === 'completed' || status === 'approved') {
                         completedCount++;
-                    } else if (isDelayed) {
+                    } else if (status === 'delayed') {
                         delayedCount++;
                     } else if (status === 'in-progress' || status === 'review' || status === 'retake') {
                         inProgressCount++;
+                    } else if (status === 'todo' || status === 'planning') {
+                        todoCount++;
                     }
                 });
 
@@ -237,6 +222,7 @@ const ProjectsPage: React.FC = () => {
                     troubles: summary.troubles,
                     directorName: projRoles['director'] ? userNameById[projRoles['director']] : undefined,
                     pmName: projRoles['pm'] ? userNameById[projRoles['pm']] : undefined,
+                    todoCount,
                     inProgressCount,
                     delayedCount,
                     completedCount,
@@ -785,6 +771,10 @@ const ProjectsPage: React.FC = () => {
                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
                                                          {/* 統計ボックス */}
                                                          <Box sx={{ display: 'flex', gap: 0.75, flex: 1 }}>
+                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.todoCount || 0) > 0 ? (isDark ? 'rgba(156, 39, 176, 0.15)' : 'rgba(156, 39, 176, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.todoCount || 0) > 0 ? 'secondary.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'text.secondary', fontSize: '0.75rem' }}>未着手</Typography>
+                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'inherit' }}>{project.todoCount || 0}</Typography>
+                                                             </Box>
                                                              <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.inProgressCount || 0) > 0 ? (isDark ? 'rgba(33, 150, 243, 0.15)' : 'rgba(33, 150, 243, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
                                                                  <Typography variant="caption" sx={{ fontWeight: 700, color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'text.secondary', fontSize: '0.75rem' }}>進行中</Typography>
                                                                  <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'inherit' }}>{project.inProgressCount || 0}</Typography>

@@ -114,21 +114,7 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
                     sx={inputSx}
                 />
 
-                <FormControl fullWidth size="small" sx={inputSx}>
-                    <InputLabel id="event-project-select-label">プロジェクト</InputLabel>
-                    <Select
-                        labelId="event-project-select-label"
-                        id="event-project-select"
-                        value={projectId}
-                        label="プロジェクト"
-                        onChange={(e) => setProjectId(e.target.value === '' ? '' : Number(e.target.value))}
-                    >
-                        <MenuItem value=""><em>未設定</em></MenuItem>
-                        {projects.map((p) => (
-                            <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+
 
                 <FormControlLabel
                     control={

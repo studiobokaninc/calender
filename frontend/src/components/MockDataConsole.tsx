@@ -19,6 +19,13 @@ import {
   ListItemIcon,
   Breadcrumbs,
   Link,
+  Tooltip,
+  IconButton,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
 } from '@mui/material';
 import {
   FileDownload as FileDownloadIcon,
@@ -33,6 +40,7 @@ import {
   Group as GroupIcon,
   Link as LinkIcon,
   Backup as BackupIcon,
+  HelpOutline as HelpOutlineIcon,
 } from '@mui/icons-material';
 import api, { exportMockData, importMockData } from '../services/api'; // API関数をインポート
 import { MockDataImport } from '../types'; // 型をインポート
@@ -50,6 +58,9 @@ const MockDataConsole: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [importSummary, setImportSummary] = useState<any>(null); // インポート結果サマリ
   const [importErrors, setImportErrors] = useState<string[]>([]); // インポートエラー詳細
+  const [backupHelpOpen, setBackupHelpOpen] = useState(false);
+  const [exportHelpOpen, setExportHelpOpen] = useState(false);
+  const [importHelpOpen, setImportHelpOpen] = useState(false);
 
   // ファイル入力用のref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -330,9 +341,14 @@ const MockDataConsole: React.FC = () => {
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <BackupIcon sx={{ mr: 1.5, color: 'primary.main' }} />
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', mr: 1 }}>
             バックアップ
           </Typography>
+          <Tooltip title="バックアップ機能のヘルプを確認">
+            <IconButton size="small" onClick={() => setBackupHelpOpen(true)} color="primary">
+              <HelpOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
           データベースのバックアップをダウンロードします。JSON形式またはデータベースファイル（.db）形式を選択できます。
@@ -442,9 +458,14 @@ const MockDataConsole: React.FC = () => {
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <FileDownloadIcon sx={{ mr: 1.5, color: 'primary.main' }} />
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', mr: 1 }}>
             データのエクスポート
           </Typography>
+          <Tooltip title="エクスポート機能のヘルプを確認">
+            <IconButton size="small" onClick={() => setExportHelpOpen(true)} color="primary">
+              <HelpOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
           現在のデータベース内の全データ（ユーザー、プロジェクト、タスク、イベント等）をJSONファイルとしてエクスポートします。
@@ -495,9 +516,14 @@ const MockDataConsole: React.FC = () => {
       <Paper sx={{ p: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <FileUploadIcon sx={{ mr: 1.5, color: 'primary.main' }} />
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', mr: 1 }}>
             データのインポート
           </Typography>
+          <Tooltip title="インポート・復元機能のヘルプを確認">
+            <IconButton size="small" onClick={() => setImportHelpOpen(true)} color="primary">
+              <HelpOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5 }}>
           エクスポートされた形式のJSONファイルを選択して、データをデータベースに追加します。既存のデータと重複する場合（例：同じメールアドレスのユーザー）はスキップされます。
@@ -628,6 +654,150 @@ const MockDataConsole: React.FC = () => {
             disabled={!exportedData}
           >
             ダウンロード
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* バックアップヘルプダイアログ */}
+      <Dialog open={backupHelpOpen} onClose={() => setBackupHelpOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>バックアップ機能の仕様ヘルプ</DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              現在のシステム状態を保存し、ダウンロードするための機能です。用途に合わせて3種類の形式を選択できます。
+            </Typography>
+            <Table size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem', width: '150px' }}>バックアップ形式</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>説明・保存対象</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>フルバックアップ（ZIP一括形式）</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    データベースファイル（SQLite）、RAG用ナレッジフォルダ内のファイル、およびアップロードされた画像データ（アバター、サムネイル、添付画像など）をまとめてZIP圧縮します。
+                    システムの完全な移行や退避に最も推奨される形式です。
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>DBファイルのみ (.db)</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    SQLiteデータベースファイル本体（<code>calendar.db</code>等）を直接ダウンロードします。
+                    データベースのみのバックアップとして軽量です。
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>JSON形式 (テキストデータのみ)</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    主要なテキストデータをJSON形式でテキストデータのみエクスポートします。
+                    ファイルサイズが最小限で、テキストエディタ等で内容を可読できるのが特徴です。
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBackupHelpOpen(false)} variant="contained" color="primary">
+            閉じる
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* データエクスポートヘルプダイアログ */}
+      <Dialog open={exportHelpOpen} onClose={() => setExportHelpOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>データエクスポートの仕様ヘルプ</DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              現在のデータベース内のデータをJSONファイルとしてダウンロードします。2つのエクスポート形式から選択できます。
+            </Typography>
+            <Table size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem', width: '160px' }}>データ形式</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>説明・対象範囲</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>マックデータ形式エクスポート</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    主要な4テーブル（ユーザー、プロジェクト、タスク、イベント）のデータのみを抽出して、ネスト・構造化されたJSONファイルで出力します。
+                    このファイルは、データの部分追加（マックデータ形式インポート）に使用できます。
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>データベースを丸ごとエクスポート (JSON)</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    データベース内の全19テーブルのすべてのレコード（スキーマ依存の生データ）を、テーブル名をキーとするフラットなJSONオブジェクトとしてエクスポートします。
+                    このファイルは、「データベースを丸ごと復元」で使用します。
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExportHelpOpen(false)} variant="contained" color="primary">
+            閉じる
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* データインポートヘルプダイアログ */}
+      <Dialog open={importHelpOpen} onClose={() => setImportHelpOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>データインポート・復元の仕様ヘルプ</DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            
+            <Box>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                エクスポートされたJSONファイルを指定して、システムデータをインポートまたはデータベース全体を復元します。
+              </Typography>
+              <Table size="small" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'action.hover' }}>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem', width: '200px' }}>インポート形式・操作</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>インポート時の挙動・特徴</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>マックデータ形式インポート</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>
+                      指定されたJSONファイルから、ユーザー、プロジェクト、タスク、イベントのデータを読み込み、現在のデータベースに<strong>「追加（差分インポート）」</strong>します。
+                      既存のデータは削除されません。メールアドレスが重複するユーザーなど、既に存在するレコードは自動的にスキップされます。
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>データベースを丸ごと復元 (.json)</TableCell>
+                    <TableCell sx={{ fontSize: '0.8rem' }}>
+                      データベースの全19テーブルを上書き復元します（詳細は下記警告を参照）。
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Box>
+
+            {/* 警告表示 */}
+            <Box sx={{ p: 2, bgcolor: 'rgba(211, 47, 47, 0.05)', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'error.main', mb: 1, display: 'flex', alignItems: 'center' }}>
+                <ErrorIcon sx={{ mr: 1, fontSize: '1.25rem' }} />
+                重要・警告：データベースを丸ごと復元 (.json) について
+              </Typography>
+              <Typography variant="body2" color="text.primary" sx={{ fontSize: '0.8rem', lineHeight: 1.6 }}>
+                この操作を実行すると、現在のデータベースの<strong>全19テーブルのデータがすべて一度削除（テーブルの初期化）</strong>され、指定したJSONファイルのデータに完全に置き換わります。<br />
+                追加ではなく完全な上書き（破壊的変更）であるため、実行前には必ず「フルバックアップ（ZIP一括形式）」等をダウンロードしてバックアップを手元に保存してください。
+              </Typography>
+            </Box>
+
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportHelpOpen(false)} variant="contained" color="primary">
+            閉じる
           </Button>
         </DialogActions>
       </Dialog>

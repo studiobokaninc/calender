@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, status, Form, UploadFile, File, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Form, UploadFile, File, Body, Query, Response
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, and_, func, text
 from typing import List, Optional
@@ -597,10 +597,13 @@ def read_all_notifications(
 
 @router.get("/me", response_model=schemas.UserResponse)
 def get_my_profile(
+    response: Response,
     current_user: models.User = Depends(get_current_user),
     actor_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db)
 ):
+    # 本人識別レスポンスは中間プロキシ/ブラウザにキャッシュさせない（別ユーザーへの漏洩防止）
+    response.headers["Cache-Control"] = "no-store, private"
     # actor_id が指定されている場合はそのユーザーを返す（Score Backend からの中継用）
     user = db.query(models.User).filter(models.User.id == actor_id).first()
     if not user:

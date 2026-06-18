@@ -32,6 +32,11 @@ const formatTime = (dateInput: string | Date | null | undefined): string => {
     return '';
   } catch { return ''; }
 };
+const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
+  task: true, meeting: true, deadline: true, milestone: true,
+  workshop: true, generic: true, project: false, group: true,
+};
+
 const isDatePast = (dateStr: string | Date | null | undefined): boolean => {
   if (!dateStr) return false;
   try {
@@ -83,6 +88,7 @@ interface EventDetailsPanelProps {
   tasks?: Task[];
   userFilter?: string;
   onUserFilterChange?: (event: any) => void;
+  onClearAllFilters?: () => void;
 }
 
 const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
@@ -109,6 +115,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   tasks,
   userFilter = 'all',
   onUserFilterChange,
+  onClearAllFilters,
 }) => {
   const { user } = useAuth();
   const theme = useTheme();
@@ -153,7 +160,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
   const activeFilterCount = useMemo(() => {
     const statusActive = eventStatusFilter !== 'all' ? 1 : 0;
     const userActive = userFilter !== 'all' ? 1 : 0;
-    const typeHidden = Object.values(eventTypeFilter).filter(v => !v).length;
+    const typeHidden = Object.entries(eventTypeFilter).filter(([key, v]) => v !== (DEFAULT_EVENT_TYPE_FILTER[key] ?? true)).length;
     return statusActive + userActive + typeHidden;
   }, [eventStatusFilter, userFilter, eventTypeFilter]);
 
@@ -220,12 +227,34 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             </Typography>
           )}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>表示イベント</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>表示イベント</Typography>
+              {activeFilterCount > 0 && (
+                <Chip
+                  label={`適用中 ${activeFilterCount}件`}
+                  size="small"
+                  color="primary"
+                  sx={{ fontSize: '0.7rem', height: 20, '& .MuiChip-label': { px: 0.75 } }}
+                />
+              )}
+            </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button size="small" variant="text" onClick={() => Object.keys(eventTypeFilter).forEach(k => onEventTypeFilterChange(k, true))}>全オン</Button>
               <Button size="small" variant="text" onClick={() => Object.keys(eventTypeFilter).forEach(k => onEventTypeFilterChange(k, false))}>全オフ</Button>
             </Box>
           </Box>
+          {onClearAllFilters && (
+            <Button
+              size="small"
+              variant="outlined"
+              color="secondary"
+              disabled={activeFilterCount === 0}
+              sx={{ mb: 1, fontSize: '0.75rem' }}
+              onClick={onClearAllFilters}
+            >
+              フィルタをすべてクリア
+            </Button>
+          )}
           <FormControl size="small" sx={{ minWidth: 140, mb: 1 }}>
             <Select value={eventStatusFilter} onChange={onEventStatusFilterChange} displayEmpty>
               <MenuItem value="all">すべてのプロジェクト</MenuItem>

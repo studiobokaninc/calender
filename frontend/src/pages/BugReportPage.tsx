@@ -1,12 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Box, Typography, TextField, Select, MenuItem, Button,
-         Snackbar, Alert, Paper, FormControl, InputLabel } from '@mui/material';
+         Snackbar, Alert, Paper, FormControl, InputLabel, Collapse } from '@mui/material';
 import { createBugReport, getBugReportsRecent, exportBugReportsCsv } from '../services/api';
 import { getLog, appendLog } from '../utils/opLog';
 import { useAuth } from '../contexts/AuthContext';
 
 const SEVERITY_OPTIONS = ['low','medium','high','critical'];
+
+const BugReportItem: React.FC<{ r: any }> = ({ r }) => {
+  const [expanded, setExpanded] = useState(false);
+  const desc = r.description || '';
+  const isLong = desc.length > 120;
+  return (
+    <Paper sx={{ p: 1.5, mb: 1 }}>
+      <Typography sx={{ fontSize: '0.9rem', fontWeight: 600 }}>
+        #{r.id} [{r.severity}] {r.title} — {r.reporter_name}
+      </Typography>
+      <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 0.5 }}>
+        {r.status}{r.created_at ? ` · ${r.created_at.slice(0, 10)}` : ''}
+      </Typography>
+      {desc && (
+        <>
+          <Collapse in={expanded || !isLong}>
+            <Typography sx={{ fontSize: '0.85rem', whiteSpace: 'pre-wrap', mt: 0.5 }}>
+              {desc}
+            </Typography>
+          </Collapse>
+          {isLong && (
+            <Button size="small" onClick={() => setExpanded(!expanded)} sx={{ mt: 0.5, p: 0 }}>
+              {expanded ? '閉じる' : '続きを見る'}
+            </Button>
+          )}
+        </>
+      )}
+      {r.page_url && (
+        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.5, wordBreak: 'break-all' }}>
+          URL: {r.page_url}
+        </Typography>
+      )}
+    </Paper>
+  );
+};
 
 const BugReportPage: React.FC = () => {
   const location = useLocation();
@@ -89,13 +124,7 @@ const BugReportPage: React.FC = () => {
       {recent.length > 0 && (
         <Box>
           <Typography variant="subtitle2" sx={{ mb:1 }}>直近の報告</Typography>
-          {recent.map((r: any)=>(
-            <Paper key={r.id} sx={{ p:1.5, mb:1 }}>
-              <Typography sx={{ fontSize:'0.9rem' }}>
-                #{r.id} [{r.severity}] {r.title} — {r.reporter_name}
-              </Typography>
-            </Paper>
-          ))}
+          {recent.map((r: any) => <BugReportItem key={r.id} r={r} />)}
         </Box>
       )}
       <Snackbar open={snackOpen} autoHideDuration={4000} onClose={()=>setSnackOpen(false)}>

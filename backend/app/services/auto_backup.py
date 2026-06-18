@@ -13,7 +13,7 @@ BACKUP_DIR = Path(__file__).resolve().parent.parent.parent / "backups"
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 def write_backup_data_to_zip(zip_file: zipfile.ZipFile):
-    """DBファイルおよびRAGインデックスのデータを指定されたZipFileオブジェクトに書き込むヘルパー"""
+    """DBファイル、RAGインデックス、およびアップロードされた画像データを指定されたZipFileオブジェクトに書き込むヘルパー"""
     # 1. DBファイルの追加
     db_dir = DATABASE_FILE_PATH.parent
     base_name = DATABASE_FILE_PATH.name
@@ -32,6 +32,15 @@ def write_backup_data_to_zip(zip_file: zipfile.ZipFile):
                         abs_path = Path(root) / file
                         rel_path = abs_path.relative_to(DATA_DIR)
                         zip_file.write(abs_path, f"knowledge/{rel_path}")
+
+    # 3. アップロード画像の追加
+    upload_dir = Path(__file__).resolve().parent.parent.parent / "static" / "uploads"
+    if upload_dir.exists():
+        for root, _, files in os.walk(upload_dir):
+            for file in files:
+                abs_path = Path(root) / file
+                rel_path = abs_path.relative_to(upload_dir)
+                zip_file.write(abs_path, f"uploads/{rel_path}")
 
 async def create_local_backup():
     try:

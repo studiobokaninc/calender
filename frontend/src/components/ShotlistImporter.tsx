@@ -23,11 +23,14 @@ import {
   DialogActions,
   Chip,
   TextField,
+  Tooltip,
+  IconButton,
 } from '@mui/material';
 import {
   TableChart as TableChartIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
+  HelpOutline as HelpOutlineIcon,
 } from '@mui/icons-material';
 import { usePageState } from '../contexts/PageStateContext';
 import { importShotlist } from '../services/api';
@@ -67,6 +70,7 @@ const ShotlistImporter: React.FC = () => {
   const [preview, setPreview] = useState<ShotImportPreview | null>(null);
   const [result, setResult] = useState<ShotImportResult | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const projects: { id: number; name: string; display_status?: string }[] = (globalData as any).projects ?? [];
@@ -131,9 +135,14 @@ const ShotlistImporter: React.FC = () => {
     <Paper sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
         <TableChartIcon sx={{ mr: 1.5, color: 'secondary.main' }} />
-        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+        <Typography variant="h6" sx={{ fontWeight: 'bold', mr: 1 }}>
           ショットリスト Excel インポート
         </Typography>
+        <Tooltip title="インポート可能な列と必須列の情報を確認">
+          <IconButton size="small" onClick={() => setHelpOpen(true)} color="primary">
+            <HelpOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3, ml: 4.5, fontSize: '0.875rem' }}>
         .xlsx ファイルからショットリストを一括インポートします。プレビューで差分を確認してから本適用してください。
@@ -372,6 +381,133 @@ const ShotlistImporter: React.FC = () => {
             {loading ? <CircularProgress size={18} sx={{ mr: 1 }} /> : null}
             本適用する
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 列仕様ヘルプダイアログ */}
+      <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>ショットリスト Excel 列仕様ヘルプ</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ fontSize: '0.875rem', mb: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span>Excel からのインポート時は、1行目のヘッダー名を参照して自動マッピングを行います。大文字・小文字、スペース、改行は無視されます。</span>
+            <span style={{ color: '#E53935', fontWeight: 'bold' }}>※「必須」マーク以外の列は、Excel内に列自体が存在しない、またはセルが空欄であってもエラーにならず、インポートを実行できます（その場合、空欄またはデフォルト値として登録・更新されます）。</span>
+          </DialogContentText>
+          <Box sx={{ overflowX: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'action.hover' }}>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>必須/任意</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>対象列 (DBフィールド名)</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>対応ヘッダー名 (いずれかを指定)</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>説明 / 型</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="必須" color="error" size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 'bold' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>cut</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}><code style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3 }}>cut</code></TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>カット名/ショット名 (一意キー。空の行はスキップされます)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>sl_no</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["sl no.", "sl\nno.", "slno", "sl_no"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>連番 (数値)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>thumbnail_url</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["thumbnail", "thumnail", "サムネイル"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    サムネイル画像のURL。<br />
+                    ※Excelセルに画像が直接埋め込まれている場合はURLが空欄でも自動抽出されます。
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>frame_in / frame_out</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["in", "out"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>開始フレーム / 終了フレーム (数値)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>duration</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["duration", "デュレーション"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>総フレーム数 (数値)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>second / frame_rem</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["second", "sec", "frame", "フレーム"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>秒数 / 余りフレーム数 (数値。例: 1秒 + 8フレーム)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>action / dialogue</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["action", "アクション", "dialogue", "dialog"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>アクション説明・演技内容 / セリフ (文字列)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>bg / ch / prop</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["bg", "背景", "ch", "キャラ", "character", "prop", "プロップ"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>背景美術 / キャラクター / プロップ・小物 (文字列)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>工程ステータス</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["lay", "レイアウト", "anim", "animation", "アニメ", "fx", "エフェクト", "lighting", "ライティング", "comp", "コンポジット"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>各工程の担当者名またはステータス (文字列)</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={{ py: 1 }}><Chip label="任意" variant="outlined" size="small" sx={{ height: 20, fontSize: '0.75rem' }} /></TableCell>
+                  <TableCell sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>note</TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {["note", "ノート", "備考"].map(h => (
+                      <code key={h} style={{ backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 4px', borderRadius: 3, marginRight: 4, display: 'inline-block', marginTop: 2 }}>{h}</code>
+                    ))}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>備考 (文字列)</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHelpOpen(false)} variant="contained" color="primary">閉じる</Button>
         </DialogActions>
       </Dialog>
     </Paper>

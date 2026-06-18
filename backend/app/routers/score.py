@@ -26,9 +26,33 @@ def get_actor_user_id(
     ヘッダーから実操作者のIDを取得します。
     管理者のみ X-Actor-User-Id ヘッダーで任意のユーザーIDを指定できます。
     一般ユーザーがヘッダーを指定した場合は、自分自身のIDを使用します。
+
+    修正②(cmd_527): CLI_BYPASS_TOKEN 由来の admin 中継で X-Actor-User-Id が欠落した場合は、
+    無言で共有 admin(=「別ユーザー」)にフォールバックせず、明示エラー(400)を返す。
+    ★ 通常ログイン(JWT)した利用者・一般ユーザーの自分用取得は従来どおり本人を返す(非破壊)。
     """
-    if x_actor_user_id and current_user.role == 'admin':
-        return x_actor_user_id
+    if current_user.role == 'admin':
+        if x_actor_user_id:
+            # 管理者による代理(中継): 指定ユーザーを実操作者とする
+            logger.info(
+                "ACTOR relay: principal admin user_id=%s acting as actor_id=%s",
+                current_user.id, x_actor_user_id
+            )
+            return x_actor_user_id
+        # X-Actor-User-Id 欠落:
+        #   - CLI_BYPASS 由来(中継) → 本人特定不能なので明示エラー(無言の admin 成りすまし防止)
+        #   - 実 admin が JWT で自分のデータを取得する通常利用 → 本人(従来どおり・非破壊)
+        if getattr(current_user, "_auth_via_bypass", False):
+            logger.warning(
+                "ACTOR relay rejected: bypass(admin) without X-Actor-User-Id; "
+                "refusing to fall back to shared admin to prevent identity confusion."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="X-Actor-User-Id header is required for admin relay."
+            )
+        return current_user.id
+    # 一般ユーザーは常に本人(ヘッダ指定があっても無視)
     return current_user.id
 
 # --- Write APIs (18 endpoints) ---

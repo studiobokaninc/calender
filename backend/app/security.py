@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import Annotated, Optional, Union
 from datetime import datetime, timedelta, timezone
 
@@ -11,6 +12,8 @@ from sqlalchemy.orm import Session
 from .database import get_db, engine
 from . import models
 from .timezone import now_jst_aware
+
+logger = logging.getLogger(__name__)
 
 # main.py から pwd_context の定義を移動
 pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
@@ -52,17 +55,33 @@ async def get_current_user(
     )
 
     # CLIバイパストークンの検証
+    # 案A(本番無効化): CLI_BYPASS_TOKEN が env に未設定/空文字の場合、`bypass_token and ...` が
+    #   False となりこの分岐には入らない（= 本番で env 未設定なら自動的に無効）。
+    # ※ この経路は通常のメール+パスワードログイン(JWT発行・検証)には一切関与しない。
     bypass_token = os.getenv("CLI_BYPASS_TOKEN")
     if bypass_token and token == bypass_token:
         # データベースから最初の管理者ユーザーを取得して返却
         admin_user = db.query(models.User).filter(models.User.role == "admin").first()
         if admin_user:
+            # 案B(成りすまし回避/警告化): bypass は共有 admin(.first()) を返すため、
+            #   そのまま per-user 用途に使うと「別ユーザー(=その admin)」化する。
+            #   (1) 監査用に警告ログを残す。(2) bypass 由来であることを印付けし、
+            #       中継系(get_actor_user_id)で X-Actor-User-Id 必須化を強制する。
+            logger.warning(
+                "AUTH bypass: CLI_BYPASS_TOKEN used; principal resolved to admin user_id=%s. "
+                "X-Actor-User-Id is required for per-user relay.", admin_user.id
+            )
+            try:
+                setattr(admin_user, "_auth_via_bypass", True)
+            except Exception:
+                pass
             return admin_user
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="バイパス認証に成功しましたが、管理者ユーザーがデータベースに見つかりません。"
         )
 
+    # ▼ 通常ログイン経路（メール+パスワードで発行された JWT の検証）— 本修正では一切変更していない。
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: Optional[str] = payload.get("sub")  # email を想定
@@ -82,6 +101,8 @@ async def get_current_user(
             detail="このアカウントは無効化されています。管理者にお問い合わせください。",
         )
 
+    # 軽量監査ログ(③): 通常JWT本人解決。高頻度のため debug レベル。
+    logger.debug("AUTH jwt: principal resolved to user_id=%s (sub=email).", user.id)
     return user
 
 

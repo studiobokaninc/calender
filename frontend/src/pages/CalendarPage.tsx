@@ -112,7 +112,8 @@ const CalendarPage: React.FC = () => {
     const [contextMenu, setContextMenu] = useState<{
         mouseX: number;
         mouseY: number;
-        taskId: number;
+        taskId?: number;
+        eventId?: number;
     } | null>(null);
 
     const calendarRef = useRef<FullCalendar>(null);
@@ -160,6 +161,7 @@ const CalendarPage: React.FC = () => {
         handleEventDrop,
         handleEventResize,
         handleDuplicateTask,
+        handleDuplicateEvent,
     } = useCalendarActions({
         user: user as any,
         tasks,
@@ -544,10 +546,14 @@ const CalendarPage: React.FC = () => {
     };
 
     const handleDuplicate = async () => {
-        if (contextMenu && contextMenu.taskId) {
-            const taskId = contextMenu.taskId;
+        if (contextMenu) {
+            const { taskId, eventId } = contextMenu;
             setContextMenu(null);
-            await handleDuplicateTask(taskId);
+            if (taskId) {
+                await handleDuplicateTask(taskId);
+            } else if (eventId) {
+                await handleDuplicateEvent(eventId);
+            }
         }
     };
 
@@ -1589,6 +1595,25 @@ const CalendarPage: React.FC = () => {
                                     }
                                 });
                             }
+
+                            // 右クリックでイベント複製メニューを表示
+                            if (arg.event.id.startsWith('event-')) {
+                                arg.el.addEventListener('contextmenu', (e: MouseEvent) => {
+                                    if (user?.role !== 'admin') return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+
+                                    const eventIdStr = arg.event.id.replace('event-', '');
+                                    const eventId = Number(eventIdStr);
+                                    if (!isNaN(eventId)) {
+                                        setContextMenu({
+                                            mouseX: e.clientX,
+                                            mouseY: e.clientY,
+                                            eventId: eventId,
+                                        });
+                                    }
+                                });
+                            }
                         }}
                         dayCellDidMount={handleDayCellMount}
                         selectable={user?.role === 'admin'}
@@ -1696,7 +1721,7 @@ const CalendarPage: React.FC = () => {
                         }
                     }}
                 >
-                    タスクを複製
+                    {contextMenu?.taskId ? 'タスクを複製' : 'イベントを複製'}
                 </Button>
             </Popover>
 

@@ -572,6 +572,47 @@ export const useCalendarActions = ({
         }
     }, [tasks, refetch, refreshGlobalData, setError, setLoading]);
 
+    // ────────────────────────────────────────────────────────────────────────
+    // イベント複製
+    // ────────────────────────────────────────────────────────────────────────
+    const handleDuplicateEvent = useCallback(async (eventId: number) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.get<BackendEvent>(`/calendar/events/${eventId}`);
+            const event = res.data;
+            if (!event) {
+                setError("複製対象のイベントが見つかりませんでした。");
+                return;
+            }
+
+            const duplicatedEventData = {
+                title: `${event.title} のコピー`,
+                description: event.description || '',
+                type: event.type || 'Generic',
+                location: event.location || '',
+                allDay: event.allDay ?? false,
+                start_time: event.start_time,
+                end_time: event.end_time,
+                status: event.status || 'offline',
+                project_id: event.project_id,
+                participants: event.participants || [],
+                user_ids: event.user_ids || [],
+            };
+
+            const response = await api.post('/calendar/events', duplicatedEventData);
+            console.log("Duplicate event success:", response.data);
+
+            if (refreshGlobalData) await refreshGlobalData();
+            refetch();
+        } catch (err: any) {
+            console.error("Failed to duplicate event:", err);
+            setError("イベントの複製に失敗しました。");
+        } finally {
+            setLoading(false);
+        }
+    }, [refetch, refreshGlobalData, setError, setLoading]);
+
     return {
         handleSaveEvent,
         handleDeleteEvent,
@@ -582,5 +623,6 @@ export const useCalendarActions = ({
         handleEventDrop,
         handleEventResize,
         handleDuplicateTask,
+        handleDuplicateEvent,
     };
 };

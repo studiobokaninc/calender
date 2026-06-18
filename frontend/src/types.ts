@@ -109,6 +109,7 @@ export interface BackendEvent {
   meeting_url?: string | null; // ★★★ 追加: 議事録ミーティングURL ★★★
   minutes_id?: number | null;  // ★★★ 追加: 紐付き議事録 ID ★★★
   participants?: Participant[] | null;
+  user_ids?: number[] | null;
   created_at?: string | null;
   updated_at?: string | null;
 }

@@ -17511,3 +17511,15 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-06-17 15:28:56,149 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-06-17 15:28:56,150 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-06-17 15:28:56,159 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-18 12:31:53,090 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-18 12:31:53,188 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-18 12:31:53,262 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-06-18 12:31:53,263 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-06-18 12:31:53,263 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-06-18 12:31:53,263 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-06-18 12:31:53,264 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-18 12:31:53,268 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-06-18 12:31:53,269 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-06-18 12:31:53,269 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-06-18 12:31:53,269 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-06-18 12:31:53,269 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message

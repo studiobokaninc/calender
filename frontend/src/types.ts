@@ -516,6 +516,7 @@ export interface UserMessage {
   shot_id?: number | null;
   body: string;
   author_id: number;
+  author_name?: string | null;
   created_at: string;
 }
 

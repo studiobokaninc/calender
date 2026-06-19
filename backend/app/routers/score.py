@@ -1104,8 +1104,19 @@ def list_user_messages(
         query = query.filter(models.UserMessage.author_id == author_id)
     if project_id:
         query = query.join(models.Shot).filter(models.Shot.project_id == project_id)
-        
-    return query.order_by(models.UserMessage.created_at.desc()).all()
+
+    msgs = query.order_by(models.UserMessage.created_at.desc()).all()
+    if not msgs:
+        return []
+    user_ids = {m.author_id for m in msgs}
+    users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
+    user_map = {u.id: (u.full_name or u.username) for u in users}
+    result = []
+    for m in msgs:
+        item = schemas.UserMessage.model_validate(m)
+        item.author_name = user_map.get(m.author_id)
+        result.append(item)
+    return result
 
 # --- New Read APIs for U-03 ---
 
@@ -1213,17 +1224,28 @@ def get_my_messages_read(
     actor_id: int = Depends(get_actor_user_id)
 ):
     my_shot_ids = [s.id for s in db.query(models.Shot).join(models.Task).filter(models.Task.assigned_to == actor_id).all()]
-    
+
     query = db.query(models.UserMessage)
     if my_shot_ids:
         query = query.filter(models.UserMessage.shot_id.in_(my_shot_ids))
     else:
         query = query.filter(models.UserMessage.author_id == actor_id)
-        
+
     if since:
         query = query.filter(models.UserMessage.created_at >= since)
-        
-    return query.order_by(models.UserMessage.created_at.desc()).limit(100).all()
+
+    msgs = query.order_by(models.UserMessage.created_at.desc()).limit(100).all()
+    if not msgs:
+        return []
+    user_ids = {m.author_id for m in msgs}
+    users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
+    user_map = {u.id: (u.full_name or u.username) for u in users}
+    result = []
+    for m in msgs:
+        item = schemas.UserMessage.model_validate(m)
+        item.author_name = user_map.get(m.author_id)
+        result.append(item)
+    return result
 
 @router.get("/me/dm/threads")
 def get_my_dm_threads(

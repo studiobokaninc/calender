@@ -77,7 +77,7 @@ export const ProductionHistory: React.FC<ProductionHistoryProps> = ({ notificati
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                                {item.entryType === 'message' ? `メッセージ (Author #${item.author_id})` : item.type.toUpperCase()}
+                                                {item.entryType === 'message' ? `メッセージ (${item.author_name || `ユーザー #${item.author_id}`})` : item.type.toUpperCase()}
                                             </Typography>
                                             {item.entryType === 'notification' && !item.is_read && (
                                                 <Chip label="NEW" size="small" color="primary" sx={{ height: 20, fontSize: '0.6rem', fontWeight: 900 }} />

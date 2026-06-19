@@ -48,6 +48,7 @@ import { useAuth } from '../contexts/AuthContext';
 import EventDetailsPanel from '../components/EventDetailsPanel';
 import EventAddModal from '../components/EventAddModal';
 import PhaseEditModal from '../components/PhaseEditModal';
+import AIImportModal from '../components/AIImportModal';
 import { CalendarEvent, Project } from '../types';
 
 // hooks
@@ -65,6 +66,8 @@ const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
     task: true, meeting: true, deadline: true, milestone: true,
     workshop: true, generic: true, project: false, group: true,
 };
+
+const EVENT_TYPE_ORDER = ['task', 'project', 'meeting', 'workshop', 'generic', 'deadline', 'milestone', 'group'];
 
 const CalendarPage: React.FC = () => {
     const theme = useTheme();
@@ -97,6 +100,7 @@ const CalendarPage: React.FC = () => {
     });
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isAIImportModalOpen, setIsAIImportModalOpen] = useState(false);
     const [isPhaseEditModalOpen, setIsPhaseEditModalOpen] = useState(false);
     const [modalEventToEdit, setModalEventToEdit] = useState<CalendarEvent | null>(null);
     const [dateClickArg, setDateClickArg] = useState<DateClickArg | null>(null);
@@ -1059,6 +1063,21 @@ const CalendarPage: React.FC = () => {
                                 作成
                             </Button>
                         )}
+                        {user?.role === 'admin' && (
+                            <Button
+                                variant="outlined"
+                                onClick={() => setIsAIImportModalOpen(true)}
+                                size={isSmallScreen ? "small" : "medium"}
+                                sx={{
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    borderRadius: 2,
+                                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                                }}
+                            >
+                                AIで取り込み
+                            </Button>
+                        )}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 1, pl: 1, borderLeft: '1px solid', borderColor: 'divider' }}>
                             {!googleStatus.configured ? (
                                 <Tooltip title="Google連携はバックエンドで設定されていません">
@@ -1139,6 +1158,23 @@ const CalendarPage: React.FC = () => {
                             }}
                         >
                             作成
+                        </Button>
+                    )}
+                    {user?.role === 'admin' && (
+                        <Button
+                            variant="outlined"
+                            onClick={() => setIsAIImportModalOpen(true)}
+                            size="medium"
+                            sx={{
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                borderRadius: 2,
+                                fontSize: '0.875rem',
+                                minHeight: 48,
+                                px: 2,
+                            }}
+                        >
+                            AIで取り込み
                         </Button>
                     )}
                 </Box>
@@ -1676,6 +1712,12 @@ const CalendarPage: React.FC = () => {
 
             {renderEventModal()}
 
+            <AIImportModal
+                open={isAIImportModalOpen}
+                onClose={() => setIsAIImportModalOpen(false)}
+                onSaved={() => { refetch(); refreshGlobalData(); }}
+            />
+
             <Popover
                 open={contextMenu !== null}
                 anchorReference="anchorPosition"
@@ -1791,30 +1833,33 @@ const CalendarPage: React.FC = () => {
                             </Box>
                         </Box>
                         <FormGroup>
-                            {Object.entries(eventTypeFilter).map(([type, enabled]) => (
-                                <FormControlLabel
-                                    key={type}
-                                    control={
-                                        <Checkbox
-                                            checked={enabled}
-                                            onChange={(e) => handleEventTypeFilterChange(type, e.target.checked)}
-                                            size="small"
-                                        />
-                                    }
-                                    label={
-                                        type === 'task' ? 'タスク' :
-                                            type === 'meeting' ? '会議' :
-                                                type === 'deadline' ? '締切' :
-                                                    type === 'milestone' ? 'マイルストーン' :
-                                                        type === 'workshop' ? 'ワークショップ' :
-                                                            type === 'generic' ? '通常イベント' :
-                                                                type === 'project' ? 'プロジェクト' :
-                                                                    type === 'group' ? 'グループ' :
-                                                                        type
-                                    }
-                                    sx={{ fontSize: '0.875rem' }}
-                                />
-                            ))}
+                            {EVENT_TYPE_ORDER.map((type) => {
+                                const enabled = eventTypeFilter[type] ?? DEFAULT_EVENT_TYPE_FILTER[type] ?? true;
+                                return (
+                                    <FormControlLabel
+                                        key={type}
+                                        control={
+                                            <Checkbox
+                                                checked={enabled}
+                                                onChange={(e) => handleEventTypeFilterChange(type, e.target.checked)}
+                                                size="small"
+                                            />
+                                        }
+                                        label={
+                                            type === 'task' ? 'タスク' :
+                                                type === 'meeting' ? '会議' :
+                                                    type === 'deadline' ? '締切' :
+                                                        type === 'milestone' ? 'マイルストーン' :
+                                                            type === 'workshop' ? 'ワークショップ' :
+                                                                type === 'generic' ? '通常イベント' :
+                                                                    type === 'project' ? 'プロジェクト' :
+                                                                        type === 'group' ? 'グループ' :
+                                                                            type
+                                        }
+                                        sx={{ fontSize: '0.875rem' }}
+                                    />
+                                );
+                            })}
                         </FormGroup>
                         <Button
                             fullWidth

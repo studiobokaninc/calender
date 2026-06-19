@@ -50,7 +50,8 @@ from .routers import (
     shot_import as shot_import_router,
     score_admin as score_admin_router,
     bug_reports as bug_reports_router,
-    readonly as readonly_router
+    readonly as readonly_router,
+    ai_import as ai_import_router
 )
 print("Main: ルーター読み込み完了")
 
@@ -166,6 +167,8 @@ app.include_router(shot_import_router.router)
 app.include_router(score_admin_router.router, prefix="/api/admin/score", tags=["score_admin"])
 app.include_router(bug_reports_router.router)
 app.include_router(readonly_router.router, prefix="/api/readonly", tags=["readonly"])
+app.include_router(ai_import_router.router)  # bare: /ai-import/parse (vite dev proxy経由)
+app.include_router(ai_import_router.router, prefix="/api")  # /api/ai-import/parse (prod直結)
 
 # §1 プレフィックス不整合対策: URL Prefix 二重化 (エイリアス・ルーティング)
 app.include_router(projects_router.router, prefix="/api")

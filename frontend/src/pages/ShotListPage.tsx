@@ -34,7 +34,7 @@ import {
 import { Edit as EditIcon, Close as CloseIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import api, { fetchShots, updateShot, uploadShotThumbnail, deleteShot } from '../services/api';
-import { Shot } from '../types';
+import { Shot, Project } from '../types';
 
 type StatusColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
 
@@ -81,6 +81,7 @@ const ShotListPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [shots, setShots] = useState<Shot[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [projectName, setProjectName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +100,19 @@ const ShotListPage: React.FC = () => {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const [selectedSeq, setSelectedSeq] = useState<string>('all');
+
+  useEffect(() => {
+    const fetchProjectsList = async () => {
+      try {
+        const res = await api.get<Project[]>('/projects');
+        const activeProjects = res.data.filter(p => p.display_status !== 'offline');
+        setProjects(activeProjects);
+      } catch (err) {
+        console.error('Failed to fetch projects list', err);
+      }
+    };
+    fetchProjectsList();
+  }, []);
 
   const seqCodes = React.useMemo(() => {
     const codes = new Set(shots.map(s => s.seq_code).filter(Boolean));
@@ -242,6 +256,21 @@ const ShotListPage: React.FC = () => {
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <Typography variant="h5">ショットリスト — {projectName}</Typography>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel id="project-select-label">プロジェクト</InputLabel>
+          <Select
+            labelId="project-select-label"
+            value={projectId || ''}
+            label="プロジェクト"
+            onChange={(e) => navigate(`/projects/${e.target.value}/shotlist`)}
+          >
+            {projects.map((p) => (
+              <MenuItem key={p.id} value={String(p.id)}>
+                {p.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <InputLabel id="seq-filter-label">シーケンス</InputLabel>
           <Select
@@ -273,10 +302,43 @@ const ShotListPage: React.FC = () => {
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={thSx}>No.</TableCell>
-                  <TableCell sx={thSx}>サムネイル</TableCell>
-                  <TableCell sx={thSx}>SEQ</TableCell>
-                  <TableCell sx={thSx}>SHOT</TableCell>
+                  <TableCell sx={{
+                    ...thSx,
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 13,
+                    width: 60,
+                    minWidth: 60,
+                    maxWidth: 60,
+                  }}>No.</TableCell>
+                  <TableCell sx={{
+                    ...thSx,
+                    position: 'sticky',
+                    left: 60,
+                    zIndex: 13,
+                    width: 80,
+                    minWidth: 80,
+                    maxWidth: 80,
+                  }}>サムネイル</TableCell>
+                  <TableCell sx={{
+                    ...thSx,
+                    position: 'sticky',
+                    left: 140,
+                    zIndex: 13,
+                    width: 70,
+                    minWidth: 70,
+                    maxWidth: 70,
+                  }}>SEQ</TableCell>
+                  <TableCell sx={{
+                    ...thSx,
+                    position: 'sticky',
+                    left: 210,
+                    zIndex: 13,
+                    width: 90,
+                    minWidth: 90,
+                    maxWidth: 90,
+                    boxShadow: '2px 0 5px -2px rgba(0,0,0,0.15)',
+                  }}>SHOT</TableCell>
                   <TableCell sx={thSx}>カット</TableCell>
                   <TableCell sx={thSx}>フレームイン</TableCell>
                   <TableCell sx={thSx}>フレームアウト</TableCell>
@@ -302,9 +364,39 @@ const ShotListPage: React.FC = () => {
                 {sortedAndFilteredShots.map((shot) => {
                   const sc = STATUS_CONFIG[shot.status] ?? { label: shot.status, color: 'default' as StatusColor };
                   return (
-                    <TableRow key={shot.id} hover>
-                      <TableCell sx={{ fontSize: '0.8rem' }}>{shot.sl_no ?? '—'}</TableCell>
-                      <TableCell sx={{ width: 64, py: 0.5 }}>
+                    <TableRow key={shot.id} hover sx={{
+                      '&:hover .sticky-cell': {
+                        bgcolor: 'action.hover',
+                      }
+                    }}>
+                      <TableCell
+                        className="sticky-cell"
+                        sx={{
+                          fontSize: '0.8rem',
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 11,
+                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.default' : 'grey.50',
+                          width: 60,
+                          minWidth: 60,
+                          maxWidth: 60,
+                        }}
+                      >
+                        {shot.sl_no ?? '—'}
+                      </TableCell>
+                      <TableCell
+                        className="sticky-cell"
+                        sx={{
+                          width: 80,
+                          minWidth: 80,
+                          maxWidth: 80,
+                          py: 0.5,
+                          position: 'sticky',
+                          left: 60,
+                          zIndex: 11,
+                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.default' : 'grey.50',
+                        }}
+                      >
                         <Tooltip title="画像をここにドラッグ＆ドロップしてサムネイルを即時更新">
                           <Box
                             onDragOver={(e) => { e.preventDefault(); }}
@@ -374,8 +466,40 @@ const ShotListPage: React.FC = () => {
                           </Box>
                         </Tooltip>
                       </TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{shot.seq_code}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap', fontSize: '0.8rem', fontWeight: 600 }}>{shot.shot_code}</TableCell>
+                      <TableCell
+                        className="sticky-cell"
+                        sx={{
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.8rem',
+                          position: 'sticky',
+                          left: 140,
+                          zIndex: 11,
+                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.default' : 'grey.50',
+                          width: 70,
+                          minWidth: 70,
+                          maxWidth: 70,
+                        }}
+                      >
+                        {shot.seq_code}
+                      </TableCell>
+                      <TableCell
+                        className="sticky-cell"
+                        sx={{
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.8rem',
+                          fontWeight: 600,
+                          position: 'sticky',
+                          left: 210,
+                          zIndex: 11,
+                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'background.default' : 'grey.50',
+                          width: 90,
+                          minWidth: 90,
+                          maxWidth: 90,
+                          boxShadow: '2px 0 5px -2px rgba(0,0,0,0.15)',
+                        }}
+                      >
+                        {shot.shot_code}
+                      </TableCell>
                       <TableCell sx={{ fontSize: '0.8rem' }}>{shot.cut ?? '—'}</TableCell>
                       <TableCell sx={{ fontSize: '0.8rem' }}>{shot.frame_in ?? '—'}</TableCell>
                       <TableCell sx={{ fontSize: '0.8rem' }}>{shot.frame_out ?? '—'}</TableCell>

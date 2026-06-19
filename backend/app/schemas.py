@@ -853,6 +853,7 @@ class UserMessageCreate(UserMessageBase):
 class UserMessage(UserMessageBase):
     id: int
     author_id: int
+    author_name: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -1096,8 +1097,10 @@ class BugReportResponse(BaseModel):
     id: int
     reporter_name: str
     title: str
+    description: Optional[str] = None
     severity: str
     status: str
+    page_url: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -1106,8 +1109,10 @@ class BugReportRecentItem(BaseModel):
     id: int
     reporter_name: str
     title: str
+    description: Optional[str] = None
     severity: str
     status: str
+    page_url: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True
@@ -1245,6 +1250,38 @@ class ReadonlyNotification(BaseModel):
     type: str
     is_read: bool
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyMeeting(BaseModel):
+    id: int
+    project_id: int
+    event_id: Optional[int] = None
+    title: str
+    date: Optional[datetime] = None
+    status: Optional[str] = None
+    decisions: Optional[List[Any]] = None
+    tasks: Optional[List[Any]] = None
+    discussion_points: Optional[List[Any]] = None
+    deadlines: Optional[List[Any]] = None
+    version_group: Optional[str] = None
+    attendees: Optional[List[Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyDecision(BaseModel):
+    id: int
+    meeting_id: Optional[int] = None
+    project_id: Optional[int] = None
+    content: str
+    date: Optional[datetime] = None
+    superseded: bool
 
     class Config:
         from_attributes = True

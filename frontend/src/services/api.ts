@@ -517,4 +517,29 @@ export const getBugReportsRecent = () =>
 
 export const exportBugReportsCsv = () =>
   api.get('/bug_reports/export.csv', { responseType: 'blob' }).then(r => r.data as Blob);
+
+// --- AI Import API ---
+export interface AIImportPayload {
+  title_or_name: string | null;
+  description: string | null;
+  event_type: string | null;
+  task_priority: string | null;
+  start: string | null;
+  end_or_due: string | null;
+  location: string | null;
+}
+
+export interface AIImportResult {
+  kind: 'task' | 'event' | 'unknown';
+  confidence: number;
+  notes: string | null;
+  payload: AIImportPayload;
+}
+
+export const parseAIImport = async (text: string, maxChars?: number): Promise<AIImportResult> => {
+  const body: { text: string; max_chars?: number } = { text };
+  if (maxChars !== undefined) body.max_chars = maxChars;
+  const response = await api.post('/ai-import/parse', body);
+  return response.data;
+};
 

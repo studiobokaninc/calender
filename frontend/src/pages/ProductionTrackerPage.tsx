@@ -147,6 +147,7 @@ const ProductionTrackerPage: React.FC = () => {
         messages: UserMessage[];
     } | null>(null);
     const [shotAssets, setShotAssets] = useState<Asset[]>([]);
+    const [taskAssets, setTaskAssets] = useState<Asset[]>([]);
     const [isShotDrawerOpen, setIsShotDrawerOpen] = useState(false);
     const [isShotLoading, setIsShotLoading] = useState(false);
 
@@ -288,9 +289,14 @@ const ProductionTrackerPage: React.FC = () => {
 
     const handleTaskClick = async (taskId: number) => {
         setIsTaskLoading(true);
+        setTaskAssets([]);
         try {
-            const response = await api.get<Task>(`/tasks/${taskId}`);
+            const [response, assets] = await Promise.all([
+                api.get<Task>(`/tasks/${taskId}`),
+                fetchAssets({ task_id: taskId }),
+            ]);
             setSelectedTask(response.data);
+            setTaskAssets(assets);
             setIsTaskDrawerOpen(true);
         } catch (err) {
             console.error('Failed to fetch task details', err);
@@ -331,6 +337,16 @@ const ProductionTrackerPage: React.FC = () => {
             setShotAssets(assets);
         } catch (err) {
             console.error('Failed to refresh assets', err);
+        }
+    };
+
+    const refreshTaskAssets = async () => {
+        if (!selectedTask) return;
+        try {
+            const assets = await fetchAssets({ task_id: selectedTask.id });
+            setTaskAssets(assets);
+        } catch (err) {
+            console.error('Failed to refresh task assets', err);
         }
     };
 
@@ -680,19 +696,32 @@ const ProductionTrackerPage: React.FC = () => {
                     </IconButton>
                 </Box>
                 {selectedTask ? (
-                    <TaskQuickDetail
-                        task={selectedTask}
-                        projects={projects}
-                        users={users}
-                        onUpdate={async (taskId, updates) => {
-                            await api.put(`/tasks/${taskId}`, updates);
-                            if (selectedProjectId) loadTabData(selectedProjectId as number, activeTab);
-                        }}
-                        onEditFull={(task) => {
-                            setEditTaskId(task.id);
-                            setIsTaskDrawerOpen(false);
-                        }}
-                    />
+                    <>
+                        <TaskQuickDetail
+                            task={selectedTask}
+                            projects={projects}
+                            users={users}
+                            onUpdate={async (taskId, updates) => {
+                                await api.put(`/tasks/${taskId}`, updates);
+                                if (selectedProjectId) loadTabData(selectedProjectId as number, activeTab);
+                            }}
+                            onEditFull={(task) => {
+                                setEditTaskId(task.id);
+                                setIsTaskDrawerOpen(false);
+                            }}
+                        />
+                        <Box sx={{ px: 2, pb: 3, mt: 2 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                アセット ({taskAssets.length})
+                            </Typography>
+                            <AssetsList
+                                assets={taskAssets}
+                                compact={true}
+                                onDeleted={refreshTaskAssets}
+                                users={users}
+                            />
+                        </Box>
+                    </>
                 ) : (
                     isTaskLoading && (
                         <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>

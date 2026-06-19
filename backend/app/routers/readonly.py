@@ -248,6 +248,63 @@ def list_notifications(
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
 
+# ---- Meetings ----
+
+@router.get("/meetings", response_model=schemas.ReadonlyListResponse)
+def list_meetings(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    updated_since: Optional[str] = Query(default=None),
+    project_id: Optional[int] = Query(default=None),
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Meeting)
+    if project_id is not None:
+        q = q.filter(models.Meeting.project_id == project_id)
+    dt = _parse_updated_since(updated_since)
+    if dt:
+        q = q.filter(models.Meeting.updated_at >= dt)
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    items = [schemas.ReadonlyMeeting.from_orm(r) for r in rows]
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+@router.get("/meetings/{meeting_id}", response_model=schemas.ReadonlyMeeting)
+def get_meeting(
+    meeting_id: int,
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    row = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    return schemas.ReadonlyMeeting.from_orm(row)
+
+
+# ---- Decisions ----
+
+@router.get("/decisions", response_model=schemas.ReadonlyListResponse)
+def list_decisions(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    project_id: Optional[int] = Query(default=None),
+    meeting_id: Optional[int] = Query(default=None),
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Decision)
+    if project_id is not None:
+        q = q.filter(models.Decision.project_id == project_id)
+    if meeting_id is not None:
+        q = q.filter(models.Decision.meeting_id == meeting_id)
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    items = [schemas.ReadonlyDecision.from_orm(r) for r in rows]
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
 # ---- ScoreUserRoles ----
 
 @router.get("/score_user_roles", response_model=schemas.ReadonlyListResponse)

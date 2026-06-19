@@ -36,6 +36,7 @@ const DEFAULT_EVENT_TYPE_FILTER: Record<string, boolean> = {
   task: true, meeting: true, deadline: true, milestone: true,
   workshop: true, generic: true, project: false, group: true,
 };
+const EVENT_TYPE_ORDER = ['task', 'project', 'meeting', 'workshop', 'generic', 'deadline', 'milestone', 'group'];
 
 const isDatePast = (dateStr: string | Date | null | undefined): boolean => {
   if (!dateStr) return false;
@@ -60,6 +61,22 @@ const getEventColor = (type?: string, projectStatus?: string, eventDate?: string
     case 'deadline': return '#d32f2f';
     case 'milestone': return '#d32f2f';
     default: return '#2196f3';
+  }
+};
+
+const getEventTypeLabel = (type: string | undefined): string => {
+  if (!type) return '通常';
+  const t = type.toLowerCase();
+  switch (t) {
+    case 'project': return 'プロジェクト';
+    case 'task': return 'タスク';
+    case 'generic': case 'event': return '通常';
+    case 'milestone': return 'マイルストーン';
+    case 'deadline': return '締切';
+    case 'meeting': return '会議';
+    case 'workshop': return 'ワークショップ';
+    case 'group': return 'グループ';
+    default: return type;
   }
 };
 
@@ -272,10 +289,10 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             </Select>
           </FormControl>
           <FormGroup row>
-            {Object.keys(eventTypeFilter).map(k => (
+            {EVENT_TYPE_ORDER.map(k => (
               <FormControlLabel
                 key={k}
-                control={<Checkbox size="small" checked={eventTypeFilter[k] !== false} onChange={(_, c) => onEventTypeFilterChange(k, c)} />}
+                control={<Checkbox size="small" checked={eventTypeFilter[k] ?? DEFAULT_EVENT_TYPE_FILTER[k] ?? true} onChange={(_, c) => onEventTypeFilterChange(k, c)} />}
                 label={
                   <Typography variant="body2">
                     {k === 'task' ? 'タスク' :
@@ -301,7 +318,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             <Paper elevation={2} sx={{ p: isMobile ? 1.5 : 2, borderLeft: 5, borderColor: getTitleBorderColor(selectedEvent) }}>
               <Box sx={{ mb: 1.5 }}>
                 <Chip
-                  label={selectedEvent.extendedProps?.type || '通常'}
+                  label={getEventTypeLabel(selectedEvent.extendedProps?.type)}
                   size="small"
                   sx={{ mb: 1, fontWeight: 600, backgroundColor: getCardColor(selectedEvent), color: '#fff' }}
                 />

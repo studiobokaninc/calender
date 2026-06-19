@@ -17527,3 +17527,15 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-06-18 15:27:02,109 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.deleted error=
 2026-06-18 15:27:24,442 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=
 2026-06-18 15:27:30,309 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.deleted error=
+2026-06-18 16:44:37,555 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=
+2026-06-18 16:45:22,930 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=
+2026-06-18 16:51:13,072 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-18 16:51:17,462 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-18 16:51:27,804 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-18 16:51:30,938 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-18 19:50:01,743 - app.routers.ai_import - ERROR - ANTHROPIC_API_KEY ñ¢ê›íËÅB
+2026-06-18 19:50:44,541 - app.routers.ai_import - ERROR - ANTHROPIC_API_KEY ñ¢ê›íËÅB
+2026-06-18 20:04:35,745 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-18 20:04:38,569 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-18 20:04:46,675 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-18 20:04:57,086 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=

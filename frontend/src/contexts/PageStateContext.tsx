@@ -86,6 +86,7 @@ const defaultStates: PageStates = {
       meeting: true,
       workshop: true,
       generic: true,
+      group: true,
     },
   },
   dashboard: {

@@ -780,6 +780,7 @@ class Retake(RetakeBase):
     shot_code: Optional[str] = None
     project_name: Optional[str] = None
     assignee_name: Optional[str] = None
+    creator_name: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -819,6 +820,7 @@ class Trouble(TroubleBase):
     shot_code: Optional[str] = None
     project_name: Optional[str] = None
     reporter_name: Optional[str] = None
+    assigned_to_name: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -854,6 +856,8 @@ class UserMessage(UserMessageBase):
     id: int
     author_id: int
     author_name: Optional[str] = None
+    author_username: Optional[str] = None
+    author_email: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True

@@ -71,7 +71,17 @@ export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading, c
                         <Typography variant="body2" sx={{ mb: 1, whiteSpace: 'pre-wrap', fontWeight: 500, color: 'text.primary' }}>
                             {trouble.description}
                         </Typography>
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', mt: 1, pt: 1, borderTop: `1px dashed ${theme.palette.divider}` }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    報告者: {trouble.reporter_name || `ユーザー #${trouble.created_by}`}
+                                </Typography>
+                                {trouble.assigned_to_name && (
+                                    <Typography variant="caption" color="text.secondary">
+                                        担当者: {trouble.assigned_to_name}
+                                    </Typography>
+                                )}
+                            </Box>
                             <Typography variant="caption" color="text.secondary">
                                 {new Date(trouble.created_at).toLocaleDateString()}
                             </Typography>
@@ -91,6 +101,8 @@ export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading, c
                         <TableCell sx={{ fontWeight: 800 }}>ショットID</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>カテゴリ</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>内容</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>報告者</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>担当者</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>重要度</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>ステータス</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>発生日</TableCell>
@@ -106,6 +118,12 @@ export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading, c
                             </TableCell>
                             <TableCell sx={{ maxWidth: 400 }}>
                                 <Typography variant="body2">{trouble.description}</Typography>
+                            </TableCell>
+                            <TableCell>
+                                {trouble.reporter_name || `ユーザー #${trouble.created_by}`}
+                            </TableCell>
+                            <TableCell>
+                                {trouble.assigned_to_name || '-'}
                             </TableCell>
                             <TableCell>
                                 <Chip 

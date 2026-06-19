@@ -13,7 +13,7 @@ import {
     useTheme,
     Chip
 } from '@mui/material';
-import { Notification, UserMessage } from '../../types';
+import { Notification, UserMessage, User } from '../../types';
 import { 
     Notifications as NotificationIcon, 
     Chat as ChatIcon,
@@ -26,9 +26,10 @@ interface ProductionHistoryProps {
     notifications: Notification[];
     messages: UserMessage[];
     loading?: boolean;
+    users?: User[];
 }
 
-export const ProductionHistory: React.FC<ProductionHistoryProps> = ({ notifications, messages, loading }) => {
+export const ProductionHistory: React.FC<ProductionHistoryProps> = ({ notifications, messages, loading, users }) => {
     const theme = useTheme();
 
     // Combine and sort by date
@@ -56,6 +57,49 @@ export const ProductionHistory: React.FC<ProductionHistoryProps> = ({ notificati
         }
     };
 
+    const getSenderText = (item: any) => {
+        if (item.entryType !== 'message') return '';
+
+        // 1. Try to find the user details from the frontend users state (most comprehensive)
+        const dbUser = users?.find(u => u.id === item.author_id);
+        if (dbUser) {
+            const fullName = (dbUser.full_name || dbUser.name || '').trim();
+            const username = (dbUser.username || '').trim();
+            const email = (dbUser.email || '').trim();
+
+            const baseName = fullName || username || item.author_name || `ユーザー #${item.author_id}`;
+            const details: string[] = [];
+            
+            if (username && username !== baseName) {
+                details.push(username);
+            }
+            if (email) {
+                details.push(email);
+            }
+            
+            if (details.length > 0) {
+                return `${baseName} (${details.join(' / ')})`;
+            }
+            return baseName;
+        }
+
+        // 2. Fallback to properties returned by the backend response
+        const baseName = (item.author_name || '').trim() || `ユーザー #${item.author_id}`;
+        const details: string[] = [];
+        
+        if (item.author_username && item.author_username !== item.author_name) {
+            details.push(item.author_username);
+        }
+        if (item.author_email) {
+            details.push(item.author_email);
+        }
+        
+        if (details.length > 0) {
+            return `${baseName} (${details.join(' / ')})`;
+        }
+        return baseName;
+    };
+
     return (
         <Paper sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: 2 }}>
             <List sx={{ p: 0 }}>
@@ -77,7 +121,7 @@ export const ProductionHistory: React.FC<ProductionHistoryProps> = ({ notificati
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                                                {item.entryType === 'message' ? `メッセージ (${item.author_name || `ユーザー #${item.author_id}`})` : item.type.toUpperCase()}
+                                                {item.entryType === 'message' ? `メッセージ (${getSenderText(item)})` : item.type.toUpperCase()}
                                             </Typography>
                                             {item.entryType === 'notification' && !item.is_read && (
                                                 <Chip label="NEW" size="small" color="primary" sx={{ height: 20, fontSize: '0.6rem', fontWeight: 900 }} />

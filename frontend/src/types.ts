@@ -393,6 +393,7 @@ export interface Retake {
   shot_code?: string | null;
   description?: string | null;
   assignee_name?: string | null;
+  creator_name?: string | null;
 }
 
 export interface RetakeTimecode {
@@ -419,6 +420,7 @@ export interface Trouble {
   priority?: string | null;
   title?: string | null;
   reporter_name?: string | null;
+  assigned_to_name?: string | null;
 }
 
 export interface Meeting {
@@ -517,6 +519,8 @@ export interface UserMessage {
   body: string;
   author_id: number;
   author_name?: string | null;
+  author_username?: string | null;
+  author_email?: string | null;
   created_at: string;
 }
 

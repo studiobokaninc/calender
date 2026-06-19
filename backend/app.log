@@ -17539,3 +17539,35 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-06-18 20:04:38,569 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
 2026-06-18 20:04:46,675 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
 2026-06-18 20:04:57,086 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-19 19:15:41,500 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-19 19:15:41,881 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-19 19:15:43,041 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-19 19:15:43,049 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-19 19:15:43,050 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-19 19:15:43,050 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-19 19:15:43,050 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-19 19:15:43,050 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-19 19:15:43,057 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-19 19:15:43,101 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-19 19:15:43,109 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-19 19:15:43,110 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-19 19:15:43,110 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-19 19:15:43,111 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-19 19:15:43,111 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-19 19:15:43,119 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-19 19:36:41,201 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-19 19:36:41,960 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-19 19:36:43,538 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-19 19:36:43,548 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-19 19:36:43,549 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-19 19:36:43,549 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-19 19:36:43,549 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-19 19:36:43,550 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-19 19:36:43,564 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-19 19:36:43,617 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-19 19:36:43,630 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-19 19:36:43,631 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-19 19:36:43,632 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-19 19:36:43,632 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-19 19:36:43,633 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-19 19:36:43,642 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down

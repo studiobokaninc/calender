@@ -67,23 +67,42 @@ export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading, comp
                                 sx={{ fontWeight: 800, height: 20 }}
                             />
                         </Box>
-                        <Typography variant="body2" sx={{ mb: 1, whiteSpace: 'pre-wrap', fontWeight: 500, color: 'text.primary' }}>
+                        <Typography variant="body2" sx={{ mb: 1, whiteSpace: 'pre-wrap', fontWeight: 600, color: 'text.primary' }}>
                             {retake.overall_comment || 'コメントなし'}
                         </Typography>
                         {retake.timecodes.length > 0 && (
-                            <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                            <Stack spacing={0.5} sx={{ mb: 1, pl: 1, borderLeft: `2px solid ${alpha(theme.palette.primary.main, 0.2)}` }}>
                                 {retake.timecodes.map((tc, idx) => (
-                                    <Chip key={idx} label={tc.timecode} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 18 }} />
+                                    <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                                        <Chip label={tc.timecode} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 18 }} />
+                                        {tc.comment && (
+                                            <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                                                {tc.comment}
+                                            </Typography>
+                                        )}
+                                    </Box>
                                 ))}
-                            </Box>
+                            </Stack>
                         )}
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="caption" color="text.secondary">
-                                締切: {retake.deadline ? new Date(retake.deadline).toLocaleDateString() : '-'}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {new Date(retake.created_at).toLocaleDateString()}
-                            </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1, mt: 1, pt: 1, borderTop: `1px dashed ${theme.palette.divider}` }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    指示者: {retake.creator_name || `ユーザー #${retake.created_by}`}
+                                </Typography>
+                                {retake.assignee_name && (
+                                    <Typography variant="caption" color="text.secondary">
+                                        担当者: {retake.assignee_name}
+                                    </Typography>
+                                )}
+                            </Box>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.2 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    締切: {retake.deadline ? new Date(retake.deadline).toLocaleDateString() : '-'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    作成: {new Date(retake.created_at).toLocaleDateString()}
+                                </Typography>
+                            </Box>
                         </Box>
                     </Paper>
                 ))}
@@ -98,7 +117,9 @@ export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading, comp
                     <TableRow sx={{ bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
                         <TableCell sx={{ fontWeight: 800 }}>ID</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>ショットID</TableCell>
-                        <TableCell sx={{ fontWeight: 800 }}>コメント</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>内容・指示</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>指示者</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>担当者</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>優先度</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>ステータス</TableCell>
                         <TableCell sx={{ fontWeight: 800 }}>締切</TableCell>
@@ -110,17 +131,30 @@ export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading, comp
                         <TableRow key={retake.id} hover>
                             <TableCell>#{retake.id}</TableCell>
                             <TableCell sx={{ fontWeight: 700 }}>{retake.shot_id}</TableCell>
-                            <TableCell sx={{ maxWidth: 300 }}>
-                                <Typography variant="body2" noWrap title={retake.overall_comment || ''}>
+                            <TableCell sx={{ maxWidth: 350 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                     {retake.overall_comment || '-'}
                                 </Typography>
                                 {retake.timecodes.length > 0 && (
-                                    <Box sx={{ mt: 0.5, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                    <Stack spacing={0.5} sx={{ mt: 1, pl: 1, borderLeft: `2px solid ${alpha(theme.palette.primary.main, 0.2)}` }}>
                                         {retake.timecodes.map((tc, idx) => (
-                                            <Chip key={idx} label={tc.timecode} size="small" variant="outlined" sx={{ fontSize: '0.7rem' }} />
+                                            <Box key={idx} sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                <Chip label={tc.timecode} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 18 }} />
+                                                {tc.comment && (
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {tc.comment}
+                                                    </Typography>
+                                                )}
+                                            </Box>
                                         ))}
-                                    </Box>
+                                    </Stack>
                                 )}
+                            </TableCell>
+                            <TableCell>
+                                {retake.creator_name || `ユーザー #${retake.created_by}`}
+                            </TableCell>
+                            <TableCell>
+                                {retake.assignee_name || '-'}
                             </TableCell>
                             <TableCell>
                                 <Chip 

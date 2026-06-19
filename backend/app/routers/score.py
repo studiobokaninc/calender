@@ -685,12 +685,16 @@ def get_my_retakes(
     db: Session = Depends(get_db)
 ):
     # 自分が発行した、または自分の担当ショットに対するリテイク
+    from sqlalchemy.orm import aliased
+    Creator = aliased(models.User)
     query = db.query(
         models.Retake,
         models.Shot.shot_code,
-        models.Project.name.label("project_name")
+        models.Project.name.label("project_name"),
+        Creator.full_name.label("creator_name")
     ).join(models.Shot, models.Retake.shot_id == models.Shot.id)\
      .join(models.Project, models.Shot.project_id == models.Project.id)\
+     .join(Creator, models.Retake.created_by == Creator.id)\
      .join(models.Task, models.Task.shot_id == models.Shot.id, isouter=True)\
      .filter(
         (models.Retake.created_by == actor_id) | (models.Task.assigned_to == actor_id)
@@ -698,10 +702,11 @@ def get_my_retakes(
     
     results = query.options(selectinload(models.Retake.timecodes)).all()
     
-    for r, sc, pn in results:
+    for r, sc, pn, cn in results:
         r.shot_code = sc
         r.project_name = pn
-    return [r for r, sc, pn in results]
+        r.creator_name = cn
+    return [r for r, sc, pn, cn in results]
 
 @router.get("/me/timecards", response_model=List[schemas.Timecard])
 def get_my_timecards(
@@ -735,25 +740,31 @@ def get_my_troubles(
     db: Session = Depends(get_db)
 ):
     # 自分が報告した、または自分にアサインされたトラブル
+    from sqlalchemy.orm import aliased
+    Reporter = aliased(models.User)
+    Assignee = aliased(models.User)
     query = db.query(
         models.Trouble,
         models.Shot.shot_code,
         models.Project.name.label("project_name"),
-        models.User.full_name.label("reporter_name")
+        Reporter.full_name.label("reporter_name"),
+        Assignee.full_name.label("assigned_to_name")
     ).join(models.Shot, models.Trouble.shot_id == models.Shot.id)\
      .join(models.Project, models.Shot.project_id == models.Project.id)\
-     .join(models.User, models.Trouble.created_by == models.User.id)\
+     .join(Reporter, models.Trouble.created_by == Reporter.id)\
+     .outerjoin(Assignee, models.Trouble.assigned_to == Assignee.id)\
      .filter(
         (models.Trouble.created_by == actor_id) | (models.Trouble.assigned_to == actor_id)
     )
     
     results = query.all()
     
-    for t, sc, pn, rn in results:
+    for t, sc, pn, rn, an in results:
         t.shot_code = sc
         t.project_name = pn
         t.reporter_name = rn
-    return [t for t, sc, pn, rn in results]
+        t.assigned_to_name = an
+    return [t for t, sc, pn, rn, an in results]
 
 @router.get("/shots/similar", response_model=List[schemas.ShotResponse])
 def get_similar_shots(
@@ -942,12 +953,16 @@ def list_retakes(
     project_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
+    from sqlalchemy.orm import aliased
+    Creator = aliased(models.User)
     query = db.query(
         models.Retake,
         models.Shot.shot_code,
-        models.Project.name.label("project_name")
+        models.Project.name.label("project_name"),
+        Creator.full_name.label("creator_name")
     ).join(models.Shot, models.Retake.shot_id == models.Shot.id)\
      .join(models.Project, models.Shot.project_id == models.Project.id)\
+     .join(Creator, models.Retake.created_by == Creator.id)\
      .filter(models.Project.display_status == 'online')\
      .options(selectinload(models.Retake.timecodes))
     
@@ -959,10 +974,11 @@ def list_retakes(
     results = query.order_by(models.Retake.created_at.desc()).all()
     
     # マッピング
-    for r, sc, pn in results:
+    for r, sc, pn, cn in results:
         r.shot_code = sc
         r.project_name = pn
-    return [r for r, sc, pn in results]
+        r.creator_name = cn
+    return [r for r, sc, pn, cn in results]
 
 @router.get("/troubles", response_model=List[schemas.Trouble])
 def list_troubles(
@@ -970,14 +986,19 @@ def list_troubles(
     project_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
+    from sqlalchemy.orm import aliased
+    Reporter = aliased(models.User)
+    Assignee = aliased(models.User)
     query = db.query(
         models.Trouble,
         models.Shot.shot_code,
         models.Project.name.label("project_name"),
-        models.User.full_name.label("reporter_name")
+        Reporter.full_name.label("reporter_name"),
+        Assignee.full_name.label("assigned_to_name")
     ).join(models.Shot, models.Trouble.shot_id == models.Shot.id)\
      .join(models.Project, models.Shot.project_id == models.Project.id)\
-     .join(models.User, models.Trouble.created_by == models.User.id)\
+     .join(Reporter, models.Trouble.created_by == Reporter.id)\
+     .outerjoin(Assignee, models.Trouble.assigned_to == Assignee.id)\
      .filter(models.Project.display_status == 'online')
      
     if shot_id:
@@ -987,11 +1008,12 @@ def list_troubles(
         
     results = query.order_by(models.Trouble.created_at.desc()).all()
     
-    for t, sc, pn, rn in results:
+    for t, sc, pn, rn, an in results:
         t.shot_code = sc
         t.project_name = pn
         t.reporter_name = rn
-    return [t for t, sc, pn, rn in results]
+        t.assigned_to_name = an
+    return [t for t, sc, pn, rn, an in results]
 
 @router.get("/change_requests", response_model=List[schemas.ChangeRequest])
 def list_change_requests(
@@ -1110,11 +1132,15 @@ def list_user_messages(
         return []
     user_ids = {m.author_id for m in msgs}
     users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
-    user_map = {u.id: (u.full_name or u.username) for u in users}
+    user_name_map = {u.id: ((u.full_name or '').strip() or (u.username or '').strip() or None) for u in users}
+    user_username_map = {u.id: u.username for u in users}
+    user_email_map = {u.id: u.email for u in users}
     result = []
     for m in msgs:
         item = schemas.UserMessage.model_validate(m)
-        item.author_name = user_map.get(m.author_id)
+        item.author_name = user_name_map.get(m.author_id)
+        item.author_username = user_username_map.get(m.author_id)
+        item.author_email = user_email_map.get(m.author_id)
         result.append(item)
     return result
 
@@ -1239,11 +1265,15 @@ def get_my_messages_read(
         return []
     user_ids = {m.author_id for m in msgs}
     users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
-    user_map = {u.id: (u.full_name or u.username) for u in users}
+    user_name_map = {u.id: ((u.full_name or '').strip() or (u.username or '').strip() or None) for u in users}
+    user_username_map = {u.id: u.username for u in users}
+    user_email_map = {u.id: u.email for u in users}
     result = []
     for m in msgs:
         item = schemas.UserMessage.model_validate(m)
-        item.author_name = user_map.get(m.author_id)
+        item.author_name = user_name_map.get(m.author_id)
+        item.author_username = user_username_map.get(m.author_id)
+        item.author_email = user_email_map.get(m.author_id)
         result.append(item)
     return result
 

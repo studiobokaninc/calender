@@ -502,7 +502,7 @@ const ProductionTrackerPage: React.FC = () => {
                 {activeTab === 2 && <TroublesList troubles={troubles} loading={loading} />}
                 {activeTab === 3 && <ChangeRequestsList requests={changeRequests} loading={loading} />}
                 {activeTab === 4 && <LookDistributionsList distributions={lookDistributions} loading={loading} />}
-                {activeTab === 5 && <ProductionHistory notifications={notifications} messages={userMessages} loading={loading} />}
+                {activeTab === 5 && <ProductionHistory notifications={notifications} messages={userMessages} loading={loading} users={users} />}
                 {activeTab === 6 && (
                     <Box>
                         <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
@@ -698,7 +698,7 @@ const ProductionTrackerPage: React.FC = () => {
                                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                                             <RefreshIcon color="primary" /> ショット内メッセージ ({shotDetails?.messages.length || 0})
                                         </Typography>
-                                        <ProductionHistory notifications={[]} messages={shotDetails?.messages || []} />
+                                        <ProductionHistory notifications={[]} messages={shotDetails?.messages || []} users={users} />
                                     </Box>
 
                                     <Box>

@@ -388,7 +388,7 @@ const CalendarPage: React.FC = () => {
         });
     }, [filteredEvents, projectsMap]);
 
-    // FullCalendar のタスクカラー最適化
+    // FullCalendar のタスクカラー最適化 (背景色のリアルタイム反映のみに制限し動作を軽量化)
     useEffect(() => {
         if (calendarRef.current && eventsForFullCalendar.length > 0) {
             const timeoutId = setTimeout(() => {
@@ -404,10 +404,10 @@ const CalendarPage: React.FC = () => {
                             existingEvent.setProp('borderColor', event.borderColor);
                             existingEvent.setProp('color', event.color);
 
-                            const eventEl = (existingEvent as any).el;
+                            const eventEl = document.getElementsByClassName(`fc-event-id-${event.id}`)[0] as HTMLElement | undefined;
                             if (eventEl) {
-                                eventEl.style.setProperty('background-color', event.backgroundColor, 'important');
-                                eventEl.style.setProperty('border-color', event.borderColor || event.backgroundColor, 'important');
+                                eventEl.style.setProperty('background-color', event.backgroundColor ?? null, 'important');
+                                eventEl.style.setProperty('border-color', (event.borderColor || event.backgroundColor) ?? null, 'important');
                             }
                         }
                     }
@@ -416,6 +416,39 @@ const CalendarPage: React.FC = () => {
             return () => clearTimeout(timeoutId);
         }
     }, [eventsForFullCalendar]);
+
+    // 選択中イベントの表示情報リアルタイム同期 (ステータス変更時のカラー・クラス即時反映用、O(1)で極めて軽量)
+    useEffect(() => {
+        if (calendarRef.current && selectedEvent) {
+            const calendarApi = calendarRef.current.getApi();
+            if (!calendarApi) return;
+
+            const existingEvent = calendarApi.getEventById(selectedEvent.id);
+            if (!existingEvent) return;
+
+            const fullCalendarEvent = eventsForFullCalendar.find(e => e.id === selectedEvent.id);
+            if (fullCalendarEvent) {
+                // 1. 背景色・ボーダー色の同期 (eventDidMount の important スタイルを上書きするため手動で同期)
+                existingEvent.setProp('backgroundColor', fullCalendarEvent.backgroundColor);
+                existingEvent.setProp('borderColor', fullCalendarEvent.borderColor);
+                existingEvent.setProp('color', fullCalendarEvent.color);
+
+                const eventEl = document.getElementsByClassName(`fc-event-id-${selectedEvent.id}`)[0] as HTMLElement | undefined;
+                if (eventEl) {
+                    eventEl.style.setProperty('background-color', fullCalendarEvent.backgroundColor ?? null, 'important');
+                    eventEl.style.setProperty('border-color', (fullCalendarEvent.borderColor || fullCalendarEvent.backgroundColor) ?? null, 'important');
+                }
+
+                // 2. 拡張プロパティ (extendedProps) の更新 (完了時の取り消し線クラス適用などに必要)
+                if (fullCalendarEvent.extendedProps) {
+                    const newProps = fullCalendarEvent.extendedProps as any;
+                    Object.keys(newProps).forEach((key) => {
+                        existingEvent.setExtendedProp(key, newProps[key]);
+                    });
+                }
+            }
+        }
+    }, [selectedEvent, eventsForFullCalendar]);
 
     // ────────────────────────────────────────────────────────────────────────
     // イベントハンドラー群
@@ -1209,36 +1242,7 @@ const CalendarPage: React.FC = () => {
                         width: '100%',
                     }}
                 >
-                    {scoreSummary && user?.role === 'admin' && (
-                        <Box sx={{ 
-                            px: 2, py: 1, mb: 1, borderRadius: 1, 
-                            bgcolor: isDark ? alpha(theme.palette.primary.main, 0.05) : alpha(theme.palette.primary.main, 0.02),
-                            border: '1px solid', borderColor: isDark ? alpha(theme.palette.primary.main, 0.2) : alpha(theme.palette.primary.main, 0.1),
-                            display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap'
-                        }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>Shots</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 800 }}>{scoreSummary.shots}</Typography>
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 700, color: (scoreSummary.retakes > 0 ? 'warning.main' : 'text.secondary'), textTransform: 'uppercase' }}>Retakes</Typography>
-                                <Chip label={scoreSummary.retakes} size="small" sx={{ height: 20, bgcolor: scoreSummary.retakes > 0 ? 'warning.main' : 'action.hover', color: scoreSummary.retakes > 0 ? 'white' : 'text.disabled', fontWeight: 800 }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Typography variant="caption" sx={{ fontWeight: 700, color: (scoreSummary.troubles > 0 ? 'error.main' : 'text.secondary'), textTransform: 'uppercase' }}>Troubles</Typography>
-                                <Chip label={scoreSummary.troubles} size="small" sx={{ height: 20, bgcolor: scoreSummary.troubles > 0 ? 'error.main' : 'action.hover', color: scoreSummary.troubles > 0 ? 'white' : 'text.disabled', fontWeight: 800 }} />
-                            </Box>
-                            <Button 
-                                size="small" 
-                                variant="text" 
-                                color="primary" 
-                                sx={{ ml: 'auto', fontWeight: 700, fontSize: '0.75rem' }}
-                                onClick={() => navigate('/production-tracker')}
-                            >
-                                トラッカーを開く
-                            </Button>
-                        </Box>
-                    )}
+
 
                     <style>{`
                         .fc .fc-header-toolbar,
@@ -1541,6 +1545,7 @@ const CalendarPage: React.FC = () => {
                             const type = arg.event.extendedProps.type;
                             const projectId = arg.event.extendedProps.projectId;
                             const classes: string[] = [];
+                            classes.push(`fc-event-id-${arg.event.id}`);
 
                             const project = projectId ? projectsMap.get(String(projectId)) : undefined;
                             const projectStatusStr = project?.status ? String(project.status).toLowerCase() : undefined;

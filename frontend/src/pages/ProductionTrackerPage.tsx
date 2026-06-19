@@ -39,6 +39,7 @@ import {
     Person as PersonIcon,
     SwapHoriz as ChangeIcon,
     Palette as LookIcon,
+    AttachFile as AssetIcon,
 } from '@mui/icons-material';
 import api, { mockDataApi, fetchProjects, fetchUsers, shotsApi, fetchAssets } from '../services/api';
 import { Project, Task, User, Retake, Trouble, ChangeRequest, LookDistribution, Notification, UserMessage, Asset } from '../types';
@@ -112,6 +113,8 @@ const ProductionTrackerPage: React.FC = () => {
     const [lookDistributions, setLookDistributions] = useState<LookDistribution[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [userMessages, setUserMessages] = useState<UserMessage[]>([]);
+    const [projectAssets, setProjectAssets] = useState<Asset[]>([]);
+    const [orphanAssets, setOrphanAssets] = useState<Asset[]>([]);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -274,6 +277,14 @@ const ProductionTrackerPage: React.FC = () => {
                     ]);
                     setNotifications(notifs);
                     setUserMessages(msgs);
+                    break;
+                case 6: // アセット一覧
+                    const [allAssets, allAssetsForOrphan] = await Promise.all([
+                        fetchAssets({ project_id: projectId }),
+                        fetchAssets({}),
+                    ]);
+                    setProjectAssets(allAssets);
+                    setOrphanAssets(allAssetsForOrphan.filter(a => a.shot_id === null && a.task_id === null));
                     break;
 
             }
@@ -454,6 +465,7 @@ const ProductionTrackerPage: React.FC = () => {
                     <Tab label="変更申請" icon={<ChangeIcon />} iconPosition="start" />
                     <Tab label="ルック配信" icon={<LookIcon />} iconPosition="start" />
                     <Tab label="通知・履歴" icon={<RefreshIcon />} iconPosition="start" />
+                    <Tab label="アセット一覧" icon={<AssetIcon />} iconPosition="start" />
                 </Tabs>
             </Box>
 
@@ -491,6 +503,33 @@ const ProductionTrackerPage: React.FC = () => {
                 {activeTab === 3 && <ChangeRequestsList requests={changeRequests} loading={loading} />}
                 {activeTab === 4 && <LookDistributionsList distributions={lookDistributions} loading={loading} />}
                 {activeTab === 5 && <ProductionHistory notifications={notifications} messages={userMessages} loading={loading} />}
+                {activeTab === 6 && (
+                    <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
+                            プロジェクト全体アセット ({projectAssets.length})
+                        </Typography>
+                        <AssetsList
+                            assets={projectAssets}
+                            onDeleted={() => selectedProjectId && loadTabData(selectedProjectId as number, 6)}
+                            users={users}
+                        />
+                        {orphanAssets.length > 0 && (
+                            <Box sx={{ mt: 4 }}>
+                                <Typography variant="h6" sx={{ fontWeight: 800, mb: 1, color: 'warning.main' }}>
+                                    未紐付けアセット ({orphanAssets.length})
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                    shot_id / task_id いずれも未設定のアセット。通常は発生しませんが、異常検出のため表示しています。
+                                </Typography>
+                                <AssetsList
+                                    assets={orphanAssets}
+                                    onDeleted={() => selectedProjectId && loadTabData(selectedProjectId as number, 6)}
+                                    users={users}
+                                />
+                            </Box>
+                        )}
+                    </Box>
+                )}
             </Box>
 
             {/* ショット詳細ドロワー */}

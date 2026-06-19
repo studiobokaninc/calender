@@ -261,33 +261,61 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
             </Box>
           </Box>
           {onClearAllFilters && (
-            <Button
-              size="small"
-              variant="outlined"
-              color="secondary"
-              disabled={activeFilterCount === 0}
-              sx={{ mb: 1, fontSize: '0.75rem' }}
-              onClick={onClearAllFilters}
-            >
-              フィルタをすべてクリア
-            </Button>
+            <Box sx={{ mb: 1 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                color="secondary"
+                disabled={activeFilterCount === 0}
+                sx={{ fontSize: '0.75rem' }}
+                onClick={onClearAllFilters}
+              >
+                フィルタをすべてクリア
+              </Button>
+            </Box>
           )}
-          <FormControl size="small" sx={{ minWidth: 140, mb: 1 }}>
-            <Select value={eventStatusFilter} onChange={onEventStatusFilterChange} displayEmpty>
-              <MenuItem value="all">すべてのプロジェクト</MenuItem>
-              {projects.filter(p => p.display_status !== 'offline').map(p => (
-                <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 140, mb: 1 }}>
-            <Select value={userFilter} onChange={onUserFilterChange} displayEmpty>
-              <MenuItem value="all">すべてのユーザー</MenuItem>
-              {users.map(u => (
-                <MenuItem key={u.id} value={String(u.id)}>{u.name || u.username || u.email}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Box sx={{ display: 'flex', gap: 1.5, mb: 1 }}>
+            <FormControl size="small" sx={{ flex: 1, minWidth: 0 }}>
+              <Select
+                value={eventStatusFilter}
+                onChange={onEventStatusFilterChange}
+                displayEmpty
+                fullWidth
+                sx={{
+                  '& .MuiSelect-select': {
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }
+                }}
+              >
+                <MenuItem value="all">すべてのプロジェクト</MenuItem>
+                {projects.filter(p => p.display_status !== 'offline').map(p => (
+                  <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ flex: 1, minWidth: 0 }}>
+              <Select
+                value={userFilter}
+                onChange={onUserFilterChange}
+                displayEmpty
+                fullWidth
+                sx={{
+                  '& .MuiSelect-select': {
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }
+                }}
+              >
+                <MenuItem value="all">すべてのユーザー</MenuItem>
+                {users.map(u => (
+                  <MenuItem key={u.id} value={String(u.id)}>{u.name || u.username || u.email}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
           <FormGroup row>
             {EVENT_TYPE_ORDER.map(k => (
               <FormControlLabel

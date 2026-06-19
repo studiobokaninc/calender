@@ -22,6 +22,7 @@ import {
     InsertDriveFile as FileIcon,
     Attachment as AttachmentIcon,
     ZoomIn as ZoomInIcon,
+    PlayCircle as PlayCircleIcon,
 } from '@mui/icons-material';
 import { Asset } from '../../types';
 import { deleteAsset } from '../../services/api';
@@ -33,8 +34,6 @@ interface AssetsListProps {
     users?: { id: number; name?: string }[];
 }
 
-const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-
 const getAssetUrl = (filePath: string): string => {
     const match = filePath.match(/\/static\/(.+)$/);
     if (match) return `/static/${match[1]}`;
@@ -43,10 +42,24 @@ const getAssetUrl = (filePath: string): string => {
     return `/static/assets/${basename}`;
 };
 
-const isImage = (filePath: string): boolean => {
-    const ext = filePath.toLowerCase().slice(filePath.lastIndexOf('.'));
-    return IMAGE_EXTS.includes(ext);
+const getExt = (url: string): string => {
+    try {
+        return new URL(url).pathname.split('.').pop()?.toLowerCase() ?? '';
+    } catch {
+        return url.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+    }
 };
+
+const isImage = (filePath: string): boolean =>
+    /^(jpe?g|png|gif|webp|bmp|svg|tiff?)$/i.test(getExt(filePath));
+
+const isPdf = (filePath: string): boolean => getExt(filePath) === 'pdf';
+
+const isVideo = (filePath: string): boolean =>
+    /^(mp4|webm|ogg|mov|avi|mkv|m4v|mpg|mpeg|ts)$/i.test(getExt(filePath));
+
+const isText = (filePath: string): boolean =>
+    /^(txt|md|csv|log|json|xml|yaml|yml|html?|css|js|ts)$/i.test(getExt(filePath));
 
 const getBasename = (filePath: string): string =>
     filePath.split('/').pop() || filePath;
@@ -55,9 +68,25 @@ export const AssetsList: React.FC<AssetsListProps> = ({ assets, compact, onDelet
     const theme = useTheme();
     const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
     const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+    const [videoError, setVideoError] = useState(false);
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+    const [textContent, setTextContent] = useState<string | null>(null);
+    const [textTitle, setTextTitle] = useState<string>('');
     const [deleting, setDeleting] = useState(false);
 
     const getUserName = (id: number) => users?.find(u => u.id === id)?.name ?? `#${id}`;
+
+    const openTextModal = async (url: string, name: string) => {
+        try {
+            const res = await fetch(url);
+            const text = await res.text();
+            setTextTitle(name);
+            setTextContent(text);
+        } catch {
+            window.open(url, '_blank');
+        }
+    };
 
     const handleDeleteConfirm = async () => {
         if (!deleteTarget) return;
@@ -105,16 +134,72 @@ export const AssetsList: React.FC<AssetsListProps> = ({ assets, compact, onDelet
                                         sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 1, flexShrink: 0, cursor: 'zoom-in' }}
                                         onClick={() => setPreviewAsset(asset)}
                                     />
+                                ) : isVideo(asset.file_path) ? (
+                                    <Tooltip title="動画を再生">
+                                        <Box
+                                            sx={{
+                                                width: 56, height: 56, borderRadius: 1, flexShrink: 0,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                cursor: 'pointer',
+                                                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
+                                            }}
+                                            onClick={() => { setVideoError(false); setVideoUrl(url); }}
+                                        >
+                                            <PlayCircleIcon color="primary" />
+                                        </Box>
+                                    </Tooltip>
+                                ) : isPdf(asset.file_path) ? (
+                                    <Tooltip title="PDFをプレビュー">
+                                        <Box
+                                            sx={{
+                                                width: 56, height: 56, borderRadius: 1, flexShrink: 0,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                cursor: 'pointer',
+                                                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
+                                            }}
+                                            onClick={() => setPdfUrl(url)}
+                                        >
+                                            <FileIcon color="primary" />
+                                        </Box>
+                                    </Tooltip>
+                                ) : isText(asset.file_path) ? (
+                                    <Tooltip title="テキストをプレビュー">
+                                        <Box
+                                            sx={{
+                                                width: 56, height: 56, borderRadius: 1, flexShrink: 0,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                cursor: 'pointer',
+                                                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
+                                            }}
+                                            onClick={() => openTextModal(url, name)}
+                                        >
+                                            <FileIcon color="primary" />
+                                        </Box>
+                                    </Tooltip>
                                 ) : (
-                                    <Box
-                                        sx={{
-                                            width: 56, height: 56, borderRadius: 1, flexShrink: 0,
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            bgcolor: alpha(theme.palette.primary.main, 0.1),
-                                        }}
-                                    >
-                                        <FileIcon color="primary" />
-                                    </Box>
+                                    <Tooltip title="新しいタブで開く">
+                                        <a
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ textDecoration: 'none' }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    width: 56, height: 56, borderRadius: 1, flexShrink: 0,
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                                    cursor: 'pointer',
+                                                    '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
+                                                }}
+                                            >
+                                                <FileIcon color="primary" />
+                                            </Box>
+                                        </a>
+                                    </Tooltip>
                                 )}
 
                                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -153,6 +238,68 @@ export const AssetsList: React.FC<AssetsListProps> = ({ assets, compact, onDelet
                     );
                 })}
             </Stack>
+
+            {/* 動画再生ダイアログ */}
+            <Dialog open={!!videoUrl} onClose={() => setVideoUrl(null)} maxWidth="lg" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>
+                    {videoUrl ? getBasename(videoUrl) : ''}
+                </DialogTitle>
+                <DialogContent>
+                    {videoUrl && (videoError ? (
+                        <Box sx={{ p: 3, textAlign: 'center' }}>
+                            <Typography variant="body1" color="text.secondary" gutterBottom>
+                                このファイル形式はブラウザで再生できません。
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                ダウンロードボタンから取得して御確認ください。
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <video
+                            controls
+                            autoPlay
+                            style={{ width: '100%' }}
+                            src={videoUrl ?? undefined}
+                            onError={() => setVideoError(true)}
+                        />
+                    ))}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setVideoUrl(null)}>閉じる</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* テキストプレビューダイアログ */}
+            <Dialog open={textContent !== null} onClose={() => setTextContent(null)} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>{textTitle}</DialogTitle>
+                <DialogContent>
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.85rem', margin: 0 }}>
+                        {textContent}
+                    </pre>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setTextContent(null)}>閉じる</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* PDFプレビューダイアログ */}
+            <Dialog open={!!pdfUrl} onClose={() => setPdfUrl(null)} maxWidth="lg" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>
+                    {pdfUrl ? getBasename(pdfUrl) : ''}
+                </DialogTitle>
+                <DialogContent sx={{ p: 0 }}>
+                    {pdfUrl && (
+                        <iframe
+                            src={pdfUrl}
+                            style={{ width: '100%', height: '80vh', border: 'none' }}
+                            title="PDF preview"
+                        />
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPdfUrl(null)}>閉じる</Button>
+                </DialogActions>
+            </Dialog>
 
             {/* 画像プレビューダイアログ */}
             <Dialog open={!!previewAsset} onClose={() => setPreviewAsset(null)} maxWidth="md" fullWidth>

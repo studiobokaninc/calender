@@ -1262,6 +1262,7 @@ class ReadonlyMeeting(BaseModel):
     title: str
     date: Optional[datetime] = None
     status: Optional[str] = None
+    transcript: Optional[str] = None
     decisions: Optional[List[Any]] = None
     tasks: Optional[List[Any]] = None
     discussion_points: Optional[List[Any]] = None

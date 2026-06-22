@@ -634,7 +634,8 @@ def query_database(
     if email or username:
         user_query = db.query(models.User)
         if email:
-            target_user = user_query.filter(models.User.email == email).first()
+            # crud.get_user_by_email 経由で email 正規化（大文字小文字/空白）を統一
+            target_user = crud.get_user_by_email(db, email=email)
         elif username:
             target_user = user_query.filter(
                 or_(

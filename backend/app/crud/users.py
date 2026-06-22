@@ -12,8 +12,9 @@ def get_user(db: Session, user_id: int) -> Optional[models.User]:
     return db.query(models.User).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
-    """email でユーザーを取得"""
-    return db.query(models.User).filter(models.User.email == email).first()
+    """email でユーザーを取得（大文字小文字・前後空白を正規化して照合）"""
+    normalized = email.lower().strip() if email else email
+    return db.query(models.User).filter(models.User.email == normalized).first()
 
 def get_user_by_username(db: Session, username: str) -> Optional[models.User]:
     """username でユーザーを取得"""
@@ -27,7 +28,7 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     """新規ユーザーを作成"""
     hashed_password = pwd_context.hash(user.password)
     db_user = models.User(
-        email=user.email,
+        email=user.email.lower().strip() if user.email else user.email,
         username=user.username,
         full_name=user.full_name,
         hashed_password=hashed_password,
@@ -41,6 +42,8 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
 def update_user(db: Session, db_user: models.User, user_in: schemas.UserUpdate) -> models.User:
     """ユーザー情報を更新"""
     update_data = user_in.dict(exclude_unset=True)
+    if "email" in update_data and update_data["email"]:
+        update_data["email"] = update_data["email"].lower().strip()
     if "password" in update_data:
         db_user.hashed_password = pwd_context.hash(update_data.pop("password"))
         

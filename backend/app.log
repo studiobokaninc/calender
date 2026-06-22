@@ -17611,3 +17611,59 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-06-22 13:23:44,439 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
 2026-06-22 13:23:44,448 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
 2026-06-22 13:23:44,460 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 15:28:13,197 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-22 15:28:13,527 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=
+2026-06-22 15:28:14,708 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-22 15:28:14,715 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-22 15:28:14,716 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-22 15:28:14,716 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-22 15:28:14,716 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-22 15:28:14,717 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 15:28:14,722 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-22 15:28:14,765 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-22 15:28:14,772 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-22 15:28:14,772 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-22 15:28:14,774 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-22 15:28:14,774 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-22 15:28:14,774 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 15:28:14,781 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-22 15:28:39,948 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-22 15:28:40,024 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-22 15:28:40,102 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-06-22 15:28:40,102 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-06-22 15:28:40,103 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-06-22 15:28:40,103 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-06-22 15:28:40,103 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 15:28:40,108 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-06-22 15:28:40,108 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-06-22 15:28:40,109 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-06-22 15:28:40,109 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-06-22 15:28:40,109 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-06-22 15:31:56,283 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-22 15:31:56,291 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-22 15:31:56,291 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-22 15:31:56,291 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-22 15:31:56,292 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-22 15:31:56,292 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 15:31:56,298 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-06-22 15:31:56,339 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-22 15:31:56,348 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-22 15:31:56,348 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-22 15:31:56,349 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-22 15:31:56,349 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-22 15:31:56,349 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 15:31:56,357 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-06-22 15:32:21,745 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-22 15:32:21,756 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-22 15:32:21,757 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-22 15:32:21,757 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-22 15:32:21,758 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-22 15:32:21,758 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 15:32:21,767 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-06-22 15:32:21,823 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-22 15:32:21,832 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-22 15:32:21,832 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-22 15:32:21,833 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-22 15:32:21,833 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-22 15:32:21,833 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 15:32:21,844 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

@@ -119,15 +119,28 @@ async def get_current_active_admin(
 
 
 def authenticate_user(db: Session, username: str, password: str) -> Union[models.User, bool]:
-    """ユーザー名とパスワードで認証し、成功すれば User オブジェクトを返す"""
+    """ユーザー名とパスワードで認証し、成功すれば User オブジェクトを返す。
+
+    verify_and_update を使用し、旧 argon2/bcrypt ハッシュも検証可能とする。
+    検証成功かつ現行方式へ移行が必要な場合は自動再ハッシュして DB を更新する
+    （deprecated="auto" 設定による後方互換移行）。
+    """
     from . import crud
     db_user = crud.get_user_by_email(db, email=username)
     if not db_user:
         return False
-    if not verify_password(password, db_user.hashed_password):
-        return False
     if not getattr(db_user, "is_active", True):
         return False
+    try:
+        is_valid, new_hash = pwd_context.verify_and_update(password, db_user.hashed_password)
+    except Exception:
+        return False
+    if not is_valid:
+        return False
+    if new_hash:
+        db_user.hashed_password = new_hash
+        db.add(db_user)
+        db.commit()
     return db_user
 
 

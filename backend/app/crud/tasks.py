@@ -154,7 +154,7 @@ def _task_row_to_dict(row: Any, history_map: Dict[int, List[Dict[str, Any]]]) ->
         'status_history': history_map.get(row.id, [])
     }
 
-def get_tasks(db: Session, project_id: Optional[int] = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+def get_tasks(db: Session, project_id: Optional[int] = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None, include_history: bool = True) -> List[Dict[str, Any]]:
     """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)"""
     try:
         # 自動ステータス更新を実行
@@ -188,7 +188,7 @@ def get_tasks(db: Session, project_id: Optional[int] = None, skip: int = 0, limi
         
         # ステータス履歴を一括取得
         history_map = {tid: [] for tid in task_ids}
-        if task_ids:
+        if include_history and task_ids:
             try:
                 # SQLite のプレースホルダ制限 (999) を考慮してチャンク分け
                 for i in range(0, len(task_ids), 900):
@@ -196,7 +196,7 @@ def get_tasks(db: Session, project_id: Optional[int] = None, skip: int = 0, limi
                     history_entries = db.query(models.TaskStatusHistory).filter(
                         models.TaskStatusHistory.task_id.in_(chunk)
                     ).order_by(models.TaskStatusHistory.changed_at).all()
-                    
+
                     for entry in history_entries:
                         history_map[entry.task_id].append({
                             'id': entry.id,

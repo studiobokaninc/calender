@@ -234,6 +234,18 @@ const CalendarPage: React.FC = () => {
         return map;
     }, [projects]);
 
+    const userProjectIdSet = useMemo(() => {
+        if (selectedUser === 'all') return null;
+        const set = new Set<string>();
+        tasks.forEach(t => {
+            if (t.project_id != null && t.assigned_to != null &&
+                String(t.assigned_to) === selectedUser) {
+                set.add(String(t.project_id));
+            }
+        });
+        return set;
+    }, [tasks, selectedUser]);
+
     const filteredEvents = useMemo(() => {
         return rawEvents.filter((event) => {
             const eventProjectId = event.extendedProps?.projectId;
@@ -279,16 +291,8 @@ const CalendarPage: React.FC = () => {
                     String(event.extendedProps.taskAssigneeId) === selectedUser;
 
                 // (b) ユーザー関与プロジェクトのイベント
-                const eventProjectId = event.extendedProps?.projectId;
                 const isInUserProject =
-                    eventProjectId != null &&
-                    tasks.some(
-                        (t) =>
-                            t.project_id != null &&
-                            String(t.project_id) === String(eventProjectId) &&
-                            t.assigned_to != null &&
-                            String(t.assigned_to) === selectedUser
-                    );
+                    userProjectIdSet != null ? (eventProjectId != null && userProjectIdSet.has(String(eventProjectId))) : false;
 
                 // (c) 参加者イベント
                 const participants = event.extendedProps?.participants;
@@ -306,7 +310,7 @@ const CalendarPage: React.FC = () => {
 
             return projectFilterPass && typeFilterPass && userFilterPass;
         });
-    }, [rawEvents, eventStatusFilter, eventTypeFilter, projectsMap, selectedUser, tasks]);
+    }, [rawEvents, eventStatusFilter, eventTypeFilter, projectsMap, selectedUser, userProjectIdSet]);
 
     const activeFilterCount = useMemo(() => {
         const statusActive = eventStatusFilter !== 'all' ? 1 : 0;
@@ -392,24 +396,23 @@ const CalendarPage: React.FC = () => {
     // FullCalendar のタスクカラー最適化 (背景色のリアルタイム反映のみに制限し動作を軽量化)
     useEffect(() => {
         if (calendarRef.current && eventsForFullCalendar.length > 0) {
+            const taskEvents = eventsForFullCalendar.filter(e => e.extendedProps?.type?.toLowerCase() === 'task');
+            if (taskEvents.length === 0) return;
             const timeoutId = setTimeout(() => {
                 const calendarApi = calendarRef.current?.getApi();
                 if (!calendarApi) return;
 
-                eventsForFullCalendar.forEach((event) => {
-                    const eventType = event.extendedProps?.type?.toLowerCase();
-                    if (eventType === 'task') {
-                        const existingEvent = calendarApi.getEventById(event.id);
-                        if (existingEvent && existingEvent.backgroundColor !== event.backgroundColor) {
-                            existingEvent.setProp('backgroundColor', event.backgroundColor);
-                            existingEvent.setProp('borderColor', event.borderColor);
-                            existingEvent.setProp('color', event.color);
+                taskEvents.forEach((event) => {
+                    const existingEvent = calendarApi.getEventById(event.id);
+                    if (existingEvent && existingEvent.backgroundColor !== event.backgroundColor) {
+                        existingEvent.setProp('backgroundColor', event.backgroundColor);
+                        existingEvent.setProp('borderColor', event.borderColor);
+                        existingEvent.setProp('color', event.color);
 
-                            const eventEl = document.getElementsByClassName(`fc-event-id-${event.id}`)[0] as HTMLElement | undefined;
-                            if (eventEl) {
-                                eventEl.style.setProperty('background-color', event.backgroundColor ?? null, 'important');
-                                eventEl.style.setProperty('border-color', (event.borderColor || event.backgroundColor) ?? null, 'important');
-                            }
+                        const eventEl = document.getElementsByClassName(`fc-event-id-${event.id}`)[0] as HTMLElement | undefined;
+                        if (eventEl) {
+                            eventEl.style.setProperty('background-color', event.backgroundColor ?? null, 'important');
+                            eventEl.style.setProperty('border-color', (event.borderColor || event.backgroundColor) ?? null, 'important');
                         }
                     }
                 });
@@ -1677,23 +1680,6 @@ const CalendarPage: React.FC = () => {
                             }
 
                             if (eventType === 'task') {
-                                const projectId = arg.event.extendedProps?.projectId;
-                                const project = projectId ? projectsMap.get(String(projectId)) : undefined;
-                                const taskDueDate = arg.event.extendedProps?.taskDueDate;
-
-                                const recalculatedColor = getTaskColor(
-                                    arg.event.extendedProps?.taskStatus ?? 'todo',
-                                    project?.status ?? undefined,
-                                    taskDueDate
-                                );
-
-                                arg.el.style.setProperty('background-color', recalculatedColor, 'important');
-                                arg.el.style.setProperty('border-color', recalculatedColor, 'important');
-
-                                arg.event.setProp('backgroundColor', recalculatedColor);
-                                arg.event.setProp('borderColor', recalculatedColor);
-                                arg.event.setProp('color', recalculatedColor);
-
                                 // 右クリックでタスク複製メニューを表示
                                 arg.el.addEventListener('contextmenu', (e: MouseEvent) => {
                                     if (user?.role !== 'admin') return;

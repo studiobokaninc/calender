@@ -44,6 +44,7 @@ def get_tasks_endpoint(
     skip: int = 0,
     limit: int = 10000,
     display_status_in: Optional[List[str]] = Query(None),
+    include_history: bool = True,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
@@ -54,7 +55,8 @@ def get_tasks_endpoint(
             project_id=project_id,
             skip=skip,
             limit=limit,
-            display_status_in=display_status_in
+            display_status_in=display_status_in,
+            include_history=include_history
         )
         
         # 依存関係解決のバッチ処理

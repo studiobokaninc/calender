@@ -227,3 +227,54 @@ async def test_send_webhook_skips_when_env_unset():
                 os.environ[key] = val
 
     assert call_count == 0, "must skip HTTP call when env vars are not set"
+
+
+# ─── Test 9: exception logging format ───────────────────────────────────────
+
+async def test_send_webhook_logs_exception_class_name():
+    with patch.dict("os.environ", {
+        "CALENDAR_WEBHOOK_URL": "http://example.test/hook",
+        "CALENDAR_WEBHOOK_SECRET": "DUMMY_SECRET_FOR_TEST_ONLY",
+    }):
+        with patch("httpx.AsyncClient") as mock_client_cls, \
+             patch("app.utils.webhook_sender.logger.warning") as mock_warning:
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            
+            # Use an exception with an empty string representation
+            from httpx import ReadError
+            mock_client.post = AsyncMock(side_effect=ReadError(""))
+            mock_client_cls.return_value = mock_client
+
+            await send_webhook("event.created", {"event_id": 1})
+
+            # Check that logger.warning was called to log the exception type
+            mock_warning.assert_called_with(
+                "webhook error: event_type=%s error=%s", 
+                "event.created", 
+                "ReadError"
+            )
+
+
+async def test_send_webhook_logs_exception_class_and_message():
+    with patch.dict("os.environ", {
+        "CALENDAR_WEBHOOK_URL": "http://example.test/hook",
+        "CALENDAR_WEBHOOK_SECRET": "DUMMY_SECRET_FOR_TEST_ONLY",
+    }):
+        with patch("httpx.AsyncClient") as mock_client_cls, \
+             patch("app.utils.webhook_sender.logger.warning") as mock_warning:
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client.post = AsyncMock(side_effect=RuntimeError("some message"))
+            mock_client_cls.return_value = mock_client
+
+            await send_webhook("event.created", {"event_id": 1})
+
+            mock_warning.assert_called_with(
+                "webhook error: event_type=%s error=%s", 
+                "event.created", 
+                "RuntimeError: some message"
+            )
+

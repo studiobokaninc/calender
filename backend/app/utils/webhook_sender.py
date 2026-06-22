@@ -57,7 +57,8 @@ async def send_webhook(event_type: str, payload: dict) -> None:
                 except httpx.TimeoutException:
                     logger.warning("webhook timeout: event_type=%s attempt=%s", event_type, attempt + 1)
                 except Exception as exc:
-                    logger.warning("webhook error: event_type=%s error=%s", event_type, exc)
+                    err_msg = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+                    logger.warning("webhook error: event_type=%s error=%s", event_type, err_msg)
                     return
             logger.warning("webhook failed after retries: event_type=%s", event_type)
     except Exception:

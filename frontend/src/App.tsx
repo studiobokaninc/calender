@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Box, CssBaseline, CircularProgress } from '@mui/material';
 import { useAuth } from './contexts/AuthContext'; // Import useAuth
@@ -10,7 +10,7 @@ import TasksPage from './pages/TasksPage';
 import GroupManagementPage from './pages/GroupManagementPage';
 import MetricsPage from './pages/MetricsPage'; // ★★★ MetricsPageをインポート ★★★
 import Login from './pages/Login'; // Import Login page
-import CalendarPage from './pages/CalendarPage'; // ★ Calendar -> CalendarPage に修正
+const CalendarPage = lazy(() => import('./pages/CalendarPage')); // ★ Calendar -> CalendarPage に修正
 // ★ コピーしたページコンポーネントをインポート
 import Dashboard from './pages/Dashboard';
 import ProjectDetailPage from './pages/ProjectDetailPage'; // ★ インポートを追加
@@ -93,7 +93,11 @@ const App: React.FC = () => {
             {/* 一般ユーザーのみアクセス可能: 管理者はカレンダーへリダイレクト */}
             <Route path="chat" element={<ChatPage />} />
             {/* 以下は管理者のみへのガードが必要なページ、または共通ページ */}
-            <Route path="calendar" element={<CalendarPage />} />
+            <Route path="calendar" element={
+              <Suspense fallback={<div style={{display:'flex',justifyContent:'center',padding:'2rem'}}>読み込み中...</div>}>
+                <CalendarPage />
+              </Suspense>
+            } />
             <Route path="dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
             <Route path="projects" element={<AdminRoute><ProjectsPage /></AdminRoute>} />
             <Route path="tasks" element={<AdminRoute><TasksPage /></AdminRoute>} />

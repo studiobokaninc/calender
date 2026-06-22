@@ -2,7 +2,7 @@
  * カレンダーページのデータ取得・変換ロジックを分離したカスタムフック
  * CalendarPage.tsx の fetchData・globalData 監視・バックエンドイベント取得を統合管理する
  */
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import api from '../services/api';
 import { Project, Task, BackendEvent, CalendarEvent, User, Group } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,6 +45,9 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
 
     const isAdmin = user?.role === 'admin';
 
+    // fetchData直後のglobalData useEffectで /calendar/events が再フェッチされるのを防ぐフラグ
+    const didFetchRef = useRef(false);
+
     // ────────────────────────────────────────────────────────────────────────
     // 一般ユーザー向けフィルタリング
     // ────────────────────────────────────────────────────────────────────────
@@ -83,7 +86,7 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
         try {
             const [projRes, taskRes, eventsRes, userRes, groupRes, scoreRes] = await Promise.all([
                 api.get<Project[]>('/projects'),
-                api.get<Task[]>('/tasks'),
+                api.get<Task[]>('/tasks', { params: { include_history: false } }),
                 api.get<BackendEvent[]>('/calendar/events'),
                 api.get<User[]>('/api/users'),
                 api.get<Group[]>('/api/groups'),
@@ -119,7 +122,8 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
             setUsers(usersData);
             setGroups(groupsData);
 
-            // グローバルキャッシュ更新
+            // グローバルキャッシュ更新（didFetchRefでglobalData useEffectの二重フェッチをスキップ）
+            didFetchRef.current = true;
             updateGlobalData?.({ tasks: tasksData, projects: projectsData, users: usersData, groups: groupsData });
 
             // Promise.all で取得済みのイベントデータを直接処理（ウォーターフォール解消）
@@ -145,7 +149,15 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
 
         const { tasks: ft, projects: fp } = filterForNonAdmin(rawTasks, rawProjects);
         if (rawTasks.length > 0) setTasks(ft);
-        if (rawProjects.length > 0) { setProjects(fp); fetchBackendEvents(fp); }
+        if (rawProjects.length > 0) {
+            setProjects(fp);
+            if (didFetchRef.current) {
+                // fetchData直後のglobalData反映トリガー: /calendar/eventsは既取得済みのためスキップ
+                didFetchRef.current = false;
+            } else {
+                fetchBackendEvents(fp);
+            }
+        }
         if (globalData.users?.length > 0) setUsers(globalData.users);
         if (globalData.groups?.length > 0) setGroups(globalData.groups);
     }, [globalData?.tasks, globalData?.projects, globalData?.users, globalData?.groups, globalData?.lastFetched, filterForNonAdmin, fetchBackendEvents]);

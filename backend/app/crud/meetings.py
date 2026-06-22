@@ -71,6 +71,23 @@ def get_decisions(db: Session, project_id: Optional[int] = None, meeting_id: Opt
         query = query.filter(models.Decision.superseded == superseded)
     return query.order_by(models.Decision.date.desc()).all()
 
+def get_decisions_timeline(db: Session, project_id: Optional[int] = None, limit: int = 50) -> List[models.Decision]:
+    """決定事項を date 昇順(時系列)で取得する。経緯検索(cmd_539/540)用。
+    呼び出し側は各 Decision.superseded(bool) で「旧(=True)/有効(=False)」を区分する想定。
+    date が NULL の行は末尾に回す(nulls last 相当: (date IS NULL, date ASC) でSQLite含め移植性確保)。
+    project_id 指定時はそのプロジェクトの決定のみ。
+    NOTE: superseded_by 等の上書き系譜 FK は models.Decision に未実装(Phase2対象)。
+          よって「どの決定が何を上書きしたか」は date 順 + superseded bool で推定するしかない。
+    """
+    query = db.query(models.Decision)
+    if project_id is not None:
+        query = query.filter(models.Decision.project_id == project_id)
+    return (
+        query.order_by(models.Decision.date.is_(None), models.Decision.date.asc())
+        .limit(limit)
+        .all()
+    )
+
 def get_latest_meeting(db: Session, project_id: Optional[int] = None) -> Optional[models.Meeting]:
     """最新の完了済み議事録を1件取得"""
     query = db.query(models.Meeting).filter(models.Meeting.status == "completed")

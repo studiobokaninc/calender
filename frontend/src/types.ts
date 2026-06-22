@@ -489,6 +489,17 @@ export interface LookDistribution {
   look_dev_id: number;
   status: string;
   assigned_to: number;
+  assignee_name?: string | null;
+  created_by: number;
+  created_at: string;
+}
+
+export interface Delivery {
+  id: number;
+  task_id: number;
+  status: string;
+  qc_status?: string | null;
+  memo?: string | null;
   created_by: number;
   created_at: string;
 }

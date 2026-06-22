@@ -112,7 +112,7 @@ export const TroublesList: React.FC<TroublesListProps> = ({ troubles, loading, c
                     {troubles.map((trouble) => (
                         <TableRow key={trouble.id} hover>
                             <TableCell>#{trouble.id}</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>{trouble.shot_id}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{trouble.shot_code || trouble.shot_id}</TableCell>
                             <TableCell>
                                 <Chip label={trouble.category} size="small" variant="outlined" />
                             </TableCell>

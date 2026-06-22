@@ -720,6 +720,8 @@ class KnowledgeItemResponse(KnowledgeItemBase):
 
 class AskRequest(BaseModel):
     question: str = Field(..., description="自然言語の質問")
+    project_id: Optional[int] = Field(default=None, description="経緯検索: プロジェクト絞り込み(任意・cmd_540)")
+    mode: Optional[str] = Field(default="general", description="general | history(経緯検索: 決定事項の時系列を注入・cmd_540)")
 
 class AskResponse(BaseModel):
     answer: str = Field(..., description="AIによる回答")
@@ -768,6 +770,7 @@ class RetakeBase(BaseModel):
     status: str = "open"
     priority: Optional[str] = None
     deadline: Optional[datetime] = None
+    assigned_to: Optional[int] = None
 
 class RetakeCreate(RetakeBase):
     timecodes: List[RetakeTimecodeCreate] = []
@@ -840,6 +843,7 @@ class LookDistribution(LookDistributionBase):
     created_at: datetime
     result_asset_id: Optional[int] = None
     notes: Optional[str] = None
+    assignee_name: Optional[str] = None
     class Config:
         from_attributes = True
 
@@ -938,10 +942,12 @@ class NotificationCreate(BaseModel):
     body: str
     type: str
     meta: Optional[Dict[str, Any]] = None
+    project_id: Optional[int] = None
 
 class Notification(NotificationBase):
     id: int
     created_at: datetime
+    project_id: Optional[int] = None
     project_name: Optional[str] = None
     class Config:
         from_attributes = True
@@ -1020,7 +1026,7 @@ class UserProfileUpdate(BaseModel):
 
 
 class ReferenceMaterialBase(BaseModel):
-    shot_id: int
+    shot_id: Optional[int] = None
     task_id: Optional[int] = None
     title: str
     media_type: str  # image / video / url / memo

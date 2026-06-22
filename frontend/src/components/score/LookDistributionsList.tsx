@@ -66,7 +66,7 @@ export const LookDistributionsList: React.FC<LookDistributionsListProps> = ({ di
                                     sx={{ fontWeight: 800 }}
                                 />
                             </TableCell>
-                            <TableCell>User #{dist.assigned_to}</TableCell>
+                            <TableCell>{dist.assignee_name || '未割当'}</TableCell>
                             <TableCell>{new Date(dist.created_at).toLocaleDateString()}</TableCell>
                         </TableRow>
                     ))}

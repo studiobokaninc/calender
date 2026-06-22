@@ -50,9 +50,30 @@ async def ask_question(
             recency_weight=0.3
         )
         inputs["kb_summaries"] = context
-        
+
+        # --- [cmd_540 539c] 経緯検索モード: mode='history' 時のみ decisions 時系列を注入 ---
+        # general モード(既定)では下記 history_* はすべて空文字となり、従来プロンプトと完全一致(動作不変)。
+        history_intro = ""
+        history_context = ""
+        history_rule = ""
+        if (ask_in.mode or "general") == "history":
+            timeline = crud.get_decisions_timeline(db, project_id=ask_in.project_id)
+            if timeline:
+                lines = []
+                for d in timeline:
+                    flag = "旧/上書済" if d.superseded else "有効"
+                    date_str = d.date.strftime("%Y-%m-%d") if d.date else "日付不明"
+                    lines.append(f"- [{flag}] {date_str}: {d.content} (decision.id={d.id})")
+                history_context = (
+                    "\n## 意思決定の時系列 (date昇順・[有効]=最新有効/[旧/上書済]=superseded)\n"
+                    + "\n".join(lines) + "\n"
+                )
+            inputs["decisions_timeline"] = history_context
+            history_intro = "\n特に「なぜこの仕様/決定になったか」という経緯・理由を、上記の決定事項の時系列([旧/上書済]は無効化された過去の決定)を踏まえて説明してください。"
+            history_rule = "\n- 回答には必ず出典(会議録名・資料名・決定ID・日付)を列挙し、根拠を追跡可能にしてください。[旧/上書済]の決定を最新の有効決定と取り違えないでください。"
+
         # 3. エージェント向けに、会議録の完全な文字起こしを調べるよう促す特別指示を構成
-        prompt = f"""以下の質問について、過去の会議の完全な文字起こし（発言、会話の文脈）や決定事項を自律的に調査し、回答を生成してください。
+        prompt = f"""以下の質問について、過去の会議の完全な文字起こし（発言、会話の文脈）や決定事項を自律的に調査し、回答を生成してください。{history_intro}
 
 【探索と回答のルール】
 - 提供されている「会議ナレッジの抜粋」に十分な情報がない場合、または「会議中での実際の発言、会話、詳細なやり取り、経緯」を調べる必要がある場合は、必ず `get_meeting_details` や `search_database` ツールを活用し、対象の会議の「完全な文字起こしデータ」を深く精読した上で回答してください。
@@ -64,8 +85,8 @@ async def ask_question(
    Bさん: 「あー、なるほど。それなら〜」
    のように、口調、相槌、迷いなどの細かいニュアンスもそのまま残してください)
 - どのプロジェクトに関する会話かも含めて説明してください。
-- 推測や捏造での回答は厳禁です。データに見つからない場合は「該当する情報が見つかりませんでした」と明確に回答してください。
-
+- 推測や捏造での回答は厳禁です。データに見つからない場合は「該当する情報が見つかりませんでした」と明確に回答してください。{history_rule}
+{history_context}
 質問：{ask_in.question}
 """
 

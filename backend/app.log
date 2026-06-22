@@ -17571,3 +17571,43 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-06-19 19:36:43,632 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-06-19 19:36:43,633 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-06-19 19:36:43,642 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=network down
+2026-06-19 20:14:47,921 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-19 20:14:51,776 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=
+2026-06-22 13:18:58,167 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:18:58,279 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:18:58,309 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:18:58,326 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:18:58,338 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:19:03,718 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:19:28,915 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:19:47,808 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:04,608 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:04,642 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:04,687 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:04,704 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:04,716 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:04,731 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:18,781 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:20,176 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:20,202 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:20,219 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:20,230 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:20,243 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:21:23,053 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-22 13:21:23,149 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error='<' not supported between instances of 'AsyncMock' and 'int'
+2026-06-22 13:21:23,252 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-06-22 13:21:23,253 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-06-22 13:21:23,254 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-06-22 13:21:23,254 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-06-22 13:21:23,255 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-22 13:21:23,259 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-06-22 13:21:23,284 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-06-22 13:21:23,285 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-06-22 13:21:23,285 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-06-22 13:21:23,286 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-06-22 13:23:44,372 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:23:44,398 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:23:44,423 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:23:44,439 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:23:44,448 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.
+2026-06-22 13:23:44,460 - app.security - WARNING - AUTH casper_write: CASPER_WRITE_TOKEN used; relay via admin user_id=1. X-Actor-User-Id is required.

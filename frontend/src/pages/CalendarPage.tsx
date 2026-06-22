@@ -86,7 +86,7 @@ const CalendarPage: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
     const [eventStatusFilter, setEventStatusFilter] = useState<string>('all');
-    
+
     // イベントタイプフィルタ
     const [eventTypeFilter, setEventTypeFilter] = useState<Record<string, boolean>>({
         task: true,
@@ -110,7 +110,7 @@ const CalendarPage: React.FC = () => {
     const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
     const [mobileEventDetailsOpen, setMobileEventDetailsOpen] = useState(false);
     const [isPanelMinimized, setIsPanelMinimized] = useState(false);
-    
+
     const [, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<{
@@ -126,11 +126,12 @@ const CalendarPage: React.FC = () => {
     const lastClickedEventIdRef = useRef<string | null>(null);
     const stateRestored = useRef(false);
     const clickTimeoutRef = useRef<any>(null);
+    const prevSelectedEventIdRef = useRef<string | null>(null);
 
     // ────────────────────────────────────────────────────────────────────────
     // カスタムフックの適用
     // ────────────────────────────────────────────────────────────────────────
-    
+
     // 1. カレンダーデータ取得・監視フック
     const {
         rawEvents,
@@ -386,7 +387,7 @@ const CalendarPage: React.FC = () => {
                 color: backgroundColor,
             };
         });
-    }, [filteredEvents, projectsMap]);
+    }, [filteredEvents, projectsMap, selectedEventId]);
 
     // FullCalendar のタスクカラー最適化 (背景色のリアルタイム反映のみに制限し動作を軽量化)
     useEffect(() => {
@@ -419,6 +420,43 @@ const CalendarPage: React.FC = () => {
 
     // 選択中イベントの表示情報リアルタイム同期 (ステータス変更時のカラー・クラス即時反映用、O(1)で極めて軽量)
     useEffect(() => {
+        // 1. 前回の選択イベントのスタイルをクリア
+        if (prevSelectedEventIdRef.current && prevSelectedEventIdRef.current !== selectedEventId) {
+            const prevId = prevSelectedEventIdRef.current;
+            const prevEl = document.getElementsByClassName(`fc-event-id-${prevId}`)[0] as HTMLElement | undefined;
+            if (prevEl) {
+                const prevEventModel = rawEvents.find(e => e.id === prevId);
+                if (prevEventModel) {
+                    const prevType = prevEventModel.extendedProps?.type?.toLowerCase() || 'generic';
+                    const isPrevTransparent = prevType !== 'task' && prevType !== 'project' && !prevEventModel.extendedProps?.isPhase;
+
+                    if (isPrevTransparent) {
+                        const originalColor = prevEventModel.backgroundColor || prevEventModel.borderColor;
+                        prevEl.style.setProperty('background-color', 'transparent', 'important');
+                        prevEl.style.setProperty('border-color', 'transparent', 'important');
+                        if (originalColor) {
+                            prevEl.style.setProperty('color', originalColor, 'important');
+                            // 子要素の文字色をクリアして元のスタイル（CSS等）に従わせる
+                            prevEl.querySelectorAll('.calendar-event-title, .calendar-event-time, .calendar-event-type-badge, .deadline-event-content, .milestone-event-content').forEach((child: any) => {
+                                child.style.removeProperty('color');
+                            });
+                        }
+                    } else {
+                        const originalColor = prevEventModel.backgroundColor || prevEventModel.borderColor;
+                        if (originalColor) {
+                            prevEl.style.setProperty('background-color', originalColor, 'important');
+                            prevEl.style.setProperty('border-color', originalColor, 'important');
+                            prevEl.style.setProperty('color', '#ffffff', 'important');
+                            prevEl.querySelectorAll('.calendar-event-title, .calendar-event-time, .calendar-event-type-badge').forEach((child: any) => {
+                                child.style.removeProperty('color');
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. 今回選択されたイベントのスタイルを設定
         if (calendarRef.current && selectedEvent) {
             const calendarApi = calendarRef.current.getApi();
             if (!calendarApi) return;
@@ -428,18 +466,41 @@ const CalendarPage: React.FC = () => {
 
             const fullCalendarEvent = eventsForFullCalendar.find(e => e.id === selectedEvent.id);
             if (fullCalendarEvent) {
-                // 1. 背景色・ボーダー色の同期 (eventDidMount の important スタイルを上書きするため手動で同期)
+                // 背景色・ボーダー色の同期
                 existingEvent.setProp('backgroundColor', fullCalendarEvent.backgroundColor);
                 existingEvent.setProp('borderColor', fullCalendarEvent.borderColor);
                 existingEvent.setProp('color', fullCalendarEvent.color);
 
                 const eventEl = document.getElementsByClassName(`fc-event-id-${selectedEvent.id}`)[0] as HTMLElement | undefined;
                 if (eventEl) {
-                    eventEl.style.setProperty('background-color', fullCalendarEvent.backgroundColor ?? null, 'important');
-                    eventEl.style.setProperty('border-color', (fullCalendarEvent.borderColor || fullCalendarEvent.backgroundColor) ?? null, 'important');
+                    const type = selectedEvent.extendedProps?.type?.toLowerCase() || 'generic';
+                    const isTransparent = type !== 'task' && type !== 'project' && !selectedEvent.extendedProps?.isPhase;
+
+                    if (isTransparent) {
+                        // タスク以外の透明なイベントが選択された時は、背景色とボーダーは透明（非表示）のままにする
+                        eventEl.style.setProperty('background-color', 'transparent', 'important');
+                        eventEl.style.setProperty('border-color', 'transparent', 'important');
+                        const originalColor = fullCalendarEvent.backgroundColor || fullCalendarEvent.borderColor;
+                        if (originalColor) {
+                            eventEl.style.setProperty('color', originalColor, 'important');
+                        }
+                        
+                        // 各要素の文字色カスタム設定をクリア
+                        eventEl.querySelectorAll('.calendar-event-title, .calendar-event-time, .calendar-event-type-badge, .deadline-event-content, .milestone-event-content').forEach((child: any) => {
+                            child.style.removeProperty('color');
+                        });
+                    } else {
+                        // タスクなどは通常通り背景色を設定
+                        eventEl.style.setProperty('background-color', fullCalendarEvent.backgroundColor ?? null, 'important');
+                        eventEl.style.setProperty('border-color', (fullCalendarEvent.borderColor || fullCalendarEvent.backgroundColor) ?? null, 'important');
+                        eventEl.style.setProperty('color', '#ffffff', 'important');
+                        eventEl.querySelectorAll('.calendar-event-title, .calendar-event-time, .calendar-event-type-badge').forEach((child: any) => {
+                            child.style.setProperty('color', '#ffffff', 'important');
+                        });
+                    }
                 }
 
-                // 2. 拡張プロパティ (extendedProps) の更新 (完了時の取り消し線クラス適用などに必要)
+                // 2. 拡張プロパティ (extendedProps) の更新
                 if (fullCalendarEvent.extendedProps) {
                     const newProps = fullCalendarEvent.extendedProps as any;
                     Object.keys(newProps).forEach((key) => {
@@ -447,8 +508,11 @@ const CalendarPage: React.FC = () => {
                     });
                 }
             }
+            prevSelectedEventIdRef.current = selectedEvent.id;
+        } else {
+            prevSelectedEventIdRef.current = null;
         }
-    }, [selectedEvent, eventsForFullCalendar]);
+    }, [selectedEvent, eventsForFullCalendar, rawEvents, selectedEventId]);
 
     // ────────────────────────────────────────────────────────────────────────
     // イベントハンドラー群
@@ -1037,7 +1101,7 @@ const CalendarPage: React.FC = () => {
                 eventDate.getDate() === selectedDate.getDate()
             );
         });
-        
+
         return dayEvents.reduce((acc, event) => {
             if (event.extendedProps?.type === 'task') {
                 return acc + (Number(event.extendedProps.taskCost) || 0);
@@ -1547,6 +1611,10 @@ const CalendarPage: React.FC = () => {
                             const classes: string[] = [];
                             classes.push(`fc-event-id-${arg.event.id}`);
 
+                            if (arg.event.id === selectedEventId) {
+                                classes.push('selected-event');
+                            }
+
                             const project = projectId ? projectsMap.get(String(projectId)) : undefined;
                             const projectStatusStr = project?.status ? String(project.status).toLowerCase() : undefined;
                             const isCompletedProject = projectStatusStr === 'completed';
@@ -1590,6 +1658,10 @@ const CalendarPage: React.FC = () => {
                         }}
                         eventDidMount={(arg) => {
                             const type = arg.event.extendedProps.type;
+                            const isSelected = arg.event.id === selectedEventId;
+                            const eventType = type?.toLowerCase() || 'generic';
+                            const isTransparent = eventType !== 'task' && eventType !== 'project' && !arg.event.extendedProps.isPhase;
+
                             // Apply transparent background and colored text for custom events (meetings, generic events, workshops)
                             if (arg.el.classList.contains('custom-event')) {
                                 const bg = arg.event.backgroundColor || arg.event.borderColor;
@@ -1598,10 +1670,12 @@ const CalendarPage: React.FC = () => {
                                     arg.el.style.setProperty('border-color', 'transparent', 'important');
                                     arg.el.style.setProperty('box-shadow', 'none', 'important');
                                     arg.el.style.setProperty('color', bg, 'important');
+                                    arg.el.querySelectorAll('.calendar-event-title, .calendar-event-time, .calendar-event-type-badge').forEach((child: any) => {
+                                        child.style.removeProperty('color');
+                                    });
                                 }
                             }
 
-                            const eventType = type?.toLowerCase();
                             if (eventType === 'task') {
                                 const projectId = arg.event.extendedProps?.projectId;
                                 const project = projectId ? projectsMap.get(String(projectId)) : undefined;

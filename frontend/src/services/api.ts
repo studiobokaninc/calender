@@ -394,6 +394,10 @@ export const shotsApi = {
     const response = await api.get('/api/look_distributions', { params })
     return response.data
   },
+  getDeliveries: async (params?: { task_id?: number; project_id?: number }) => {
+    const response = await api.get('/api/deliveries', { params })
+    return response.data
+  },
   getNotifications: async (params?: { recipient_id?: number | string; project_id?: number }) => {
     const response = await api.get('/api/notifications', { params })
     return response.data
@@ -541,5 +545,10 @@ export const parseAIImport = async (text: string, maxChars?: number): Promise<AI
   if (maxChars !== undefined) body.max_chars = maxChars;
   const response = await api.post('/ai-import/parse', body);
   return response.data;
+};
+
+export const askQuestion = async (question: string): Promise<{ answer: string; sources: string[] }> => {
+  const res = await api.post('/ask', { question, mode: 'history' });
+  return res.data;
 };
 

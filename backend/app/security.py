@@ -153,6 +153,33 @@ async def verify_readonly_token(
         )
 
 
+async def verify_casper_write_token(
+    authorization: Optional[str] = Header(None),
+    x_actor_user_id: Optional[int] = Header(None),
+) -> int:
+    """CASPER_WRITE_TOKEN 専用検証。get_current_user() を呼ばないため他EPでは自動的に401。"""
+    casper_write_token = os.getenv("CASPER_WRITE_TOKEN")
+    if not casper_write_token:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="CASPER_WRITE_TOKEN がサーバーに設定されていません。",
+        )
+    bearer_token = None
+    if authorization and authorization.startswith("Bearer "):
+        bearer_token = authorization.split("Bearer ", 1)[1].strip()
+    if not bearer_token or bearer_token != casper_write_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="有効な CASPER_WRITE_TOKEN が必要です。Authorization: Bearer を使用してください。",
+        )
+    if not x_actor_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-Actor-User-Id ヘッダーは CASPER_WRITE_TOKEN 使用時に必須です。",
+        )
+    return x_actor_user_id
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """
     JWTアクセストークンを作成。

@@ -40,9 +40,10 @@ import {
     SwapHoriz as ChangeIcon,
     Palette as LookIcon,
     AttachFile as AssetIcon,
+    LocalShipping as DeliveryIcon,
 } from '@mui/icons-material';
 import api, { mockDataApi, fetchProjects, fetchUsers, shotsApi, fetchAssets } from '../services/api';
-import { Project, Task, User, Retake, Trouble, ChangeRequest, LookDistribution, Notification, UserMessage, Asset } from '../types';
+import { Project, Task, User, Retake, Trouble, ChangeRequest, LookDistribution, Notification, UserMessage, Asset, Delivery } from '../types';
 import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,6 +55,7 @@ import { RetakesList } from '../components/score/RetakesList';
 import { TroublesList } from '../components/score/TroublesList';
 import { ChangeRequestsList } from '../components/score/ChangeRequestsList';
 import { LookDistributionsList } from '../components/score/LookDistributionsList';
+import { DeliveriesList } from '../components/score/DeliveriesList';
 import { ProductionHistory } from '../components/score/ProductionHistory';
 import { AssetsList } from '../components/score/AssetsList';
 import { TaskLabel } from '@/components/common/TaskLabel';
@@ -111,6 +113,7 @@ const ProductionTrackerPage: React.FC = () => {
     const [troubles, setTroubles] = useState<Trouble[]>([]);
     const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
     const [lookDistributions, setLookDistributions] = useState<LookDistribution[]>([]);
+    const [deliveries, setDeliveries] = useState<Delivery[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [userMessages, setUserMessages] = useState<UserMessage[]>([]);
     const [projectAssets, setProjectAssets] = useState<Asset[]>([]);
@@ -270,7 +273,11 @@ const ProductionTrackerPage: React.FC = () => {
                     const lookData = await shotsApi.getLookDistributions({ project_id: projectId });
                     setLookDistributions(lookData);
                     break;
-                case 5: // 通知・履歴
+                case 5: // 納品
+                    const deliveriesData = await shotsApi.getDeliveries({ project_id: projectId });
+                    setDeliveries(deliveriesData);
+                    break;
+                case 6: // 通知・履歴
                     const [notifs, msgs] = await Promise.all([
                         shotsApi.getNotifications({ project_id: projectId }),
                         shotsApi.getUserMessages({ project_id: projectId })
@@ -278,7 +285,7 @@ const ProductionTrackerPage: React.FC = () => {
                     setNotifications(notifs);
                     setUserMessages(msgs);
                     break;
-                case 6: // アセット一覧
+                case 7: // アセット一覧
                     const [allAssets, allAssetsForOrphan] = await Promise.all([
                         fetchAssets({ project_id: projectId }),
                         fetchAssets({}),
@@ -464,6 +471,7 @@ const ProductionTrackerPage: React.FC = () => {
                     <Tab label="トラブル" icon={<TroubleIcon />} iconPosition="start" />
                     <Tab label="変更申請" icon={<ChangeIcon />} iconPosition="start" />
                     <Tab label="ルック配信" icon={<LookIcon />} iconPosition="start" />
+                    <Tab label="納品" icon={<DeliveryIcon />} iconPosition="start" />
                     <Tab label="通知・履歴" icon={<RefreshIcon />} iconPosition="start" />
                     <Tab label="アセット一覧" icon={<AssetIcon />} iconPosition="start" />
                 </Tabs>
@@ -502,15 +510,16 @@ const ProductionTrackerPage: React.FC = () => {
                 {activeTab === 2 && <TroublesList troubles={troubles} loading={loading} />}
                 {activeTab === 3 && <ChangeRequestsList requests={changeRequests} loading={loading} />}
                 {activeTab === 4 && <LookDistributionsList distributions={lookDistributions} loading={loading} />}
-                {activeTab === 5 && <ProductionHistory notifications={notifications} messages={userMessages} loading={loading} users={users} />}
-                {activeTab === 6 && (
+                {activeTab === 5 && <DeliveriesList deliveries={deliveries} loading={loading} />}
+                {activeTab === 6 && <ProductionHistory notifications={notifications} messages={userMessages} loading={loading} users={users} />}
+                {activeTab === 7 && (
                     <Box>
                         <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
                             プロジェクト全体アセット ({projectAssets.length})
                         </Typography>
                         <AssetsList
                             assets={projectAssets}
-                            onDeleted={() => selectedProjectId && loadTabData(selectedProjectId as number, 6)}
+                            onDeleted={() => selectedProjectId && loadTabData(selectedProjectId as number, 7)}
                             users={users}
                         />
                         {orphanAssets.length > 0 && (
@@ -523,7 +532,7 @@ const ProductionTrackerPage: React.FC = () => {
                                 </Typography>
                                 <AssetsList
                                     assets={orphanAssets}
-                                    onDeleted={() => selectedProjectId && loadTabData(selectedProjectId as number, 6)}
+                                    onDeleted={() => selectedProjectId && loadTabData(selectedProjectId as number, 7)}
                                     users={users}
                                 />
                             </Box>

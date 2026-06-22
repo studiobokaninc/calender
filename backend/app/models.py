@@ -483,6 +483,7 @@ class Retake(Base):
     status: Mapped[str] = mapped_column(String(50), default="open") # open, in_progress, closed
     priority: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     deadline: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    assigned_to: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
 
@@ -604,6 +605,7 @@ class Notification(Base):
     body: Mapped[str] = mapped_column(Text)
     meta: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
 
 class Timecard(Base):
@@ -638,7 +640,7 @@ class ReferenceMaterial(Base):
     __tablename__ = "reference_materials"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id", ondelete="CASCADE"), index=True)
+    shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id", ondelete="CASCADE"), nullable=True, index=True)
     task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(255))
     media_type: Mapped[str] = mapped_column(String(50))  # image / video / url / memo

@@ -18,6 +18,7 @@ import {
     DialogActions,
     Breadcrumbs,
     Link,
+    Divider,
 } from '@mui/material';
 import {
     CloudUpload as UploadIcon,
@@ -31,8 +32,9 @@ import {
     Refresh as RefreshIcon,
     ExpandMore as ExpandMoreIcon,
     LibraryBooks as KnowledgeIcon,
+    Search as SearchIcon,
 } from '@mui/icons-material';
-import api from '../services/api';
+import api, { askQuestion } from '../services/api';
 
 interface KnowledgeTag {
     id: number;
@@ -61,6 +63,10 @@ const KnowledgePage: React.FC = () => {
     const [title, setTitle] = useState('');
     const [selectedItem, setSelectedItem] = useState<KnowledgeItem | null>(null);
     const [openDialog, setOpenDialog] = useState(false);
+    const [question, setQuestion] = useState('');
+    const [isAsking, setIsAsking] = useState(false);
+    const [askResult, setAskResult] = useState<{ answer: string; sources: string[] } | null>(null);
+    const [askError, setAskError] = useState<string | null>(null);
 
     const fetchItems = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -140,6 +146,21 @@ const KnowledgePage: React.FC = () => {
         setOpenDialog(true);
     };
 
+    const handleAsk = async () => {
+        if (!question.trim()) return;
+        setIsAsking(true);
+        setAskResult(null);
+        setAskError(null);
+        try {
+            const result = await askQuestion(question);
+            setAskResult(result);
+        } catch (err: any) {
+            setAskError(err.response?.data?.detail || 'Q&A取得に失敗しました');
+        } finally {
+            setIsAsking(false);
+        }
+    };
+
     const getFileIcon = (type: string) => {
         switch (type) {
             case 'pdf': return <PdfIcon color="error" />;
@@ -179,6 +200,71 @@ const KnowledgePage: React.FC = () => {
                     PDF、Excel、音声、画像などをアップロードしてAIに整理・検索させることができます。
                 </Typography>
             </Box>
+
+            {/* Q&A Section */}
+            <Paper sx={{ p: 3, borderRadius: 3, boxShadow: 3, mb: 3 }}>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SearchIcon color="primary" /> ナレッジに質問する
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {items.length > 0
+                        ? `${items.length}件の資料が検索対象`
+                        : 'まだ資料が登録されていません。下のパネルからアップロードしてください。'}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="例: 先月の会議で決まったことは？"
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !isAsking) handleAsk(); }}
+                        disabled={isAsking}
+                    />
+                    <Button
+                        variant="contained"
+                        onClick={handleAsk}
+                        disabled={!question.trim() || isAsking}
+                        sx={{ whiteSpace: 'nowrap', minWidth: 100 }}
+                    >
+                        {isAsking ? <CircularProgress size={20} color="inherit" /> : '質問する'}
+                    </Button>
+                </Box>
+
+                {askError && (
+                    <Typography color="error" variant="body2" sx={{ mt: 1.5 }}>
+                        {askError}
+                    </Typography>
+                )}
+
+                {askResult && (
+                    <Box sx={{ mt: 2 }}>
+                        <Divider sx={{ mb: 2 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                            回答
+                        </Typography>
+                        <Paper variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
+                                {askResult.answer}
+                            </Typography>
+                        </Paper>
+                        {askResult.sources.length > 0 && (
+                            <>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                                    出典
+                                </Typography>
+                                <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                                    {askResult.sources.map((src, i) => (
+                                        <Typography component="li" key={i} variant="body2" color="text.secondary">
+                                            {src}
+                                        </Typography>
+                                    ))}
+                                </Box>
+                            </>
+                        )}
+                    </Box>
+                )}
+            </Paper>
 
             <Grid container spacing={3}>
                 {/* Upload Section */}

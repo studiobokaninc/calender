@@ -8,7 +8,9 @@ from ..database import get_db
 from ..security import get_current_user
 from datetime import datetime
 from ..timezone import now_jst_naive
+import os
 import shutil
+import json as _json
 from pathlib import Path
 import logging
 
@@ -26,22 +28,15 @@ def get_actor_user_id(
     ヘッダーから実操作者のIDを取得します。
     管理者のみ X-Actor-User-Id ヘッダーで任意のユーザーIDを指定できます。
     一般ユーザーがヘッダーを指定した場合は、自分自身のIDを使用します。
-
-    修正②(cmd_527): CLI_BYPASS_TOKEN 由来の admin 中継で X-Actor-User-Id が欠落した場合は、
-    無言で共有 admin(=「別ユーザー」)にフォールバックせず、明示エラー(400)を返す。
-    ★ 通常ログイン(JWT)した利用者・一般ユーザーの自分用取得は従来どおり本人を返す(非破壊)。
+    CLI_BYPASS_TOKEN 由来の admin 中継で X-Actor-User-Id が欠落した場合は 400。
     """
     if current_user.role == 'admin':
         if x_actor_user_id:
-            # 管理者による代理(中継): 指定ユーザーを実操作者とする
             logger.info(
                 "ACTOR relay: principal admin user_id=%s acting as actor_id=%s",
                 current_user.id, x_actor_user_id
             )
             return x_actor_user_id
-        # X-Actor-User-Id 欠落:
-        #   - CLI_BYPASS 由来(中継) → 本人特定不能なので明示エラー(無言の admin 成りすまし防止)
-        #   - 実 admin が JWT で自分のデータを取得する通常利用 → 本人(従来どおり・非破壊)
         if getattr(current_user, "_auth_via_bypass", False):
             logger.warning(
                 "ACTOR relay rejected: bypass(admin) without X-Actor-User-Id; "
@@ -52,7 +47,48 @@ def get_actor_user_id(
                 detail="X-Actor-User-Id header is required for admin relay."
             )
         return current_user.id
-    # 一般ユーザーは常に本人(ヘッダ指定があっても無視)
+    return current_user.id
+
+
+async def get_actor_id_for_write_eps(
+    authorization: Optional[str] = Header(None),
+    x_actor_user_id: Optional[int] = Header(None),
+    db: Session = Depends(get_db),
+) -> int:
+    """
+    POST /api/assets と POST /api/reference_materials 専用の二経路 dep。
+    CASPER_WRITE_TOKEN 経路: X-Actor-User-Id 必須 → actor_id を返す。
+    JWT 経路: get_current_user() 経由の通常認証 → actor_id を返す（既存JWT経路非破壊）。
+    """
+    casper_token = os.getenv("CASPER_WRITE_TOKEN")
+    bearer = None
+    if authorization and authorization.startswith("Bearer "):
+        bearer = authorization.split("Bearer ", 1)[1].strip()
+
+    if casper_token and bearer == casper_token:
+        if not x_actor_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="X-Actor-User-Id ヘッダーは CASPER_WRITE_TOKEN 使用時に必須です。"
+            )
+        logger.info("CASPER_WRITE relay: actor_id=%s", x_actor_user_id)
+        return x_actor_user_id
+
+    # JWT path — call get_current_user directly with extracted bearer token
+    current_user = await security.get_current_user(token=bearer or "", db=db)
+    if current_user.role == 'admin':
+        if x_actor_user_id:
+            logger.info(
+                "ACTOR relay: principal admin user_id=%s acting as actor_id=%s",
+                current_user.id, x_actor_user_id
+            )
+            return x_actor_user_id
+        if getattr(current_user, "_auth_via_bypass", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="X-Actor-User-Id header is required for admin relay."
+            )
+        return current_user.id
     return current_user.id
 
 # --- Write APIs (18 endpoints) ---
@@ -349,10 +385,27 @@ def upload_asset(
     file: UploadFile = File(...),
     shot_id: Optional[int] = Form(None),
     task_id: Optional[int] = Form(None),
-    version: str = Form(...),
+    version: Optional[str] = Form(None),
+    data: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    actor_id: int = Depends(get_actor_user_id)
+    actor_id: int = Depends(get_actor_id_for_write_eps)
 ):
+    # Casper 書込経路: data JSON からフィールドを補完
+    if data:
+        try:
+            data_dict = _json.loads(data)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="data フィールドは有効な JSON 文字列である必要があります。")
+        if shot_id is None and "shot_id" in data_dict:
+            shot_id = data_dict["shot_id"]
+        if task_id is None and "task_id" in data_dict:
+            task_id = data_dict["task_id"]
+        if version is None and "version" in data_dict:
+            version = str(data_dict["version"])
+
+    if version is None:
+        version = "1"
+
     # shot_idが指定されておらず、task_idがある場合はタスク情報から補完する
     if shot_id is None and task_id is not None:
         db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
@@ -362,12 +415,12 @@ def upload_asset(
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
     assets_dir = BASE_DIR / "static" / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
-    
+
     shot_id_str = str(shot_id) if shot_id is not None else "none"
     file_path = assets_dir / f"shot_{shot_id_str}_task_{task_id}_{version}_{file.filename}"
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
-        
+
     db_asset = models.Asset(
         shot_id=shot_id,
         task_id=task_id,
@@ -417,6 +470,20 @@ def delete_asset(
     # データベースレコードの削除
     db.delete(db_asset)
     db.commit()
+
+@router.get("/deliveries", response_model=List[schemas.DeliveryResponse])
+def list_deliveries(
+    task_id: Optional[int] = None,
+    project_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(models.Delivery)
+    if task_id:
+        query = query.filter(models.Delivery.task_id == task_id)
+    if project_id:
+        query = query.join(models.Task, models.Delivery.task_id == models.Task.id)\
+                     .filter(models.Task.project_id == project_id)
+    return query.order_by(models.Delivery.created_at.desc()).all()
 
 @router.post("/deliveries/{id}/receive", response_model=schemas.DeliveryResponse)
 def receive_delivery(
@@ -955,30 +1022,33 @@ def list_retakes(
 ):
     from sqlalchemy.orm import aliased
     Creator = aliased(models.User)
+    Assignee = aliased(models.User)
     query = db.query(
         models.Retake,
         models.Shot.shot_code,
         models.Project.name.label("project_name"),
-        Creator.full_name.label("creator_name")
+        Creator.full_name.label("creator_name"),
+        Assignee.full_name.label("assignee_name")
     ).join(models.Shot, models.Retake.shot_id == models.Shot.id)\
      .join(models.Project, models.Shot.project_id == models.Project.id)\
      .join(Creator, models.Retake.created_by == Creator.id)\
+     .outerjoin(Assignee, models.Retake.assigned_to == Assignee.id)\
      .filter(models.Project.display_status == 'online')\
      .options(selectinload(models.Retake.timecodes))
-    
+
     if shot_id:
         query = query.filter(models.Retake.shot_id == shot_id)
     if project_id:
         query = query.filter(models.Shot.project_id == project_id)
-        
+
     results = query.order_by(models.Retake.created_at.desc()).all()
-    
-    # マッピング
-    for r, sc, pn, cn in results:
+
+    for r, sc, pn, cn, an in results:
         r.shot_code = sc
         r.project_name = pn
         r.creator_name = cn
-    return [r for r, sc, pn, cn in results]
+        r.assignee_name = an
+    return [r for r, sc, pn, cn, an in results]
 
 @router.get("/troubles", response_model=List[schemas.Trouble])
 def list_troubles(
@@ -1031,21 +1101,29 @@ def list_look_distributions(
     db: Session = Depends(get_db)
 ):
     import json
-    query = db.query(models.LookDistribution)
-    results = query.order_by(models.LookDistribution.created_at.desc()).all()
-    
+    from sqlalchemy.orm import aliased
+    Assignee = aliased(models.User)
+    query = db.query(
+        models.LookDistribution,
+        Assignee.full_name.label("assignee_name")
+    ).outerjoin(Assignee, models.LookDistribution.assigned_to == Assignee.id)
+
+    raw = query.order_by(models.LookDistribution.created_at.desc()).all()
+    for r, an in raw:
+        r.assignee_name = an
+    results = [r for r, an in raw]
+
     if project_id:
-        # プロジェクトに属するショットのIDを取得
         shot_ids = db.query(models.Shot.id).filter(models.Shot.project_id == project_id).all()
         project_shot_ids = set(s[0] for s in shot_ids)
-        
+
         filtered_results = []
         for r in results:
             r_shot_ids = json.loads(r.shot_ids) if isinstance(r.shot_ids, str) else r.shot_ids
             if set(r_shot_ids).intersection(project_shot_ids):
                 filtered_results.append(r)
         return filtered_results
-        
+
     return results
 
 @router.get("/timecards", response_model=List[schemas.Timecard])
@@ -1083,16 +1161,21 @@ def list_notifications(
     project_id: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
+    from sqlalchemy import or_
     query = db.query(models.Notification)
     if recipient_id:
         query = query.filter(models.Notification.recipient_id == recipient_id)
     if project_id:
-        # 通知にプロジェクトIDがないため、本文にプロジェクト名が含まれるか、
-        # またはプロジェクトに属するショットコードが含まれるかで簡易的にフィルタリング
         project = db.query(models.Project).filter(models.Project.id == project_id).first()
         if project:
-            query = query.filter(models.Notification.body.contains(project.name))
-            
+            # project_id列がある新規レコード: 直接参照。NULLの旧レコード: body文字列マッチで後方互換
+            query = query.filter(
+                or_(
+                    models.Notification.project_id == project_id,
+                    models.Notification.project_id.is_(None) & models.Notification.body.contains(project.name)
+                )
+            )
+
     return query.order_by(models.Notification.created_at.desc()).all()
 
 @router.post("/notifications", response_model=schemas.Notification, status_code=status.HTTP_201_CREATED)
@@ -1106,6 +1189,7 @@ def create_notification(
         body=payload.body,
         type=payload.type,
         meta=payload.meta or {},
+        project_id=payload.project_id,
     )
     db.add(db_notif)
     db.commit()
@@ -1536,7 +1620,7 @@ def delete_score_user_role(
 def create_reference_material(
     payload: schemas.ReferenceMaterialCreate,
     db: Session = Depends(get_db),
-    actor_id: int = Depends(get_actor_user_id)
+    actor_id: int = Depends(get_actor_id_for_write_eps)
 ):
     """参考資料を新規登録"""
     created_by = actor_id if payload.created_by is None else payload.created_by

@@ -130,7 +130,7 @@ export const RetakesList: React.FC<RetakesListProps> = ({ retakes, loading, comp
                     {retakes.map((retake) => (
                         <TableRow key={retake.id} hover>
                             <TableCell>#{retake.id}</TableCell>
-                            <TableCell sx={{ fontWeight: 700 }}>{retake.shot_id}</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>{retake.shot_code || retake.shot_id}</TableCell>
                             <TableCell sx={{ maxWidth: 350 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                     {retake.overall_comment || '-'}

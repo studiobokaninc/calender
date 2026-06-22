@@ -340,6 +340,10 @@ const Dashboard: React.FC = () => {
     });
 
     eventList.sort((a, b) => {
+      // タスク以外のイベントを優先的に上にくるようにする
+      if (a.type === 'event' && b.type !== 'event') return -1;
+      if (a.type !== 'event' && b.type === 'event') return 1;
+
       if (a.timeLabel === '終日' && b.timeLabel !== '終日') return -1;
       if (a.timeLabel !== '終日' && b.timeLabel === '終日') return 1;
       return (a.startTime ?? '').localeCompare(b.startTime ?? '');

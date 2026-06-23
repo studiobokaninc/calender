@@ -8,8 +8,9 @@ import os
 import logging
 import mimetypes
 from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 # WindowsではProactorEventLoopを使用することでサブプロセス実行を安定させる
 if sys.platform == 'win32':
@@ -88,7 +89,7 @@ models.Base.metadata.create_all(bind=engine)
 print("Main: テーブル作成完了")
 
 # MCP lifespan 配線
-from .mcp_server import mcp_http, _MCPAuthMiddleware
+from .mcp_server import mcp_http, _MCPAuthMiddleware, mcp
 
 
 @asynccontextmanager
@@ -216,7 +217,8 @@ async def root():
 
 @app.get("/health", include_in_schema=False)
 async def health_check():
-    return {"status": "ok", "tools": 2}
+    tools = await mcp.list_tools()
+    return {"status": "ok", "tools": len(tools)}
 
 # MCP server (§MVP_a: same-process mount at /mcp)
 app.mount("/mcp", _MCPAuthMiddleware(mcp_http))

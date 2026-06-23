@@ -17667,3 +17667,12 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-06-22 15:32:21,833 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-06-22 15:32:21,833 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-06-22 15:32:21,844 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-06-23 17:54:51,391 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-06-23 17:54:51,800 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-06-23 17:54:52,159 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-06-23 17:54:52,166 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-06-23 17:54:52,167 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-06-23 17:54:52,167 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-06-23 17:54:52,167 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-06-23 17:54:52,167 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-06-23 17:54:52,173 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

@@ -154,33 +154,59 @@ def _task_row_to_dict(row: Any, history_map: Dict[int, List[Dict[str, Any]]]) ->
         'status_history': history_map.get(row.id, [])
     }
 
-def get_tasks(db: Session, project_id: Optional[int] = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None, include_history: bool = True) -> List[Dict[str, Any]]:
-    """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)"""
-    try:
-        # 自動ステータス更新を実行
-        # TODO: This depends on tasks_utils. We could also move batch update to a separate file.
-        # For simplicity, we assume we re-import the entry point which will eventually be re-exported.
-        # But wait, we need it here. I'll move _perform_task_auto_update to a shared place later.
-        pass
+def get_tasks(db: Session, project_id: Optional[int] = None, skip: int = 0, limit: int = 10000, display_status_in: Optional[List[str]] = None, include_history: bool = True, due_date_from: Optional[str] = None, due_date_to: Optional[str] = None) -> List[Dict[str, Any]]:
+    """タスクリストを取得 (プロジェクトIDでのフィルタ、ページネーション対応、表示ステータスでのフィルタリング対応)
 
+    due_date_from/due_date_to: ISO8601 文字列。指定時は due_date または start_date が範囲内のタスクのみ返す。
+    日付なし（due_date IS NULL かつ start_date IS NULL）のタスクは範囲指定に関わらず常に含む。
+    """
+    try:
         # SQLAlchemy を使わず、直接 SQL 文でデータ取得（Enum 検証を回避）
         query_parts = ["SELECT * FROM tasks"]
         conditions = []
-        params = {"limit": limit, "skip": skip}
-        
+        params: dict = {"limit": limit, "skip": skip}
+
         if project_id is not None:
             conditions.append("project_id = :project_id")
             params["project_id"] = project_id
-        
+
         if display_status_in:
             placeholders = ','.join([f":status{i}" for i in range(len(display_status_in))])
             conditions.append(f"display_status IN ({placeholders})")
             for i, val in enumerate(display_status_in):
                 params[f"status{i}"] = val
-        
+
+        if due_date_from or due_date_to:
+            # 日付あり && 範囲内、または日付なしタスクを含む
+            # (due_date >= from OR start_date >= from) AND (due_date <= to OR start_date <= to)
+            # を日付なしタスク込みで表現:
+            date_conds = []
+            if due_date_from and due_date_to:
+                date_conds.append(
+                    "(due_date IS NULL AND start_date IS NULL)"
+                    " OR (due_date >= :ddf AND due_date <= :ddt)"
+                    " OR (start_date >= :ddf AND start_date <= :ddt)"
+                    " OR (start_date IS NOT NULL AND due_date IS NOT NULL AND start_date <= :ddt AND due_date >= :ddf)"
+                )
+                params["ddf"] = due_date_from
+                params["ddt"] = due_date_to
+            elif due_date_from:
+                date_conds.append(
+                    "(due_date IS NULL AND start_date IS NULL)"
+                    " OR due_date >= :ddf OR start_date >= :ddf"
+                )
+                params["ddf"] = due_date_from
+            else:
+                date_conds.append(
+                    "(due_date IS NULL AND start_date IS NULL)"
+                    " OR due_date <= :ddt OR start_date <= :ddt"
+                )
+                params["ddt"] = due_date_to
+            conditions.append(f"({date_conds[0]})")
+
         if conditions:
             query_parts.append("WHERE " + " AND ".join(conditions))
-        
+
         query_parts.append("LIMIT :limit OFFSET :skip")
         
         rows = db.execute(text(" ".join(query_parts)), params).fetchall()

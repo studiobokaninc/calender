@@ -28,7 +28,10 @@ interface UseCalendarDataReturn {
     refetch: () => void;
 }
 
-export const useCalendarData = (eventStatusFilter: string): UseCalendarDataReturn => {
+export const useCalendarData = (
+    eventStatusFilter: string,
+    viewRange?: { start: Date; end: Date } | null
+): UseCalendarDataReturn => {
     const { user } = useAuth();
     const { globalData, updateGlobalData, isInitialLoad } = useCalendarPageState();
     const { refreshGlobalData } = usePageState();
@@ -65,9 +68,14 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
     // ────────────────────────────────────────────────────────────────────────
     // バックエンドイベント取得（カレンダーイベント専用）
     // ────────────────────────────────────────────────────────────────────────
-    const fetchBackendEvents = useCallback(async (currentProjects: Project[]) => {
+    const fetchBackendEvents = useCallback(async (currentProjects: Project[], range?: { start: Date; end: Date } | null) => {
         try {
-            const res = await api.get<BackendEvent[]>('/calendar/events');
+            const params: Record<string, string> = {};
+            if (range) {
+                params.start_date = range.start.toISOString();
+                params.end_date = range.end.toISOString();
+            }
+            const res = await api.get<BackendEvent[]>('/calendar/events', { params });
             const processed = res.data
                 .map(be => backendEventToCalendarEvent(be, { user: user as any, projects: currentProjects }))
                 .filter((e): e is CalendarEvent => e !== null);
@@ -84,10 +92,15 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
         setLoading(true);
         setError(null);
         try {
+            const eventParams: Record<string, string> = {};
+            if (viewRange) {
+                eventParams.start_date = viewRange.start.toISOString();
+                eventParams.end_date = viewRange.end.toISOString();
+            }
             const [projRes, taskRes, eventsRes, userRes, groupRes, scoreRes] = await Promise.all([
                 api.get<Project[]>('/projects'),
                 api.get<Task[]>('/tasks', { params: { include_history: false } }),
-                api.get<BackendEvent[]>('/calendar/events'),
+                api.get<BackendEvent[]>('/calendar/events', { params: eventParams }),
                 api.get<User[]>('/api/users'),
                 api.get<Group[]>('/api/groups'),
                 eventStatusFilter !== 'all'
@@ -136,7 +149,7 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
         } finally {
             setLoading(false);
         }
-    }, [eventStatusFilter, filterForNonAdmin, updateGlobalData, fetchBackendEvents]);
+    }, [eventStatusFilter, filterForNonAdmin, updateGlobalData, fetchBackendEvents, viewRange]);
 
     // ────────────────────────────────────────────────────────────────────────
     // globalData 監視（ページ切り替え後にキャッシュから即時反映）
@@ -155,7 +168,7 @@ export const useCalendarData = (eventStatusFilter: string): UseCalendarDataRetur
                 // fetchData直後のglobalData反映トリガー: /calendar/eventsは既取得済みのためスキップ
                 didFetchRef.current = false;
             } else {
-                fetchBackendEvents(fp);
+                fetchBackendEvents(fp, viewRange);
             }
         }
         if (globalData.users?.length > 0) setUsers(globalData.users);

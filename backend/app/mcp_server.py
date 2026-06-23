@@ -253,8 +253,8 @@ class _MCPAuthMiddleware:
             auth = headers.get(b"authorization", b"").decode("utf-8", errors="ignore")
             bearer = auth[7:].strip() if auth.startswith("Bearer ") else ""
 
-            read_token = os.getenv("SCORE_READONLY_TOKEN")
-            write_token = os.getenv("CASPER_WRITE_TOKEN")
+            read_token = (os.getenv("SCORE_READONLY_TOKEN") or "").strip()
+            write_token = (os.getenv("CASPER_WRITE_TOKEN") or "").strip()
 
             if not read_token:
                 body = b'{"error":"SCORE_READONLY_TOKEN not configured"}'

@@ -67,11 +67,22 @@ def get_event(db: Session, event_id: int) -> Optional[models.Event]:
     """ID でイベントを取得"""
     return db.query(models.Event).filter(models.Event.id == event_id).first()
 
-def get_events(db: Session, skip: int = 0, limit: int = 100, project_id: Optional[int] = None) -> List[models.Event]:
+def get_events(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    project_id: Optional[int] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+) -> List[models.Event]:
     """イベントを取得"""
     query = db.query(models.Event)
     if project_id:
         query = query.filter(models.Event.project_id == project_id)
+    if start_date is not None:
+        query = query.filter(models.Event.end_time >= start_date)
+    if end_date is not None:
+        query = query.filter(models.Event.start_time <= end_date)
     return query.offset(skip).limit(limit).all()
 
 def create_event(db: Session, event: schemas.EventCreate) -> models.Event:

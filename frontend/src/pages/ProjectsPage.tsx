@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link, Grid, Divider } from '@mui/material';
+import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link, Grid, Divider, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon, FormatListBulleted as ShotListIcon, Person as PersonIcon, CalendarToday as CalendarIcon, Movie as MovieIcon, Replay as ReplayIcon, Warning as WarningIcon } from '@mui/icons-material';
 import api, { fetchUsers, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
 import { Project, Task, User } from '../types';
@@ -587,267 +587,515 @@ const ProjectsPage: React.FC = () => {
                 </Box>
             )}
 
-            {/* テーブルのように縦にスタックされたカードリスト */}
+            {/* テーブル形式またはスマホ向けの縦積みカードリスト */}
             <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}>
-                <Grid container spacing={2}>
-                    {filteredProjects.map((project) => {
-                        const dispStatus = typeof project.display_status === 'string' ? project.display_status : 'online';
-                        const dispLabel = displayStatusOptions.find(opt => opt.value === dispStatus)?.label ?? dispStatus;
-                        const dispColor = getDisplayStatusColor(dispStatus);
-                        const isProjectDelayed = project.status === 'delayed' || (project.delayedCount || 0) > 0;
-                        return (
-                            <Grid item xs={12} key={project.id}>
-                                <Card
-                                    elevation={0}
-                                    sx={{
-                                        borderRadius: 3,
-                                        border: isProjectDelayed ? '2px solid' : '1px solid',
-                                        borderColor: isProjectDelayed ? 'error.main' : 'divider',
-                                        borderLeft: `5px solid ${project.color || theme.palette.divider}`,
-                                        boxShadow: isProjectDelayed ? '0 0 8px rgba(244, 67, 54, 0.2)' : 'none',
-                                        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                                        '&:hover': {
-                                            transform: 'translateY(-2px)',
-                                            boxShadow: isProjectDelayed ? '0 4px 12px rgba(244, 67, 54, 0.3)' : 2
-                                        },
-                                        cursor: isAdmin ? 'pointer' : 'default',
-                                    }}
-                                    onClick={isAdmin ? () => handleEditProject(project) : undefined}
-                                >
-                                    <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
-                                        <Grid container spacing={2} alignItems="center">
-                                            {/* 左エリア: 名前、ステータス、説明 */}
-                                            <Grid item xs={12} md={5}>
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                                                            <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.25rem', wordBreak: 'break-word' }}>
-                                                                {project.name}
-                                                            </Typography>
-                                                            {isProjectDelayed && (
-                                                                <Chip
-                                                                    icon={<WarningIcon sx={{ color: '#fff !important', fontSize: '0.9rem !important' }} />}
-                                                                    label="遅延あり"
+                {isMobile ? (
+                    <Grid container spacing={2}>
+                        {filteredProjects.map((project) => {
+                            const dispStatus = typeof project.display_status === 'string' ? project.display_status : 'online';
+                            const dispLabel = displayStatusOptions.find(opt => opt.value === dispStatus)?.label ?? dispStatus;
+                            const dispColor = getDisplayStatusColor(dispStatus);
+                            const isProjectDelayed = project.status === 'delayed' || (project.delayedCount || 0) > 0;
+                            return (
+                                <Grid item xs={12} key={project.id}>
+                                    <Card
+                                        elevation={0}
+                                        sx={{
+                                            borderRadius: 3,
+                                            border: isProjectDelayed ? '2px solid' : '1px solid',
+                                            borderColor: isProjectDelayed ? 'error.main' : 'divider',
+                                            borderLeft: `5px solid ${project.color || theme.palette.divider}`,
+                                            boxShadow: isProjectDelayed ? '0 0 8px rgba(244, 67, 54, 0.2)' : 'none',
+                                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                            '&:hover': {
+                                                transform: 'translateY(-2px)',
+                                                boxShadow: isProjectDelayed ? '0 4px 12px rgba(244, 67, 54, 0.3)' : 2
+                                            },
+                                            cursor: isAdmin ? 'pointer' : 'default',
+                                        }}
+                                        onClick={isAdmin ? () => handleEditProject(project) : undefined}
+                                    >
+                                        <CardContent sx={{ p: 3, '&:last-child': { pb: 3 } }}>
+                                            <Grid container spacing={2} alignItems="center">
+                                                {/* 左エリア: 名前、ステータス、説明 */}
+                                                <Grid item xs={12} md={5}>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                                                <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.25rem', wordBreak: 'break-word' }}>
+                                                                    {project.name}
+                                                                </Typography>
+                                                                {isProjectDelayed && (
+                                                                    <Chip
+                                                                        icon={<WarningIcon sx={{ color: '#fff !important', fontSize: '0.9rem !important' }} />}
+                                                                        label="遅延あり"
+                                                                        size="small"
+                                                                        sx={{
+                                                                            backgroundColor: 'error.main',
+                                                                            color: '#fff',
+                                                                            fontWeight: 800,
+                                                                            fontSize: '0.75rem',
+                                                                            height: 22,
+                                                                            pl: 0.5,
+                                                                            animation: 'pulse 2s infinite',
+                                                                            '@keyframes pulse': {
+                                                                                '0%': { opacity: 0.9 },
+                                                                                '50%': { opacity: 0.67 },
+                                                                                '100%': { opacity: 0.9 },
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                            </Box>
+                                                            {isAdmin && (
+                                                                <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                                                                    <Tooltip title="編集">
+                                                                        <IconButton size="small" onClick={() => handleEditProject(project)} sx={{ color: 'primary.main', p: 0.5 }}>
+                                                                            <EditIcon fontSize="small" />
+                                                                        </IconButton>
+                                                                    </Tooltip>
+                                                                    <Tooltip title="削除">
+                                                                        <IconButton size="small" onClick={() => handleDeleteClick(project)} sx={{ color: 'error.main', p: 0.5 }}>
+                                                                            <DeleteIcon fontSize="small" />
+                                                                        </IconButton>
+                                                                    </Tooltip>
+                                                                </Box>
+                                                            )}
+                                                        </Box>
+
+                                                        {/* ステータスバッジ群 */}
+                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                                                            <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
+                                                            <Chip label={project.priority || '未設定'} size="small" variant="outlined" sx={{ fontSize: '0.85rem', height: 30, borderColor: getPriorityColor(project.priority ?? undefined), color: getPriorityColor(project.priority ?? undefined), fontWeight: 700 }} />
+                                                            {isAdmin ? (
+                                                                <Select
                                                                     size="small"
+                                                                    value={dispStatus}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    onChange={async (e: SelectChangeEvent) => {
+                                                                        const newStatus = e.target.value as string;
+                                                                        try {
+                                                                            await api.put(`/projects/${project.id}`, { display_status: newStatus });
+                                                                            setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, display_status: newStatus } : p));
+                                                                            setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
+                                                                            if (refreshGlobalData) {
+                                                                                await refreshGlobalData();
+                                                                                window.dispatchEvent(new CustomEvent('projectStatusUpdated', { detail: { projectId: project.id, newStatus } }));
+                                                                            }
+                                                                        } catch {
+                                                                            setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
+                                                                        }
+                                                                    }}
+                                                                    sx={{ height: 30, fontSize: '0.85rem', fontWeight: 700, backgroundColor: dispColor, color: '#fff', '& .MuiSelect-select': { color: '#fff', py: 0, px: 1 }, '& .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: dispColor } }}
+                                                                >
+                                                                    {displayStatusOptions.map(opt => (
+                                                                        <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.85rem' }}>{opt.label}</MenuItem>
+                                                                    ))}
+                                                                </Select>
+                                                            ) : (
+                                                                <Chip label={dispLabel} size="small" sx={{ backgroundColor: dispColor, color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
+                                                            )}
+                                                        </Box>
+
+                                                        {/* 説明 */}
+                                                        {project.description && (
+                                                            <Box
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                sx={{
+                                                                    maxHeight: '76px',
+                                                                    overflowY: 'auto',
+                                                                    pr: 0.5,
+                                                                    '&::-webkit-scrollbar': {
+                                                                        width: '4px',
+                                                                    },
+                                                                    '&::-webkit-scrollbar-track': {
+                                                                        background: 'transparent',
+                                                                        borderRadius: '2px',
+                                                                    },
+                                                                    '&::-webkit-scrollbar-thumb': {
+                                                                        background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
+                                                                        borderRadius: '2px',
+                                                                        '&:hover': {
+                                                                            background: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+                                                                        }
+                                                                    },
+                                                                }}
+                                                            >
+                                                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1.1rem', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                                                    {project.description}
+                                                                </Typography>
+                                                            </Box>
+                                                        )}
+                                                    </Box>
+                                                </Grid>
+
+                                                {/* 中央エリア: 担当者、期間 */}
+                                                <Grid item xs={12} md={3}>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, borderLeft: { md: '1px solid' }, borderRight: { md: '1px solid' }, borderColor: { md: 'divider' }, pl: { md: 3 }, pr: { md: 2 } }}>
+                                                        {/* Director / PM */}
+                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                                <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                                                                <Box>
+                                                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>Director</Typography>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.directorName || '-'}</Typography>
+                                                                </Box>
+                                                            </Box>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                                <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                                                                <Box>
+                                                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>PM</Typography>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.pmName || '-'}</Typography>
+                                                                </Box>
+                                                            </Box>
+                                                        </Box>
+
+                                                        <Divider />
+                                                        {/* 期間 */}
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                            <CalendarIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                                                            <Box>
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>期間</Typography>
+                                                                <Typography variant="body2" sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'text.primary' }}>
+                                                                    {project.start_date ? new Date(project.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
+                                                                    ～
+                                                                    {project.end_date ? new Date(project.end_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    </Box>
+                                                </Grid>
+
+                                                {/* 右エリア: 進捗、数値、ボタン */}
+                                                <Grid item xs={12} md={4}>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pl: { md: 2 } }}>
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                                                             {/* 統計ボックス */}
+                                                             <Box sx={{ display: 'flex', gap: 0.75, flex: 1 }}>
+                                                                 <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.todoCount || 0) > 0 ? (isDark ? 'rgba(156, 39, 176, 0.15)' : 'rgba(156, 39, 176, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.todoCount || 0) > 0 ? 'secondary.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                     <Typography variant="caption" sx={{ fontWeight: 700, color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'text.secondary', fontSize: '0.75rem' }}>未着手</Typography>
+                                                                     <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'inherit' }}>{project.todoCount || 0}</Typography>
+                                                                 </Box>
+                                                                 <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.inProgressCount || 0) > 0 ? (isDark ? 'rgba(33, 150, 243, 0.15)' : 'rgba(33, 150, 243, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                     <Typography variant="caption" sx={{ fontWeight: 700, color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'text.secondary', fontSize: '0.75rem' }}>進行中</Typography>
+                                                                     <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'inherit' }}>{project.inProgressCount || 0}</Typography>
+                                                                 </Box>
+                                                                 <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.delayedCount || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.delayedCount || 0) > 0 ? 'error.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                     <Typography variant="caption" sx={{ fontWeight: 700, color: (project.delayedCount || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.75rem' }}>遅延中</Typography>
+                                                                     <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.delayedCount || 0) > 0 ? 'error.main' : 'inherit' }}>{project.delayedCount || 0}</Typography>
+                                                                 </Box>
+                                                                 <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.completedCount || 0) > 0 ? (isDark ? 'rgba(76, 175, 80, 0.15)' : 'rgba(76, 175, 80, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.completedCount || 0) > 0 ? 'success.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
+                                                                     <Typography variant="caption" sx={{ fontWeight: 700, color: (project.completedCount || 0) > 0 ? 'success.main' : 'text.secondary', fontSize: '0.75rem' }}>完了</Typography>
+                                                                     <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.completedCount || 0) > 0 ? 'success.main' : 'inherit' }}>{project.completedCount || 0}</Typography>
+                                                                 </Box>
+                                                             </Box>
+
+                                                             {/* 進捗率テキスト */}
+                                                             <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                                                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block', fontWeight: 600 }}>進捗率</Typography>
+                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.1rem', color: theme.palette.primary.main }}>{project.progress}%</Typography>
+                                                             </Box>
+                                                        </Box>
+
+                                                        {/* 進捗バーとショットリストボタンを横に並べる */}
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <LinearProgress
+                                                                    variant="determinate"
+                                                                    value={project.progress}
                                                                     sx={{
-                                                                        backgroundColor: 'error.main',
-                                                                        color: '#fff',
-                                                                        fontWeight: 800,
-                                                                        fontSize: '0.75rem',
-                                                                        height: 22,
-                                                                        pl: 0.5,
-                                                                        animation: 'pulse 2s infinite',
-                                                                        '@keyframes pulse': {
-                                                                            '0%': { opacity: 0.9 },
-                                                                            '50%': { opacity: 0.67 },
-                                                                            '100%': { opacity: 0.9 },
+                                                                        height: 10,
+                                                                        borderRadius: 5,
+                                                                        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                                                                        '& .MuiLinearProgress-bar': {
+                                                                            borderRadius: 5,
+                                                                            background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
                                                                         }
                                                                     }}
                                                                 />
-                                                            )}
-                                                        </Box>
-                                                        {isAdmin && (
-                                                            <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                                                                <Tooltip title="編集">
-                                                                    <IconButton size="small" onClick={() => handleEditProject(project)} sx={{ color: 'primary.main', p: 0.5 }}>
-                                                                        <EditIcon fontSize="small" />
-                                                                    </IconButton>
-                                                                </Tooltip>
-                                                                <Tooltip title="削除">
-                                                                    <IconButton size="small" onClick={() => handleDeleteClick(project)} sx={{ color: 'error.main', p: 0.5 }}>
-                                                                        <DeleteIcon fontSize="small" />
-                                                                    </IconButton>
-                                                                </Tooltip>
                                                             </Box>
-                                                        )}
-                                                    </Box>
-
-                                                    {/* ステータスバッジ群 */}
-                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
-                                                        <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
-                                                        <Chip label={project.priority || '未設定'} size="small" variant="outlined" sx={{ fontSize: '0.85rem', height: 30, borderColor: getPriorityColor(project.priority ?? undefined), color: getPriorityColor(project.priority ?? undefined), fontWeight: 700 }} />
-                                                        {isAdmin ? (
-                                                            <Select
+                                                            <Button
                                                                 size="small"
-                                                                value={dispStatus}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                onChange={async (e: SelectChangeEvent) => {
-                                                                    const newStatus = e.target.value as string;
-                                                                    try {
-                                                                        await api.put(`/projects/${project.id}`, { display_status: newStatus });
-                                                                        setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, display_status: newStatus } : p));
-                                                                        setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
-                                                                        if (refreshGlobalData) {
-                                                                            await refreshGlobalData();
-                                                                            window.dispatchEvent(new CustomEvent('projectStatusUpdated', { detail: { projectId: project.id, newStatus } }));
-                                                                        }
-                                                                    } catch {
-                                                                        setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
-                                                                    }
+                                                                variant="outlined"
+                                                                startIcon={<ShotListIcon sx={{ fontSize: '0.9rem' }} />}
+                                                                onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}/shotlist`); }}
+                                                                sx={{
+                                                                    textTransform: 'none',
+                                                                    fontSize: '0.8rem',
+                                                                    fontWeight: 600,
+                                                                    borderRadius: 2,
+                                                                    py: 0.5,
+                                                                    px: 1.5,
+                                                                    whiteSpace: 'nowrap',
+                                                                    flexShrink: 0
                                                                 }}
-                                                                sx={{ height: 30, fontSize: '0.85rem', fontWeight: 700, backgroundColor: dispColor, color: '#fff', '& .MuiSelect-select': { color: '#fff', py: 0, px: 1 }, '& .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: dispColor } }}
                                                             >
-                                                                {displayStatusOptions.map(opt => (
-                                                                    <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.85rem' }}>{opt.label}</MenuItem>
-                                                                ))}
-                                                            </Select>
-                                                        ) : (
-                                                            <Chip label={dispLabel} size="small" sx={{ backgroundColor: dispColor, color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
-                                                        )}
-                                                    </Box>
-
-                                                    {/* 説明 */}
-                                                    {project.description && (
-                                                        <Box
-                                                            onClick={(e) => e.stopPropagation()}
-                                                            sx={{
-                                                                maxHeight: '76px',
-                                                                overflowY: 'auto',
-                                                                pr: 0.5,
-                                                                '&::-webkit-scrollbar': {
-                                                                    width: '4px',
-                                                                },
-                                                                '&::-webkit-scrollbar-track': {
-                                                                    background: 'transparent',
-                                                                    borderRadius: '2px',
-                                                                },
-                                                                '&::-webkit-scrollbar-thumb': {
-                                                                    background: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
-                                                                    borderRadius: '2px',
-                                                                    '&:hover': {
-                                                                        background: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
-                                                                    }
-                                                                },
-                                                            }}
-                                                        >
-                                                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '1.1rem', lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                                {project.description}
-                                                            </Typography>
+                                                                ショットリスト
+                                                            </Button>
                                                         </Box>
+                                                    </Box>
+                                                </Grid>
+                                            </Grid>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            );
+                        })}
+                    </Grid>
+                ) : (
+                    <TableContainer component={Paper} elevation={1} sx={{ borderRadius: 3, overflowX: 'auto', border: '1px solid', borderColor: 'divider' }}>
+                        <Table sx={{ minWidth: 900 }} size="medium">
+                            <TableHead sx={{ bgcolor: 'action.hover' }}>
+                                <TableRow>
+                                    <TableCell sx={{ fontWeight: 800 }}>プロジェクト名</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }}>ステータス</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }}>表示</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }}>担当 (Dir / PM)</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }}>期間</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }} align="center">タスク状況</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }} width="180">進捗</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }} align="right">操作</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {filteredProjects.map((project) => {
+                                    const dispStatus = typeof project.display_status === 'string' ? project.display_status : 'online';
+                                    const dispLabel = displayStatusOptions.find(opt => opt.value === dispStatus)?.label ?? dispStatus;
+                                    const dispColor = getDisplayStatusColor(dispStatus);
+                                    const isProjectDelayed = project.status === 'delayed' || (project.delayedCount || 0) > 0;
+                                    return (
+                                        <TableRow 
+                                            key={project.id}
+                                            hover
+                                            sx={{ 
+                                                cursor: isAdmin ? 'pointer' : 'default',
+                                                bgcolor: isProjectDelayed ? (isDark ? 'rgba(244, 67, 54, 0.03)' : 'rgba(244, 67, 54, 0.01)') : 'inherit',
+                                                '&:last-child td, &:last-child th': { border: 0 },
+                                                borderLeft: `4px solid ${project.color || theme.palette.divider}`,
+                                            }}
+                                            onClick={isAdmin ? () => handleEditProject(project) : undefined}
+                                        >
+                                            {/* プロジェクト名 */}
+                                            <TableCell sx={{ py: 2 }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, fontSize: '0.95rem' }}>
+                                                        {project.name}
+                                                    </Typography>
+                                                    {isProjectDelayed && (
+                                                        <Chip
+                                                            icon={<WarningIcon sx={{ color: '#fff !important', fontSize: '0.8rem !important' }} />}
+                                                            label="遅延あり"
+                                                            size="small"
+                                                            color="error"
+                                                            sx={{ height: 20, fontWeight: 800, fontSize: '0.7rem' }}
+                                                        />
                                                     )}
                                                 </Box>
-                                            </Grid>
-
-                                            {/* 中央エリア: 担当者、期間 */}
-                                            <Grid item xs={12} md={3}>
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, borderLeft: { md: '1px solid' }, borderRight: { md: '1px solid' }, borderColor: { md: 'divider' }, pl: { md: 3 }, pr: { md: 2 } }}>
-                                                    {/* Director / PM */}
-                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
-                                                            <Box>
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>Director</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.directorName || '-'}</Typography>
-                                                            </Box>
-                                                        </Box>
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                            <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
-                                                            <Box>
-                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>PM</Typography>
-                                                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.pmName || '-'}</Typography>
-                                                            </Box>
-                                                        </Box>
-                                                    </Box>
-
-                                                    <Divider />
-                                                    {/* 期間 */}
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                                                        <CalendarIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
-                                                        <Box>
-                                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>期間</Typography>
-                                                            <Typography variant="body2" sx={{ fontSize: '1.1rem', fontWeight: 700, color: 'text.primary' }}>
-                                                                {project.start_date ? new Date(project.start_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
-                                                                ～
-                                                                {project.end_date ? new Date(project.end_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-'}
-                                                            </Typography>
-                                                        </Box>
-                                                    </Box>
+                                                {project.description && (
+                                                    <Typography 
+                                                        variant="caption" 
+                                                        color="text.secondary" 
+                                                        sx={{ 
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 1,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            mt: 0.5,
+                                                            maxWidth: 300,
+                                                        }}
+                                                    >
+                                                        {project.description}
+                                                    </Typography>
+                                                )}
+                                            </TableCell>
+                                            
+                                            {/* ステータス */}
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                                                    <Chip 
+                                                        label={project.status || '-'} 
+                                                        size="small" 
+                                                        sx={{ 
+                                                            backgroundColor: getProjectStatusColor(project.status ?? undefined), 
+                                                            color: '#fff', 
+                                                            fontSize: '0.75rem', 
+                                                            fontWeight: 700 
+                                                        }} 
+                                                    />
+                                                    <Chip 
+                                                        label={project.priority || '未設定'} 
+                                                        size="small" 
+                                                        variant="outlined" 
+                                                        sx={{ 
+                                                            fontSize: '0.75rem', 
+                                                            borderColor: getPriorityColor(project.priority ?? undefined), 
+                                                            color: getPriorityColor(project.priority ?? undefined), 
+                                                            fontWeight: 700 
+                                                        }} 
+                                                    />
                                                 </Box>
-                                            </Grid>
+                                            </TableCell>
 
-                                            {/* 右エリア: 進捗、数値、ボタン */}
-                                            <Grid item xs={12} md={4}>
-                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pl: { md: 2 } }}>
-                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                                                         {/* 統計ボックス */}
-                                                         <Box sx={{ display: 'flex', gap: 0.75, flex: 1 }}>
-                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.todoCount || 0) > 0 ? (isDark ? 'rgba(156, 39, 176, 0.15)' : 'rgba(156, 39, 176, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.todoCount || 0) > 0 ? 'secondary.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'text.secondary', fontSize: '0.75rem' }}>未着手</Typography>
-                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'inherit' }}>{project.todoCount || 0}</Typography>
-                                                             </Box>
-                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.inProgressCount || 0) > 0 ? (isDark ? 'rgba(33, 150, 243, 0.15)' : 'rgba(33, 150, 243, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'text.secondary', fontSize: '0.75rem' }}>進行中</Typography>
-                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'inherit' }}>{project.inProgressCount || 0}</Typography>
-                                                             </Box>
-                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.delayedCount || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.delayedCount || 0) > 0 ? 'error.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.delayedCount || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.75rem' }}>遅延中</Typography>
-                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.delayedCount || 0) > 0 ? 'error.main' : 'inherit' }}>{project.delayedCount || 0}</Typography>
-                                                             </Box>
-                                                             <Box sx={{ px: 1, py: 0.75, borderRadius: 1.5, bgcolor: (project.completedCount || 0) > 0 ? (isDark ? 'rgba(76, 175, 80, 0.15)' : 'rgba(76, 175, 80, 0.05)') : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'), border: '1px solid', borderColor: (project.completedCount || 0) > 0 ? 'success.main' : 'divider', display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
-                                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: (project.completedCount || 0) > 0 ? 'success.main' : 'text.secondary', fontSize: '0.75rem' }}>完了</Typography>
-                                                                 <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.25rem', color: (project.completedCount || 0) > 0 ? 'success.main' : 'inherit' }}>{project.completedCount || 0}</Typography>
-                                                             </Box>
-                                                         </Box>
+                                            {/* 表示ステータス */}
+                                            <TableCell onClick={(e) => e.stopPropagation()}>
+                                                {isAdmin ? (
+                                                    <Select
+                                                        size="small"
+                                                        value={dispStatus}
+                                                        onChange={async (e: SelectChangeEvent) => {
+                                                            const newStatus = e.target.value as string;
+                                                            try {
+                                                                await api.put(`/projects/${project.id}`, { display_status: newStatus });
+                                                                setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, display_status: newStatus } : p));
+                                                                setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
+                                                                if (refreshGlobalData) {
+                                                                    await refreshGlobalData();
+                                                                }
+                                                            } catch {
+                                                                setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });
+                                                            }
+                                                        }}
+                                                        sx={{ 
+                                                            height: 26, 
+                                                            fontSize: '0.75rem', 
+                                                            fontWeight: 700, 
+                                                            backgroundColor: dispColor, 
+                                                            color: '#fff', 
+                                                            '& .MuiSelect-select': { color: '#fff', py: 0.25, px: 1 }, 
+                                                            '& .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, 
+                                                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: dispColor }, 
+                                                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: dispColor } 
+                                                        }}
+                                                    >
+                                                        {displayStatusOptions.map(opt => (
+                                                            <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.75rem' }}>{opt.label}</MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                ) : (
+                                                    <Chip label={dispLabel} size="small" sx={{ backgroundColor: dispColor, color: '#fff', fontSize: '0.75rem', fontWeight: 700 }} />
+                                                )}
+                                            </TableCell>
 
-                                                         {/* 進捗率テキスト */}
-                                                         <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                                                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', display: 'block', fontWeight: 600 }}>進捗率</Typography>
-                                                             <Typography variant="body2" sx={{ fontWeight: 800, fontSize: '1.1rem', color: theme.palette.primary.main }}>{project.progress}%</Typography>
-                                                         </Box>
-                                                    </Box>
+                                            {/* 担当 (Dir / PM) */}
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.primary' }}>
+                                                        <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>Dir:</span> <strong>{project.directorName || '-'}</strong>
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.primary' }}>
+                                                        <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>PM:</span> <strong>{project.pmName || '-'}</strong>
+                                                    </Typography>
+                                                </Box>
+                                            </TableCell>
 
-                                                    {/* 進捗バーとショットリストボタンを横に並べる */}
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                        <Box sx={{ flex: 1 }}>
-                                                            <LinearProgress
-                                                                variant="determinate"
-                                                                value={project.progress}
-                                                                sx={{
-                                                                    height: 10,
-                                                                    borderRadius: 5,
-                                                                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-                                                                    '& .MuiLinearProgress-bar': {
-                                                                        borderRadius: 5,
-                                                                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
-                                                                    }
-                                                                }}
-                                                            />
+                                            {/* 期間 */}
+                                            <TableCell>
+                                                <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                                                    {project.start_date ? new Date(project.start_date).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }) : '-'}
+                                                    〜
+                                                    {project.end_date ? new Date(project.end_date).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }) : '-'}
+                                                </Typography>
+                                            </TableCell>
+
+                                            {/* タスク状況 */}
+                                            <TableCell align="center">
+                                                <Stack direction="row" spacing={0.5} justifyContent="center">
+                                                    <Tooltip title="未着手">
+                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.todoCount || 0) > 0 ? (isDark ? 'rgba(156, 39, 176, 0.15)' : 'rgba(156, 39, 176, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.todoCount || 0}</Typography>
                                                         </Box>
-                                                        <Button
-                                                            size="small"
-                                                            variant="outlined"
-                                                            startIcon={<ShotListIcon sx={{ fontSize: '0.9rem' }} />}
-                                                            onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}/shotlist`); }}
+                                                    </Tooltip>
+                                                    <Tooltip title="進行中">
+                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.inProgressCount || 0) > 0 ? (isDark ? 'rgba(33, 150, 243, 0.15)' : 'rgba(33, 150, 243, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.inProgressCount || 0}</Typography>
+                                                        </Box>
+                                                    </Tooltip>
+                                                    <Tooltip title="遅延中">
+                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.delayedCount || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.delayedCount || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.delayedCount || 0}</Typography>
+                                                        </Box>
+                                                    </Tooltip>
+                                                    <Tooltip title="完了">
+                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.completedCount || 0) > 0 ? (isDark ? 'rgba(76, 175, 80, 0.15)' : 'rgba(76, 175, 80, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.completedCount || 0) > 0 ? 'success.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.completedCount || 0}</Typography>
+                                                        </Box>
+                                                    </Tooltip>
+                                                </Stack>
+                                            </TableCell>
+
+                                            {/* 進捗 */}
+                                            <TableCell>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Box sx={{ flexGrow: 1 }}>
+                                                        <LinearProgress
+                                                            variant="determinate"
+                                                            value={project.progress}
                                                             sx={{
-                                                                textTransform: 'none',
-                                                                fontSize: '0.8rem',
-                                                                fontWeight: 600,
-                                                                borderRadius: 2,
-                                                                py: 0.5,
-                                                                px: 1.5,
-                                                                whiteSpace: 'nowrap',
-                                                                flexShrink: 0
+                                                                height: 6,
+                                                                borderRadius: 3,
+                                                                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                                                                '& .MuiLinearProgress-bar': {
+                                                                    borderRadius: 3,
+                                                                    background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
+                                                                }
                                                             }}
-                                                        >
-                                                            ショットリスト
-                                                        </Button>
+                                                        />
                                                     </Box>
+                                                    <Typography variant="caption" sx={{ fontWeight: 800, minWidth: 28, textAlign: 'right' }}>
+                                                        {project.progress}%
+                                                    </Typography>
                                                 </Box>
-                                            </Grid>
-                                        </Grid>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        );
-                    })}
-                    {filteredProjects.length === 0 && (
-                        <Grid item xs={12}>
-                            <Box sx={{ textAlign: 'center', py: 5 }}>
-                                <Typography color="text.secondary">プロジェクトがありません</Typography>
-                            </Box>
-                        </Grid>
-                    )}
-                </Grid>
+                                            </TableCell>
+
+                                            {/* 操作 */}
+                                            <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        startIcon={<ShotListIcon sx={{ fontSize: '0.75rem !important' }} />}
+                                                        onClick={() => navigate(`/projects/${project.id}/shotlist`)}
+                                                        sx={{
+                                                            textTransform: 'none',
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 600,
+                                                            borderRadius: 1.5,
+                                                            py: 0.25,
+                                                            px: 1,
+                                                            whiteSpace: 'nowrap'
+                                                        }}
+                                                    >
+                                                        ショットリスト
+                                                    </Button>
+                                                    {isAdmin && (
+                                                        <>
+                                                            <Tooltip title="編集">
+                                                                <IconButton size="small" onClick={() => handleEditProject(project)} sx={{ color: 'primary.main', p: 0.5 }}>
+                                                                    <EditIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="削除">
+                                                                <IconButton size="small" onClick={() => handleDeleteClick(project)} sx={{ color: 'error.main', p: 0.5 }}>
+                                                                    <DeleteIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </>
+                                                    )}
+                                                </Box>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
+                {filteredProjects.length === 0 && (
+                    <Box sx={{ textAlign: 'center', py: 5 }}>
+                        <Typography color="text.secondary">プロジェクトがありません</Typography>
+                    </Box>
+                )}
             </Box>
 
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth fullScreen={isMobile}>

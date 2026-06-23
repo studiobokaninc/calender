@@ -13,19 +13,25 @@ router = APIRouter(prefix="/calendar/events", tags=["Events"])
 @router.get("", response_model=List[schemas.EventResponse])
 async def get_events_endpoint(
     project_id: Optional[str] = Query(None, description="プロジェクトIDでフィルタリング"),
+    start_date: Optional[str] = Query(None, description="取得開始日時 ISO8601 (例: 2026-06-01T00:00:00)"),
+    end_date: Optional[str] = Query(None, description="取得終了日時 ISO8601 (例: 2026-07-31T23:59:59)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user),
     skip: int = 0,
     limit: int = 1000
 ):
     """イベントのリストを取得"""
+    from datetime import datetime as dt
     project_id_int: Optional[int] = None
     if project_id is not None:
         project_id_int = crud._parse_int_safe(project_id)
         if project_id_int is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="無効なプロジェクトID形式です。")
 
-    events = crud.get_events(db=db, skip=skip, limit=limit, project_id=project_id_int)
+    start_dt = dt.fromisoformat(start_date) if start_date else None
+    end_dt = dt.fromisoformat(end_date) if end_date else None
+
+    events = crud.get_events(db=db, skip=skip, limit=limit, project_id=project_id_int, start_date=start_dt, end_date=end_dt)
     return events
 
 

@@ -45,6 +45,8 @@ def get_tasks_endpoint(
     limit: int = 10000,
     display_status_in: Optional[List[str]] = Query(None),
     include_history: bool = True,
+    due_date_from: Optional[str] = Query(None, description="due_date/start_date の下限 ISO8601 (例: 2026-06-01T00:00:00)"),
+    due_date_to: Optional[str] = Query(None, description="due_date/start_date の上限 ISO8601 (例: 2026-07-31T23:59:59)"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user)
 ):
@@ -56,7 +58,9 @@ def get_tasks_endpoint(
             skip=skip,
             limit=limit,
             display_status_in=display_status_in,
-            include_history=include_history
+            include_history=include_history,
+            due_date_from=due_date_from,
+            due_date_to=due_date_to,
         )
         
         # 依存関係解決のバッチ処理

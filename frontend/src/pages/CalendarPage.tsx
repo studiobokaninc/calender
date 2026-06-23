@@ -5,7 +5,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
-import { DateSelectArg, DayCellMountArg } from '@fullcalendar/core';
+import { DateSelectArg, DayCellMountArg, DatesSetArg } from '@fullcalendar/core';
 import {
     Box,
     Badge,
@@ -86,6 +86,7 @@ const CalendarPage: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
     const [eventStatusFilter, setEventStatusFilter] = useState<string>('all');
+    const [viewRange, setViewRange] = useState<{ start: Date; end: Date } | null>(null);
 
     // イベントタイプフィルタ
     const [eventTypeFilter, setEventTypeFilter] = useState<Record<string, boolean>>({
@@ -143,7 +144,7 @@ const CalendarPage: React.FC = () => {
         error: dataError,
         scoreSummary,
         refetch,
-    } = useCalendarData(eventStatusFilter);
+    } = useCalendarData(eventStatusFilter, viewRange);
 
     // 2. Googleカレンダー連携フック
     const {
@@ -671,12 +672,13 @@ const CalendarPage: React.FC = () => {
         setIsPanelMinimized(!isPanelMinimized);
     };
 
-    const handleDatesSet = useCallback(() => {
+    const handleDatesSet = useCallback((arg: DatesSetArg) => {
         setTimeout(() => {
             if (calendarRef.current) {
                 calendarRef.current.getApi().updateSize();
             }
         }, 0);
+        setViewRange({ start: arg.start, end: arg.end });
     }, []);
 
     const handleSelect = (selectInfo: DateSelectArg) => {

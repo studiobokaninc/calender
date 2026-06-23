@@ -27,3 +27,4 @@ llama-index-vector-stores-chroma
 edge-tts
 holidays
 anthropic>=0.49.0
+fastmcp>=2.0

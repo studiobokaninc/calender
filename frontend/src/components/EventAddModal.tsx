@@ -223,8 +223,10 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
   }, [canCreateProject, projectSelectionMode]);
 
   const projectOptions = useMemo((): ProjectOption[] => {
-    return projectsFromProps.map(p => ({ id: String(p.id), name: p.name })) || [];
-  }, [projectsFromProps]);
+    return projectsFromProps
+      .filter(p => (p.display_status ?? 'online') === 'online' || String(p.id) === String(formData.projectId))
+      .map(p => ({ id: String(p.id), name: p.name })) || [];
+  }, [projectsFromProps, formData.projectId]);
 
 
 

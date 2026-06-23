@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -86,11 +87,31 @@ print("Main: テーブル作成(metadata.create_all)を開始...")
 models.Base.metadata.create_all(bind=engine)
 print("Main: テーブル作成完了")
 
+# MCP lifespan 配線
+from .mcp_server import mcp_http, _MCPAuthMiddleware
+
+
+@asynccontextmanager
+async def lifespan(app):
+    async with mcp_http.lifespan(app):
+        try:
+            print("Main: RAGサービスの初期化(インデックス読み込み)を開始します。これには数分かかる場合があります...")
+            from .services.rag import rag_service
+            await rag_service._ensure_initialized()
+            print("Main: RAGサービスの初期化が完了しました。")
+            from .services.auto_backup import auto_backup_loop
+            asyncio.create_task(auto_backup_loop())
+        except Exception as e:
+            print(f"Main: サービスの初期化に失敗しました: {e}")
+        yield
+
+
 # FastAPIアプリケーションインスタンス
 app = FastAPI(
     title="プロジェクト管理API",
     description="プロジェクト、タスク、イベント、ユーザーを管理するためのAPI",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # 静的ファイル配信のマウント
@@ -106,20 +127,6 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 avatar_upload_dir = static_dir / "uploads" / "avatars"
 avatar_upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads/avatars", StaticFiles(directory=str(avatar_upload_dir)), name="avatars")
-
-@app.on_event("startup")
-async def startup_event():
-    try:
-        print("Main: RAGサービスの初期化(インデックス読み込み)を開始します。これには数分かかる場合があります...")
-        from .services.rag import rag_service
-        await rag_service._ensure_initialized()
-        print("Main: RAGサービスの初期化が完了しました。")
-        
-        # Start auto backup background task
-        from .services.auto_backup import auto_backup_loop
-        asyncio.create_task(auto_backup_loop())
-    except Exception as e:
-        print(f"Main: サービスの初期化に失敗しました: {e}")
 
 # CORSミドルウェア
 _cors_allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() == "true"
@@ -206,3 +213,10 @@ async def tts_debug():
 @app.get("/")
 async def root():
     return {"message": "Welcome to the Project Management API"}
+
+@app.get("/health", include_in_schema=False)
+async def health_check():
+    return {"status": "ok", "tools": 2}
+
+# MCP server (§MVP_a: same-process mount at /mcp)
+app.mount("/mcp", _MCPAuthMiddleware(mcp_http))

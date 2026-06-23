@@ -156,8 +156,18 @@ def create_meeting_task(db: Session, meeting_task: schemas.MeetingTaskCreate) ->
 def get_meeting_tasks(db: Session, meeting_id: Optional[int] = None, status: Optional[str] = None) -> List[models.MeetingTask]:
     """検出されたタスク一覧を取得"""
     from sqlalchemy.orm import joinedload
-    query = db.query(models.MeetingTask).options(
+    from sqlalchemy import or_
+    query = db.query(models.MeetingTask).join(
+        models.Meeting, models.MeetingTask.meeting_id == models.Meeting.id
+    ).join(
+        models.Project, models.Meeting.project_id == models.Project.id
+    ).options(
         joinedload(models.MeetingTask.meeting).joinedload(models.Meeting.project)
+    ).filter(
+        or_(
+            models.Project.display_status == 'online',
+            models.Project.display_status.is_(None)
+        )
     )
     if meeting_id is not None:
         query = query.filter(models.MeetingTask.meeting_id == meeting_id)

@@ -18,7 +18,7 @@ AIスマート取り込み (cmd_529 / MVP) — 抽出専用エンドポイント
 import os
 import json
 import logging
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -165,6 +165,155 @@ def parse_import_text(
         data = json.loads(raw)
     except json.JSONDecodeError:
         logger.error("AI応答のJSONパース失敗。")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI応答の解析に失敗しました（JSON不正）。",
+        )
+
+    # 抽出結果のみ返す。保存は行わない。
+    return data
+
+
+# ---------------------------------------------------------------------------
+# 一括抽出 (parse-bulk): 議事録・メモ等から複数アイテムを抽出
+# ---------------------------------------------------------------------------
+
+BULK_EXTRACTION_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["items"],
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["kind", "confidence", "notes", "payload"],
+                "properties": {
+                    "kind": {"type": "string", "enum": ["task", "event", "unknown"]},
+                    "confidence": {"type": "number"},
+                    "notes": {"type": "string"},
+                    "payload": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": [
+                            "title_or_name",
+                            "description",
+                            "event_type",
+                            "task_priority",
+                            "start",
+                            "end_or_due",
+                            "location",
+                        ],
+                        "properties": {
+                            "title_or_name": {"type": ["string", "null"]},
+                            "description": {"type": ["string", "null"]},
+                            "event_type": {
+                                "type": ["string", "null"],
+                                "enum": ["Meeting", "Deadline", "Milestone", "Workshop", "Generic", "Task", None],
+                            },
+                            "task_priority": {
+                                "type": ["string", "null"],
+                                "enum": ["HIGH", "MEDIUM", "LOW", None],
+                            },
+                            "start": {"type": ["string", "null"]},
+                            "end_or_due": {"type": ["string", "null"]},
+                            "location": {"type": ["string", "null"]},
+                        },
+                    },
+                },
+            },
+        }
+    },
+}
+
+BULK_SYSTEM_PROMPT = (
+    "あなたはスケジュール管理アプリの取り込みアシスタントです。"
+    "ユーザーが貼り付けた自由形式テキスト（議事録・メモ・箇条書き等）を読み、"
+    "含まれているタスクや予定をすべて抽出し、それぞれについて種別判定と項目抽出を行います。"
+    "規則: (1)不明な項目は必ず null にし、推測で埋めない。"
+    "(2)event_type は Meeting/Deadline/Milestone/Workshop/Generic/Task のいずれか。"
+    "(3)task_priority は HIGH/MEDIUM/LOW のいずれか、判断できなければ null。"
+    "(4)confidence は各アイテムの判定確信度 0〜1。"
+    "(5)notes に判断根拠や曖昧な点を簡潔に記す。"
+    "(6)抽出できるアイテムがない場合は items を空配列 [] で返す。"
+)
+
+
+class AIImportBulkRequest(BaseModel):
+    text: str = Field(..., description="取り込み対象のテキスト（議事録・メモ等）")
+    max_chars: int = Field(default=4000, description="入力テキストの文字数上限（保護用）")
+
+
+@router.post("/parse-bulk")
+def parse_import_bulk(
+    body: AIImportBulkRequest,
+    current_user: models.User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    テキストから複数のタスク/イベント候補を一括抽出する（保存しない）。
+    議事録・箇条書きメモ等から複数アイテムをまとめて取り込む際に使用。
+    ★ 本EPは抽出のみ。DBへ一切保存しない。
+    """
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="text は必須です。")
+
+    limit = min(max(body.max_chars, 1), MAX_CHARS_HARD_LIMIT * 2)  # 一括は上限2倍
+    clipped = text[:limit]
+
+    try:
+        import anthropic  # type: ignore
+    except Exception:
+        logger.error("anthropic SDK 未導入: pip install anthropic が必要です。")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI取り込み機能は未設定です（anthropic SDK が導入されていません）。",
+        )
+
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        logger.error("ANTHROPIC_API_KEY 未設定。")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI取り込み機能は未設定です（APIキー未設定）。",
+        )
+
+    model = os.getenv("AI_IMPORT_MODEL", DEFAULT_MODEL)
+
+    try:
+        client = anthropic.Anthropic()
+        response = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            system=BULK_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": clipped}],
+            output_config={
+                "effort": "low",
+                "format": {"type": "json_schema", "schema": BULK_EXTRACTION_SCHEMA},
+            },
+        )
+    except Exception as e:
+        logger.error("AI一括取り込み呼び出し失敗: %s", type(e).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI取り込みの実行に失敗しました。時間をおいて再試行してください。",
+        )
+
+    raw: Optional[str] = None
+    for block in response.content:
+        if getattr(block, "type", None) == "text":
+            raw = block.text
+            break
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI応答の解析に失敗しました（空応答）。",
+        )
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("AI一括応答のJSONパース失敗。")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="AI応答の解析に失敗しました（JSON不正）。",

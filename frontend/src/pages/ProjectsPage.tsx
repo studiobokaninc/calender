@@ -8,7 +8,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
 import ProjectDeleteDialog from '../components/ProjectDeleteDialog';
-import CsvParser from '../components/CsvParser';
 
 // Helper function to determine sort priority by display status (online first)
 const displayStatusOrder = (s: string): number => {
@@ -576,16 +575,6 @@ const ProjectsPage: React.FC = () => {
                 )}
             </Box>
 
-            {isAdmin && (
-                <Box sx={{ flexShrink: 0, mb: 1.5 }}>
-                    <CsvParser onImportComplete={async () => {
-                        await fetchData();
-                        if (refreshGlobalData) {
-                            await refreshGlobalData();
-                        }
-                    }} />
-                </Box>
-            )}
 
             {/* テーブル形式またはスマホ向けの縦積みカードリスト */}
             <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}>
@@ -852,7 +841,7 @@ const ProjectsPage: React.FC = () => {
                                     <TableCell sx={{ fontWeight: 800 }}>表示</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }}>担当 (Dir / PM)</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }}>期間</TableCell>
-                                    <TableCell sx={{ fontWeight: 800 }} align="center">タスク状況</TableCell>
+                                    <TableCell sx={{ fontWeight: 800, minWidth: 160 }} align="center">タスク状況</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }} width="180">進捗</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }} align="right">操作</TableCell>
                                 </TableRow>
@@ -999,26 +988,26 @@ const ProjectsPage: React.FC = () => {
                                             </TableCell>
 
                                             {/* タスク状況 */}
-                                            <TableCell align="center">
-                                                <Stack direction="row" spacing={0.5} justifyContent="center">
+                                            <TableCell align="center" sx={{ minWidth: 160 }}>
+                                                <Stack direction="row" spacing={0.75} justifyContent="center">
                                                     <Tooltip title="未着手">
-                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.todoCount || 0) > 0 ? (isDark ? 'rgba(156, 39, 176, 0.15)' : 'rgba(156, 39, 176, 0.05)') : 'transparent' }}>
-                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.todoCount || 0}</Typography>
+                                                        <Box sx={{ px: 1, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 28, textAlign: 'center', bgcolor: (project.todoCount || 0) > 0 ? (isDark ? 'rgba(156, 39, 176, 0.15)' : 'rgba(156, 39, 176, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.todoCount || 0) > 0 ? 'secondary.main' : 'text.secondary', fontSize: '0.75rem' }}>{project.todoCount || 0}</Typography>
                                                         </Box>
                                                     </Tooltip>
                                                     <Tooltip title="進行中">
-                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.inProgressCount || 0) > 0 ? (isDark ? 'rgba(33, 150, 243, 0.15)' : 'rgba(33, 150, 243, 0.05)') : 'transparent' }}>
-                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.inProgressCount || 0}</Typography>
+                                                        <Box sx={{ px: 1, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 28, textAlign: 'center', bgcolor: (project.inProgressCount || 0) > 0 ? (isDark ? 'rgba(33, 150, 243, 0.15)' : 'rgba(33, 150, 243, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.inProgressCount || 0) > 0 ? 'primary.main' : 'text.secondary', fontSize: '0.75rem' }}>{project.inProgressCount || 0}</Typography>
                                                         </Box>
                                                     </Tooltip>
                                                     <Tooltip title="遅延中">
-                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.delayedCount || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : 'transparent' }}>
-                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.delayedCount || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.delayedCount || 0}</Typography>
+                                                        <Box sx={{ px: 1, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 28, textAlign: 'center', bgcolor: (project.delayedCount || 0) > 0 ? (isDark ? 'rgba(244, 67, 54, 0.15)' : 'rgba(244, 67, 54, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.delayedCount || 0) > 0 ? 'error.main' : 'text.secondary', fontSize: '0.75rem' }}>{project.delayedCount || 0}</Typography>
                                                         </Box>
                                                     </Tooltip>
                                                     <Tooltip title="完了">
-                                                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 24, textAlign: 'center', bgcolor: (project.completedCount || 0) > 0 ? (isDark ? 'rgba(76, 175, 80, 0.15)' : 'rgba(76, 175, 80, 0.05)') : 'transparent' }}>
-                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.completedCount || 0) > 0 ? 'success.main' : 'text.secondary', fontSize: '0.7rem' }}>{project.completedCount || 0}</Typography>
+                                                        <Box sx={{ px: 1, py: 0.25, borderRadius: 1, border: '1px solid', borderColor: 'divider', minWidth: 28, textAlign: 'center', bgcolor: (project.completedCount || 0) > 0 ? (isDark ? 'rgba(76, 175, 80, 0.15)' : 'rgba(76, 175, 80, 0.05)') : 'transparent' }}>
+                                                            <Typography variant="caption" sx={{ fontWeight: 700, color: (project.completedCount || 0) > 0 ? 'success.main' : 'text.secondary', fontSize: '0.75rem' }}>{project.completedCount || 0}</Typography>
                                                         </Box>
                                                     </Tooltip>
                                                 </Stack>

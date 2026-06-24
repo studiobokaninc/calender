@@ -332,7 +332,9 @@ const MockDataConsole: React.FC = () => {
       )}
 
       {/* CSVパーサー */}
-      <CsvParser />
+      <CsvParser onImportComplete={() => {
+        console.log('[MockDataConsole] CSV import completed successfully. Navigating to Projects page...');
+      }} />
 
       {/* ショットリスト Excel インポート */}
       <ShotlistImporter />

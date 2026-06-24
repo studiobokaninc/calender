@@ -758,9 +758,6 @@ const CalendarPage: React.FC = () => {
                     {projectNameList && (
                         <span style={{ fontSize: '0.9rem', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>{projectNameList}</span>
                     )}
-                    {shotIDList && (
-                        <span style={{ fontWeight: 600, fontSize: '0.9rem', opacity: 0.7, whiteSpace: 'nowrap', flexShrink: 0 }}>{shotIDList}_</span>
-                    )}
                     <span style={{ fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={title}>{title}</span>
                 </div>
             );
@@ -802,11 +799,6 @@ const CalendarPage: React.FC = () => {
                         )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', minWidth: 0 }}>
-                        {shotIDTG && (
-                            <span style={{ fontSize: '0.8rem', opacity: 0.7, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                                {shotIDTG}
-                            </span>
-                        )}
                         <span style={{
                             fontSize: '0.85rem',
                             lineHeight: '1.2',
@@ -837,11 +829,6 @@ const CalendarPage: React.FC = () => {
                     {projectNameAD && (
                         <span style={{ fontWeight: 700, fontSize: '0.9rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
                             {projectNameAD}
-                        </span>
-                    )}
-                    {shotIDAD && (
-                        <span style={{ fontWeight: 600, fontSize: '0.85rem', opacity: 0.7, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            {shotIDAD}_
                         </span>
                     )}
                     <span style={{
@@ -875,16 +862,6 @@ const CalendarPage: React.FC = () => {
                         {projectName || typeLabel}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', minWidth: 0, minHeight: '1.2em' }}>
-                        {!isProjectEvent && shotID && (
-                            <span style={{
-                                fontSize: '0.85rem',
-                                opacity: 0.7,
-                                flexShrink: 0,
-                                whiteSpace: 'nowrap'
-                            }}>
-                                {shotID}
-                            </span>
-                        )}
                         {!isProjectEvent && (
                             <span className="calendar-event-title" style={{
                                 fontSize: '0.9rem',
@@ -1028,14 +1005,6 @@ const CalendarPage: React.FC = () => {
             return (
                 <div className="calendar-event-inner" style={{ width: '100%', overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
                     <span className="calendar-event-type-badge calendar-event-type-task" style={{ marginRight: '4px', fontSize: '0.65rem', padding: '1px 4px' }}>タスク</span>
-                    {shotID && (
-                        <span style={{
-                            marginRight: '4px',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            flexShrink: 0
-                        }}>{shotID}_</span>
-                    )}
                     {isDelayed && (
                         <span style={{
                             backgroundColor: '#D32F2F',
@@ -1048,7 +1017,7 @@ const CalendarPage: React.FC = () => {
                             flexShrink: 0
                         }}>遅延</span>
                     )}
-                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 600 }} title={shotID ? `${shotID}_${title}` : title}>{title}</span>
+                    <span className="calendar-event-title" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontWeight: 600 }} title={title}>{title}</span>
                 </div>
             );
         }

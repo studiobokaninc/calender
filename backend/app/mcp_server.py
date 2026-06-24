@@ -202,6 +202,29 @@ def get_messages(
 
 
 @mcp.tool()
+def mark_read(
+    actor_id: Annotated[int, Field(description="既読化する主体のユーザーID (必須)。スレッド参加者のみ可 (サーバ側強制)。")],
+    thread_id: Annotated[int, Field(description="既読化するスレッドID (必須)。")],
+) -> dict:
+    """actor_id ユーザーとして thread_id のスレッドを既読化する。
+    参加者以外のスレッドは既読化不可 (サーバ側 403 で強制)。"""
+    err = _require_write_scope()
+    if err:
+        return err
+    try:
+        resp = httpx.post(
+            f"{_INTERNAL_BASE}/api/dm/threads/{thread_id}/read",
+            headers=_actor_headers(actor_id),
+            timeout=15.0,
+        )
+    except httpx.RequestError as exc:
+        return {"error": f"request failed: {exc}"}
+    if not resp.is_success:
+        return {"error": resp.text, "status_code": resp.status_code}
+    return {"ok": True}
+
+
+@mcp.tool()
 def send_message(
     actor_id: Annotated[int, Field(description="送信主体のユーザーID (必須)。CLI_BYPASS_TOKEN で actor として中継送信される。")],
     to_user_id: Annotated[int, Field(description="送信先のユーザーID (必須)")],

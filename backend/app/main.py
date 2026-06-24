@@ -53,7 +53,8 @@ from .routers import (
     score_admin as score_admin_router,
     bug_reports as bug_reports_router,
     readonly as readonly_router,
-    ai_import as ai_import_router
+    ai_import as ai_import_router,
+    prediction as prediction_router
 )
 print("Main: ルーター読み込み完了")
 
@@ -196,6 +197,7 @@ app.include_router(bug_reports_router.router, prefix="/api")
 
 
 # §2 新規 API ルーターのインクルード
+app.include_router(prediction_router.router, prefix="/api")  # /api/ai/stats, /api/ai/suggest
 app.include_router(holidays_router.router)
 app.include_router(meetings_router.api_router)
 

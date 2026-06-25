@@ -264,6 +264,186 @@ def send_message(
     }
 
 
+_VALID_TASK_TYPES = {
+    "animation", "layout", "comp", "fx", "lighting", "asset",
+    "programming", "design", "testing", "shoot", "gs", "report", "other",
+}
+
+
+@mcp.tool()
+async def create_project(
+    actor_id: int,
+    name: str,
+    description: str = "",
+    start_date: str = "",
+    end_date: str = "",
+) -> dict:
+    """新規プロジェクトを作成する。管理者権限が必要。
+    管理者でない actor_id を指定した場合、REST から 403 が返る。"""
+    err = _require_write_scope()
+    if err:
+        return err
+    payload = {
+        "name": name,
+        "description": description,
+        "start_date": start_date or None,
+        "end_date": end_date or None,
+    }
+    try:
+        resp = httpx.post(
+            f"{_INTERNAL_BASE}/api/projects",
+            json=payload,
+            headers=_actor_headers(actor_id),
+            timeout=15.0,
+        )
+    except httpx.RequestError as exc:
+        return {"error": str(exc)}
+    if not resp.is_success:
+        return {"error": f"REST {resp.status_code}: {resp.text}"}
+    data = resp.json()
+    return {"ok": True, "project": {"id": data.get("id"), "name": data.get("name"), "code": data.get("code")}}
+
+
+@mcp.tool()
+async def import_shots(
+    actor_id: int,
+    project_id: int,
+    shots: list,
+) -> dict:
+    """複数ショットを project_id に一括登録する。
+    shots は [{code: str, name: str, note: str}] 形式。
+    部分失敗ポリシー: 成功分はコミット、失敗分は failed リストに記録する (ロールバックしない)。"""
+    err = _require_write_scope()
+    if err:
+        return err
+    created = []
+    failed = []
+    for i, shot in enumerate(shots):
+        payload = {
+            "project_id": project_id,
+            "seq_code": shot.get("code", ""),
+            "shot_code": shot.get("name", shot.get("code", "")),
+            "description": shot.get("note", ""),
+        }
+        try:
+            resp = httpx.post(
+                f"{_INTERNAL_BASE}/api/shots",
+                json=payload,
+                headers=_actor_headers(actor_id),
+                timeout=15.0,
+            )
+        except httpx.RequestError as exc:
+            failed.append({"index": i, "code": shot.get("code", ""), "error": str(exc)})
+            continue
+        if not resp.is_success:
+            failed.append({"index": i, "code": shot.get("code", ""), "error": f"REST {resp.status_code}: {resp.text}"})
+        else:
+            data = resp.json()
+            created.append({"index": i, "code": shot.get("code", ""), "id": data.get("id")})
+    return {"created": created, "failed": failed}
+
+
+@mcp.tool()
+async def bulk_create_tasks(
+    actor_id: int,
+    tasks: list,
+) -> dict:
+    """複数タスクを一括作成する。
+    tasks は [{shot: str, type: str, assignee: str, due: str, estimate: str, note: str}] 形式。
+    assignee は username で指定 (内部で user_id に自動解決)。shot は shot_code で指定 (内部で shot_id に自動解決)。
+    type は animation/layout/comp/fx/lighting/asset/programming/design/testing/shoot/gs/report/other のいずれか。
+    部分失敗ポリシー: 成功分はコミット、失敗分は failed リストに記録する (ロールバックしない)。"""
+    err = _require_write_scope()
+    if err:
+        return err
+
+    # users 一覧取得 → username→id マップ構築
+    username_to_id: dict = {}
+    users_warning = None
+    try:
+        users_resp = httpx.get(
+            f"{_INTERNAL_BASE}/api/users",
+            headers=_actor_headers(actor_id),
+            timeout=15.0,
+        )
+        if users_resp.is_success:
+            for u in users_resp.json():
+                uname = u.get("username") or u.get("name")
+                if uname and u.get("id"):
+                    username_to_id[uname] = u["id"]
+        else:
+            users_warning = f"users fetch failed: REST {users_resp.status_code}"
+    except httpx.RequestError as exc:
+        users_warning = f"users fetch error: {exc}"
+
+    # shots 一覧取得 → shot_code→id マップ構築
+    shot_code_to_id: dict = {}
+    try:
+        shots_resp = httpx.get(
+            f"{_INTERNAL_BASE}/api/shots",
+            headers=_actor_headers(actor_id),
+            timeout=15.0,
+        )
+        if shots_resp.is_success:
+            for s in shots_resp.json():
+                code = s.get("shot_code")
+                if code and s.get("id"):
+                    shot_code_to_id[code] = s["id"]
+    except httpx.RequestError:
+        pass
+
+    created = []
+    failed = []
+    for i, task in enumerate(tasks):
+        task_type = task.get("type", "")
+        if task_type not in _VALID_TASK_TYPES:
+            failed.append({"index": i, "reason": f"invalid type: {task_type!r}"})
+            continue
+
+        # assignee 解決
+        resolved_user_id = None
+        assignee = task.get("assignee", "")
+        if assignee:
+            resolved_user_id = username_to_id.get(assignee)
+            if resolved_user_id is None:
+                reason = "assignee not found" if not users_warning else f"assignee not found (warning: {users_warning})"
+                failed.append({"index": i, "reason": reason})
+                continue
+
+        # shot 解決
+        resolved_shot_id = None
+        shot_code = task.get("shot", "")
+        if shot_code:
+            resolved_shot_id = shot_code_to_id.get(shot_code)
+            if resolved_shot_id is None:
+                failed.append({"index": i, "reason": f"shot not found: {shot_code!r}"})
+                continue
+
+        payload = {
+            "name": task.get("note") or f"{task_type} task",
+            "type": task_type,
+            "assigned_to": resolved_user_id,
+            "due_date": task.get("due") or None,
+            "shot_id": resolved_shot_id,
+        }
+        try:
+            resp = httpx.post(
+                f"{_INTERNAL_BASE}/api/tasks",
+                json=payload,
+                headers=_actor_headers(actor_id),
+                timeout=15.0,
+            )
+        except httpx.RequestError as exc:
+            failed.append({"index": i, "reason": str(exc)})
+            continue
+        if not resp.is_success:
+            failed.append({"index": i, "reason": f"REST {resp.status_code}: {resp.text}"})
+        else:
+            data = resp.json()
+            created.append({"index": i, "task_id": data.get("id"), "name": data.get("name")})
+    return {"created": created, "failed": failed}
+
+
 class _MCPAuthMiddleware:
     """Pure ASGI middleware: validates Bearer token against SCORE_READONLY_TOKEN."""
 

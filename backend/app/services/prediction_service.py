@@ -8,6 +8,7 @@
 MVP方式: ルール + 集計統計 + LLM 文脈付与 (重量級ML・新規テーブルなし)
 """
 import logging
+import os
 from typing import Dict, Any, List, Optional
 
 from sqlalchemy.orm import Session
@@ -99,6 +100,61 @@ def get_task_completion_stats(
         "by_type": by_type,
         "by_priority": by_priority,
     }
+
+
+async def generate_insights(stats: dict) -> List[str]:
+    """
+    stats データから GPT-4o で有機的インサイトを生成する。
+    API鍵未設定時はフォールバックメッセージを返す。
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return ["AI鍵が設定されていないため表示できません"]
+
+    try:
+        from openai import AsyncOpenAI  # type: ignore
+        client = AsyncOpenAI(api_key=api_key)
+
+        total = stats.get("total_tasks", 0)
+        by_assignee = stats.get("by_assignee", [])
+
+        assignee_lines = []
+        for a in by_assignee[:10]:
+            assignee_lines.append(
+                f"- {a['name']}: 担当{a['total']}件, 完了率{a['completion_rate']}%,"
+                f" 進行中{a['in_progress']}件, 未着手{a['todo']}件"
+            )
+        assignee_summary = "\n".join(assignee_lines) if assignee_lines else "(担当データなし)"
+
+        prompt = (
+            "あなたは制作進行管理者向けのアシスタントです。\n"
+            "以下のタスク集計データを分析し、管理者にとって有益な気づきや傾向を"
+            "2〜4件、箇条書きで提示してください。\n"
+            "控えめな参考情報として日本語で簡潔に記述してください。捏造・推測は禁止。\n\n"
+            f"【集計データ】\n総タスク数: {total}件\n"
+            f"担当者別実績:\n{assignee_summary}\n\n"
+            "【出力形式】\n- 気づき1\n- 気づき2\n（2〜4件のみ）"
+        )
+
+        response = await client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            temperature=0.3,
+        )
+
+        text = response.choices[0].message.content or ""
+        lines = [
+            line.strip().lstrip("-").strip()
+            for line in text.strip().split("\n")
+            if line.strip() and line.strip() != "-"
+        ]
+        insights = [l for l in lines if l][:4]
+        return insights if insights else ["現在、特筆すべき傾向はありません"]
+
+    except Exception as e:
+        logger.warning("Insights generation failed: %s", type(e).__name__)
+        return ["インサイトの生成に失敗しました"]
 
 
 async def suggest_task(

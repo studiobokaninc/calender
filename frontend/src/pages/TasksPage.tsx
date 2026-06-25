@@ -159,10 +159,6 @@ const TasksPage: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState<string>('');
     const [projectFilter, setProjectFilter] = useState<string>('');
     const [assigneeFilter, setAssigneeFilter] = useState<string>('');
-    const [paginationModel, setPaginationModel] = useState({
-        page: 0,
-        pageSize: 15,
-    });
     const [sortModel, setSortModel] = useState<GridSortModel>([{ field: '_statusOrder', sort: 'asc' }]);
     const [stateRestored, setStateRestored] = useState(false);
 
@@ -182,7 +178,6 @@ const TasksPage: React.FC = () => {
             setStatusFilter(tasksState.statusFilter);
             setProjectFilter(tasksState.projectFilter);
             setAssigneeFilter(tasksState.assigneeFilter);
-            setPaginationModel(tasksState.paginationModel);
             setSortModel(tasksState.sortModel?.length > 0 ? tasksState.sortModel : [{ field: '_statusOrder', sort: 'asc' }]);
             // 状態復元時は前回値も更新（ページリセットを防ぐため）
             prevFiltersRef.current = {
@@ -430,44 +425,8 @@ const TasksPage: React.FC = () => {
         };
     }, [refreshGlobalData]);
 
-    // マウスホイールで横スクロールを実現
-    useEffect(() => {
-        const container = dataGridContainerRef.current;
-        if (!container) return;
 
-        const handleWheel = (e: WheelEvent) => {
-            // 横スクロールが可能な場合のみ処理
-            const scrollableElement = container.querySelector('.MuiDataGrid-virtualScroller');
-            if (!scrollableElement) return;
-
-            // 既に横スクロールしている場合は通常の動作
-            if (e.deltaX !== 0) return;
-
-            // スクロール可能な範囲をチェック
-            const hasHorizontalScroll = scrollableElement.scrollWidth > scrollableElement.clientWidth;
-
-            // 横スクロールバーが出ている場合は、マウスホイールで横スクロール
-            if (hasHorizontalScroll && e.deltaY !== 0) {
-                e.preventDefault();
-                scrollableElement.scrollLeft += e.deltaY;
-            }
-        };
-
-        // より互換性の高いイベントリスナーの設定
-        // passive: false を明示的に設定（一部のブラウザで必要）
-        try {
-            container.addEventListener('wheel', handleWheel, { passive: false });
-        } catch (e) {
-            // 古いブラウザの場合はフォールバック
-            container.addEventListener('wheel', handleWheel as EventListener);
-        }
-
-        return () => {
-            container.removeEventListener('wheel', handleWheel as EventListener);
-        };
-    }, [loading, error, isMobile]);
-
-    // フィルター変更時にページをリセット（実際に値が変わった時のみ）
+    // フィルター変更時に状態を保存（実際に値が変わった時のみ）
     useEffect(() => {
         if (stateRestored) {
             const hasFilterChanged =
@@ -476,22 +435,12 @@ const TasksPage: React.FC = () => {
                 prevFiltersRef.current.assigneeFilter !== assigneeFilter;
 
             if (hasFilterChanged) {
-                // ページをリセットした状態で状態を保存
-                const resetPaginationModel = {
-                    ...paginationModel,
-                    page: 0
-                };
-
-                // 先に状態保存してから、UIを更新
                 updateTasksState({
                     statusFilter,
                     projectFilter,
                     assigneeFilter,
-                    paginationModel: resetPaginationModel,
                     sortModel,
                 });
-
-                setPaginationModel(resetPaginationModel);
 
                 // 前回値を更新
                 prevFiltersRef.current = {
@@ -501,12 +450,11 @@ const TasksPage: React.FC = () => {
                 };
             }
         }
-    }, [statusFilter, projectFilter, assigneeFilter, stateRestored, paginationModel.pageSize, sortModel, updateTasksState]);
+    }, [statusFilter, projectFilter, assigneeFilter, stateRestored, sortModel, updateTasksState]);
 
-    // ページネーションとソートの変更をページ状態に反映（フィルター変更以外）
+    // ソートの変更をページ状態に反映（フィルター変更以外）
     useEffect(() => {
         if (stateRestored) {
-            // フィルター変更中でないことを確認
             const hasFilterChanged =
                 prevFiltersRef.current.statusFilter !== statusFilter ||
                 prevFiltersRef.current.projectFilter !== projectFilter ||
@@ -517,13 +465,11 @@ const TasksPage: React.FC = () => {
                     statusFilter,
                     projectFilter,
                     assigneeFilter,
-                    paginationModel,
                     sortModel,
                 });
             }
         }
-        // paginationModelとsortModelのみを監視（フィルターは監視しない）
-    }, [paginationModel.page, paginationModel.pageSize, sortModel, stateRestored]);
+    }, [sortModel, stateRestored]);
 
 
 
@@ -1526,9 +1472,7 @@ const TasksPage: React.FC = () => {
                             sortingOrder={['asc', 'desc', null]}
                             sortModel={sortModel}
                             onSortModelChange={setSortModel}
-                            paginationModel={paginationModel}
-                            onPaginationModelChange={setPaginationModel}
-                            pageSizeOptions={[5, 10, 15, 20, 50]}
+                            hideFooterPagination
                             rowHeight={40}
                             onRowDoubleClick={(params) => {
                                 handleEditTask(params.row as Task);

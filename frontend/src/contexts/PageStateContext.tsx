@@ -9,10 +9,6 @@ interface PageStates {
     statusFilter: string;
     projectFilter: string;
     assigneeFilter: string;
-    paginationModel: {
-      page: number;
-      pageSize: number;
-    };
     sortModel: GridSortModel;
   };
   metrics: {
@@ -57,10 +53,6 @@ const defaultStates: PageStates = {
     statusFilter: '',
     projectFilter: '',
     assigneeFilter: '',
-    paginationModel: {
-      page: 0,
-      pageSize: 15,
-    },
     sortModel: [],
   },
   metrics: {

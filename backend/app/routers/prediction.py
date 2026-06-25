@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..database import get_db
 from ..security import get_current_user
-from ..services.prediction_service import get_task_completion_stats, suggest_task
+from ..services.prediction_service import get_task_completion_stats, suggest_task, generate_insights
 
 router = APIRouter(prefix="/ai", tags=["ai_prediction"])
 
@@ -28,6 +28,17 @@ def task_stats(
 ):
     """タスク集計統計を返す（担当者別・種別別・優先度別）。"""
     return get_task_completion_stats(db, project_id=project_id, task_type=task_type)
+
+
+@router.get("/insights")
+async def task_insights(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """タスク統計データからAIが生成した有機的インサイトを返す。"""
+    stats = get_task_completion_stats(db)
+    insights = await generate_insights(stats)
+    return {"insights": insights}
 
 
 class SuggestRequest(BaseModel):

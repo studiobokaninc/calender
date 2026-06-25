@@ -52,6 +52,8 @@ const Dashboard: React.FC = () => {
   const [retakes, setRetakes] = useState<Retake[]>([])
   const [troubles, setTroubles] = useState<Trouble[]>([])
   const [notifications, setNotifications] = useState<any[]>([])
+  const [insights, setInsights] = useState<string[]>([])
+  const [insightsLoading, setInsightsLoading] = useState(false)
 
   // ユーザーが確認して非表示（Dismiss）にしたアラートIDリスト（localStorageから復元）
   const [dismissedRetakes, setDismissedRetakes] = useState<number[]>(() => {
@@ -196,6 +198,21 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     refreshGlobalData?.()
   }, [refreshGlobalData])
+
+  useEffect(() => {
+    const fetchInsights = async () => {
+      setInsightsLoading(true)
+      try {
+        const res = await api.get('/ai/insights')
+        setInsights(res.data?.insights ?? [])
+      } catch {
+        // エラー時は非表示
+      } finally {
+        setInsightsLoading(false)
+      }
+    }
+    fetchInsights()
+  }, [])
 
 
 
@@ -1057,6 +1074,35 @@ const Dashboard: React.FC = () => {
             </Grid>
           </Box>
         )}
+
+      {/* AI インサイトパネル */}
+      {(insightsLoading || insights.length > 0) && (
+        <Box sx={{ mb: 4 }}>
+          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, fontSize: '0.9rem', color: 'text.secondary' }}>
+              🤖 AI インサイト（参考）
+            </Typography>
+            {insightsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : (
+              <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                {insights.map((text, i) => (
+                  <Typography
+                    key={i}
+                    component="li"
+                    variant="body2"
+                    sx={{ color: 'text.secondary', mb: 0.5, fontSize: '0.875rem', lineHeight: 1.6 }}
+                  >
+                    {text}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Paper>
+        </Box>
+      )}
 
       {/* 編集ダイアログ・ドロワー類 */}
       <TaskEditDialog open={editTaskId !== null} taskId={editTaskId} onClose={() => setEditTaskId(null)} onSaved={() => refreshGlobalData?.()} />

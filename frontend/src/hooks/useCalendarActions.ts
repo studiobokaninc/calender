@@ -133,8 +133,8 @@ export const useCalendarActions = ({
                         name: md.title,
                         description: md.description || md.projectDescription || '',
                         status: md.status || md.projectStatus || 'planning',
-                        start_date: md.projectStartDate || md.start_time,
-                        end_date: md.projectEndDate || md.end_time,
+                        start_date: md.start_time ?? md.projectStartDate,
+                        end_date: md.end_time ?? md.projectEndDate,
                         display_status: md.display_status,
                         color: md.color,
                     };
@@ -367,9 +367,27 @@ export const useCalendarActions = ({
 
     // 非タスクイベントの一括更新 (保存ボタン方式)
     // ────────────────────────────────────────────────────────────────────────
-    const handleUpdateEvent = useCallback(async (eventId: number, updates: any) => {
+    const handleUpdateEvent = useCallback(async (eventId: number, updates: any, eventType?: string) => {
         try {
-            await api.put(`/calendar/events/${eventId}`, updates);
+            if (eventType === 'project') {
+                const startDate = updates.start_time ? updates.start_time.slice(0, 10) : undefined;
+                const endDate   = updates.end_time   ? updates.end_time.slice(0, 10)   : undefined;
+                await api.put(`/projects/${eventId}`, {
+                    name:        updates.title ?? undefined,
+                    description: updates.description ?? undefined,
+                    start_date:  startDate ? `${startDate}T00:00:00+09:00` : undefined,
+                    end_date:    endDate   ? `${endDate}T00:00:00+09:00`   : undefined,
+                });
+            } else if (eventType === 'group') {
+                const startDate = updates.start_time ? updates.start_time.slice(0, 10) : undefined;
+                const endDate   = updates.end_time   ? updates.end_time.slice(0, 10)   : undefined;
+                await api.put(`/api/groups/${eventId}`, {
+                    start_date: startDate ? `${startDate}T00:00:00+09:00` : undefined,
+                    end_date:   endDate   ? `${endDate}T00:00:00+09:00`   : undefined,
+                });
+            } else {
+                await api.put(`/calendar/events/${eventId}`, updates);
+            }
             refetch();
         } catch (error) {
             alert("イベントの更新に失敗しました。");

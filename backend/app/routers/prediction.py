@@ -32,12 +32,14 @@ def task_stats(
 
 @router.get("/insights")
 async def task_insights(
+    force: bool = Query(False, description="True の場合 TTL キャッシュを無視して再生成"),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """タスク統計データからAIが生成した有機的インサイトを返す。"""
+    """タスク統計データからAIが生成した有機的インサイトを返す。
+    通常はプロセス内TTLキャッシュ(既定12h)を返す。force=true で再生成。"""
     stats = get_task_completion_stats(db)
-    insights = await generate_insights(stats)
+    insights = await generate_insights(stats, force=force)
     return {"insights": insights}
 
 

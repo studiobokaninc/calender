@@ -63,6 +63,27 @@ def get_projects(limit: int = 100, offset: int = 0) -> dict:
 
 
 @mcp.tool()
+def get_users(limit: int = 100, offset: int = 0) -> dict:
+    """Get users list for roster. Returns uid, username, display_name only."""
+    db = SessionLocal()
+    try:
+        q = db.query(models.User).filter(models.User.is_active == True)
+        total = q.count()
+        rows = q.offset(offset).limit(min(limit, 500)).all()
+        items = [
+            {
+                "uid": u.id,
+                "username": u.username,
+                "display_name": u.full_name or u.name or None,
+            }
+            for u in rows
+        ]
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+    finally:
+        db.close()
+
+
+@mcp.tool()
 def get_today_tasks(project_id: Optional[int] = None, shot_id: Optional[int] = None) -> dict:
     """Get tasks due today. Applies due_date filter at the tool layer (readonly EP has no due_date query)."""
     db = SessionLocal()
@@ -490,6 +511,34 @@ class _MCPAuthMiddleware:
                 return
 
         await self.app(scope, receive, send)
+
+
+@mcp.tool()
+def get_events(
+    actor_id: Annotated[int, Field(description="呼出主体のユーザーID (必須)。CASPER_WRITE_TOKEN で認証。サーバ側は CALENDER_SERVICE_TOKEN で横断アクセスを許可する (Casper確定認可)。")],
+    since: Annotated[int, Field(description="このseq以降のイベントを返す (カーソル。初回は0)。")] = 0,
+    limit: Annotated[int, Field(description="取得件数上限 (デフォルト100・最大500)。")] = 100,
+) -> dict:
+    """構造化イベントログの増分取得。since=直前の最大seq、limit件を返す。
+    各eventに seq/event_id/system/ts/actor_uid/action/target_type/target_id/detail/level を含む。
+    認可: CALENDER_SERVICE_TOKEN を持つサービス主体 (Casperのstanding puller) のみ全件取得可。"""
+    err = _require_write_scope()
+    if err:
+        return err
+    try:
+        resp = httpx.get(
+            f"{_INTERNAL_BASE}/api/audit/logs",
+            headers={
+                "Authorization": f"Bearer {os.getenv('CALENDER_SERVICE_TOKEN', '')}",
+            },
+            params={"since": since, "limit": min(limit, 500)},
+            timeout=15.0,
+        )
+    except httpx.RequestError as exc:
+        return {"error": f"request failed: {exc}"}
+    if not resp.is_success:
+        return {"error": resp.text, "status_code": resp.status_code}
+    return resp.json()
 
 
 mcp_http = mcp.http_app(path="/")

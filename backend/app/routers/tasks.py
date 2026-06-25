@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .. import crud, models, schemas, security
 from ..database import get_db
+from ..services.audit_service import record_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
@@ -115,10 +116,13 @@ async def create_task_endpoint(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="指定されたプロジェクトが見つかりません")
             
     created_task = crud.create_task(db=db, task=task_data)
-    
+    record_event(db, "task.create", actor_uid=current_user.id,
+                 target_type="task", target_id=created_task.id,
+                 detail={"project_id": task_data.project_id})
+
     from app.services.google_sync import auto_sync_task_bg
     background_tasks.add_task(auto_sync_task_bg, created_task.id)
-    
+
     return created_task
 
 
@@ -141,10 +145,12 @@ async def update_task_endpoint(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="タスクの表示ステータスを変更する権限がありません")
 
     updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data)
-    
+    record_event(db, "task.update", actor_uid=current_user.id,
+                 target_type="task", target_id=task_id)
+
     from app.services.google_sync import auto_sync_task_bg
     background_tasks.add_task(auto_sync_task_bg, updated_task.id)
-    
+
     return updated_task
 
 
@@ -194,4 +200,6 @@ async def delete_task_endpoint(
         delete_task_syncs(db, task_id)
 
     crud.delete_task(db=db, db_task=db_task)
+    record_event(db, "task.delete", actor_uid=current_user.id,
+                 target_type="task", target_id=task_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

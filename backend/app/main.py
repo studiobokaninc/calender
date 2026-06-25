@@ -54,7 +54,8 @@ from .routers import (
     bug_reports as bug_reports_router,
     readonly as readonly_router,
     ai_import as ai_import_router,
-    prediction as prediction_router
+    prediction as prediction_router,
+    audit as audit_router,
 )
 print("Main: ルーター読み込み完了")
 
@@ -200,6 +201,7 @@ app.include_router(bug_reports_router.router, prefix="/api")
 app.include_router(prediction_router.router, prefix="/api")  # /api/ai/stats, /api/ai/suggest
 app.include_router(holidays_router.router)
 app.include_router(meetings_router.api_router)
+app.include_router(audit_router.router, prefix="/api")
 
 app.include_router(chat_router.router, tags=["Chat"])
 app.include_router(meetings_router.router, tags=["Meetings"])
@@ -221,6 +223,23 @@ async def root():
 async def health_check():
     tools = await mcp.list_tools()
     return {"status": "ok", "tools": len(tools)}
+
+from .services.audit_service import record_event as _audit_record
+from .database import SessionLocal as _SessionLocal
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    try:
+        with _SessionLocal() as db:
+            _audit_record(db, "system.error", level="error",
+                          detail={"path": str(request.url.path),
+                                  "error_type": type(exc).__name__})
+    except Exception:
+        pass
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
 
 # MCP server (§MVP_a: same-process mount at /mcp)
 app.mount("/mcp", _MCPAuthMiddleware(mcp_http))

@@ -677,3 +677,17 @@ class BugReport(Base):
     status: Mapped[str] = mapped_column(String(20), default="open", index=True)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
     updated_at: Mapped[datetime] = mapped_column(default=now_jst_naive, onupdate=now_jst_naive)
+
+
+class AuditLog(Base):
+    """構造化イベントログ (create/update/delete + error)"""
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True, index=True)
+    ts: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
+    actor_uid: Mapped[Optional[int]] = mapped_column(nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(100), index=True)
+    target_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    target_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    level: Mapped[str] = mapped_column(String(10), default="info")

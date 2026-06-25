@@ -48,8 +48,8 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
       fetchProjectRoles(projectId).catch(() => []),
     ]).then(([res, roles]) => {
         const p = res.data;
-        const startStr = p.start_date ? (typeof p.start_date === 'string' ? p.start_date : (p.start_date as Date).toISOString?.()?.slice(0, 10)) : '';
-        const endStr = p.end_date ? (typeof p.end_date === 'string' ? p.end_date : (p.end_date as Date).toISOString?.()?.slice(0, 10)) : '';
+        const startStr = p.start_date ? (typeof p.start_date === 'string' ? p.start_date.slice(0, 10) : (p.start_date as Date).toISOString?.()?.slice(0, 10)) : '';
+        const endStr = p.end_date ? (typeof p.end_date === 'string' ? p.end_date.slice(0, 10) : (p.end_date as Date).toISOString?.()?.slice(0, 10)) : '';
         setForm({
           name: p.name ?? '',
           description: p.description ?? '',

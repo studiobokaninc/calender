@@ -17,7 +17,7 @@ import { CalendarEvent, Project } from '../types';
 
 interface EventQuickEditProps {
     event: CalendarEvent;
-    onUpdate: (eventId: number, updates: any) => Promise<void>;
+    onUpdate: (eventId: number, updates: any, eventType?: string) => Promise<void>;
     onClose?: () => void;
     projects: Project[];
 }
@@ -42,7 +42,9 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
 
-    const eventId = Number(event.id.replace('event-', ''));
+    const eventType = (event.extendedProps?.type || '').toLowerCase();
+    const numericMatch = event.id.match(/\d+$/);
+    const eventId = numericMatch ? parseInt(numericMatch[0], 10) : NaN;
 
     const [title, setTitle] = useState(event.title || '');
     const [description, setDescription] = useState(event.extendedProps?.description || '');
@@ -68,6 +70,10 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
             alert('タイトルは必須です。');
             return;
         }
+        if (isNaN(eventId)) {
+            alert('イベントIDの取得に失敗しました。');
+            return;
+        }
         setSaving(true);
         try {
             const updates: any = {
@@ -79,7 +85,7 @@ export const EventQuickEdit: React.FC<EventQuickEditProps> = ({ event, onUpdate,
                 end_time: formatForApi(endDate, allDay),
                 project_id: projectId === '' ? null : projectId,
             };
-            await onUpdate(eventId, updates);
+            await onUpdate(eventId, updates, eventType);
             if (onClose) onClose();
         } finally {
             setSaving(false);

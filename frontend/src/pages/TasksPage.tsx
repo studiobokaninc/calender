@@ -763,15 +763,16 @@ const TasksPage: React.FC = () => {
             } catch { return 0; }
         };
 
-        // ステータス表示優先度（小さいほど上に表示）
+        // ステータス表示優先度（小さいほど上に表示。優先順：遅延、リテイク、確認中、進行中、未着手、承認済み、完了）
+        // デフォルトのソートキーとして適用されます。
         const STATUS_ORDER: Record<string, number> = {
-            'delayed':     1,  // 遅延（最上位）
-            'in-progress': 2,  // 進行中
-            'review':      3,  // レビュー中
-            'retake':      4,  // リテイク
+            'delayed':     1,  // 遅延
+            'retake':      2,  // リテイク
+            'review':      3,  // 確認中 (レビュー中)
+            'in-progress': 4,  // 進行中
             'todo':        5,  // 未着手
-            'approved':    6,  // 承認済
-            'completed':   7,  // 完了（最下位）
+            'approved':    6,  // 承認済み
+            'completed':   7,  // 完了
         };
 
         return (filteredTasks ?? []).map(t => ({
@@ -1035,7 +1036,13 @@ const TasksPage: React.FC = () => {
             const valB = (rowB as any)[field];
             
             if (comparator) {
-                return sort === 'asc' ? comparator(valA, valB) : comparator(valB, valA);
+                const primary = sort === 'asc' ? comparator(valA, valB) : comparator(valB, valA);
+                if (primary === 0 && field === '_statusOrder') {
+                    const dueA = (rowA as any)['_dueTs'] ?? Infinity;
+                    const dueB = (rowB as any)['_dueTs'] ?? Infinity;
+                    return dueA - dueB;
+                }
+                return primary;
             }
             
             if (valA == null && valB == null) return 0;
@@ -1493,6 +1500,9 @@ const TasksPage: React.FC = () => {
                                         <TableCell
                                             padding="checkbox"
                                             style={{
+                                                position: 'sticky',
+                                                top: 0,
+                                                zIndex: 3,
                                                 backgroundColor: isDark ? '#1e1e2d' : '#f8f9fa',
                                                 borderBottom: `2px solid ${isDark ? '#2b2b40' : '#e0e0e0'}`,
                                                 padding: '10px 16px',
@@ -1526,19 +1536,29 @@ const TasksPage: React.FC = () => {
                                                         borderBottom: `2px solid ${isDark ? '#2b2b40' : '#e0e0e0'}`,
                                                         color: theme.palette.text.secondary,
                                                         padding: '10px 16px',
-                                                        position: isPinnedRight ? 'sticky' : 'static',
+                                                        position: 'sticky',
+                                                        top: 0,
                                                         right: isPinnedRight ? 0 : 'auto',
-                                                        zIndex: isPinnedRight ? 3 : 1,
+                                                        zIndex: isPinnedRight ? 4 : 3,
                                                         boxShadow: isPinnedRight ? (isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.05)') : 'none',
                                                     }}
                                                 >
                                                     {col.sortable !== false ? (
                                                         <TableSortLabel
-                                                            active={sortModel[0]?.field === col.field}
+                                                            active={sortModel[0]?.field === col.field && sortModel[0]?.field !== '_statusOrder'}
                                                             direction={sortModel[0]?.field === col.field ? (sortModel[0].sort || 'asc') : 'asc'}
                                                             onClick={() => {
-                                                                const isAsc = sortModel[0]?.field === col.field && sortModel[0].sort === 'asc';
-                                                                setSortModel([{ field: col.field, sort: isAsc ? 'desc' : 'asc' }]);
+                                                                const currentField = sortModel[0]?.field;
+                                                                const currentSort = sortModel[0]?.sort;
+                                                                if (currentField === col.field) {
+                                                                    if (currentSort === 'asc') {
+                                                                        setSortModel([{ field: col.field, sort: 'desc' }]);
+                                                                    } else {
+                                                                        setSortModel([{ field: '_statusOrder', sort: 'asc' }]);
+                                                                    }
+                                                                } else {
+                                                                    setSortModel([{ field: col.field, sort: 'asc' }]);
+                                                                }
                                                             }}
                                                         >
                                                             {col.headerName}

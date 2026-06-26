@@ -649,6 +649,11 @@ const UserManagementPage: React.FC = () => {
   const isDarkMode = theme.palette.mode === 'dark';
   const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
 
+  const onlineProjectIds = useMemo(
+    () => new Set(projects.filter(p => (p.display_status ?? 'online') === 'online').map(p => p.id)),
+    [projects]
+  );
+
   return (
     <Box sx={{ p: { xs: 1.5, sm: 3 } }}>
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
@@ -910,23 +915,25 @@ const UserManagementPage: React.FC = () => {
                                     <Avatar src={user.iconUrl || undefined} sx={{ width: 28, height: 28, fontSize: '0.875rem' }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
                                     <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.8rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name || user.username}</Typography>
                                   </Box>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                                    {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ height: 20, fontSize: '0.65rem' }} />}
-                                    {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => {
-                                      const projName = projects.find(p => p.id === sr.project_id)?.name;
-                                      return (
-                                        <Tooltip key={idx} title={projName ? `プロジェクト: ${projName}` : 'プロジェクト情報なし'} arrow>
-                                          <Chip
-                                            label={sr.role.toUpperCase()}
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{ height: 20, fontSize: '0.6rem', borderColor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.main, maxWidth: 180 }}
-                                          />
-                                        </Tooltip>
-                                      );
-                                    })}
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+                                      {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ height: 20, fontSize: '0.65rem' }} />}
+                                      {scoreUserRoles.filter(sr => sr.user_id === user.id && onlineProjectIds.has(sr.project_id)).map((sr, idx) => {
+                                        const projName = projects.find(p => p.id === sr.project_id)?.name;
+                                        return (
+                                          <Tooltip key={idx} title={projName ? `プロジェクト: ${projName}` : 'プロジェクト情報なし'} arrow>
+                                            <Chip
+                                              label={sr.role.toUpperCase()}
+                                              size="small"
+                                              variant="outlined"
+                                              sx={{ height: 20, fontSize: '0.6rem', borderColor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.main, maxWidth: 180 }}
+                                            />
+                                          </Tooltip>
+                                        );
+                                      })}
+                                    </Box>
                                     {isAdmin && (
-                                      <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit" sx={{ p: 0.5, ml: 'auto' }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
+                                      <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit" sx={{ p: 0.5, flexShrink: 0 }}><EditIcon sx={{ fontSize: '1rem' }} /></IconButton>
                                     )}
                                   </Box>
                                 </Box>
@@ -1133,14 +1140,14 @@ const UserManagementPage: React.FC = () => {
                           return (
                             <TableRow key={user.id} hover sx={{ borderLeft: '4px solid #9C27B0', ...(userIdsInBoth.has(user.id) ? { bgcolor: isDarkMode ? 'rgba(156, 39, 176, 0.12)' : 'rgba(156, 39, 176, 0.07)' } : {}) }}>
                               <TableCell sx={{ verticalAlign: 'top', minWidth: 160 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                   <Avatar src={user.iconUrl || undefined} sx={{ width: 32, height: 32 }}>{(user.name || user.username || '')?.[0]?.toUpperCase()}</Avatar>
-                                  <Box>
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{user.name || user.username}</Typography>
                                     {user.role === 'admin' && <Chip label="管理者" size="small" color="secondary" sx={{ mt: 0.25 }} />}
                                   </Box>
                                   {isAdmin && (
-                                    <Box sx={{ ml: 'auto' }}>
+                                    <Box sx={{ flexShrink: 0 }}>
                                       <IconButton size="small" onClick={() => handleEditUserClick(user)} aria-label="edit"><EditIcon fontSize="small" /></IconButton>
                                     </Box>
                                   )}
@@ -1214,15 +1221,15 @@ const UserManagementPage: React.FC = () => {
                             <Avatar src={user.iconUrl || undefined} alt={user.name || user.username || ''}>
                               {user.iconUrl ? null : (user.name || user.username || '')?.[0]?.toUpperCase()}
                             </Avatar>
-                            <Box sx={{ flex: 1 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                 <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
                                   {user.name || user.username}
                                 </Typography>
                                 {user.role === 'admin' && (
                                   <Chip label="管理者" size="small" color="secondary" />
                                 )}
-                                {scoreUserRoles.filter(sr => sr.user_id === user.id).map((sr, idx) => {
+                                {scoreUserRoles.filter(sr => sr.user_id === user.id && onlineProjectIds.has(sr.project_id)).map((sr, idx) => {
                                   const projName = projects.find(p => p.id === sr.project_id)?.name;
                                   return (
                                     <Tooltip key={idx} title={projName ? `プロジェクト: ${projName}` : 'プロジェクト情報なし'} arrow>
@@ -1241,7 +1248,7 @@ const UserManagementPage: React.FC = () => {
                               </Typography>
                             </Box>
                             {isAdmin && (
-                              <Box>
+                              <Box sx={{ flexShrink: 0 }}>
                                 <IconButton
                                   size="small"
                                   edge="end"

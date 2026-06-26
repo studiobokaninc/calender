@@ -67,9 +67,9 @@ async def get_current_user(
             #   そのまま per-user 用途に使うと「別ユーザー(=その admin)」化する。
             #   (1) 監査用に警告ログを残す。(2) bypass 由来であることを印付けし、
             #       中継系(get_actor_user_id)で X-Actor-User-Id 必須化を強制する。
-            logger.warning(
+            logger.debug(
                 "AUTH bypass: CLI_BYPASS_TOKEN used; principal resolved to admin user_id=%s. "
-                "X-Actor-User-Id is required for per-user relay.", admin_user.id
+                "X-Actor-User-Id is required for per-user relay (enforced by get_actor_user_id).", admin_user.id
             )
             try:
                 setattr(admin_user, "_auth_via_bypass", True)

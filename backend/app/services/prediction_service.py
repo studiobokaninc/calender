@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 _DONE_STATUSES = {models.TaskStatus.COMPLETED, models.TaskStatus.APPROVED}
 _IN_PROGRESS_STATUS = models.TaskStatus.IN_PROGRESS
+_DELAYED_STATUS = models.TaskStatus.DELAYED
 
 
 def get_task_completion_stats(
@@ -45,9 +46,12 @@ def get_task_completion_stats(
     by_priority: Dict[str, int] = {}
     total_progress = 0
     progress_count = 0
+    total_delayed = 0
 
     for t in tasks:
         st = t.status if isinstance(t.status, models.TaskStatus) else None
+        if st == _DELAYED_STATUS:
+            total_delayed += 1
 
         # 担当者別集計
         if t.assigned_to:
@@ -57,6 +61,7 @@ def get_task_completion_stats(
                     "total": 0,
                     "completed": 0,
                     "in_progress": 0,
+                    "delayed": 0,
                     "todo": 0,
                 }
             by_assignee[t.assigned_to]["total"] += 1
@@ -64,6 +69,8 @@ def get_task_completion_stats(
                 by_assignee[t.assigned_to]["completed"] += 1
             elif st == _IN_PROGRESS_STATUS:
                 by_assignee[t.assigned_to]["in_progress"] += 1
+            elif st == _DELAYED_STATUS:
+                by_assignee[t.assigned_to]["delayed"] += 1
             else:
                 by_assignee[t.assigned_to]["todo"] += 1
 
@@ -100,6 +107,7 @@ def get_task_completion_stats(
         "by_assignee": assignee_stats[:20],
         "by_type": by_type,
         "by_priority": by_priority,
+        "total_delayed": total_delayed,
     }
 
 
@@ -134,13 +142,14 @@ async def generate_insights(stats: dict, force: bool = False) -> List[str]:
         client = AsyncOpenAI(api_key=api_key)
 
         total = stats.get("total_tasks", 0)
+        total_delayed = stats.get("total_delayed", 0)
         by_assignee = stats.get("by_assignee", [])
 
         assignee_lines = []
         for a in by_assignee[:10]:
             assignee_lines.append(
                 f"- {a['name']}: 担当{a['total']}件, 完了率{a['completion_rate']}%,"
-                f" 進行中{a['in_progress']}件, 未着手{a['todo']}件"
+                f" 進行中{a['in_progress']}件, 遅延{a.get('delayed', 0)}件, 未着手{a['todo']}件"
             )
         assignee_summary = "\n".join(assignee_lines) if assignee_lines else "(担当データなし)"
 
@@ -149,7 +158,7 @@ async def generate_insights(stats: dict, force: bool = False) -> List[str]:
             "以下のタスク集計データを分析し、管理者にとって有益な気づきや傾向を"
             "2〜4件、箇条書きで提示してください。\n"
             "控えめな参考情報として日本語で簡潔に記述してください。捏造・推測は禁止。\n\n"
-            f"【集計データ】\n総タスク数: {total}件\n"
+            f"【集計データ】\n総タスク数: {total}件（うち遅延: {total_delayed}件）\n"
             f"担当者別実績:\n{assignee_summary}\n\n"
             "【出力形式】\n- 気づき1\n- 気づき2\n（2〜4件のみ）"
         )

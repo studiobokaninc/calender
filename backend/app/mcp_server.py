@@ -541,4 +541,118 @@ def get_events(
     return resp.json()
 
 
+@mcp.tool()
+async def update_task(
+    actor_id: int,
+    task_id: int,
+    assignee: str = "",
+    due: str = "",
+    status: str = "",
+    type: str = "",
+) -> dict:
+    """タスクを部分更新する (担当付け替え/due/status/type)。
+    actor_id 本人が当該 task の担当者か admin でなければ 403 エラー。
+    assignee は username で指定 (内部で uid に解決)。
+    type は animation/layout/comp/fx/lighting/asset/programming/design/testing/shoot/gs/report/other のいずれか。
+    status は todo/in-progress/review/approved/completed/delayed/retake のいずれか。
+    指定した項目のみ更新 (未指定は変更しない)。
+    """
+    err = _require_write_scope()
+    if err:
+        return err
+
+    # ---- 権限チェック (DBで直接照会) ----
+    db = SessionLocal()
+    try:
+        actor = db.query(models.User).filter(
+            models.User.id == actor_id, models.User.is_active == True
+        ).first()
+        if not actor:
+            return {"error": "403", "detail": f"actor_id={actor_id} が見つかりません"}
+
+        db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+        if not db_task:
+            return {"error": "404", "detail": f"task_id={task_id} が見つかりません"}
+
+        is_admin = (actor.role == "admin")
+        is_assignee = (db_task.assigned_to == actor_id)
+        if not is_admin and not is_assignee:
+            return {
+                "error": "403",
+                "detail": "このタスクを更新する権限がありません (担当者または管理者のみ可)",
+            }
+    finally:
+        db.close()
+
+    # ---- type enum 検証 ----
+    if type and type not in _VALID_TASK_TYPES:
+        return {
+            "error": "invalid_type",
+            "detail": f"type='{type}' は無効。有効値: {sorted(_VALID_TASK_TYPES)}",
+        }
+
+    # ---- status enum 検証 ----
+    _VALID_STATUSES = {"todo", "in-progress", "review", "approved", "completed", "delayed", "retake"}
+    if status and status not in _VALID_STATUSES:
+        return {
+            "error": "invalid_status",
+            "detail": f"status='{status}' は無効。有効値: {sorted(_VALID_STATUSES)}",
+        }
+
+    # ---- assignee 解決 (username → uid) ----
+    resolved_assignee_id = None
+    if assignee:
+        try:
+            uresp = httpx.get(f"{_INTERNAL_BASE}/api/users", headers=_actor_headers(actor_id), timeout=10.0)
+        except httpx.RequestError as exc:
+            return {"error": f"users fetch failed: {exc}"}
+        if not uresp.is_success:
+            return {"error": "users fetch failed", "status_code": uresp.status_code}
+        username_to_id = {}
+        for u in (uresp.json() or []):
+            uname = u.get("username") or ""
+            if uname:
+                username_to_id[uname] = u.get("id") or u.get("uid")
+        resolved_assignee_id = username_to_id.get(assignee)
+        if resolved_assignee_id is None:
+            return {"error": "assignee not found", "detail": f"username '{assignee}' が見つかりません"}
+
+    # ---- 部分更新ペイロード (指定項目のみ) ----
+    payload: dict = {}
+    if resolved_assignee_id is not None:
+        payload["assigned_to"] = resolved_assignee_id
+    if due:
+        payload["due_date"] = due
+    if status:
+        payload["status"] = status
+    if type:
+        payload["type"] = type
+    if not payload:
+        return {"error": "no_fields", "detail": "更新する項目を1つ以上指定してください"}
+
+    # ---- REST呼び出し ----
+    try:
+        resp = httpx.put(
+            f"{_INTERNAL_BASE}/api/tasks/{task_id}",
+            json=payload,
+            headers=_actor_headers(actor_id),
+            timeout=15.0,
+        )
+    except httpx.RequestError as exc:
+        return {"error": f"request failed: {exc}"}
+    if not resp.is_success:
+        return {"error": resp.text, "status_code": resp.status_code}
+
+    data = resp.json()
+    return {
+        "ok": True,
+        "task_id": task_id,
+        "updated_fields": list(payload.keys()),
+        "assigned_to": data.get("assigned_to"),
+        "status": data.get("status"),
+        "type": data.get("type"),
+        "due_date": str(data.get("due_date") or ""),
+    }
+
+
 mcp_http = mcp.http_app(path="/")

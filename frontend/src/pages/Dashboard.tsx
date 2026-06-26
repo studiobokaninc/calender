@@ -712,6 +712,45 @@ const Dashboard: React.FC = () => {
         </Paper>
       </Box>
 
+      {/* AI インサイトパネル */}
+      {(insightsLoading || insights.length > 0) && (
+        <Box sx={{ mb: 4 }}>
+          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'text.secondary' }}>
+                🤖 AI インサイト（参考）
+              </Typography>
+              <Button
+                size="small"
+                onClick={handleRefreshInsights}
+                disabled={insightsLoading}
+                sx={{ fontSize: '0.7rem', minWidth: 'auto', px: 1 }}
+              >
+                🔄 更新
+              </Button>
+            </Box>
+            {insightsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : (
+              <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                {insights.map((text, i) => (
+                  <Typography
+                    key={i}
+                    component="li"
+                    variant="body2"
+                    sx={{ color: 'text.secondary', mb: 0.5, fontSize: '0.875rem', lineHeight: 1.6 }}
+                  >
+                    {text}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+          </Paper>
+        </Box>
+      )}
+
       {/* 達成度ゲージ（XPバー）- プロジェクト別カルーセル */}
       {metrics && metrics.project_metrics && metrics.project_metrics.length > 0 && (
         <Box sx={{ mb: 4 }}>
@@ -808,45 +847,6 @@ const Dashboard: React.FC = () => {
               <ChevronRightIcon />
             </IconButton>
           </Box>
-        </Box>
-      )}
-
-      {/* AI インサイトパネル */}
-      {(insightsLoading || insights.length > 0) && (
-        <Box sx={{ mb: 4 }}>
-          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'text.secondary' }}>
-                🤖 AI インサイト（参考）
-              </Typography>
-              <Button
-                size="small"
-                onClick={handleRefreshInsights}
-                disabled={insightsLoading}
-                sx={{ fontSize: '0.7rem', minWidth: 'auto', px: 1 }}
-              >
-                🔄 更新
-              </Button>
-            </Box>
-            {insightsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress size={24} />
-              </Box>
-            ) : (
-              <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {insights.map((text, i) => (
-                  <Typography
-                    key={i}
-                    component="li"
-                    variant="body2"
-                    sx={{ color: 'text.secondary', mb: 0.5, fontSize: '0.875rem', lineHeight: 1.6 }}
-                  >
-                    {text}
-                  </Typography>
-                ))}
-              </Box>
-            )}
-          </Paper>
         </Box>
       )}
 

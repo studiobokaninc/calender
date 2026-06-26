@@ -13,7 +13,7 @@ import {
     CalendarToday as CalendarIcon, Folder as FolderIcon, PriorityHigh as PriorityIcon,
     Add as AddIcon, Task as TaskIcon
 } from '@mui/icons-material';
-import { IconButton, Fab } from '@mui/material';
+import { IconButton, Fab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel, Checkbox } from '@mui/material';
 import api, { mockDataApi } from '../services/api';
 
 import { Task, Project, User } from '../types'; // Import User type as well
@@ -531,12 +531,12 @@ const TasksPage: React.FC = () => {
             if (projectFilter === 'no-project') {
                 projectMatch = task.project_id == null;
             } else {
-                // 通常時は表示ステータスがオンラインのプロジェクトのタスクのみ表示
-                const project = task.project_id != null ? projects.find(p => p.id === task.project_id) : null;
-                const isOnlineProject = task.project_id == null
-                    ? false
-                    : (project && (project.display_status ?? 'online') === 'online');
-                if (!isOnlineProject) return false;
+                // 通常時は表示ステータスがオンラインのプロジェクトのタスク、またはプロジェクト未設定のタスクを表示
+                if (task.project_id != null) {
+                    const project = projects.find(p => p.id === task.project_id);
+                    const isOnlineProject = project && (project.display_status ?? 'online') === 'online';
+                    if (!isOnlineProject) return false;
+                }
                 projectMatch = projectFilter === '' || String(task.project_id) === projectFilter;
             }
             let assigneeMatch = false;
@@ -806,12 +806,12 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'description', headerName: '説明', minWidth: 100, flex: 1, renderCell: (params: GridRenderCellParams) => {
+            field: 'description', headerName: '説明', minWidth: 120, width: 180, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const text = row.description || '-';
                 return (
                     <Tooltip title={text} followCursor>
-                        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Box sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {text}
                         </Box>
                     </Tooltip>
@@ -1021,6 +1021,36 @@ const TasksPage: React.FC = () => {
             },
         },
     ], [users, projects, taskMap]);
+
+    const sortedRows = useMemo(() => {
+        if (sortModel.length === 0) return rows;
+        const { field, sort } = sortModel[0];
+        if (!sort) return rows;
+
+        const col = columns.find(c => c.field === field);
+        const comparator = col?.sortComparator as ((a: any, b: any) => number) | undefined;
+
+        const sorted = [...rows].sort((rowA, rowB) => {
+            const valA = (rowA as any)[field];
+            const valB = (rowB as any)[field];
+            
+            if (comparator) {
+                return sort === 'asc' ? comparator(valA, valB) : comparator(valB, valA);
+            }
+            
+            if (valA == null && valB == null) return 0;
+            if (valA == null) return 1;
+            if (valB == null) return -1;
+            
+            if (typeof valA === 'number' && typeof valB === 'number') {
+                return sort === 'asc' ? valA - valB : valB - valA;
+            }
+            return sort === 'asc'
+                ? String(valA).localeCompare(String(valB), 'ja')
+                : String(valB).localeCompare(String(valA), 'ja');
+        });
+        return sorted;
+    }, [rows, sortModel, columns]);
 
 
 
@@ -1446,75 +1476,172 @@ const TasksPage: React.FC = () => {
                             '&::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(0,0,0,0.3)' },
                         }}
                     >
-                        <DataGrid
-                            rows={rows}
-                            columns={columns}
-                            getRowId={(row) => row.id}
-                            checkboxSelection
-                            disableRowSelectionOnClick
-                            rowSelectionModel={{ type: 'include' as const, ids: new Set(selectionModel) }}
-                            onRowSelectionModelChange={(newSelection) => {
-                                // MUI DataGrid のバージョンや設定により、配列またはオブジェクトで返ってくる可能性があるため柔軟に処理
-                                let ids: number[] = [];
-                                if (Array.isArray(newSelection)) {
-                                    ids = newSelection
-                                        .map(id => typeof id === 'number' ? id : Number(id))
-                                        .filter(id => !isNaN(id));
-                                } else if (newSelection && typeof newSelection === 'object' && 'ids' in newSelection) {
-                                    // 独自拡張や特定のモデル定義（Setなど）の場合
-                                    ids = Array.from((newSelection as any).ids)
-                                        .map((id: any) => typeof id === 'number' ? id : Number(id))
-                                        .filter(id => !isNaN(id));
-                                }
-                                setSelectionModel(ids);
-                            }}
-                            sortingMode="client"
-                            sortingOrder={['asc', 'desc', null]}
-                            sortModel={sortModel}
-                            onSortModelChange={setSortModel}
-                            hideFooterPagination
-                            rowHeight={40}
-                            onRowDoubleClick={(params) => {
-                                handleEditTask(params.row as Task);
-                            }}
-                            onRowClick={(params) => {
-                                setHasUnsavedChanges(false);
-                                setSelectedTask(params.row as Task);
-                                setIsDrawerOpen(true);
-                            }}
-                            disableColumnMenu={false}
-                            disableColumnSelector={false}
-                            columnVisibilityModel={{ _statusOrder: false }}
+                        <TableContainer
                             sx={{
                                 height: '100%',
-                                '& .MuiDataGrid-columnHeaders': {
-                                    background: isDark ? theme.palette.action.hover : '#f5f5f5',
-                                    fontSize: '0.8rem'
-                                },
-                                '& .MuiDataGrid-cell': {
-                                    alignItems: 'center',
-                                    fontSize: '0.8rem',
-                                    cursor: 'pointer'
-                                },
-                                '& .MuiDataGrid-row:hover': {
-                                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
-                                },
-                                '& .MuiDataGrid-footerContainer': {
-                                    fontSize: '0.8rem'
-                                },
-                                '& .MuiDataGrid-virtualScroller': {
-                                    overflowX: 'auto !important',
-                                    overflowY: 'auto',
-                                    scrollbarWidth: 'none',
-                                    msOverflowStyle: 'none',
-                                    '&::-webkit-scrollbar': { width: 0, display: 'none' }
-                                },
-                                '& .MuiDataGrid-pinnedColumns': {
-                                    backgroundColor: 'background.paper',
-                                    boxShadow: isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.1)'
-                                }
+                                maxHeight: '100%',
+                                overflow: 'auto',
+                                '&::-webkit-scrollbar': { width: '8px', height: '8px' },
+                                '&::-webkit-scrollbar-thumb': { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)', borderRadius: '4px' },
+                                '&::-webkit-scrollbar-thumb:hover': { backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.25)' },
+                                bgcolor: 'background.paper',
                             }}
-                        />
+                        >
+                            <Table stickyHeader size="small">
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell
+                                            padding="checkbox"
+                                            style={{
+                                                backgroundColor: isDark ? '#1e1e2d' : '#f8f9fa',
+                                                borderBottom: `2px solid ${isDark ? '#2b2b40' : '#e0e0e0'}`,
+                                                padding: '10px 16px',
+                                            }}
+                                        >
+                                            <Checkbox
+                                                indeterminate={selectionModel.length > 0 && selectionModel.length < sortedRows.length}
+                                                checked={sortedRows.length > 0 && selectionModel.length === sortedRows.length}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectionModel(sortedRows.map(r => r.id));
+                                                    } else {
+                                                        setSelectionModel([]);
+                                                    }
+                                                }}
+                                            />
+                                        </TableCell>
+                                        {columns.map(col => {
+                                            if (col.field === '_statusOrder') return null;
+                                            const isPinnedRight = col.field === '_actionsSortKey';
+                                            return (
+                                                <TableCell
+                                                    key={col.field}
+                                                    align={col.align as any}
+                                                    style={{
+                                                        minWidth: col.minWidth,
+                                                        width: col.width,
+                                                        fontWeight: 700,
+                                                        fontSize: '0.8rem',
+                                                        backgroundColor: isDark ? '#1e1e2d' : '#f8f9fa',
+                                                        borderBottom: `2px solid ${isDark ? '#2b2b40' : '#e0e0e0'}`,
+                                                        color: theme.palette.text.secondary,
+                                                        padding: '10px 16px',
+                                                        position: isPinnedRight ? 'sticky' : 'static',
+                                                        right: isPinnedRight ? 0 : 'auto',
+                                                        zIndex: isPinnedRight ? 3 : 1,
+                                                        boxShadow: isPinnedRight ? (isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.05)') : 'none',
+                                                    }}
+                                                >
+                                                    {col.sortable !== false ? (
+                                                        <TableSortLabel
+                                                            active={sortModel[0]?.field === col.field}
+                                                            direction={sortModel[0]?.field === col.field ? (sortModel[0].sort || 'asc') : 'asc'}
+                                                            onClick={() => {
+                                                                const isAsc = sortModel[0]?.field === col.field && sortModel[0].sort === 'asc';
+                                                                setSortModel([{ field: col.field, sort: isAsc ? 'desc' : 'asc' }]);
+                                                            }}
+                                                        >
+                                                            {col.headerName}
+                                                        </TableSortLabel>
+                                                    ) : (
+                                                        col.headerName
+                                                    )}
+                                                </TableCell>
+                                            );
+                                        })}
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {sortedRows.map((row) => {
+                                        const isSelected = selectionModel.includes(row.id);
+                                        return (
+                                            <TableRow
+                                                key={row.id}
+                                                hover
+                                                selected={isSelected}
+                                                onClick={() => {
+                                                    setHasUnsavedChanges(false);
+                                                    setSelectedTask(row as Task);
+                                                    setIsDrawerOpen(true);
+                                                }}
+                                                onDoubleClick={() => handleEditTask(row as Task)}
+                                                sx={{
+                                                    cursor: 'pointer',
+                                                    height: 40,
+                                                    '&.Mui-selected': {
+                                                        backgroundColor: isDark ? 'rgba(25, 118, 210, 0.15) !important' : 'rgba(25, 118, 210, 0.08) !important',
+                                                    },
+                                                    '&:hover': {
+                                                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04) !important' : 'rgba(0, 0, 0, 0.02) !important',
+                                                    },
+                                                }}
+                                            >
+                                                <TableCell
+                                                    padding="checkbox"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    sx={{
+                                                        borderBottom: `1px solid ${isDark ? '#2b2b40' : '#f0f0f0'}`,
+                                                        padding: '6px 16px',
+                                                    }}
+                                                >
+                                                    <Checkbox
+                                                        checked={isSelected}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectionModel(prev => [...prev, row.id]);
+                                                            } else {
+                                                                setSelectionModel(prev => prev.filter(id => id !== row.id));
+                                                            }
+                                                        }}
+                                                    />
+                                                </TableCell>
+                                                {columns.map(col => {
+                                                    if (col.field === '_statusOrder') return null;
+                                                    const value = (row as any)[col.field];
+                                                    const isPinnedRight = col.field === '_actionsSortKey';
+                                                    const cellParams = {
+                                                        id: row.id,
+                                                        row: row,
+                                                        value: value,
+                                                        field: col.field,
+                                                    };
+                                                    return (
+                                                        <TableCell
+                                                            key={col.field}
+                                                            align={col.align as any}
+                                                            sx={{
+                                                                fontSize: '0.8rem',
+                                                                padding: '6px 16px',
+                                                                borderBottom: `1px solid ${isDark ? '#2b2b40' : '#f0f0f0'}`,
+                                                                whiteSpace: 'nowrap',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis',
+                                                                position: isPinnedRight ? 'sticky' : 'static',
+                                                                right: isPinnedRight ? 0 : 'auto',
+                                                                zIndex: isPinnedRight ? 2 : 1,
+                                                                backgroundColor: isPinnedRight ? (isDark ? '#1e1e2d' : '#ffffff') : 'inherit',
+                                                                boxShadow: isPinnedRight ? (isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.05)') : 'none',
+                                                            }}
+                                                        >
+                                                            {col.renderCell ? col.renderCell(cellParams as any) : String(value ?? '-')}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                        );
+                                    })}
+                                    {sortedRows.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={columns.length + 1} align="center" sx={{ py: 8 }}>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    タスクがありません
+                                                </Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
                     </Box>
                 )}
             </Paper>
@@ -1583,11 +1710,9 @@ const TasksPage: React.FC = () => {
                                 onChange={(e) => setBulkEditForm(f => ({ ...f, status: e.target.value }))}
                             >
                                 <MenuItem value="">変更しない</MenuItem>
-                                <MenuItem value="todo">未着手</MenuItem>
-                                <MenuItem value="in-progress">進行中</MenuItem>
-                                <MenuItem value="review">レビュー中</MenuItem>
-                                <MenuItem value="completed">完了</MenuItem>
-                                <MenuItem value="delayed">遅延</MenuItem>
+                                {TASK_STATUS_OPTIONS.map(opt => (
+                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                                ))}
                             </Select>
                         </FormControl>
                         <FormControl fullWidth size="small">
@@ -1727,11 +1852,9 @@ const TasksPage: React.FC = () => {
                                 label="ステータス"
                                 onChange={handleSelectChange}
                             >
-                                <MenuItem value="todo">未着手</MenuItem>
-                                <MenuItem value="in-progress">進行中</MenuItem>
-                                <MenuItem value="review">レビュー中</MenuItem>
-                                <MenuItem value="completed">完了</MenuItem>
-                                <MenuItem value="delayed">遅延</MenuItem>
+                                {TASK_STATUS_OPTIONS.map(opt => (
+                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                                ))}
                             </Select>
                         </FormControl>
                         <FormControl fullWidth size="small">

@@ -1,7 +1,7 @@
 import logging
 from typing import List, Annotated, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status, UploadFile, File
 from sqlalchemy.orm import Session
 import shutil
 import uuid
@@ -17,16 +17,83 @@ router = APIRouter(prefix="/api/users", tags=["Users"])
 
 @router.get("", response_model=List[schemas.UserResponse])
 async def get_users_endpoint(
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(security.get_current_user),
     skip: int = 0,
     limit: int = 10000
 ):
-    """ユーザーのリストを取得"""
+    """ユーザーのリストを取得 (JWT/bypass+X-Actor or SCORE_READONLY_TOKEN M2M認証)"""
+    auth_header = request.headers.get("authorization", "")
+    x_readonly = request.headers.get("x-readonly-token", "")
+    x_actor_str = request.headers.get("x-actor-user-id", "")
+
+    readonly_env = os.getenv("SCORE_READONLY_TOKEN", "")
+    bypass_env = os.getenv("CLI_BYPASS_TOKEN", "")
+    bearer = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
+
+    is_readonly_auth = bool(
+        readonly_env and (x_readonly == readonly_env or bearer == readonly_env)
+    )
+
+    if not is_readonly_auth:
+        # JWT / bypass+X-Actor 認証
+        if not bearer:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="認証が必要です。",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        if bypass_env and bearer == bypass_env:
+            # bypass は X-Actor-User-Id 必須 (cmd_596)
+            if not x_actor_str:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="CLIバイパストークン使用時はX-Actor-User-Idヘッダーが必要です。",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            try:
+                actor_id = int(x_actor_str)
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="X-Actor-User-Idは整数である必要があります。")
+            actor = db.query(models.User).filter(models.User.id == actor_id).first()
+            if not actor:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="X-Actor-User-Idのユーザーが見つかりません。")
+        else:
+            # JWT 検証
+            from jose import JWTError, jwt as jose_jwt
+            from ..security import SECRET_KEY, ALGORITHM
+            try:
+                payload = jose_jwt.decode(bearer, SECRET_KEY, algorithms=[ALGORITHM])
+                email = payload.get("sub")
+                if not email:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="無効なトークンです。",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                db_user = crud.get_user_by_email(db, email=email)
+                if not db_user:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="ユーザーが見つかりません。",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                # F1: is_active チェック (失効前JWT保持の無効化ユーザーを排除)
+                if not getattr(db_user, "is_active", True):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="このアカウントは無効化されています。管理者にお問い合わせください。",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+            except JWTError:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="認証の有効期限が切れました。再度ログインしてください。",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
     try:
         users = crud.get_users(db=db, skip=skip, limit=limit)
-        
-        # バリデーション & アバター fallback
         response_users = []
         for u in users:
             if u.email and '@' in u.email:

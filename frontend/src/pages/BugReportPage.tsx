@@ -49,7 +49,17 @@ const BugReportPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('medium');
-  const [pageUrl, setPageUrl] = useState(document.referrer || window.location.href);
+
+  // SPA画面遷移に対応した遷移元URLの取得（sessionStorageから取得、無ければ標準フォールバック）
+  const getInitialPageUrl = () => {
+    const prevPath = sessionStorage.getItem('prevPath');
+    if (prevPath) {
+      return `${window.location.origin}${prevPath}`;
+    }
+    return document.referrer || window.location.href;
+  };
+
+  const [pageUrl, setPageUrl] = useState(getInitialPageUrl);
   const [sending, setSending] = useState(false);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');

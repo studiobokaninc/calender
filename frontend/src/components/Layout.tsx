@@ -177,6 +177,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [location.pathname])
 
+  // バグ報告画面用の遷移元パス記録
+  useEffect(() => {
+    if (location.pathname !== '/bug_report') {
+      sessionStorage.setItem('prevPath', location.pathname)
+    }
+  }, [location.pathname])
+
   useEffect(() => {
     if (shouldAutoCollapse) {
       setIsDrawerCollapsed(true)

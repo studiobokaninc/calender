@@ -37,9 +37,11 @@ def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/api/users/me", response_model=schemas.UserResponse)
-async def read_users_me(response: Response, current_user: Annotated[models.User, Depends(get_current_user)]):
+async def read_users_me(
+    response: Response,
+    current_user: Annotated[models.User, Depends(get_current_user)],
+):
     """現在認証されているユーザーの情報を返す"""
-    # 本人識別レスポンスは中間プロキシ/ブラウザにキャッシュさせない（別ユーザーへの漏洩防止）
     response.headers["Cache-Control"] = "no-store, private"
     user_data = schemas.UserResponse.from_orm(current_user)
     if not user_data.avatar_url:

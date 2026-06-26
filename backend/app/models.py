@@ -171,9 +171,9 @@ class Task(Base):
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"))
     name: Mapped[str] = mapped_column(index=True)
     description: Mapped[Optional[str]] = mapped_column(Text)
-    assigned_to: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
+    assigned_to: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), index=True)
     due_date: Mapped[Optional[datetime]] = mapped_column()
-    status: Mapped[Optional[TaskStatus]] = mapped_column()
+    status: Mapped[Optional[TaskStatus]] = mapped_column(index=True)
     priority: Mapped[Optional[TaskPriority]] = mapped_column()
     type: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Enum → String に変更（任意の値を許容）
     start_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
@@ -207,7 +207,7 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"))
+    project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), index=True)
     title: Mapped[str] = mapped_column(index=True)
     description: Mapped[Optional[str]] = mapped_column(Text)
     start_time: Mapped[datetime] = mapped_column()

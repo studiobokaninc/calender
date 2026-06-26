@@ -1,7 +1,7 @@
 import logging
-from typing import List, Annotated
+from typing import List, Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, Header, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 import shutil
 import uuid
@@ -208,7 +208,7 @@ me_router = APIRouter(prefix="/api/me", tags=["My Profile"])
 @me_router.get("/profile", response_model=schemas.UserProfileResponse)
 async def get_my_profile(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(security.get_current_user)
+    current_user: models.User = Depends(security.get_current_user),
 ):
     """自身のプロフィールを取得 (全フィールド表示)"""
     profile_data = schemas.UserProfileResponse.from_orm(current_user)

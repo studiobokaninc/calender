@@ -45,6 +45,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
+    x_actor_user_id: Optional[int] = Header(None),
     db: Session = Depends(get_db),
 ) -> models.User:
     """JWT トークンを検証し、対応するユーザーを DB から取得"""
@@ -55,31 +56,27 @@ async def get_current_user(
     )
 
     # CLIバイパストークンの検証
-    # 案A(本番無効化): CLI_BYPASS_TOKEN が env に未設定/空文字の場合、`bypass_token and ...` が
-    #   False となりこの分岐には入らない（= 本番で env 未設定なら自動的に無効）。
-    # ※ この経路は通常のメール+パスワードログイン(JWT発行・検証)には一切関与しない。
+    # bypass + X-Actor-User-Id → actor_user を直接返す (admin既定解決なし)
+    # bypass 単独 → 401 (どのadminにも化けない)
     bypass_token = os.getenv("CLI_BYPASS_TOKEN")
     if bypass_token and token == bypass_token:
-        # データベースから最初の管理者ユーザーを取得して返却
-        admin_user = db.query(models.User).filter(models.User.role == "admin").first()
-        if admin_user:
-            # 案B(成りすまし回避/警告化): bypass は共有 admin(.first()) を返すため、
-            #   そのまま per-user 用途に使うと「別ユーザー(=その admin)」化する。
-            #   (1) 監査用に警告ログを残す。(2) bypass 由来であることを印付けし、
-            #       中継系(get_actor_user_id)で X-Actor-User-Id 必須化を強制する。
-            logger.debug(
-                "AUTH bypass: CLI_BYPASS_TOKEN used; principal resolved to admin user_id=%s. "
-                "X-Actor-User-Id is required for per-user relay (enforced by get_actor_user_id).", admin_user.id
+        if not x_actor_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="CLIバイパストークン使用時はX-Actor-User-Idヘッダーが必要です。",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-            try:
-                setattr(admin_user, "_auth_via_bypass", True)
-            except Exception:
-                pass
-            return admin_user
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="バイパス認証に成功しましたが、管理者ユーザーがデータベースに見つかりません。"
+        actor_user = db.query(models.User).filter(models.User.id == x_actor_user_id).first()
+        if not actor_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"X-Actor-User-Id={x_actor_user_id} のユーザーが見つかりません。",
+            )
+        logger.debug(
+            "AUTH bypass: CLI_BYPASS_TOKEN used; actor user_id=%s resolved directly (no admin fallback).",
+            actor_user.id
         )
+        return actor_user
 
     # ▼ 通常ログイン経路（メール+パスワードで発行された JWT の検証）— 本修正では一切変更していない。
     try:

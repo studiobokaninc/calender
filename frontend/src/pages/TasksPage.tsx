@@ -872,30 +872,6 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'seqID', headerName: 'seq', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
-                const row = params.row;
-                return row.seqID || '-';
-            }
-        },
-        {
-            field: 'shotID', headerName: 'shot', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
-                const row = params.row;
-                const text = row.shotID || '-';
-                return (
-                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {text}
-                    </Box>
-                );
-            }
-        },
-        {
-            field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
-                const row = params.row;
-                // データベースに保存されているタスクタイプを小文字化して表示
-                return row.type ? row.type.toLowerCase() : '-';
-            }
-        },
-        {
             field: 'assigned_to', headerName: '担当者', minWidth: 80, width: 120,
             sortable: true,
             sortComparator: (a, b) => {
@@ -933,6 +909,30 @@ const TasksPage: React.FC = () => {
             sortable: true,
             renderCell: (params) => formatDate((params.row as any).due_date),
             sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+        },
+        {
+            field: 'seqID', headerName: 'seq', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                return row.seqID || '-';
+            }
+        },
+        {
+            field: 'shotID', headerName: 'shot', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                const text = row.shotID || '-';
+                return (
+                    <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {text}
+                    </Box>
+                );
+            }
+        },
+        {
+            field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
+                const row = params.row;
+                // データベースに保存されているタスクタイプを小文字化して表示
+                return row.type ? row.type.toLowerCase() : '-';
+            }
         },
         {
             field: '_dependsText',
@@ -1293,6 +1293,7 @@ const TasksPage: React.FC = () => {
             <Paper
                 elevation={0}
                 sx={{
+                    position: 'relative',
                     flex: 1,
                     minHeight: 0,
                     display: 'flex',
@@ -1305,51 +1306,54 @@ const TasksPage: React.FC = () => {
                 }}
             >
 
-
-                {selectionModel.length > 0 && (
-                    <Paper
-                        elevation={6}
-                        sx={{
-                            position: 'sticky',
-                            top: 0,
-                            zIndex: 10,
-                            p: 2,
-                            mb: 2,
-                            bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 45, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                            backdropFilter: 'blur(8px)',
-                            borderBottom: '1px solid',
-                            borderColor: 'divider',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            borderRadius: 2
-                        }}
+                <Paper
+                    elevation={6}
+                    sx={{
+                        position: 'absolute',
+                        bottom: 24,
+                        left: '50%',
+                        transform: selectionModel.length > 0 ? 'translate(-50%, 0)' : 'translate(-50%, 24px)',
+                        opacity: selectionModel.length > 0 ? 1 : 0,
+                        pointerEvents: selectionModel.length > 0 ? 'auto' : 'none',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        zIndex: 10,
+                        p: '8px 20px',
+                        bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 45, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(8px)',
+                        border: `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderRadius: '30px',
+                        boxShadow: theme.palette.mode === 'dark' ? '0px 10px 30px rgba(0, 0, 0, 0.5)' : '0px 10px 30px rgba(0, 0, 0, 0.15)',
+                        gap: 3,
+                    }}
+                >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main', whiteSpace: 'nowrap' }}>
+                            {selectionModel.length}件 選択中
+                        </Typography>
+                        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+                        <Stack direction="row" spacing={1}>
+                            <Button
+                                size="small"
+                                variant="contained"
+                                startIcon={<BulkEditIcon />}
+                                onClick={() => setBulkEditOpen(true)}
+                                sx={{ textTransform: 'none', borderRadius: '20px', px: 2 }}
+                            >
+                                一括編集
+                            </Button>
+                        </Stack>
+                    </Box>
+                    <IconButton
+                        size="small"
+                        onClick={() => setSelectionModel([])}
+                        sx={{ ml: -1 }}
                     >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                {selectionModel.length}件 選択中
-                            </Typography>
-                            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                            <Stack direction="row" spacing={1}>
-                                <Button
-                                    size="small"
-                                    variant="contained"
-                                    startIcon={<BulkEditIcon />}
-                                    onClick={() => setBulkEditOpen(true)}
-                                    sx={{ textTransform: 'none', borderRadius: 2 }}
-                                >
-                                    一括編集
-                                </Button>
-                            </Stack>
-                        </Box>
-                        <IconButton
-                            size="small"
-                            onClick={() => setSelectionModel([])}
-                        >
-                            <CloseIcon />
-                        </IconButton>
-                    </Paper>
-                )}
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
+                </Paper>
 
                 {isMobile ? (
                     // モバイル用カードリスト表示

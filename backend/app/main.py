@@ -7,6 +7,7 @@ import sys
 import os
 import logging
 import mimetypes
+import time
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -154,6 +155,19 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Range", "Accept-Ranges", "Content-Length", "Content-Type", "Content-Disposition"]
 )
+
+
+@app.middleware("http")
+async def timing_middleware(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    ms = (time.time() - start) * 1000
+    if ms > 200:
+        logger.warning("PERF_SLOW %s %s %.0fms", request.method, request.url.path, ms)
+    else:
+        logger.debug("PERF %s %s %.0fms", request.method, request.url.path, ms)
+    return response
+
 
 # --- Router Registration ---
 app.include_router(auth_router.router)

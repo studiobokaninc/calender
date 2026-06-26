@@ -28,7 +28,8 @@ def get_actor_user_id(
     ヘッダーから実操作者のIDを取得します。
     管理者のみ X-Actor-User-Id ヘッダーで任意のユーザーIDを指定できます。
     一般ユーザーがヘッダーを指定した場合は、自分自身のIDを使用します。
-    CLI_BYPASS_TOKEN 由来の admin 中継で X-Actor-User-Id が欠落した場合は 400。
+    bypass経路: security.py で X-Actor-User-Id のユーザーが直接 current_user として渡るため、
+    bypass判定ロジック不要。
     """
     if current_user.role == 'admin':
         if x_actor_user_id:
@@ -37,15 +38,6 @@ def get_actor_user_id(
                 current_user.id, x_actor_user_id
             )
             return x_actor_user_id
-        if getattr(current_user, "_auth_via_bypass", False):
-            logger.warning(
-                "ACTOR relay rejected: bypass(admin) without X-Actor-User-Id; "
-                "refusing to fall back to shared admin to prevent identity confusion."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="X-Actor-User-Id header is required for admin relay."
-            )
         return current_user.id
     return current_user.id
 
@@ -75,7 +67,7 @@ async def get_actor_id_for_write_eps(
         return x_actor_user_id
 
     # JWT path — call get_current_user directly with extracted bearer token
-    current_user = await security.get_current_user(token=bearer or "", db=db)
+    current_user = await security.get_current_user(token=bearer or "", x_actor_user_id=x_actor_user_id, db=db)
     if current_user.role == 'admin':
         if x_actor_user_id:
             logger.info(
@@ -83,11 +75,6 @@ async def get_actor_id_for_write_eps(
                 current_user.id, x_actor_user_id
             )
             return x_actor_user_id
-        if getattr(current_user, "_auth_via_bypass", False):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="X-Actor-User-Id header is required for admin relay."
-            )
         return current_user.id
     return current_user.id
 

@@ -17676,3 +17676,46 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-06-23 17:54:52,167 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-06-23 17:54:52,167 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-06-23 17:54:52,173 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-06-26 14:14:43,204 - app.main - WARNING - PERF_SLOW GET /tasks 313ms
+2026-06-26 14:14:54,661 - app.main - WARNING - PERF_SLOW POST /api/user-activities 14326ms
+2026-06-26 14:15:17,326 - app.main - WARNING - PERF_SLOW GET /calendar/events 19903ms
+2026-06-26 14:15:17,329 - app.main - WARNING - PERF_SLOW GET /metrics/dashboard 19915ms
+2026-06-26 14:15:17,333 - app.main - WARNING - PERF_SLOW GET /api/troubles 19913ms
+2026-06-26 14:15:17,350 - app.main - WARNING - PERF_SLOW GET /api/notifications 19923ms
+2026-06-26 14:15:17,355 - app.main - WARNING - PERF_SLOW GET /api/retakes 19935ms
+2026-06-26 14:15:20,164 - app.main - WARNING - PERF_SLOW GET /api/ai/insights 22741ms
+2026-06-26 14:15:21,565 - app.main - WARNING - PERF_SLOW GET /api/ai/insights 3611ms
+2026-06-26 14:17:02,285 - app.main - WARNING - PERF_SLOW GET /api/score_user_roles 264ms
+2026-06-26 14:17:03,427 - app.main - WARNING - PERF_SLOW GET /api/user_groups 823ms
+2026-06-26 14:17:03,431 - app.main - WARNING - PERF_SLOW GET /api/user_groups 826ms
+2026-06-26 14:17:03,433 - app.main - WARNING - PERF_SLOW GET /api/score_user_roles 832ms
+2026-06-26 14:18:21,901 - app.main - WARNING - PERF_SLOW PUT /tasks/2980 404ms
+2026-06-26 14:18:37,228 - app.main - WARNING - PERF_SLOW GET /tasks 287ms
+2026-06-26 14:26:56,346 - app.main - WARNING - PERF_SLOW GET /metrics/dashboard 245ms
+2026-06-26 14:26:56,353 - app.main - WARNING - PERF_SLOW GET /tasks 278ms
+2026-06-26 14:26:57,242 - app.main - WARNING - PERF_SLOW GET /tasks 431ms
+2026-06-26 14:51:30,408 - app.main - WARNING - PERF_SLOW GET /bug_reports/recent 299ms
+2026-06-26 15:00:12,510 - app.main - WARNING - PERF_SLOW POST /api/user-activities 725ms
+2026-06-26 15:18:32,095 - app.main - WARNING - PERF_SLOW GET /calendar/events 1097ms
+2026-06-26 15:18:32,096 - app.main - WARNING - PERF_SLOW GET /metrics/dashboard 1107ms
+2026-06-26 15:18:32,098 - app.main - WARNING - PERF_SLOW GET /api/notifications 1100ms
+2026-06-26 15:18:32,102 - app.main - WARNING - PERF_SLOW GET /api/retakes 1109ms
+2026-06-26 15:18:32,103 - app.main - WARNING - PERF_SLOW GET /api/troubles 1109ms
+2026-06-26 15:18:32,620 - app.main - WARNING - PERF_SLOW GET /tasks 216ms
+2026-06-26 15:18:36,456 - app.main - WARNING - PERF_SLOW GET /api/ai/insights 5458ms
+2026-06-26 15:18:54,238 - app.main - WARNING - PERF_SLOW GET /tasks 297ms
+2026-06-26 15:20:52,821 - app.main - WARNING - PERF_SLOW GET /tasks 309ms
+2026-06-26 15:32:09,696 - app.main - WARNING - PERF_SLOW GET /tasks 371ms
+2026-06-26 15:45:56,668 - app.main - WARNING - PERF_SLOW GET /tasks 343ms
+2026-06-26 15:45:57,240 - app.main - WARNING - PERF_SLOW GET /api/user_groups 241ms
+2026-06-26 15:45:57,334 - app.main - WARNING - PERF_SLOW GET /tasks 354ms
+2026-06-26 15:46:04,697 - app.main - WARNING - PERF_SLOW GET /tasks 345ms
+2026-06-26 16:30:12,030 - app.main - WARNING - PERF_SLOW POST /api/auth/token 1016ms
+2026-06-26 16:30:15,118 - app.main - WARNING - PERF_SLOW POST /api/user-activities 801ms
+2026-06-26 16:30:15,191 - app.main - WARNING - PERF_SLOW GET /projects 423ms
+2026-06-26 16:30:16,696 - app.main - WARNING - PERF_SLOW GET /tasks 1812ms
+2026-06-26 16:30:17,249 - app.main - WARNING - PERF_SLOW GET /tasks 241ms
+2026-06-26 16:30:20,567 - app.main - WARNING - PERF_SLOW GET /api/projects/53/production-tracker 1139ms
+2026-06-26 16:30:27,527 - app.main - WARNING - PERF_SLOW GET /tasks 656ms
+2026-06-26 16:30:35,588 - app.main - WARNING - PERF_SLOW GET /tasks 277ms
+2026-06-26 16:30:35,801 - app.main - WARNING - PERF_SLOW GET /api/score_user_roles 930ms

@@ -357,11 +357,9 @@ export const useCalendarActions = ({
 
         try {
             await api.put(`/tasks/${taskId}`, updates);
-            if (refreshGlobalData) await refreshGlobalData({ force: true });
-            refetch();
         } catch (error) {
             alert("タスクの更新に失敗しました。");
-            refetch(); // Revert state from backend if it failed
+            if (refreshGlobalData) await refreshGlobalData(); // 失敗時のみ正しい状態に戻す
         }
     }, [globalData, updateGlobalData, refreshGlobalData, refetch]);
 

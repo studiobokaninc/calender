@@ -165,7 +165,7 @@ const Dashboard: React.FC = () => {
   const handleUpdateTaskQuick = async (taskId: number, updates: any) => {
     try {
       await api.put(`/tasks/${taskId}`, updates);
-      refreshGlobalData?.();
+      setSelectedTaskDetail((prev: any) => prev && prev.id === taskId ? { ...prev, ...updates } : prev);
     } catch (err) {
       console.error('Failed to update task:', err);
     }

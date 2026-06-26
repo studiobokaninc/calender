@@ -184,13 +184,61 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
         await onUpdate(task.id, { check_items: newItems });
     };
 
+    const nameDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
+    const descDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
+    const costDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
+    const seqDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
+    const shotDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
+    const deliverablesDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // Cleanup debounces on unmount or task change
+    React.useEffect(() => {
+        return () => {
+            if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+            if (descDebounceRef.current) clearTimeout(descDebounceRef.current);
+            if (costDebounceRef.current) clearTimeout(costDebounceRef.current);
+            if (seqDebounceRef.current) clearTimeout(seqDebounceRef.current);
+            if (shotDebounceRef.current) clearTimeout(shotDebounceRef.current);
+            if (deliverablesDebounceRef.current) clearTimeout(deliverablesDebounceRef.current);
+        };
+    }, [task.id]);
+
+    const handleDeliverablesChange = (val: string) => {
+        setLocalDeliverables(val);
+        if (deliverablesDebounceRef.current) clearTimeout(deliverablesDebounceRef.current);
+        deliverablesDebounceRef.current = setTimeout(async () => {
+            if (val !== (task.deliverables || '')) {
+                await onUpdate(task.id, { deliverables: val });
+            }
+        }, 1000);
+    };
+
     const handleDeliverablesBlur = async () => {
+        if (deliverablesDebounceRef.current) {
+            clearTimeout(deliverablesDebounceRef.current);
+            deliverablesDebounceRef.current = null;
+        }
         if (localDeliverables !== (task.deliverables || '')) {
             await onUpdate(task.id, { deliverables: localDeliverables });
         }
     };
 
+    const handleNameChange = (val: string) => {
+        setEditName(val);
+        onEdit?.();
+        if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+        nameDebounceRef.current = setTimeout(async () => {
+            if (val.trim() && val !== task.name) {
+                await onUpdate(task.id, { name: val });
+            }
+        }, 500);
+    };
+
     const handleNameBlur = async () => {
+        if (nameDebounceRef.current) {
+            clearTimeout(nameDebounceRef.current);
+            nameDebounceRef.current = null;
+        }
         if (!editName.trim()) {
             setEditName(task.name);
             return;
@@ -200,13 +248,44 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
         }
     };
 
+    const handleDescriptionChange = (val: string) => {
+        setEditDescription(val);
+        onEdit?.();
+        if (descDebounceRef.current) clearTimeout(descDebounceRef.current);
+        descDebounceRef.current = setTimeout(async () => {
+            if (val !== (task.description || '')) {
+                await onUpdate(task.id, { description: val || null });
+            }
+        }, 1000);
+    };
+
     const handleDescriptionBlur = async () => {
+        if (descDebounceRef.current) {
+            clearTimeout(descDebounceRef.current);
+            descDebounceRef.current = null;
+        }
         if (editDescription !== (task.description || '')) {
             await onUpdate(task.id, { description: editDescription || null });
         }
     };
 
+    const handleCostChange = (val: string) => {
+        setEditCost(val);
+        onEdit?.();
+        if (costDebounceRef.current) clearTimeout(costDebounceRef.current);
+        costDebounceRef.current = setTimeout(async () => {
+            const newCost = val !== '' ? Number(val) : null;
+            if (newCost !== task.cost) {
+                await onUpdate(task.id, { cost: newCost });
+            }
+        }, 1000);
+    };
+
     const handleCostBlur = async () => {
+        if (costDebounceRef.current) {
+            clearTimeout(costDebounceRef.current);
+            costDebounceRef.current = null;
+        }
         const newCost = editCost !== '' ? Number(editCost) : null;
         if (newCost !== task.cost) {
             await onUpdate(task.id, { cost: newCost });
@@ -214,19 +293,53 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
     };
 
     const handleIncrementCost = async () => {
+        if (costDebounceRef.current) {
+            clearTimeout(costDebounceRef.current);
+            costDebounceRef.current = null;
+        }
         const currentCost = editCost !== '' ? Number(editCost) : 0;
         const newCost = currentCost + 1;
         setEditCost(String(newCost));
         await onUpdate(task.id, { cost: newCost });
     };
 
+    const handleSeqIDChange = (val: string) => {
+        setEditSeqID(val);
+        onEdit?.();
+        if (seqDebounceRef.current) clearTimeout(seqDebounceRef.current);
+        seqDebounceRef.current = setTimeout(async () => {
+            if (val !== (task.seqID || '')) {
+                await onUpdate(task.id, { seqID: val || null });
+            }
+        }, 1000);
+    };
+
     const handleSeqIDBlur = async () => {
+        if (seqDebounceRef.current) {
+            clearTimeout(seqDebounceRef.current);
+            seqDebounceRef.current = null;
+        }
         if (editSeqID !== (task.seqID || '')) {
             await onUpdate(task.id, { seqID: editSeqID || null });
         }
     };
 
+    const handleShotIDChange = (val: string) => {
+        setEditShotID(val);
+        onEdit?.();
+        if (shotDebounceRef.current) clearTimeout(shotDebounceRef.current);
+        shotDebounceRef.current = setTimeout(async () => {
+            if (val !== (task.shotID || '')) {
+                await onUpdate(task.id, { shotID: val || null });
+            }
+        }, 1000);
+    };
+
     const handleShotIDBlur = async () => {
+        if (shotDebounceRef.current) {
+            clearTimeout(shotDebounceRef.current);
+            shotDebounceRef.current = null;
+        }
         if (editShotID !== (task.shotID || '')) {
             await onUpdate(task.id, { shotID: editShotID || null });
         }
@@ -261,7 +374,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                     {isAdmin ? (
                         <TextField
                             value={editName}
-                            onChange={(e) => { setEditName(e.target.value); onEdit?.(); }}
+                            onChange={(e) => handleNameChange(e.target.value)}
                             onBlur={handleNameBlur}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -305,7 +418,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                     {isAdmin ? (
                         <TextField
                             value={editDescription}
-                            onChange={(e) => { setEditDescription(e.target.value); onEdit?.(); }}
+                            onChange={(e) => handleDescriptionChange(e.target.value)}
                             onBlur={handleDescriptionBlur}
                             placeholder="説明を追加..."
                             multiline
@@ -458,7 +571,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                                 label="コスト（時間）"
                                                 type="number"
                                                 value={editCost}
-                                                onChange={(e) => { setEditCost(e.target.value); onEdit?.(); }}
+                                                onChange={(e) => handleCostChange(e.target.value)}
                                                 onBlur={handleCostBlur}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
@@ -568,7 +681,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <TextField
                                             label="シーケンスID"
                                             value={editSeqID}
-                                            onChange={(e) => { setEditSeqID(e.target.value); onEdit?.(); }}
+                                            onChange={(e) => handleSeqIDChange(e.target.value)}
                                             onBlur={handleSeqIDBlur}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
@@ -586,7 +699,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <TextField
                                             label="ショットID"
                                             value={editShotID}
-                                            onChange={(e) => { setEditShotID(e.target.value); onEdit?.(); }}
+                                            onChange={(e) => handleShotIDChange(e.target.value)}
                                             onBlur={handleShotIDBlur}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
@@ -881,7 +994,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                             size="small"
                             placeholder={isAdmin ? "タスクに関するメモやリンク、参考情報をご記入ください..." : "メモはありません"}
                             value={localDeliverables}
-                            onChange={(e) => setLocalDeliverables(e.target.value)}
+                            onChange={(e) => handleDeliverablesChange(e.target.value)}
                             onBlur={handleDeliverablesBlur}
                             disabled={!isAdmin}
                             onKeyDown={(e) => {

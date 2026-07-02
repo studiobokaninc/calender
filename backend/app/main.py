@@ -95,10 +95,33 @@ print("Main: テーブル作成完了")
 from .mcp_server import mcp_http, _MCPAuthMiddleware, mcp
 
 
+def cleanup_orphaned_meetings():
+    """サーバー起動時に、前回の実行で中断された『解析中』『録音中』の会議ステータスを failed にクリーンアップする"""
+    from .database import SessionLocal
+    from . import models
+    
+    logger = logging.getLogger(__name__)
+    with SessionLocal() as db:
+        try:
+            orphaned = db.query(models.Meeting).filter(
+                models.Meeting.status.in_(["processing", "recording"])
+            ).all()
+            if orphaned:
+                for m in orphaned:
+                    m.status = "failed"
+                    logger.warning(
+                        f"Cleaned up orphaned meeting {m.id} (status reset from '{m.status}' to 'failed' on startup)"
+                    )
+                db.commit()
+        except Exception as e:
+            logger.error(f"Failed to cleanup orphaned meetings on startup: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app):
     async with mcp_http.lifespan(app):
         try:
+            cleanup_orphaned_meetings()
             print("Main: RAGサービスの初期化(インデックス読み込み)を開始します。これには数分かかる場合があります...")
             from .services.rag import rag_service
             await rag_service._ensure_initialized()

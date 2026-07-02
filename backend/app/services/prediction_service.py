@@ -184,6 +184,15 @@ async def generate_insights(stats: dict, force: bool = False) -> List[str]:
 
     except Exception as e:
         logger.warning("Insights generation failed: %s", type(e).__name__)
+        
+        # APIエラー時のフォールバックとして、期限切れであってもキャッシュがあればそれを返す
+        if _insights_cache["data"] is not None:
+            logger.info("Returning expired cache as fallback due to API error")
+            return _insights_cache["data"]
+            
+        if type(e).__name__ == "RateLimitError":
+            return ["AIの利用制限（RateLimitError）に達しました。APIキーの残高やプラン、利用制限を確認してください。"]
+            
         return ["インサイトの生成に失敗しました"]
 
 

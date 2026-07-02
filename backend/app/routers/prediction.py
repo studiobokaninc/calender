@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from .. import models
 from ..database import get_db
 from ..security import get_current_user
-from ..services.prediction_service import get_task_completion_stats, suggest_task, generate_insights
+from ..services.prediction_service import get_task_completion_stats, suggest_task
 
 router = APIRouter(prefix="/ai", tags=["ai_prediction"])
 
@@ -31,16 +31,19 @@ def task_stats(
 
 
 @router.get("/insights")
-async def task_insights(
-    force: bool = Query(False, description="True の場合 TTL キャッシュを無視して再生成"),
+def task_insights(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """タスク統計データからAIが生成した有機的インサイトを返す。
-    通常はプロセス内TTLキャッシュ(既定12h)を返す。force=true で再生成。"""
-    stats = get_task_completion_stats(db)
-    insights = await generate_insights(stats, force=force)
-    return {"insights": insights}
+    """DBに保存済みのAIインサイトを返す。バッチ未実行なら空リストを返す。"""
+    import json as _json
+    latest = db.query(models.AiInsight).order_by(models.AiInsight.generated_at.desc()).first()
+    if latest is None:
+        return {"insights": [], "stats_summary": None, "generated_at": None}
+    insights = _json.loads(latest.insights_json)
+    stats_summary = _json.loads(latest.stats_summary_json) if latest.stats_summary_json else None
+    generated_at = latest.generated_at.isoformat() if latest.generated_at else None
+    return {"insights": insights, "stats_summary": stats_summary, "generated_at": generated_at}
 
 
 class SuggestRequest(BaseModel):

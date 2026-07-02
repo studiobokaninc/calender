@@ -54,6 +54,7 @@ const Dashboard: React.FC = () => {
   const [notifications, setNotifications] = useState<any[]>([])
   const [insights, setInsights] = useState<string[]>([])
   const [insightsLoading, setInsightsLoading] = useState(false)
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null)
 
   // ユーザーが確認して非表示（Dismiss）にしたアラートIDリスト（localStorageから復元）
   const [dismissedRetakes, setDismissedRetakes] = useState<number[]>(() => {
@@ -205,6 +206,7 @@ const Dashboard: React.FC = () => {
       try {
         const res = await api.get('/api/ai/insights')
         setInsights(res.data?.insights ?? [])
+        setGeneratedAt(res.data?.generated_at ?? null)
       } catch {
         // エラー時は非表示
       } finally {
@@ -217,8 +219,9 @@ const Dashboard: React.FC = () => {
   const handleRefreshInsights = async () => {
     setInsightsLoading(true)
     try {
-      const res = await api.get('/api/ai/insights?force=true')
+      const res = await api.get('/api/ai/insights')
       setInsights(res.data?.insights ?? [])
+      setGeneratedAt(res.data?.generated_at ?? null)
     } catch {
       // エラー時は既存インサイト維持
     } finally {
@@ -713,43 +716,52 @@ const Dashboard: React.FC = () => {
       </Box>
 
       {/* AI インサイトパネル */}
-      {(insightsLoading || insights.length > 0) && (
-        <Box sx={{ mb: 4 }}>
-          <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+      <Box sx={{ mb: 4 }}>
+        <Paper elevation={2} sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: { xs: 1.5, sm: 2 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+            <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.9rem', color: 'text.secondary' }}>
                 🤖 AI インサイト（参考）
               </Typography>
-              <Button
-                size="small"
-                onClick={handleRefreshInsights}
-                disabled={insightsLoading}
-                sx={{ fontSize: '0.7rem', minWidth: 'auto', px: 1 }}
-              >
-                🔄 更新
-              </Button>
+              {generatedAt && (
+                <Typography variant="caption" color="text.secondary">
+                  最終更新: {new Date(generatedAt).toLocaleString('ja-JP')}
+                </Typography>
+              )}
             </Box>
-            {insightsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress size={24} />
-              </Box>
-            ) : (
-              <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-                {insights.map((text, i) => (
-                  <Typography
-                    key={i}
-                    component="li"
-                    variant="body2"
-                    sx={{ color: 'text.secondary', mb: 0.5, fontSize: '0.875rem', lineHeight: 1.6 }}
-                  >
-                    {text}
-                  </Typography>
-                ))}
-              </Box>
-            )}
-          </Paper>
-        </Box>
-      )}
+            <Button
+              size="small"
+              onClick={handleRefreshInsights}
+              disabled={insightsLoading}
+              sx={{ fontSize: '0.7rem', minWidth: 'auto', px: 1 }}
+            >
+              🔄 再読み込み
+            </Button>
+          </Box>
+          {insightsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : insights.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+              AIインサイト未生成 — 管理者がバッチを実行すると表示されます
+            </Typography>
+          ) : (
+            <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+              {insights.map((text, i) => (
+                <Typography
+                  key={i}
+                  component="li"
+                  variant="body2"
+                  sx={{ color: 'text.secondary', mb: 0.5, fontSize: '0.875rem', lineHeight: 1.6 }}
+                >
+                  {text}
+                </Typography>
+              ))}
+            </Box>
+          )}
+        </Paper>
+      </Box>
 
       {/* 達成度ゲージ（XPバー）- プロジェクト別カルーセル */}
       {metrics && metrics.project_metrics && metrics.project_metrics.length > 0 && (

@@ -316,7 +316,7 @@ const TasksPage: React.FC = () => {
         try {
             setLoading(true);
             const [tasksResponse, projectsResponse, usersResponse] = await Promise.all([
-                api.get('/tasks'),
+                api.get('/tasks', { params: { project_display_status: 'online' } }),
                 api.get('/projects'),
                 api.get('/api/users')
             ]);
@@ -550,6 +550,16 @@ const TasksPage: React.FC = () => {
             return statusMatch && projectMatch && assigneeMatch;
         });
     }, [tasks, projects, statusFilter, projectFilter, assigneeFilter]);
+
+    const onlineTasks = useMemo(() => {
+        return tasks.filter(task => {
+            if (task.project_id != null) {
+                const project = projects.find(p => p.id === task.project_id);
+                return (project?.display_status ?? 'online') === 'online';
+            }
+            return true;
+        });
+    }, [tasks, projects]);
 
 
 
@@ -1124,20 +1134,46 @@ const TasksPage: React.FC = () => {
                     </Link>
                     <Typography color="text.primary" sx={{ fontWeight: 500 }}>Tasks</Typography>
                 </Breadcrumbs>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <TaskIcon sx={{ fontSize: '2rem', color: '#2196F3' }} />
-                    <Typography
-                        variant="h4"
-                        sx={{
-                            fontWeight: 800,
-                            background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            fontSize: { xs: '1.75rem', sm: '2.25rem' }
-                        }}
-                    >
-                        Tasks
-                    </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <TaskIcon sx={{ fontSize: '2rem', color: '#2196F3' }} />
+                        <Typography
+                            variant="h4"
+                            sx={{
+                                fontWeight: 800,
+                                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                fontSize: { xs: '1.75rem', sm: '2.25rem' }
+                            }}
+                        >
+                            Tasks
+                        </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Chip
+                            label={`全タスク: ${onlineTasks.length}件`}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                                fontWeight: 600,
+                                borderColor: 'divider',
+                                color: 'text.secondary',
+                                height: 26,
+                            }}
+                        />
+                        <Chip
+                            label={`表示中: ${filteredTasks.length}件`}
+                            size="small"
+                            sx={{
+                                fontWeight: 600,
+                                background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                                color: 'white',
+                                height: 26,
+                                border: 'none',
+                            }}
+                        />
+                    </Box>
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.95rem' }}>
                     プロジェクトの個別タスクと担当者、期日を一元管理します。

@@ -7,7 +7,7 @@ from .users import (
     create_user, update_user, delete_user
 )
 from .projects import (
-    get_project, get_project_by_name, get_projects, create_project, update_project, 
+    get_project, get_project_by_name, get_project_by_client_ref, get_projects, create_project, update_project,
     delete_project_with_cascade, complete_tasks_for_project
 )
 from .tasks import (
@@ -16,6 +16,9 @@ from .tasks import (
 )
 from .events import (
     get_event, get_events, create_event, update_event, delete_event
+)
+from .audit import (
+    get_audit_events
 )
 from .batch import (
     update_task_statuses, auto_update_task_statuses, get_user_google_token

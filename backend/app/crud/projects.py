@@ -17,6 +17,10 @@ def get_project_by_name(db: Session, name: str) -> Optional[models.Project]:
     """プロジェクト名からプロジェクトを取得"""
     return db.query(models.Project).filter(models.Project.name == name).first()
 
+def get_project_by_client_ref(db: Session, client_ref: str) -> Optional[models.Project]:
+    """client_ref からプロジェクトを取得"""
+    return db.query(models.Project).filter(models.Project.client_ref == client_ref).first()
+
 def get_projects(db: Session, skip: int = 0, limit: int = 100, display_status_in: Optional[List[str]] = None) -> List[models.Project]:
     """プロジェクトを取得（フィルタ・ページネーション対応）"""
     query = db.query(models.Project)
@@ -33,7 +37,8 @@ def create_project(db: Session, project: schemas.ProjectCreate) -> models.Projec
         display_status=project.display_status or 'online',
         start_date=_parse_datetime(project.start_date),
         end_date=_parse_datetime(project.end_date),
-        color=project.color
+        color=project.color,
+        client_ref=project.client_ref,
     )
     db.add(db_project)
     db.commit()

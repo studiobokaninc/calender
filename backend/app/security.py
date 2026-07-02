@@ -43,12 +43,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 
 
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    x_actor_user_id: Optional[int] = Header(None),
-    db: Session = Depends(get_db),
+async def verify_token(
+    token: str,
+    db: Session,
+    x_actor_user_id: Optional[int] = None,
 ) -> models.User:
-    """JWT トークンを検証し、対応するユーザーを DB から取得"""
+    """JWTトークン（またはCLIバイパストークン）を検証し、対応するユーザーを DB から取得"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="認証の有効期限が切れました。再度ログインしてください。",
@@ -78,7 +78,7 @@ async def get_current_user(
         )
         return actor_user
 
-    # ▼ 通常ログイン経路（メール+パスワードで発行された JWT の検証）— 本修正では一切変更していない。
+    # ▼ 通常ログイン経路（メール+パスワードで発行された JWT の検証）
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: Optional[str] = payload.get("sub")  # email を想定
@@ -98,9 +98,40 @@ async def get_current_user(
             detail="このアカウントは無効化されています。管理者にお問い合わせください。",
         )
 
-    # 軽量監査ログ(③): 通常JWT本人解決。高頻度のため debug レベル。
+    # 軽量監査ログ: 通常JWT本人解決。高頻度のため debug レベル。
     logger.debug("AUTH jwt: principal resolved to user_id=%s (sub=email).", user.id)
     return user
+
+
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    x_actor_user_id: Optional[int] = Header(None),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """JWT トークンを検証し、対応するユーザーを DB から取得"""
+    return await verify_token(token, db, x_actor_user_id)
+
+
+from fastapi import Query
+
+async def get_current_user_for_audio(
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """音声ファイル配信用の認証依存関係。ヘッダーまたはクエリパラメータからトークンを検証します。"""
+    actual_token = token
+    if not actual_token and authorization and authorization.startswith("Bearer "):
+        actual_token = authorization.split("Bearer ", 1)[1].strip()
+
+    if not actual_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="認証の有効期限が切れました。再度ログインしてください。",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return await verify_token(actual_token, db)
 
 
 async def get_current_active_admin(

@@ -19,6 +19,7 @@ import {
 } from '@mui/icons-material';
 import api from '../services/api';
 import { Meeting } from '../types';
+import MeetingRecorder from './MeetingRecorder';
 
 interface ProjectMeetingsProps {
     projectId: number;
@@ -172,6 +173,8 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                     </Button>
                 </Box>
             </Box>
+
+            <MeetingRecorder projectId={projectId} onRecordingComplete={() => fetchMeetings(true)} />
 
             {loading ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>

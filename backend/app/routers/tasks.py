@@ -45,6 +45,7 @@ def get_tasks_endpoint(
     skip: int = 0,
     limit: int = 10000,
     display_status_in: Optional[List[str]] = Query(None),
+    project_display_status: Optional[str] = Query(None, description="プロジェクトの表示ステータスでフィルタ"),
     include_history: bool = True,
     due_date_from: Optional[str] = Query(None, description="due_date/start_date の下限 ISO8601 (例: 2026-06-01T00:00:00)"),
     due_date_to: Optional[str] = Query(None, description="due_date/start_date の上限 ISO8601 (例: 2026-07-31T23:59:59)"),
@@ -62,6 +63,7 @@ def get_tasks_endpoint(
             include_history=include_history,
             due_date_from=due_date_from,
             due_date_to=due_date_to,
+            project_display_status=project_display_status,
         )
         
         # 依存関係解決のバッチ処理

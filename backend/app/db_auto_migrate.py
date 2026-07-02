@@ -44,6 +44,17 @@ def check_and_migrate_db():
             conn.commit()
             print("thread_idカラムを追加しました。")
             
+        # projectsテーブルの既存のカラムを確認
+        cursor.execute("PRAGMA table_info(projects)")
+        project_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'client_ref' not in project_columns:
+            print("client_refカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE projects ADD COLUMN client_ref VARCHAR(255)")
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_projects_client_ref ON projects(client_ref)")
+            conn.commit()
+            print("client_refカラムを追加しました。")
+
         # notesテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(notes)")
         note_columns = [row[1] for row in cursor.fetchall()]
@@ -92,6 +103,13 @@ def check_and_migrate_db():
             cursor.execute("ALTER TABLE meetings ADD COLUMN version_group VARCHAR(255)")
             conn.commit()
             print("version_groupカラムを追加しました。")
+
+        # uuidカラムが存在しない場合のみ追加
+        if 'uuid' not in meeting_columns:
+            print("uuidカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE meetings ADD COLUMN uuid VARCHAR(36)")
+            conn.commit()
+            print("uuidカラムを追加しました。")
 
         # 既存データのステータス不整合を修正（transcriptがあるのにpendingになっているもの、
         # またはマイグレーションの順序で更新が漏れたものへの対応）

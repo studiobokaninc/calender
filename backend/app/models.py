@@ -110,6 +110,7 @@ class Project(Base):
     color: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column()
     updated_at: Mapped[Optional[datetime]] = mapped_column()
+    client_ref: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
 
 class TaskStatusHistory(Base):
     __tablename__ = "task_status_history"
@@ -377,6 +378,7 @@ class Meeting(Base):
     version_group: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     event_id: Mapped[Optional[int]] = mapped_column(ForeignKey("events.id"), nullable=True)
     attendees: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
+    uuid: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
@@ -691,3 +693,12 @@ class AuditLog(Base):
     target_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     level: Mapped[str] = mapped_column(String(10), default="info")
+
+
+class AiInsight(Base):
+    __tablename__ = "ai_insights"
+
+    id = Column(Integer, primary_key=True, index=True)
+    generated_at = Column(DateTime, default=now_jst_naive, nullable=False)
+    insights_json = Column(Text, nullable=False)
+    stats_summary_json = Column(Text, nullable=True)

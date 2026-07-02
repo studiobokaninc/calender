@@ -41,6 +41,8 @@ import {
   patchAdminTroubleResolve,
   patchAdminTroubleReopen,
   patchAdminNotificationRead,
+  fetchUsers,
+  fetchProjects,
 } from '../services/api';
 
 const PAGE_LIMIT = 50;
@@ -48,6 +50,21 @@ const PAGE_LIMIT = 50;
 const cellSx = { fontSize: '0.8rem', whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 };
 const headerSx = { fontSize: '0.75rem', fontWeight: 700, bgcolor: 'action.selected' };
 const actionCellSx = { fontSize: '0.8rem', whiteSpace: 'nowrap' as const, width: 110 };
+
+const USER_ID_KEYS = new Set(['user_id', 'author_id', 'created_by', 'sender_id', 'recipient_id', 'assigned_to']);
+const PROJECT_ID_KEYS = new Set(['project_id']);
+
+function resolveUser(id: unknown, map: Record<number, string>): string {
+  if (id == null) return '—';
+  const n = Number(id);
+  return isNaN(n) ? String(id) : (map[n] ? `${map[n]} (#${n})` : `#${n}`);
+}
+
+function resolveProject(id: unknown, map: Record<number, string>): string {
+  if (id == null) return '—';
+  const n = Number(id);
+  return isNaN(n) ? String(id) : (map[n] ? `${map[n]} (#${n})` : `#${n}`);
+}
 
 function TruncatedCell({ value }: { value: unknown }) {
   const text = value == null ? '—' : String(value);
@@ -58,7 +75,26 @@ function TruncatedCell({ value }: { value: unknown }) {
   );
 }
 
-function DataTable({ rows, columns }: { rows: Record<string, unknown>[]; columns: string[] }) {
+function ResolvedCell({ value, resolved }: { value: unknown; resolved: string }) {
+  const raw = value == null ? '—' : String(value);
+  return (
+    <TableCell sx={cellSx} title={`${resolved} (raw: ${raw})`}>
+      {resolved}
+    </TableCell>
+  );
+}
+
+function DataTable({
+  rows,
+  columns,
+  userMap,
+  projectMap,
+}: {
+  rows: Record<string, unknown>[];
+  columns: string[];
+  userMap: Record<number, string>;
+  projectMap: Record<number, string>;
+}) {
   if (!rows || rows.length === 0) {
     return <Typography sx={{ p: 2, color: 'text.secondary', fontSize: '0.85rem' }}>データなし</Typography>;
   }
@@ -75,9 +111,15 @@ function DataTable({ rows, columns }: { rows: Record<string, unknown>[]; columns
         <TableBody>
           {rows.map((row, i) => (
             <TableRow key={i} hover>
-              {columns.map((col) => (
-                <TruncatedCell key={col} value={row[col]} />
-              ))}
+              {columns.map((col) => {
+                if (USER_ID_KEYS.has(col)) {
+                  return <ResolvedCell key={col} value={row[col]} resolved={resolveUser(row[col], userMap)} />;
+                }
+                if (PROJECT_ID_KEYS.has(col)) {
+                  return <ResolvedCell key={col} value={row[col]} resolved={resolveProject(row[col], projectMap)} />;
+                }
+                return <TruncatedCell key={col} value={row[col]} />;
+              })}
             </TableRow>
           ))}
         </TableBody>
@@ -87,7 +129,15 @@ function DataTable({ rows, columns }: { rows: Record<string, unknown>[]; columns
 }
 
 // Notification tab: 既読ボタン付き
-function NotificationTable({ rows, onRead }: { rows: Record<string, unknown>[]; onRead: (id: number) => void }) {
+function NotificationTable({
+  rows,
+  onRead,
+  userMap,
+}: {
+  rows: Record<string, unknown>[];
+  onRead: (id: number) => void;
+  userMap: Record<number, string>;
+}) {
   const COLS = ['id', 'recipient_id', 'sender_id', 'content', 'is_read', 'created_at'];
   if (!rows || rows.length === 0) {
     return <Typography sx={{ p: 2, color: 'text.secondary', fontSize: '0.85rem' }}>データなし</Typography>;
@@ -104,7 +154,12 @@ function NotificationTable({ rows, onRead }: { rows: Record<string, unknown>[]; 
         <TableBody>
           {rows.map((row, i) => (
             <TableRow key={i} hover>
-              {COLS.map((col) => <TruncatedCell key={col} value={row[col]} />)}
+              {COLS.map((col) => {
+                if (col === 'recipient_id' || col === 'sender_id') {
+                  return <ResolvedCell key={col} value={row[col]} resolved={resolveUser(row[col], userMap)} />;
+                }
+                return <TruncatedCell key={col} value={row[col]} />;
+              })}
               <TableCell sx={actionCellSx}>
                 {!row.is_read && (
                   <Button
@@ -179,7 +234,17 @@ function TroubleTable({ rows, onAction }: { rows: Record<string, unknown>[]; onA
 }
 
 // ScoreUserRole tab: ロール編集ボタン付き
-function ScoreUserRoleTable({ rows, onEdit }: { rows: Record<string, unknown>[]; onEdit: (id: number, currentRole: string) => void }) {
+function ScoreUserRoleTable({
+  rows,
+  onEdit,
+  userMap,
+  projectMap,
+}: {
+  rows: Record<string, unknown>[];
+  onEdit: (id: number, currentRole: string) => void;
+  userMap: Record<number, string>;
+  projectMap: Record<number, string>;
+}) {
   const COLS = ['id', 'user_id', 'project_id', 'role'];
   if (!rows || rows.length === 0) {
     return <Typography sx={{ p: 2, color: 'text.secondary', fontSize: '0.85rem' }}>データなし</Typography>;
@@ -196,7 +261,15 @@ function ScoreUserRoleTable({ rows, onEdit }: { rows: Record<string, unknown>[];
         <TableBody>
           {rows.map((row, i) => (
             <TableRow key={i} hover>
-              {COLS.map((col) => <TruncatedCell key={col} value={row[col]} />)}
+              {COLS.map((col) => {
+                if (col === 'user_id') {
+                  return <ResolvedCell key={col} value={row[col]} resolved={resolveUser(row[col], userMap)} />;
+                }
+                if (col === 'project_id') {
+                  return <ResolvedCell key={col} value={row[col]} resolved={resolveProject(row[col], projectMap)} />;
+                }
+                return <TruncatedCell key={col} value={row[col]} />;
+              })}
               <TableCell sx={actionCellSx}>
                 <Button
                   size="small"
@@ -254,6 +327,9 @@ export default function ScoreDataAdminPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState(0);
 
+  const [userMap, setUserMap] = useState<Record<number, string>>({});
+  const [projectMap, setProjectMap] = useState<Record<number, string>>({});
+
   const [toast, setToast] = useState<ToastState>({ open: false, message: '', severity: 'success' });
   const showToast = (message: string, severity: 'success' | 'error') =>
     setToast({ open: true, message, severity });
@@ -272,6 +348,19 @@ export default function ScoreDataAdminPage() {
   const troubles = useSection(fetchAdminTroubles);
 
   const sections = [notifications, timecards, routines, userMessages, deliveries, referenceMaterials, dmThreads, scoreUserRoles, troubles];
+
+  useEffect(() => {
+    fetchUsers().then((users: any[]) => {
+      const m: Record<number, string> = {};
+      users.forEach((u: any) => { m[u.id] = u.display_name ?? u.name ?? u.email ?? String(u.id); });
+      setUserMap(m);
+    }).catch(() => {});
+    fetchProjects().then((projects: any[]) => {
+      const m: Record<number, string> = {};
+      projects.forEach((p: any) => { m[p.id] = p.name ?? String(p.id); });
+      setProjectMap(m);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     sections[tab].load();
@@ -346,15 +435,15 @@ export default function ScoreDataAdminPage() {
     }
     const tabKey = TABS[tab].key;
     if (tabKey === 'notification') {
-      return <NotificationTable rows={data} onRead={handleNotificationRead} />;
+      return <NotificationTable rows={data} onRead={handleNotificationRead} userMap={userMap} />;
     }
     if (tabKey === 'trouble') {
       return <TroubleTable rows={data} onAction={handleTroubleAction} />;
     }
     if (tabKey === 'score_user_role') {
-      return <ScoreUserRoleTable rows={data} onEdit={handleRoleEdit} />;
+      return <ScoreUserRoleTable rows={data} onEdit={handleRoleEdit} userMap={userMap} projectMap={projectMap} />;
     }
-    return <DataTable rows={data} columns={columns} />;
+    return <DataTable rows={data} columns={columns} userMap={userMap} projectMap={projectMap} />;
   };
 
   return (
@@ -382,7 +471,7 @@ export default function ScoreDataAdminPage() {
       </Box>
 
       <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
-        このページは管理者専用です。制作系データ (Shot / Retake / Trouble 等) は
+        このページはScoreが書き込んだデータの管理ページです。制作系データ (Shot / Retake / Trouble 等) は
         <Button size="small" onClick={() => navigate('/production-tracker')} sx={{ fontSize: '0.8rem', p: 0, ml: 0.5, textTransform: 'none' }}>
           ProductionTracker
         </Button>
@@ -407,6 +496,7 @@ export default function ScoreDataAdminPage() {
             <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>
               {TABS[tab].label}
             </Typography>
+            <Chip label="Score連携" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
             {!loading && !error && (
               <Chip label={`${data.length}件`} size="small" sx={{ fontSize: '0.75rem', height: 20 }} />
             )}

@@ -161,6 +161,7 @@ class ProjectBase(BaseModel):
     start_date: Optional[datetime] = None # startDate -> start_date
     end_date: Optional[datetime] = None   # endDate -> end_date
     color: Optional[str] = None
+    client_ref: Optional[str] = None
 
 class ProjectCreate(ProjectBase):
     pass
@@ -630,6 +631,7 @@ class MeetingResponse(MeetingBase):
     discussion_points: Optional[List[str]] = None
     deadlines: Optional[List[str]] = None
     version_group: Optional[str] = None
+    uuid: Optional[str] = None
     detected_tasks: List[MeetingTaskResponse] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

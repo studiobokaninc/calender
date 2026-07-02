@@ -10,7 +10,7 @@ from fastmcp import FastMCP
 from sqlalchemy import func
 
 from .database import SessionLocal
-from . import models, schemas
+from . import models, schemas, crud
 import httpx
 import pathlib
 
@@ -298,17 +298,60 @@ async def create_project(
     description: str = "",
     start_date: str = "",
     end_date: str = "",
+    client_ref: str = "",
 ) -> dict:
-    """新規プロジェクトを作成する。管理者権限が必要。
-    管理者でない actor_id を指定した場合、REST から 403 が返る。"""
+    """新規プロジェクトを作成する。
+    client_ref が指定されかつ同一 client_ref の既存PJがあれば新規作成せず既存を返す(冪等)。
+    client_ref 未指定かつ同名PJが既存の場合も既存を返す(重複抑止)。
+    管理者権限が必要。"""
     err = _require_write_scope()
     if err:
         return err
+
+    # --- dedup guard ---
+    # 1. client_ref指定あり → REST GET で全件取得し client_ref 照合
+    if client_ref:
+        try:
+            chk = httpx.get(
+                f"{_INTERNAL_BASE}/api/projects",
+                headers=_actor_headers(actor_id),
+                timeout=15.0,
+            )
+            if chk.is_success:
+                for p in chk.json():
+                    if p.get("client_ref") == client_ref:
+                        return {"ok": True, "project": {
+                            "id": p["id"], "name": p["name"],
+                            "code": p.get("code"), "client_ref": p.get("client_ref"),
+                        }, "reused": True}
+        except httpx.RequestError:
+            pass  # dedup失敗でも作成を試みる
+
+    # 2. client_ref未指定 → 同名PJ照合
+    else:
+        try:
+            chk = httpx.get(
+                f"{_INTERNAL_BASE}/api/projects",
+                headers=_actor_headers(actor_id),
+                timeout=15.0,
+            )
+            if chk.is_success:
+                for p in chk.json():
+                    if p.get("name") == name:
+                        return {"ok": True, "project": {
+                            "id": p["id"], "name": p["name"],
+                            "code": p.get("code"), "client_ref": p.get("client_ref"),
+                        }, "reused": True}
+        except httpx.RequestError:
+            pass  # dedup失敗でも作成を試みる
+    # --- end dedup guard ---
+
     payload = {
         "name": name,
         "description": description,
         "start_date": start_date or None,
         "end_date": end_date or None,
+        "client_ref": client_ref or None,
     }
     try:
         resp = httpx.post(
@@ -322,7 +365,85 @@ async def create_project(
     if not resp.is_success:
         return {"error": f"REST {resp.status_code}: {resp.text}"}
     data = resp.json()
-    return {"ok": True, "project": {"id": data.get("id"), "name": data.get("name"), "code": data.get("code")}}
+    return {"ok": True, "project": {
+        "id": data.get("id"), "name": data.get("name"),
+        "code": data.get("code"), "client_ref": data.get("client_ref"),
+    }}
+
+
+@mcp.tool()
+async def delete_project(
+    actor_id: int,
+    project_id: int,
+) -> dict:
+    """プロジェクトを削除する(関連タスク・ショット・イベント等も物理削除)。
+    管理者権限が必要(非admin actor_idでは403を返す)。
+    ★ 物理削除: shots/tasks/events/履歴も全てカスケード削除される。元に戻せない。"""
+    err = _require_write_scope()
+    if err:
+        return err
+    try:
+        resp = httpx.delete(
+            f"{_INTERNAL_BASE}/api/projects/{project_id}",
+            headers=_actor_headers(actor_id),
+            timeout=15.0,
+        )
+    except httpx.RequestError as exc:
+        return {"error": str(exc)}
+    if resp.status_code == 204:
+        return {"ok": True, "deleted_project_id": project_id}
+    if not resp.is_success:
+        return {"error": f"REST {resp.status_code}: {resp.text}"}
+    return {"ok": True, "deleted_project_id": project_id}
+
+
+@mcp.tool()
+async def update_project(
+    actor_id: int,
+    project_id: int,
+    name: str = "",
+    description: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    display_status: str = "",
+) -> dict:
+    """プロジェクト情報を部分更新する。指定したフィールドのみ更新(未指定フィールドは不変)。
+    管理者権限が必要。display_status は online/offline/archived のみ有効。"""
+    err = _require_write_scope()
+    if err:
+        return err
+    payload: dict = {}
+    if name:
+        payload["name"] = name
+    if description:
+        payload["description"] = description
+    if start_date:
+        payload["start_date"] = start_date
+    if end_date:
+        payload["end_date"] = end_date
+    if display_status:
+        if display_status not in ("online", "offline", "archived"):
+            return {"error": f"display_status は online/offline/archived のみ有効。指定値: {display_status}"}
+        payload["display_status"] = display_status
+    if not payload:
+        return {"error": "更新するフィールドが指定されていません。name/description/start_date/end_date/display_status のいずれかを指定してください。"}
+    try:
+        resp = httpx.put(
+            f"{_INTERNAL_BASE}/api/projects/{project_id}",
+            json=payload,
+            headers=_actor_headers(actor_id),
+            timeout=15.0,
+        )
+    except httpx.RequestError as exc:
+        return {"error": str(exc)}
+    if not resp.is_success:
+        return {"error": f"REST {resp.status_code}: {resp.text}"}
+    data = resp.json()
+    return {"ok": True, "project": {
+        "id": data.get("id"), "name": data.get("name"),
+        "display_status": data.get("display_status"),
+        "client_ref": data.get("client_ref"),
+    }}
 
 
 @mcp.tool()
@@ -515,30 +636,21 @@ class _MCPAuthMiddleware:
 
 @mcp.tool()
 def get_events(
-    actor_id: Annotated[int, Field(description="呼出主体のユーザーID (必須)。CASPER_WRITE_TOKEN で認証。サーバ側は CALENDER_SERVICE_TOKEN で横断アクセスを許可する (Casper確定認可)。")],
+    actor_id: Annotated[int, Field(description="呼出主体のユーザーID (必須)。CASPER_WRITE_TOKEN で認証。")],
     since: Annotated[int, Field(description="このseq以降のイベントを返す (カーソル。初回は0)。")] = 0,
     limit: Annotated[int, Field(description="取得件数上限 (デフォルト100・最大500)。")] = 100,
 ) -> dict:
     """構造化イベントログの増分取得。since=直前の最大seq、limit件を返す。
     各eventに seq/event_id/system/ts/actor_uid/action/target_type/target_id/detail/level を含む。
-    認可: CALENDER_SERVICE_TOKEN を持つサービス主体 (Casperのstanding puller) のみ全件取得可。"""
+    認可: CASPER_WRITE_TOKEN を持つ write スコープ呼出のみ (DB直読み)。"""
     err = _require_write_scope()
     if err:
         return err
+    db = SessionLocal()
     try:
-        resp = httpx.get(
-            f"{_INTERNAL_BASE}/api/audit/logs",
-            headers={
-                "Authorization": f"Bearer {os.getenv('CALENDER_SERVICE_TOKEN', '')}",
-            },
-            params={"since": since, "limit": min(limit, 500)},
-            timeout=15.0,
-        )
-    except httpx.RequestError as exc:
-        return {"error": f"request failed: {exc}"}
-    if not resp.is_success:
-        return {"error": resp.text, "status_code": resp.status_code}
-    return resp.json()
+        return crud.get_audit_events(db, since=since, limit=min(limit, 500))
+    finally:
+        db.close()
 
 
 @mcp.tool()

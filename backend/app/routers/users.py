@@ -31,13 +31,24 @@ async def get_users_endpoint(
     bypass_env = os.getenv("CLI_BYPASS_TOKEN", "")
     bearer = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
 
+    logger.warning(
+        "GET /api/users auth attempt: X-Readonly-Token=%s, Authorization=%s, X-Actor-User-Id=%s",
+        bool(x_readonly),
+        "Bearer***" if auth_header.lower().startswith("bearer ") else bool(auth_header),
+        bool(x_actor_str),
+    )
+
     is_readonly_auth = bool(
         readonly_env and (x_readonly == readonly_env or bearer == readonly_env)
     )
+    if x_readonly or bearer:
+        logger.warning("GET /api/users: readonly token: %s", "MATCH" if is_readonly_auth else "MISMATCH")
+    _auth_via = "readonly token" if is_readonly_auth else None
 
     if not is_readonly_auth:
         # JWT / bypass+X-Actor 認証
         if not bearer:
+            logger.warning("GET /api/users: REJECTED (no bearer token)")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="認証が必要です。",
@@ -46,6 +57,7 @@ async def get_users_endpoint(
         if bypass_env and bearer == bypass_env:
             # bypass は X-Actor-User-Id 必須 (cmd_596)
             if not x_actor_str:
+                logger.warning("GET /api/users: bypass path REJECTED (X-Actor-User-Id missing)")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="CLIバイパストークン使用時はX-Actor-User-Idヘッダーが必要です。",
@@ -58,6 +70,7 @@ async def get_users_endpoint(
             actor = db.query(models.User).filter(models.User.id == actor_id).first()
             if not actor:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="X-Actor-User-Idのユーザーが見つかりません。")
+            _auth_via = "bypass+X-Actor"
         else:
             # JWT 検証
             from jose import JWTError, jwt as jose_jwt
@@ -66,6 +79,7 @@ async def get_users_endpoint(
                 payload = jose_jwt.decode(bearer, SECRET_KEY, algorithms=[ALGORITHM])
                 email = payload.get("sub")
                 if not email:
+                    logger.warning("GET /api/users: JWT path REJECTED (no sub claim)")
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="無効なトークンです。",
@@ -73,6 +87,7 @@ async def get_users_endpoint(
                     )
                 db_user = crud.get_user_by_email(db, email=email)
                 if not db_user:
+                    logger.warning("GET /api/users: JWT path REJECTED (user not found)")
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="ユーザーが見つかりません。",
@@ -80,18 +95,22 @@ async def get_users_endpoint(
                     )
                 # F1: is_active チェック (失効前JWT保持の無効化ユーザーを排除)
                 if not getattr(db_user, "is_active", True):
+                    logger.warning("GET /api/users: JWT path REJECTED (account inactive)")
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="このアカウントは無効化されています。管理者にお問い合わせください。",
                         headers={"WWW-Authenticate": "Bearer"},
                     )
+                _auth_via = "JWT"
             except JWTError:
+                logger.warning("GET /api/users: JWT path REJECTED (JWTError - invalid/expired token)")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="認証の有効期限が切れました。再度ログインしてください。",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
+    logger.warning("GET /api/users: auth PASSED via %s", _auth_via)
     try:
         users = crud.get_users(db=db, skip=skip, limit=limit)
         response_users = []

@@ -31,9 +31,10 @@ def auth_headers(admin_user):
 
 
 def test_get_my_timecards_returns_200(client, db, admin_user, auth_headers):
+    from datetime import timedelta
     tc = models.Timecard(
         user_id=admin_user.id,
-        date=datetime(2026, 6, 1, 9, 0),
+        date=datetime.now() - timedelta(days=5),
         worked_minutes=480,
         break_minutes=60,
     )
@@ -70,6 +71,7 @@ def test_get_my_timecards_limit(client, db, admin_user, auth_headers):
 
 def test_get_my_timecards_only_own(client, db, admin_user, auth_headers):
     from app.security import get_password_hash
+    from datetime import timedelta
     other = models.User(
         username="other_user",
         email="other@example.com",
@@ -79,8 +81,8 @@ def test_get_my_timecards_only_own(client, db, admin_user, auth_headers):
     db.add(other)
     db.commit()
 
-    db.add(models.Timecard(user_id=admin_user.id, date=datetime(2026, 6, 1, 9, 0), worked_minutes=480, break_minutes=0))
-    db.add(models.Timecard(user_id=other.id, date=datetime(2026, 6, 1, 9, 0), worked_minutes=480, break_minutes=0))
+    db.add(models.Timecard(user_id=admin_user.id, date=datetime.now() - timedelta(days=5), worked_minutes=480, break_minutes=0))
+    db.add(models.Timecard(user_id=other.id, date=datetime.now() - timedelta(days=5), worked_minutes=480, break_minutes=0))
     db.commit()
 
     resp = client.get("/api/me/timecards", headers=auth_headers)

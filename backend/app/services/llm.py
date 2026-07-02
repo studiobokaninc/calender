@@ -36,8 +36,19 @@ class LLMClient:
         if not api_key:
             logger.warning("No API Key provided to LLMClient.")
         
+        # Check LLM_PROVIDER env var first — overrides api_key-based detection
+        _llm_provider_env = os.getenv("LLM_PROVIDER", "").lower()
+        if _llm_provider_env == "local":
+            self.provider = "openai"  # Ollama is OpenAI-compatible
+            _base_url = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1")
+            self.model_name = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b")
+            self.client = openai.AsyncOpenAI(
+                api_key="ollama",  # dummy key — Ollama does not validate
+                base_url=_base_url,
+            )
+            logger.info(f"LLMClient: local Ollama ({_base_url}, model={self.model_name})")
         # Decide provider based on key format or presence
-        if api_key and api_key.startswith("sk-ant-"):
+        elif api_key and api_key.startswith("sk-ant-"):
             self.provider = "anthropic"
             self.model_name = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
             self.client = None
@@ -387,16 +398,19 @@ class LLMClient:
                     all_text_parts.append(f"\n【資料内容: {p.name}】\n{text}")
                 elif ext in [".mp3", ".wav", ".m4a", ".mp4"]:
                     t_text = ""
-                    openai_key = os.environ.get("OPENAI_API_KEY")
-                    
-                    if openai_key and openai_key.startswith("sk-"):
+                    _whisper_backend = os.getenv("WHISPER_BACKEND", "auto")
+                    _whisper_model   = os.getenv("WHISPER_MODEL", "medium")
+                    openai_key = os.environ.get("OPENAI_API_KEY", "")
+
+                    # Cloud Whisper API (スキップ条件: WHISPER_BACKEND=local OR キーなし)
+                    if openai_key.startswith("sk-") and _whisper_backend != "local":
                         try:
                             import openai
                             oai_client = openai.AsyncOpenAI(api_key=openai_key)
-                            logger.info(f"LLMClient: Transcribing {p.name} via OpenAI Whisper API...")
+                            logger.info(f"Transcribing {p.name} via OpenAI Whisper API...")
                             with open(file_path, "rb") as audio_file:
                                 transcript = await oai_client.audio.transcriptions.create(
-                                    model="whisper-1", 
+                                    model="whisper-1",
                                     file=audio_file,
                                     prompt="これは日本語の会議の文字起こしです。句読点を適切に使用し、意味不明な繰り返しや関係のない挨拶を省いてください。",
                                     language="ja"
@@ -404,24 +418,37 @@ class LLMClient:
                             t_text = transcript.text.strip()
                         except Exception as e:
                             logger.warning(f"OpenAI Whisper API failed: {e}. Falling back to local Whisper...")
-                            
+
+                    # Local Whisper (faster-whisper 優先、openai-whisper フォールバック)
                     if not t_text:
-                        logger.info(f"LLMClient: Transcribing {p.name} via local Faster-Whisper...")
-                        def _transcribe_local():
-                            from faster_whisper import WhisperModel
-                            # Use base model for balance of speed and accuracy on CPU
-                            model = WhisperModel("base", device="cpu", compute_type="int8")
-                            segments, _ = model.transcribe(file_path, language="ja")
-                            return "".join([s.text for s in segments])
-                        
-                        import asyncio
-                        t_text = await asyncio.to_thread(_transcribe_local)
-                        t_text = t_text.strip()
+                        try:
+                            logger.info(f"Transcribing {p.name} via faster-whisper (model={_whisper_model})...")
+                            def _transcribe_faster():
+                                from faster_whisper import WhisperModel  # lazy import
+                                mdl = WhisperModel(_whisper_model, device="cpu", compute_type="int8")
+                                segs, _ = mdl.transcribe(file_path, language="ja")
+                                return "".join(s.text for s in segs)
+                            t_text = (await asyncio.to_thread(_transcribe_faster)).strip()
+                        except ImportError:
+                            logger.info("faster-whisper not installed. Trying openai-whisper...")
+                            try:
+                                def _transcribe_openai_whisper():
+                                    import whisper  # lazy import (openai-whisper package)
+                                    mdl = whisper.load_model(_whisper_model)
+                                    result = mdl.transcribe(file_path, language="ja", fp16=False)
+                                    return result["text"]
+                                t_text = (await asyncio.to_thread(_transcribe_openai_whisper)).strip()
+                            except ImportError:
+                                logger.warning("Neither faster-whisper nor openai-whisper is installed. Skipping transcription.")
+                            except Exception as e:
+                                logger.warning(f"openai-whisper transcription failed: {e}")
+                        except Exception as e:
+                            logger.warning(f"faster-whisper transcription failed: {e}")
 
                     if t_text:
                         all_text_parts.append(f"\n【会議の文字起こしデータ: {p.name}】\n{t_text}")
                     else:
-                        all_text_parts.append(f"\n【会議の文字起こしデータ: {p.name}】\n(このセグメントには音声や発言が含まれていないようです。)")
+                        all_text_parts.append(f"\n【会議の文字起こしデータ: {p.name}】\n(文字起こし失敗または音声なし)")
             except Exception as e:
                 logger.warning(f"OpenAI multimodal failed: {e}")
 
@@ -519,8 +546,12 @@ def get_llm_client() -> LLMClient:
     current_openai_key = os.getenv("OPENAI_API_KEY", "")
     current_google_key = os.getenv("GOOGLE_API_KEY", "")
     
-    # OpenAI優先、なければGoogle
-    selected_key = current_openai_key if current_openai_key.startswith("sk-") else current_google_key
+    _llm_provider = os.getenv("LLM_PROVIDER", "").lower()
+    if _llm_provider == "local":
+        selected_key = "__local__"  # sentinel — キャッシュキーとして機能
+    else:
+        # OpenAI優先、なければGoogle
+        selected_key = current_openai_key if current_openai_key.startswith("sk-") else current_google_key
     
     if _cached_llm_client is None or _cached_api_key != selected_key:
         _cached_api_key = selected_key

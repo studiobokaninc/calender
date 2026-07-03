@@ -405,8 +405,14 @@ def upload_asset(
 
     shot_id_str = str(shot_id) if shot_id is not None else "none"
     file_path = assets_dir / f"shot_{shot_id_str}_task_{task_id}_{version}_{file.filename}"
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    try:
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    except OSError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"ファイルの保存に失敗しました: {e}"
+        )
 
     db_asset = models.Asset(
         shot_id=shot_id,
@@ -416,9 +422,20 @@ def upload_asset(
         created_by=actor_id,
         created_at=now_jst_naive()
     )
-    db.add(db_asset)
-    db.commit()
-    db.refresh(db_asset)
+    try:
+        db.add(db_asset)
+        db.commit()
+        db.refresh(db_asset)
+    except Exception as e:
+        db.rollback()
+        try:
+            file_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"アセットの DB 保存に失敗しました: {e}"
+        )
     return db_asset
 
 @router.delete("/assets/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1620,9 +1637,16 @@ def create_reference_material(
         created_by=created_by,
         created_at=now_jst_naive()
     )
-    db.add(new_material)
-    db.commit()
-    db.refresh(new_material)
+    try:
+        db.add(new_material)
+        db.commit()
+        db.refresh(new_material)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"参考資料の DB 保存に失敗しました: {e}"
+        )
     return new_material
 
 

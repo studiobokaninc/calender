@@ -49,7 +49,7 @@ def _require_write_scope() -> dict | None:
 
 
 @mcp.tool()
-def get_projects(limit: int = 100, offset: int = 0) -> dict:
+def get_projects(limit: int = 100, offset: int = 0, actor_id: Optional[int] = None) -> dict:
     """Get all projects from the calendar."""
     db = SessionLocal()
     try:
@@ -63,7 +63,7 @@ def get_projects(limit: int = 100, offset: int = 0) -> dict:
 
 
 @mcp.tool()
-def get_users(limit: int = 100, offset: int = 0) -> dict:
+def get_users(limit: int = 100, offset: int = 0, actor_id: Optional[int] = None) -> dict:
     """Get users list for roster. Returns uid, username, display_name only."""
     db = SessionLocal()
     try:
@@ -84,7 +84,11 @@ def get_users(limit: int = 100, offset: int = 0) -> dict:
 
 
 @mcp.tool()
-def get_today_tasks(project_id: Optional[int] = None, shot_id: Optional[int] = None) -> dict:
+def get_today_tasks(
+    project_id: Optional[int] = None,
+    shot_id: Optional[int] = None,
+    actor_id: Optional[int] = None,
+) -> dict:
     """Get tasks due today. Applies due_date filter at the tool layer (readonly EP has no due_date query)."""
     db = SessionLocal()
     try:

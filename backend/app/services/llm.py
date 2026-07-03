@@ -30,6 +30,90 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# faster-whisper モデルのプロセス内キャッシュ。
+# 以前はチャンク（5分）ごとに WhisperModel を再ロードしており、
+# 長い会議ほどモデルロードが積み重なりCPUを浪費していた。1度だけロードして使い回す。
+_FASTER_WHISPER_MODELS: Dict[str, Any] = {}
+
+def _get_faster_whisper_model(model_name: str, cpu_threads: int):
+    key = f"{model_name}::{cpu_threads}"
+    mdl = _FASTER_WHISPER_MODELS.get(key)
+    if mdl is None:
+        from faster_whisper import WhisperModel  # lazy import
+        # cpu_threads を絞ることで、4コア環境でもuvicornに1〜2コア残しサーバー無応答を防ぐ
+        # 注意: ctranslate2 4.x はAVX2前提。AVX2非対応CPU(例:Sandy Bridge)ではロード時にsegfaultするため、
+        #       そのような環境では WHISPER_IMPL=openai を使うこと。
+        mdl = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=cpu_threads)
+        _FASTER_WHISPER_MODELS[key] = mdl
+    return mdl
+
+# openai-whisper (PyTorch) モデルのプロセス内キャッシュ
+_OPENAI_WHISPER_MODELS: Dict[str, Any] = {}
+
+def _get_openai_whisper_model(model_name: str):
+    mdl = _OPENAI_WHISPER_MODELS.get(model_name)
+    if mdl is None:
+        import whisper  # openai-whisper (importでtorchをロード)
+        try:
+            import torch
+            torch.set_num_threads(int(os.getenv("WHISPER_CPU_THREADS", "2")))
+        except Exception:
+            pass
+        mdl = whisper.load_model(model_name)
+        _OPENAI_WHISPER_MODELS[model_name] = mdl
+    return mdl
+
+async def _transcribe_whisper_cpp(audio_path: str) -> str:
+    """whisper.cpp の CLI 実行ファイルで文字起こしする（別プロセスで実行）。
+    AVX2非対応CPU(例: Sandy Bridge)向けに AVX2/FMA を無効化して自前ビルドした whisper-cli を使う。
+    別プロセスのため、たとえクラッシュしてもFastAPI本体を巻き込まない。
+    必要な環境変数: WHISPER_CPP_BIN(実行ファイル), WHISPER_CPP_MODEL(ggml *.bin)。
+    """
+    import shutil
+    import tempfile
+
+    bin_path = os.getenv("WHISPER_CPP_BIN", "")
+    model_path = os.getenv("WHISPER_CPP_MODEL", "")
+    threads = os.getenv("WHISPER_CPU_THREADS", "2")
+    if not bin_path or not os.path.exists(bin_path):
+        raise FileNotFoundError(f"WHISPER_CPP_BIN が見つかりません: {bin_path!r}")
+    if not model_path or not os.path.exists(model_path):
+        raise FileNotFoundError(f"WHISPER_CPP_MODEL が見つかりません: {model_path!r}")
+
+    tmp_dir = tempfile.mkdtemp()
+    tmp_wav = os.path.join(tmp_dir, "audio16k.wav")
+    out_base = os.path.join(tmp_dir, "out")
+    ffmpeg_exe = shutil.which("ffmpeg") or "ffmpeg"
+    try:
+        # 1) whisper.cpp は wav/mp3/flac/ogg のみ対応。16kHzモノWAVへ変換する。
+        p1 = await asyncio.create_subprocess_exec(
+            ffmpeg_exe, "-y", "-i", audio_path, "-ar", "16000", "-ac", "1", tmp_wav,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        await p1.communicate()
+        if not os.path.exists(tmp_wav):
+            raise RuntimeError("ffmpeg による16kHz WAV変換に失敗しました")
+
+        # 2) whisper-cli を実行（-np: 進捗抑制, -otxt: テキスト出力）
+        p2 = await asyncio.create_subprocess_exec(
+            bin_path, "-m", model_path, "-f", tmp_wav, "-l", "ja",
+            "-t", str(threads), "-otxt", "-of", out_base, "-np",
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await p2.communicate()
+        if p2.returncode != 0:
+            raise RuntimeError(
+                f"whisper-cli 失敗(code={p2.returncode}): {stderr.decode('utf-8', 'ignore')[:300]}"
+            )
+
+        txt_path = out_base + ".txt"
+        if not os.path.exists(txt_path):
+            return ""
+        with open(txt_path, encoding="utf-8") as f:
+            return f.read().strip()
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
 class LLMClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -191,7 +275,7 @@ class LLMClient:
         elif mode == "personal":
             role_msg = f"あなたはユーザー {inputs.get('user_name', 'User')} の専属AIアシスタントです。フレンドリーに応対してください。"
         elif mode == "utility":
-            return "あなたは実務的なデータ処理ツールです。挨拶や装飾なしで、求められた情報を簡潔に出力してください。"
+            return "あなたは実務的なデータ処理ツールです。挨拶や装飾なしで、求められた情報を簡潔に出力してください。出力は必ず日本語で行い、中国語や英語を混在させないでください。"
         else:
             role_msg = "あなたはプロジェクト管理者の戦略的パートナーです。タスク、決定事項、議事録を元に高度な洞察を提示してください。"
 
@@ -396,7 +480,7 @@ class LLMClient:
                     text = ""
                     for page in reader.pages: text += page.extract_text() + "\n"
                     all_text_parts.append(f"\n【資料内容: {p.name}】\n{text}")
-                elif ext in [".mp3", ".wav", ".m4a", ".mp4"]:
+                elif ext in [".mp3", ".wav", ".m4a", ".mp4", ".webm", ".ogg", ".opus", ".flac", ".aac", ".m4b", ".wma", ".mov"]:
                     t_text = ""
                     _whisper_backend = os.getenv("WHISPER_BACKEND", "auto")
                     _whisper_model   = os.getenv("WHISPER_MODEL", "medium")
@@ -419,31 +503,54 @@ class LLMClient:
                         except Exception as e:
                             logger.warning(f"OpenAI Whisper API failed: {e}. Falling back to local Whisper...")
 
-                    # Local Whisper (faster-whisper 優先、openai-whisper フォールバック)
+                    # Local Whisper: WHISPER_IMPL で実装を明示選択
+                    #   cpp    … whisper.cpp CLI(別プロセス) ※AVX2非対応CPU向け・サーバーを巻き込まない
+                    #   faster … faster-whisper(ctranslate2) ※AVX2非対応CPUではsegfaultするので使用不可
+                    #   openai … openai-whisper(PyTorch)      ※AVX2非対応CPUではtorchがロード不可
+                    # 未指定時は faster を試し、未導入(ImportError)なら openai にフォールバック
                     if not t_text:
-                        try:
-                            logger.info(f"Transcribing {p.name} via faster-whisper (model={_whisper_model})...")
-                            def _transcribe_faster():
-                                from faster_whisper import WhisperModel  # lazy import
-                                mdl = WhisperModel(_whisper_model, device="cpu", compute_type="int8")
-                                segs, _ = mdl.transcribe(file_path, language="ja")
-                                return "".join(s.text for s in segs)
-                            t_text = (await asyncio.to_thread(_transcribe_faster)).strip()
-                        except ImportError:
-                            logger.info("faster-whisper not installed. Trying openai-whisper...")
+                        _whisper_impl = os.getenv("WHISPER_IMPL", "faster").lower()
+                        if _whisper_impl == "cpp":
                             try:
+                                logger.info(f"Transcribing {p.name} via whisper.cpp CLI...")
+                                t_text = (await _transcribe_whisper_cpp(file_path)).strip()
+                            except Exception as e:
+                                logger.warning(f"whisper.cpp transcription failed: {e}")
+                        elif _whisper_impl == "openai":
+                            try:
+                                logger.info(f"Transcribing {p.name} via openai-whisper (model={_whisper_model})...")
                                 def _transcribe_openai_whisper():
-                                    import whisper  # lazy import (openai-whisper package)
-                                    mdl = whisper.load_model(_whisper_model)
+                                    mdl = _get_openai_whisper_model(_whisper_model)
                                     result = mdl.transcribe(file_path, language="ja", fp16=False)
                                     return result["text"]
                                 t_text = (await asyncio.to_thread(_transcribe_openai_whisper)).strip()
                             except ImportError:
-                                logger.warning("Neither faster-whisper nor openai-whisper is installed. Skipping transcription.")
+                                logger.warning("openai-whisper not installed. Skipping transcription.")
                             except Exception as e:
                                 logger.warning(f"openai-whisper transcription failed: {e}")
-                        except Exception as e:
-                            logger.warning(f"faster-whisper transcription failed: {e}")
+                        else:
+                            try:
+                                _whisper_threads = int(os.getenv("WHISPER_CPU_THREADS", "2"))
+                                logger.info(f"Transcribing {p.name} via faster-whisper (model={_whisper_model}, cpu_threads={_whisper_threads})...")
+                                def _transcribe_faster():
+                                    mdl = _get_faster_whisper_model(_whisper_model, _whisper_threads)
+                                    segs, _ = mdl.transcribe(file_path, language="ja")
+                                    return "".join(s.text for s in segs)
+                                t_text = (await asyncio.to_thread(_transcribe_faster)).strip()
+                            except ImportError:
+                                logger.info("faster-whisper not installed. Trying openai-whisper...")
+                                try:
+                                    def _transcribe_openai_whisper():
+                                        mdl = _get_openai_whisper_model(_whisper_model)
+                                        result = mdl.transcribe(file_path, language="ja", fp16=False)
+                                        return result["text"]
+                                    t_text = (await asyncio.to_thread(_transcribe_openai_whisper)).strip()
+                                except ImportError:
+                                    logger.warning("Neither faster-whisper nor openai-whisper is installed. Skipping transcription.")
+                                except Exception as e:
+                                    logger.warning(f"openai-whisper transcription failed: {e}")
+                            except Exception as e:
+                                logger.warning(f"faster-whisper transcription failed: {e}")
 
                     if t_text:
                         all_text_parts.append(f"\n【会議の文字起こしデータ: {p.name}】\n{t_text}")
@@ -461,27 +568,28 @@ class LLMClient:
         else:
             messages.append({"role": "user", "content": combined_text})
 
-        tools = self._get_openai_tools()
+        # 議事録解析など no_actions/utility の呼び出しではツールを渡さない。
+        # ツールを渡すと小型モデル(qwen2.5:3b等)が不要なツール呼び出しに走り、
+        # 構造化出力(===DECISIONS=== 等)を返さなくなるため。
+        _use_tools = not inputs.get("no_actions") and inputs.get("mode") != "utility"
+        tools = self._get_openai_tools() if _use_tools else None
 
         try:
             for iteration in range(5):
+                _kwargs = dict(messages=messages, stream=True, temperature=0.7)
+                if tools:
+                    _kwargs["tools"] = tools
                 if self.provider == "anthropic":
                     import litellm
                     os.environ["ANTHROPIC_API_KEY"] = self.api_key
                     stream = await litellm.acompletion(
                         model=f"anthropic/{self.model_name}",
-                        messages=messages,
-                        stream=True,
-                        temperature=0.7,
-                        tools=tools
+                        **_kwargs
                     )
                 else:
                     stream = await self.client.chat.completions.create(
                         model=self.model_name,
-                        messages=messages,
-                        stream=True,
-                        temperature=0.7,
-                        tools=tools
+                        **_kwargs
                     )
                 
                 full_text = ""

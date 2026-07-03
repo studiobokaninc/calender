@@ -17988,3 +17988,17 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-07-02 12:54:39,777 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
 2026-07-02 12:54:39,781 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
 2026-07-02 12:54:39,829 - app.main - WARNING - PERF_SLOW GET /tasks 371ms
+2026-07-02 14:15:53,725 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-02 14:15:53,726 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-02 14:15:53,735 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-02 14:15:54,197 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-02 14:15:54,198 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-02 14:15:54,200 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-02 14:15:54,645 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-02 14:15:54,645 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-02 14:15:54,647 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-02 14:15:54,893 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-02 14:15:54,893 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-02 14:15:54,898 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-02 14:15:54,941 - app.main - WARNING - PERF_SLOW GET /tasks 298ms
+2026-07-02 14:16:04,594 - app.main - WARNING - PERF_SLOW GET /metrics/dashboard 432ms

@@ -830,7 +830,7 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'status', headerName: 'ステータス', minWidth: 100, width: 130, renderCell: (params: GridRenderCellParams) => {
+            field: 'status', headerName: 'ステータス', minWidth: 120, width: 130, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return (
                     <Chip
@@ -854,14 +854,14 @@ const TasksPage: React.FC = () => {
         {
             field: '_projectName',
             headerName: 'プロジェクト',
-            minWidth: 100,
+            minWidth: 125,
             width: 150,
             sortable: true,
             renderCell: (params) => String(params.value ?? '-'),
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
         {
-            field: 'priority', headerName: '優先度', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
+            field: 'priority', headerName: '優先度', minWidth: 90, width: 100, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const priorityColors = {
                     'high': '#f44336',
@@ -882,7 +882,7 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'assigned_to', headerName: '担当者', minWidth: 80, width: 120,
+            field: 'assigned_to', headerName: '担当者', minWidth: 95, width: 120,
             sortable: true,
             sortComparator: (a, b) => {
                 const userA = users.find(u => u.id === a);
@@ -905,7 +905,7 @@ const TasksPage: React.FC = () => {
         {
             field: '_startTs',
             headerName: '開始日',
-            minWidth: 80,
+            minWidth: 90,
             width: 110,
             sortable: true,
             renderCell: (params) => formatDate((params.row as any).start_date),
@@ -914,20 +914,20 @@ const TasksPage: React.FC = () => {
         {
             field: '_dueTs',
             headerName: '期日',
-            minWidth: 80,
+            minWidth: 90,
             width: 110,
             sortable: true,
             renderCell: (params) => formatDate((params.row as any).due_date),
             sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
         },
         {
-            field: 'seqID', headerName: 'seq', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
+            field: 'seqID', headerName: 'seq', minWidth: 70, width: 80, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return row.seqID || '-';
             }
         },
         {
-            field: 'shotID', headerName: 'shot', minWidth: 60, width: 80, renderCell: (params: GridRenderCellParams) => {
+            field: 'shotID', headerName: 'shot', minWidth: 80, width: 80, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const text = row.shotID || '-';
                 return (
@@ -938,7 +938,7 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'type', headerName: 'type', minWidth: 80, width: 100, renderCell: (params: GridRenderCellParams) => {
+            field: 'type', headerName: 'type', minWidth: 90, width: 100, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 // データベースに保存されているタスクタイプを小文字化して表示
                 return row.type ? row.type.toLowerCase() : '-';
@@ -947,7 +947,7 @@ const TasksPage: React.FC = () => {
         {
             field: '_dependsText',
             headerName: '依存元タスク',
-            minWidth: 80,
+            minWidth: 130,
             width: 150,
             sortable: true,
             renderCell: (params) => {
@@ -963,7 +963,7 @@ const TasksPage: React.FC = () => {
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
         {
-            field: 'cost', headerName: 'コスト', minWidth: 60, width: 90, renderCell: (params: GridRenderCellParams) => {
+            field: 'cost', headerName: 'コスト', minWidth: 85, width: 90, renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return row.cost ?? '-';
             }
@@ -1581,6 +1581,7 @@ const TasksPage: React.FC = () => {
                                                         right: isPinnedRight ? 0 : 'auto',
                                                         zIndex: isPinnedRight ? 4 : 3,
                                                         boxShadow: isPinnedRight ? (isDark ? '-2px 0 4px rgba(0,0,0,0.3)' : '-2px 0 4px rgba(0,0,0,0.05)') : 'none',
+                                                        whiteSpace: 'nowrap',
                                                     }}
                                                 >
                                                     {col.sortable !== false ? (

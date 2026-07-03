@@ -42,8 +42,37 @@ class RAGService:
             openai_key = os.environ.get("OPENAI_API_KEY")
             google_key = os.environ.get("GOOGLE_API_KEY")
             anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-            
-            if anthropic_key and anthropic_key.startswith("sk-ant-"):
+            llm_provider_env = os.getenv("LLM_PROVIDER", "").lower()
+
+            if llm_provider_env == "local":
+                # 完全ローカル動作（Ollama LLM + ローカル埋め込み）。APIキー不要。
+                # 依存パッケージは遅延インポート（未導入でもアプリ起動は壊さない）:
+                #   pip install llama-index-llms-ollama
+                #   埋め込みが huggingface の場合: pip install llama-index-embeddings-huggingface
+                #   埋め込みが ollama の場合:      pip install llama-index-embeddings-ollama
+                print("RAGService: ローカル (Ollama LLM + ローカル埋め込み) を初期化中...")
+                from llama_index.llms.ollama import Ollama
+                self.provider = "local"
+                self.api_key = None
+                persist_dir = os.path.join(str(Path(__file__).resolve().parent.parent.parent), "data", "rag_index_local")
+                base_url = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1").rstrip("/")
+                # Ollama ネイティブAPIは /v1 サフィックス無しのベースURLを使う
+                ollama_base = base_url[:-3].rstrip("/") if base_url.endswith("/v1") else base_url
+                model_name = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b")
+                Settings.llm = Ollama(model=model_name, base_url=ollama_base, request_timeout=300.0)
+
+                embed_backend = os.getenv("LOCAL_EMBED_BACKEND", "huggingface").lower()
+                if embed_backend == "ollama":
+                    from llama_index.embeddings.ollama import OllamaEmbedding
+                    embed_model_name = os.getenv("LOCAL_EMBED_MODEL", "nomic-embed-text")
+                    Settings.embed_model = OllamaEmbedding(model_name=embed_model_name, base_url=ollama_base)
+                    print(f"RAGService: ローカル埋め込み = Ollama {embed_model_name}")
+                else:
+                    from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+                    embed_model_name = os.getenv("LOCAL_EMBED_MODEL", "BAAI/bge-m3")
+                    Settings.embed_model = HuggingFaceEmbedding(model_name=embed_model_name)
+                    print(f"RAGService: ローカル埋め込み = HuggingFace {embed_model_name}")
+            elif anthropic_key and anthropic_key.startswith("sk-ant-"):
                 print("RAGService: Anthropic (Claude / HuggingFace BGE) を初期化中...")
                 from llama_index.llms.anthropic import Anthropic
                 from llama_index.embeddings.huggingface import HuggingFaceEmbedding

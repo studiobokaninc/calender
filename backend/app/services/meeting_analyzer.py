@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 # 同時実行数を制限するためのセマフォ (サーバー負荷とAPI制限の管理)
 # 高負荷な解析が同時に走りすぎてバックエンドが応答不能になるのを防ぐ
-ANALYZE_SEMAPHORE = asyncio.Semaphore(2)
+# 4コア/GPU無し環境ではローカルWhisper+ローカルLLMがCPUを食い尽くすため1に制限。
+ANALYZE_SEMAPHORE = asyncio.Semaphore(int(os.getenv("ANALYZE_CONCURRENCY", "1")))
 
 class MeetingAnalyzer:
     def __init__(self, api_key: str):
@@ -156,7 +157,7 @@ class MeetingAnalyzer:
                         all_results.append(res)
                     
                     if i < len(chunk_paths) - 1:
-                        await asyncio.sleep(30)
+                        await asyncio.sleep(float(os.getenv("ANALYZE_CHUNK_SLEEP", "30")))
 
                 if not all_results:
                     raise Exception("No results obtained from any segment.")
@@ -240,6 +241,11 @@ class MeetingAnalyzer:
 現在、会議のセグメント{segment_info}を処理しています。
 
 以下の【要件】に厳密に従って、出力を生成してください。
+
+【出力言語（最優先・絶対厳守）】
+出力は、見出し・本文・抽出項目のすべてを【必ず日本語】で記述してください。
+中国語（简体字・繁体字）や英語で出力することは固く禁止します。入力の文字起こしは日本語です。
+固有名詞や専門用語以外は、一字たりとも中国語を混在させないでください。
 
 【システム制約上の最重要指示】
 このタスクは自動化されたパイプラインの一部として実行されます。
@@ -365,13 +371,31 @@ class MeetingAnalyzer:
                 transcript_lines.append(line)
             elif current_section:
                 item = line_raw.lstrip('-*• ').strip()
-                if item and item.lower() not in ['なし', 'none']:
+                if item and item.lower() not in ['なし', 'none'] and not self._is_meta_line(item):
                     # 重複チェック（リスト内）
                     if item not in result[current_section]:
                         result[current_section].append(item)
                     
         result['transcript'] = '\n'.join(transcript_lines).strip()
         return result
+
+    # 構造化セクション(決定事項/タスク/論点/期限)に紛れ込むモデルの前置き・後置き・メタ発話を除外する。
+    _META_MARKERS = (
+        "セグメント", "以上が", "以上で", "分析結果", "文字起こし", "抽出結果",
+        "承知しました", "了解しました", "申し訳", "以下の", "以下に", "出力します",
+        "処理を続け", "続けて", "フォーマット", "については以上", "特にありません",
+        "情報はありません", "該当なし", "該当する", "見当たりません",
+    )
+
+    def _is_meta_line(self, item: str) -> bool:
+        """決定事項等として不適切な、モデルのナレーション/メタ文かどうかを判定する。"""
+        s = item.strip()
+        if not s:
+            return True
+        # 見出し記号だけ、あるいは区切り線
+        if set(s) <= set("=-—―*・● "):
+            return True
+        return any(mk in s for mk in self._META_MARKERS)
 
     async def _consolidate_results(self, chunk_results: List[Dict[str, Any]], meeting_id: int) -> Dict[str, Any]:
         """全てのチャンク結果を一つの議事録データに統合・整形する"""
@@ -406,6 +430,9 @@ class MeetingAnalyzer:
         summary_prompt = f"""
 あなたは、断片的な抽出データと文字起こしを元に、統合された完璧な議事録を作成するシニア・エディターです。
 複数のセグメント（時間帯）から抽出された情報を統合し、重複を排除しながら、会議全体としての結論とアクションプランを明確にしてください。
+
+【出力言語（最優先・絶対厳守）】
+出力はすべて【必ず日本語】で記述してください。中国語（简体字・繁体字）や英語での出力は固く禁止します。
 
 【提供された断片データ】
 決定事項: {all_decisions}

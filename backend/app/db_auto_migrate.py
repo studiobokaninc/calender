@@ -458,11 +458,42 @@ def check_and_migrate_db():
             conn.commit()
             print("timecards: 既存レコードのデフォルト値初期化を完了しました。")
 
+        # assets.shot_id NOT NULL → NULL 許可移行（SQLite テーブル再構築）
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'")
+        _assets_tbl = cursor.fetchone()
+        if _assets_tbl and "shot_id INTEGER NOT NULL" in _assets_tbl[0]:
+            print("assets: shot_id NOT NULL を検出。NULL 許可テーブルへ再構築中...")
+            cursor.execute("ALTER TABLE assets RENAME TO assets_old")
+            cursor.execute("""
+                CREATE TABLE assets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    shot_id INTEGER,
+                    task_id INTEGER,
+                    version VARCHAR(50) NOT NULL,
+                    file_path TEXT NOT NULL,
+                    created_by INTEGER NOT NULL,
+                    created_at DATETIME,
+                    FOREIGN KEY(shot_id) REFERENCES shots(id) ON DELETE CASCADE,
+                    FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+                    FOREIGN KEY(created_by) REFERENCES users(id)
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO assets (id, shot_id, task_id, version, file_path, created_by, created_at)
+                SELECT id, shot_id, task_id, version, file_path, created_by, created_at FROM assets_old
+            """)
+            cursor.execute("DROP TABLE assets_old")
+            cursor.execute("CREATE INDEX IF NOT EXISTS ix_assets_shot_id ON assets(shot_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS ix_assets_task_id ON assets(task_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS ix_assets_created_by ON assets(created_by)")
+            conn.commit()
+            print("assets: shot_id NULL 許可移行完了（既存データ保全済み）。")
+
         # assets テーブルの作成
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS assets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                shot_id INTEGER NOT NULL,
+                shot_id INTEGER,
                 task_id INTEGER,
                 version VARCHAR(50) NOT NULL,
                 file_path TEXT NOT NULL,
@@ -525,11 +556,42 @@ def check_and_migrate_db():
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_group_direct_messages_group ON group_direct_messages(group_id)")
 
+        # reference_materials.shot_id NOT NULL → NULL 許可移行（SQLite テーブル再構築）
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='reference_materials'")
+        _rm_tbl = cursor.fetchone()
+        if _rm_tbl and "shot_id INTEGER NOT NULL" in _rm_tbl[0]:
+            print("reference_materials: shot_id NOT NULL を検出。NULL 許可テーブルへ再構築中...")
+            cursor.execute("ALTER TABLE reference_materials RENAME TO reference_materials_old")
+            cursor.execute("""
+                CREATE TABLE reference_materials (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    shot_id INTEGER,
+                    task_id INTEGER,
+                    title VARCHAR(255) NOT NULL,
+                    media_type VARCHAR(50) NOT NULL,
+                    file_path TEXT NOT NULL,
+                    created_by INTEGER NOT NULL,
+                    created_at DATETIME,
+                    FOREIGN KEY(shot_id) REFERENCES shots(id) ON DELETE CASCADE,
+                    FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE SET NULL,
+                    FOREIGN KEY(created_by) REFERENCES users(id)
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO reference_materials (id, shot_id, task_id, title, media_type, file_path, created_by, created_at)
+                SELECT id, shot_id, task_id, title, media_type, file_path, created_by, created_at FROM reference_materials_old
+            """)
+            cursor.execute("DROP TABLE reference_materials_old")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reference_materials_shot ON reference_materials(shot_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reference_materials_task ON reference_materials(task_id)")
+            conn.commit()
+            print("reference_materials: shot_id NULL 許可移行完了（既存データ保全済み）。")
+
         # reference_materials テーブルの作成
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS reference_materials (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                shot_id INTEGER NOT NULL,
+                shot_id INTEGER,
                 task_id INTEGER,
                 title VARCHAR(255) NOT NULL,
                 media_type VARCHAR(50) NOT NULL,

@@ -55,19 +55,12 @@ export const getProjectColor = (
     }
 };
 
+// task_status_redesign_plan.md §6.2 準拠。カラー定義は utils/taskStatus.ts に集約。
+// getTaskStatusColor は内部で旧値→新値マッピングも行うため、そのまま委譲すればよい。
+import { getTaskStatusColor } from './taskStatus';
+
 export const getTaskColor = (
     status?: string,
     _projectStatus?: string,
     _dueDate?: string | Date | null
-): string => {
-    switch (status?.toLowerCase()) {
-        case 'todo': return '#2196F3';
-        case 'in-progress': return '#FF9800';
-        case 'review': return '#9C27B0';
-        case 'approved': return '#4CAF50';
-        case 'delayed': return '#F44336';
-        case 'completed': return '#9E9E9E';
-        case 'retake': return '#E91E63';
-        default: return '#BDBDBD';
-    }
-};
+): string => getTaskStatusColor(status);

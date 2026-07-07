@@ -163,20 +163,59 @@ const calculateProgressData = (projects: Project[], tasks: Task[], today: Date):
                             currentStatusEntry = lastValidEntry;
 
                             if (currentStatusEntry) {
-                                // ステータスに応じた進捗率を設定
-                                switch (currentStatusEntry.status) {
+                                // task_status_redesign_plan.md §3.4 の進捗ウェイトを適用。
+                                // 旧値 (completed/in-progress/review/delayed 等) も互換で処理する。
+                                const raw = (currentStatusEntry.status || '').toLowerCase();
+                                switch (raw) {
+                                    // 完了 (唯一)
+                                    case 'deliver':
                                     case 'completed':
-                                        taskContribution = 1;
+                                        taskContribution = 1.0;
                                         break;
-                                    case 'in-progress':
-                                        taskContribution = 0.5;
+                                    // 監督承認 / クライアント OK (納品前)
+                                    case 'fix':
+                                    case 'dir_ap':
+                                        taskContribution = 0.95;
                                         break;
+                                    // 社内承認済
+                                    case 'ap':
+                                    case 'approved':
+                                        taskContribution = 0.85;
+                                        break;
+                                    // チェック待ち・確認中
+                                    case 'qc':
+                                    case 'v1qc':
+                                    case 'dir_wt':
                                     case 'review':
-                                        taskContribution = 0.75;
+                                        taskContribution = 0.7;
                                         break;
+                                    // 進行中 (共通 + 工程別) + FB 対応中
+                                    case 'wip':
+                                    case 'modeling':
+                                    case 'lookdev':
+                                    case 'caching':
+                                    case 'rig':
+                                    case 'facial':
+                                    case 'qc_fb':
+                                    case 'ap_fb':
+                                    case 'dir_fb':
+                                    case 'in-progress':
+                                    case 'in_progress':
+                                    case 'retake':
                                     case 'delayed':
-                                        taskContribution = 0.25;
+                                        taskContribution = 0.4;
                                         break;
+                                    // 一時停止
+                                    case 'wt':
+                                        taskContribution = 0.2;
+                                        break;
+                                    // 除外 (集計対象外 = ここでは 0 扱いで加算しない)
+                                    case 'omit':
+                                        taskContribution = 0;
+                                        break;
+                                    // 未着手
+                                    case 'mk':
+                                    case 'todo':
                                     default:
                                         taskContribution = 0;
                                 }

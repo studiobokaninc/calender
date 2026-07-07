@@ -38,6 +38,7 @@ import { usePageState } from '../contexts/PageStateContext'
 import { useAuth } from '../contexts/AuthContext'
 import { TaskEditDialog, EventEditDialog } from '../components/SearchEditDialogs'
 import { TaskQuickDetail } from '../components/TaskQuickDetail'
+import { getEventColor, getTaskColor } from '../utils/calendarEventColors'
 
 const Dashboard: React.FC = () => {
   const theme = useTheme()
@@ -272,7 +273,7 @@ const Dashboard: React.FC = () => {
       return u?.username || u?.full_name || u?.name || u?.email || `User ${userId}`
     }
 
-    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; phaseIdx?: number; seqID?: string; shotID?: string; }
+    type TodayItem = { type: 'event' | 'task'; name: string; projectName: string; assigneeName?: string; id: string | number; timeLabel?: string; kindLabel: string; startTime?: string; isPhase?: boolean; rawId: number; phaseIdx?: number; seqID?: string; shotID?: string; color: string; }
     const eventList: TodayItem[] = []
 
     backendEvents.forEach((ev: BackendEvent) => {
@@ -303,6 +304,18 @@ const Dashboard: React.FC = () => {
       if (!startDate) return;
       if (todayStr >= startDate && todayStr <= endDate) {
         const evType = (ev.type ?? 'Generic').toString()
+        let evDate = new Date();
+        if (evType === 'Meeting' || evType === 'Workshop') {
+          if (ev.start_time) evDate = new Date(ev.start_time);
+        } else if (ev.end_time) {
+          const d = new Date(ev.end_time);
+          if (ev.allDay) d.setDate(d.getDate() - 1);
+          evDate = d;
+        } else if (ev.start_time) {
+          evDate = new Date(ev.start_time);
+        }
+        const eventColor = getEventColor(evType, p?.status ?? undefined, evDate);
+
         eventList.push({
           type: 'event',
           id: String(ev.id),
@@ -313,6 +326,7 @@ const Dashboard: React.FC = () => {
           startTime: ev.start_time ?? '',
           isPhase: false,
           rawId: ev.id,
+          color: eventColor,
         })
       }
     });
@@ -326,6 +340,8 @@ const Dashboard: React.FC = () => {
         const due = new Date(t.due_date);
         const dueStr = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
         if (dueStr === todayStr) {
+          const p = projects.find((x: any) => x.id === t.project_id);
+          const taskColor = getTaskColor(t.status ?? 'todo', p?.status ?? undefined, t.due_date);
           eventList.push({
             type: 'task',
             id: String(t.id),
@@ -339,6 +355,7 @@ const Dashboard: React.FC = () => {
             rawId: t.id,
             seqID: t.seqID,
             shotID: t.shotID,
+            color: taskColor,
           });
         }
       }
@@ -349,6 +366,8 @@ const Dashboard: React.FC = () => {
           const pDate = new Date(p.date);
           const pDateStr = `${pDate.getFullYear()}-${String(pDate.getMonth() + 1).padStart(2, '0')}-${String(pDate.getDate()).padStart(2, '0')}`;
           if (pDateStr === todayStr) {
+            const isDelayed = !p.is_completed && new Date(p.date) < new Date(new Date().setHours(0, 0, 0, 0));
+            const phaseColor = p.is_completed ? '#9E9E9E' : (isDelayed ? '#D32F2F' : '#FFA000');
             eventList.push({
               type: 'task',
               id: `phase-${t.id}-${idx}`,
@@ -363,6 +382,7 @@ const Dashboard: React.FC = () => {
               phaseIdx: idx,
               seqID: t.seqID,
               shotID: t.shotID,
+              color: phaseColor,
             });
           }
         });
@@ -424,7 +444,8 @@ const Dashboard: React.FC = () => {
               phaseIdx: idx,
               name: `${t.name}: ${p.name}`,
               due_date: p.date,
-              isPhase: true
+              isPhase: true,
+              isPhaseCompleted: p.is_completed,
             })
           }
         })
@@ -433,12 +454,24 @@ const Dashboard: React.FC = () => {
 
     return expandedTasks
       .sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
-      .map((t: any) => ({
-        ...t,
-        projectName: getProjectName(t.project_id ?? null),
-        assigneeName: getAssigneeName(t.assigned_to ?? null),
-        shotLabel: t.shotID || '',
-      }))
+      .map((t: any) => {
+        const p = projects.find((x: any) => x.id === t.project_id);
+        let taskColor = '';
+        if (t.isPhase) {
+          const isDelayed = !t.isPhaseCompleted && new Date(t.due_date) < new Date(new Date().setHours(0, 0, 0, 0));
+          taskColor = t.isPhaseCompleted ? '#9E9E9E' : (isDelayed ? '#D32F2F' : '#FFA000');
+        } else {
+          taskColor = getTaskColor(t.status ?? 'todo', p?.status ?? undefined, t.due_date);
+        }
+
+        return {
+          ...t,
+          projectName: getProjectName(t.project_id ?? null),
+          assigneeName: getAssigneeName(t.assigned_to ?? null),
+          shotLabel: t.shotID || '',
+          color: taskColor,
+        };
+      })
   }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
   const delayedTasks = useMemo(() => {
@@ -458,10 +491,14 @@ const Dashboard: React.FC = () => {
 
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
-    const completed = ['completed', 'COMPLETED']
+    const completed = ['completed', 'COMPLETED', 'deliver', 'DELIVER']
     const expandedTasks: any[] = []
 
     tasks.forEach((t: any) => {
+      const proj = projects.find((x: any) => x.id === t.project_id)
+      const isOnline = proj ? (proj.display_status ?? 'online') === 'online' : false
+      if (!isOnline) return
+
       const isTaskCompleted = completed.includes(String(t.status ?? ''))
       if (isTaskCompleted) return
       let isTaskDelayed = false
@@ -489,7 +526,8 @@ const Dashboard: React.FC = () => {
                 phaseIdx: idx,
                 name: `${t.name}: ${p.name}`,
                 due_date: p.date,
-                isPhase: true
+                isPhase: true,
+                isPhaseCompleted: p.is_completed,
               })
             }
           }
@@ -498,12 +536,24 @@ const Dashboard: React.FC = () => {
     })
     return expandedTasks
       .sort((a: any, b: any) => new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime())
-      .map((t: any) => ({
-        ...t,
-        projectName: getProjectName(t.project_id ?? null),
-        assigneeName: getAssigneeName(t.assigned_to ?? null),
-        shotLabel: t.shotID || '',
-      }))
+      .map((t: any) => {
+        const p = projects.find((x: any) => x.id === t.project_id);
+        let taskColor = '';
+        if (t.isPhase) {
+          const isDelayed = !t.isPhaseCompleted && new Date(t.due_date) < new Date(new Date().setHours(0, 0, 0, 0));
+          taskColor = t.isPhaseCompleted ? '#9E9E9E' : (isDelayed ? '#D32F2F' : '#FFA000');
+        } else {
+          taskColor = getTaskColor(t.status ?? 'todo', p?.status ?? undefined, t.due_date);
+        }
+
+        return {
+          ...t,
+          projectName: getProjectName(t.project_id ?? null),
+          assigneeName: getAssigneeName(t.assigned_to ?? null),
+          shotLabel: t.shotID || '',
+          color: taskColor,
+        };
+      })
   }, [globalData?.tasks, globalData?.projects, globalData?.users])
 
   const summaryCounts = useMemo(() => {
@@ -616,12 +666,12 @@ const Dashboard: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}><Typography variant="body2" color="text.secondary">今日の予定はありません</Typography></Box>
               ) : (
                 todayItems.map((item) => (
-                  <Box key={`${item.type}-${item.id}`} onClick={() => { if (item.type === 'event') { const ev = backendEvents.find(e => e.id === item.rawId); if (ev) { setSelectedEventDetail(ev); setIsEventDetailOpen(true); } } else { const tk = (globalData?.tasks ?? []).find((t: any) => t.id === item.rawId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } } }} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), display: 'flex', alignItems: 'flex-start', gap: 1.25, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
-                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: item.type === 'event' ? 'info.light' : (item.isPhase ? 'secondary.light' : 'warning.light'), color: item.type === 'event' ? 'info.dark' : (item.isPhase ? 'secondary.dark' : 'warning.dark') }}>{item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}</Box>
+                  <Box key={`${item.type}-${item.id}`} onClick={() => { if (item.type === 'event') { const ev = backendEvents.find(e => e.id === item.rawId); if (ev) { setSelectedEventDetail(ev); setIsEventDetailOpen(true); } } else { const tk = (globalData?.tasks ?? []).find((t: any) => t.id === item.rawId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } } }} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: item.color, display: 'flex', alignItems: 'flex-start', gap: 1.25, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(item.color, 0.12), color: item.color }}>{item.type === 'event' ? <EventIcon sx={{ fontSize: 18 }} /> : <TaskIcon sx={{ fontSize: 18 }} />}</Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
                         <TaskLabel shotId={item.shotID} title={item.name} />
-                        <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.type === 'event' ? 'info.main' : (item.isPhase ? 'secondary.main' : 'warning.main'), color: 'white', fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
+                        <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: item.color, color: theme.palette.getContrastText(item.color), fontWeight: 600, fontSize: '0.7rem' }}>{item.kindLabel}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -656,12 +706,12 @@ const Dashboard: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}><Typography variant="body2" color="text.secondary">今週の締切はありません</Typography></Box>
               ) : (
                 weekDeadlineTasks.map((t: any) => (
-                  <Box key={t.id} onClick={() => { const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id); const tk = (globalData?.tasks ?? []).find((x: any) => x.id === taskId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } }} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'warning.main', display: 'flex', alignItems: 'flex-start', gap: 1.25, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
-                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'warning.light', color: 'warning.dark' }}><TaskIcon sx={{ fontSize: 18 }} /></Box>
+                  <Box key={t.id} onClick={() => { const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id); const tk = (globalData?.tasks ?? []).find((x: any) => x.id === taskId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } }} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: t.color, display: 'flex', alignItems: 'flex-start', gap: 1.25, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(t.color, 0.12), color: t.color }}><TaskIcon sx={{ fontSize: 18 }} /></Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
                         <TaskLabel shotId={t.shotLabel} title={t.name} />
-                        <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'warning.main', color: 'white', fontWeight: 600, fontSize: '0.75rem' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}</Typography>
+                        <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: t.color, color: theme.palette.getContrastText(t.color), fontWeight: 600, fontSize: '0.75rem' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : ''}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                         <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
@@ -692,12 +742,12 @@ const Dashboard: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 120, px: 2 }}><Typography variant="body2" color="text.secondary">遅延タスクはありません</Typography></Box>
               ) : (
                 delayedTasks.map((t: any) => (
-                  <Box key={t.id} onClick={() => { const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id); const tk = (globalData?.tasks ?? []).find((x: any) => x.id === taskId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } }} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: 'error.main', display: 'flex', alignItems: 'flex-start', gap: 1.25, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
-                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'error.light', color: 'error.dark' }}><TaskIcon sx={{ fontSize: 18 }} /></Box>
+                  <Box key={t.id} onClick={() => { const taskId = t.isPhase && t.originalId ? Number(t.originalId) : Number(t.id); const tk = (globalData?.tasks ?? []).find((x: any) => x.id === taskId); if (tk) { setSelectedTaskDetail(tk); setIsTaskDetailOpen(true); } }} sx={{ py: 1.25, px: 1.25, mb: 1, borderRadius: 1.5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderLeft: '4px solid', borderLeftColor: t.color, display: 'flex', alignItems: 'flex-start', gap: 1.25, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+                    <Box sx={{ flexShrink: 0, width: 32, height: 32, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(t.color, 0.12), color: t.color }}><TaskIcon sx={{ fontSize: 18 }} /></Box>
                     <Box sx={{ minWidth: 0, flex: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.5 }}>
                         <TaskLabel shotId={t.shotLabel} title={t.name} />
-                        <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: 'error.main', color: 'white', fontWeight: 600, fontSize: '0.75rem' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}</Typography>
+                        <Typography component="span" variant="caption" sx={{ px: 0.75, py: 0.2, borderRadius: 1, bgcolor: t.color, color: theme.palette.getContrastText(t.color), fontWeight: 600, fontSize: '0.75rem' }}>{t.due_date ? format(new Date(t.due_date), 'M/d (EEE)', { locale: ja }) : '期日未設定'}</Typography>
                       </Box>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                         <ProjectIcon sx={{ fontSize: 14, color: 'text.secondary' }} />

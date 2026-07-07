@@ -7,6 +7,7 @@ import logging
 import base64
 import os
 import re
+import subprocess
 from typing import AsyncGenerator, Optional, Dict, Any, List
 
 from fastapi import HTTPException
@@ -85,25 +86,33 @@ async def _transcribe_whisper_cpp(audio_path: str) -> str:
     out_base = os.path.join(tmp_dir, "out")
     ffmpeg_exe = shutil.which("ffmpeg") or "ffmpeg"
     try:
+        # 重要: 非同期サブプロセス(asyncio.create_subprocess_exec)は稼働中uvicornワーカーの
+        # イベントループ次第で Windows 上 NotImplementedError(str()が空)になり毎回失敗する。
+        # 実績のある subprocess.run + asyncio.to_thread（ffprobe/ffmpegと同じ方式）で実行する。
+
         # 1) whisper.cpp は wav/mp3/flac/ogg のみ対応。16kHzモノWAVへ変換する。
-        p1 = await asyncio.create_subprocess_exec(
-            ffmpeg_exe, "-y", "-i", audio_path, "-ar", "16000", "-ac", "1", tmp_wav,
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
-        )
-        await p1.communicate()
+        def _run_ffmpeg():
+            return subprocess.run(
+                [ffmpeg_exe, "-y", "-i", audio_path, "-ar", "16000", "-ac", "1", tmp_wav],
+                capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=300,
+            )
+        r1 = await asyncio.to_thread(_run_ffmpeg)
         if not os.path.exists(tmp_wav):
-            raise RuntimeError("ffmpeg による16kHz WAV変換に失敗しました")
+            raise RuntimeError(
+                f"ffmpeg 16kHz変換に失敗 (code={r1.returncode}): {(r1.stderr or '')[:300]}"
+            )
 
         # 2) whisper-cli を実行（-np: 進捗抑制, -otxt: テキスト出力）
-        p2 = await asyncio.create_subprocess_exec(
-            bin_path, "-m", model_path, "-f", tmp_wav, "-l", "ja",
-            "-t", str(threads), "-otxt", "-of", out_base, "-np",
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await p2.communicate()
-        if p2.returncode != 0:
+        def _run_whisper():
+            return subprocess.run(
+                [bin_path, "-m", model_path, "-f", tmp_wav, "-l", "ja",
+                 "-t", str(threads), "-otxt", "-of", out_base, "-np"],
+                capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=1800,
+            )
+        r2 = await asyncio.to_thread(_run_whisper)
+        if r2.returncode != 0:
             raise RuntimeError(
-                f"whisper-cli 失敗(code={p2.returncode}): {stderr.decode('utf-8', 'ignore')[:300]}"
+                f"whisper-cli 失敗(code={r2.returncode}): {(r2.stderr or '')[:300]}"
             )
 
         txt_path = out_base + ".txt"
@@ -124,7 +133,12 @@ class LLMClient:
         _llm_provider_env = os.getenv("LLM_PROVIDER", "").lower()
         if _llm_provider_env == "local":
             self.provider = "openai"  # Ollama is OpenAI-compatible
-            _base_url = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1")
+            # CALENDER_LLM_BASE_URL がこのプロジェクト専用のキー。LOCAL_LLM_BASE_URL は
+            # 他システムでも使われる汎用キーで、未移行環境向けにフォールバックとして残す。
+            _base_url = (
+                os.getenv("CALENDER_LLM_BASE_URL")
+                or os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1")
+            )
             self.model_name = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b")
             self.client = openai.AsyncOpenAI(
                 api_key="ollama",  # dummy key — Ollama does not validate
@@ -313,6 +327,55 @@ class LLMClient:
             elif chunk.get("event") == "error":
                 raise Exception(chunk.get("message"))
         return response_text
+
+    async def transcribe_audio(self, file_path: str) -> str:
+        """音声/動画を文字起こしして【生テキスト】を返す（議事録の逐語文字起こし用）。
+        バックエンド選択は _stream_openai と同じ優先順位（クラウドWhisper→cpp→faster→openai）。
+        LLMによる整形・補完は行わない。失敗時は空文字を返す（呼び出し側で捏造を防ぐ）。"""
+        p = pathlib.Path(file_path)
+        if not p.exists():
+            return ""
+        ext = p.suffix.lower()
+        if ext not in [".mp3", ".wav", ".m4a", ".mp4", ".webm", ".ogg", ".opus", ".flac", ".aac", ".m4b", ".wma", ".mov"]:
+            return ""
+
+        t_text = ""
+        _whisper_backend = os.getenv("WHISPER_BACKEND", "auto")
+        _whisper_model = os.getenv("WHISPER_MODEL", "medium")
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+
+        # クラウドWhisper API（WHISPER_BACKEND=local またはキー無しならスキップ）
+        if openai_key.startswith("sk-") and _whisper_backend != "local":
+            try:
+                oai_client = openai.AsyncOpenAI(api_key=openai_key)
+                logger.info(f"Transcribing {p.name} via OpenAI Whisper API...")
+                with open(file_path, "rb") as audio_file:
+                    transcript = await oai_client.audio.transcriptions.create(
+                        model="whisper-1", file=audio_file, language="ja",
+                        prompt="これは日本語の会議の文字起こしです。句読点を適切に使用し、意味不明な繰り返しや関係のない挨拶を省いてください。",
+                    )
+                t_text = (transcript.text or "").strip()
+            except Exception as e:
+                logger.warning(f"OpenAI Whisper API failed: {e}. ローカルWhisperにフォールバック")
+
+        if not t_text:
+            _whisper_impl = os.getenv("WHISPER_IMPL", "faster").lower()
+            if _whisper_impl == "cpp":
+                logger.info(f"Transcribing {p.name} via whisper.cpp CLI...")
+                t_text = (await _transcribe_whisper_cpp(file_path)).strip()
+            elif _whisper_impl == "openai":
+                def _transcribe_openai_whisper():
+                    mdl = _get_openai_whisper_model(_whisper_model)
+                    return mdl.transcribe(file_path, language="ja", fp16=False)["text"]
+                t_text = (await asyncio.to_thread(_transcribe_openai_whisper)).strip()
+            else:
+                def _transcribe_faster():
+                    mdl = _get_faster_whisper_model(_whisper_model, int(os.getenv("WHISPER_CPU_THREADS", "2")))
+                    segs, _ = mdl.transcribe(file_path, language="ja")
+                    return "".join(s.text for s in segs)
+                t_text = (await asyncio.to_thread(_transcribe_faster)).strip()
+
+        return t_text
 
     async def _stream_gemini(self, query: str, conversation_id: str, inputs: Dict[str, Any], history: List[Dict[str, Any]]):
         system_prompt = self.generate_system_prompt(inputs)

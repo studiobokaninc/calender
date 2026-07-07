@@ -59,7 +59,7 @@ def _is_task_unblocked_on_date(task: Any, d: date, tasks_by_id: Dict[int, Any], 
     for dep_id in deps:
         dep_task = tasks_by_id.get(dep_id)
         if not dep_task: continue
-        if dep_task.status != models.TaskStatus.COMPLETED:
+        if dep_task.status != models.TaskStatus.DELIVER:
             _, dep_end, _ = _task_calendar_range(dep_task, to_date_func)
             if dep_end is None or dep_end > d: return False
     return True
@@ -80,7 +80,7 @@ def get_labor_report(db: Session, group_by: str, from_date: Optional[datetime] =
     if not include_offline:
         query = query.join(models.Project).filter(models.Project.display_status != 'offline')
     if not include_completed:
-        query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+        query = query.filter(models.Task.status != models.TaskStatus.DELIVER)
     if from_date: query = query.filter(models.Task.due_date >= from_date)
     if to_date: query = query.filter(models.Task.due_date <= to_date)
     tasks = query.all()
@@ -114,7 +114,7 @@ def get_weekly_workload(db: Session, week_start: date, reference_date: Optional[
             except: return None
         return None
     query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None))
-    if not include_completed: query = query.filter(models.Task.status != models.TaskStatus.COMPLETED)
+    if not include_completed: query = query.filter(models.Task.status != models.TaskStatus.DELIVER)
     if include_completed: query = query.options(selectinload(models.Task.status_history))
     if not include_offline:
         offline_project_ids = [p.id for p in db.query(models.Project).filter(models.Project.display_status == "offline").all()]
@@ -131,11 +131,11 @@ def get_weekly_workload(db: Session, week_start: date, reference_date: Optional[
         task_start, task_end, cost = _task_calendar_range(t, to_date)
         if task_start is None or cost <= 0: continue
         total_weekdays = _count_weekdays(task_start, task_end) or 1
-        is_completed = t.status == models.TaskStatus.COMPLETED
+        is_completed = t.status == models.TaskStatus.DELIVER
         if is_completed:
             completed_date = None
             if hasattr(t, 'status_history') and t.status_history:
-                completed_history = [h for h in t.status_history if h.status == models.TaskStatus.COMPLETED]
+                completed_history = [h for h in t.status_history if h.status == models.TaskStatus.DELIVER]
                 if completed_history: completed_date = to_date(max(completed_history, key=lambda h: h.changed_at).changed_at)
             if completed_date is None: completed_date = to_date(getattr(t, 'updated_at', None)) or task_end
             effective_reference_date = completed_date or reference_date
@@ -197,7 +197,7 @@ def get_daily_workload(db: Session, target_date: date, include_offline: bool = F
             try: return datetime.strptime(d[:10], "%Y-%m-%d").date()
             except: return None
         return None
-    query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None), models.Task.status != models.TaskStatus.COMPLETED)
+    query = db.query(models.Task).filter(models.Task.assigned_to.isnot(None), models.Task.status != models.TaskStatus.DELIVER)
     if not include_offline:
         offline_project_ids = [p.id for p in db.query(models.Project).filter(models.Project.display_status == "offline").all()]
         if offline_project_ids: query = query.filter(~models.Task.project_id.in_(offline_project_ids))

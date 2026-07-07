@@ -125,17 +125,17 @@ def complete_tasks_for_project(db: Session, project_id: int) -> int:
     """プロジェクトに属する未完了タスクをすべて完了にする。完了にしたタスク数を返す。"""
     tasks = db.query(models.Task).filter(
         models.Task.project_id == project_id,
-        models.Task.status != models.TaskStatus.COMPLETED
+        models.Task.status != models.TaskStatus.DELIVER
     ).all()
     
     count = 0
     now = now_jst_naive()
     for task in tasks:
-        task.status = models.TaskStatus.COMPLETED
+        task.status = models.TaskStatus.DELIVER
         task.updated_at = now
         db.add(models.TaskStatusHistory(
             task_id=task.id,
-            status=models.TaskStatus.COMPLETED,
+            status=models.TaskStatus.DELIVER,
             changed_at=now,
             changed_by=task.assigned_to
         ))

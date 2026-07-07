@@ -210,8 +210,8 @@ def get_shot_progress(
             average_progress=0.0
         )
 
-    completed = sum(1 for t in tasks if t.status == models.TaskStatus.COMPLETED)
-    total_prog = sum(t.progress if t.progress is not None else (100 if t.status == models.TaskStatus.COMPLETED else 0) for t in tasks)
+    completed = sum(1 for t in tasks if t.status == models.TaskStatus.DELIVER)
+    total_prog = sum(t.progress if t.progress is not None else (100 if t.status == models.TaskStatus.DELIVER else 0) for t in tasks)
     avg_prog = total_prog / total
 
     return schemas.ShotProgressResponse(

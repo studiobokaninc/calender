@@ -18002,3 +18002,790 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-07-02 14:15:54,898 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
 2026-07-02 14:15:54,941 - app.main - WARNING - PERF_SLOW GET /tasks 298ms
 2026-07-02 14:16:04,594 - app.main - WARNING - PERF_SLOW GET /metrics/dashboard 432ms
+2026-07-03 16:35:17,908 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-03 16:35:17,909 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-03 16:35:17,911 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-03 16:35:18,243 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-03 16:35:18,244 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-03 16:35:18,245 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-03 16:35:18,903 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-03 16:35:18,904 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-03 16:35:18,906 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-03 16:35:19,185 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-03 16:35:19,186 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-03 16:35:19,188 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-03 16:35:19,233 - app.main - WARNING - PERF_SLOW GET /tasks 334ms
+2026-07-06 12:14:50,430 - app.main - WARNING - PERF_SLOW GET /api/holidays 3437ms
+2026-07-06 12:14:53,880 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-07-06 12:14:56,309 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=ReadError
+2026-07-06 12:14:58,729 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.deleted error=ReadError
+2026-07-06 12:14:59,006 - app.main - WARNING - PERF_SLOW GET /api/users/me 271ms
+2026-07-06 12:20:14,027 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:20:14,027 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:20:14,028 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:20:14,419 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:20:14,419 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:20:14,423 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:20:14,988 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:20:14,988 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:20:14,989 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:20:15,298 - app.main - WARNING - PERF_SLOW GET /tasks 315ms
+2026-07-06 12:20:15,301 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:20:15,301 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:20:15,303 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:02,702 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:02,702 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:02,704 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:03,021 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:03,021 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:03,024 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:03,766 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:03,766 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:03,768 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:04,010 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:04,010 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:04,013 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:04,391 - app.main - WARNING - PERF_SLOW GET /tasks 299ms
+2026-07-06 12:25:29,155 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:29,156 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:29,158 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:29,499 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:29,500 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:29,503 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:30,794 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:30,794 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:30,796 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:31,111 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:25:31,113 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:25:31,116 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:25:31,507 - app.main - WARNING - PERF_SLOW GET /tasks 269ms
+2026-07-06 12:26:08,896 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:26:08,897 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:26:08,898 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:26:09,226 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:26:09,227 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:26:09,228 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:26:10,458 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:26:10,459 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:26:10,460 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:26:10,705 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:26:10,705 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:26:10,708 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:28:02,645 - app.main - WARNING - PERF_SLOW GET /metrics/dashboard 272ms
+2026-07-06 12:29:24,925 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:29:24,925 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:29:24,927 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:29:25,257 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:29:25,257 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:29:25,260 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:29:25,875 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:29:25,875 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:29:25,877 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:29:26,121 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:29:26,122 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:29:26,124 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:33:31,425 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:33:31,426 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:33:31,428 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:33:31,763 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:33:31,765 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:33:31,768 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:33:32,447 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:33:32,447 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:33:32,449 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:33:32,691 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:33:32,692 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:33:32,694 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:36:33,807 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:36:33,807 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:36:33,809 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:36:34,139 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:36:34,139 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:36:34,141 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:36:35,187 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:36:35,187 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:36:35,189 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:36:35,450 - app.main - WARNING - PERF_SLOW GET /tasks 268ms
+2026-07-06 12:36:35,506 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:36:35,506 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:36:35,509 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:36:35,867 - app.main - WARNING - PERF_SLOW POST /api/user-activities 418ms
+2026-07-06 12:36:37,303 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:36:37,304 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:36:37,311 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:36:37,633 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:36:37,634 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:36:37,637 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:36:38,031 - app.main - WARNING - PERF_SLOW GET /tasks 263ms
+2026-07-06 12:42:49,373 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:42:49,373 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:42:49,380 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:42:49,601 - app.main - WARNING - PERF_SLOW GET /tasks 315ms
+2026-07-06 12:42:49,606 - app.main - WARNING - PERF_SLOW GET /projects 260ms
+2026-07-06 12:47:11,646 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:47:11,647 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:47:11,650 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:47:11,968 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:47:11,968 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:47:11,970 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:47:12,288 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:47:12,288 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:47:12,290 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:47:12,603 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:47:12,604 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:47:12,606 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:46,980 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:46,984 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:46,988 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:47,268 - app.main - WARNING - PERF_SLOW GET /tasks 625ms
+2026-07-06 12:49:47,271 - app.main - WARNING - PERF_SLOW GET /api/projects/summary 306ms
+2026-07-06 12:49:47,338 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:47,339 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:47,341 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:51,834 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:51,835 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:51,837 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:52,082 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:52,083 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:52,084 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:57,321 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:57,322 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:57,324 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:57,639 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:57,639 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:57,642 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:57,959 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:57,959 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:57,961 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:49:58,275 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:49:58,275 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:49:58,278 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:01,124 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:01,124 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:01,127 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:01,370 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:01,370 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:01,372 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:06,155 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:06,156 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:06,158 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:06,477 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:06,477 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:06,480 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:06,880 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:06,880 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:06,882 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:06,936 - app.main - WARNING - PERF_SLOW GET /tasks 329ms
+2026-07-06 12:50:07,210 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:07,210 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:07,212 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:09,850 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:09,850 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:09,853 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:10,099 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:10,100 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:10,104 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:30,142 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:30,142 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:30,144 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:30,460 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:30,460 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:30,463 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:30,778 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:30,778 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:30,781 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:31,093 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:31,093 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:31,095 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:41,089 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:41,089 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:41,094 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:41,158 - app.main - WARNING - PERF_SLOW GET /tasks 413ms
+2026-07-06 12:50:41,432 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:41,432 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:41,434 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:47,242 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:47,245 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:47,248 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:50:47,579 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:50:47,580 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:50:47,583 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:53:46,616 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:53:46,616 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:53:46,618 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:53:46,860 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:53:46,861 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:53:46,863 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:07,397 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:07,398 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:07,401 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:07,718 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:07,719 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:07,721 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:08,108 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:08,109 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:08,114 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:08,163 - app.main - WARNING - PERF_SLOW GET /tasks 314ms
+2026-07-06 12:54:08,442 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:08,443 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:08,445 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:10,159 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:10,159 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:10,161 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:10,408 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:10,409 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:10,410 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:12,700 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:12,700 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:12,702 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:13,019 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:13,019 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:13,022 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:13,338 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:13,338 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:13,340 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:13,651 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:13,652 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:13,655 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:15,816 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:15,816 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:15,819 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:16,055 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:16,056 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:16,060 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:18,245 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:18,245 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:18,248 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:18,523 - app.main - WARNING - PERF_SLOW GET /tasks 285ms
+2026-07-06 12:54:18,562 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:18,563 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:18,565 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:18,938 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:18,938 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:18,945 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:19,277 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:19,279 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:19,281 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:22,849 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:22,849 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:22,852 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:54:23,094 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:54:23,094 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:54:23,096 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:58:35,522 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:58:35,523 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:58:35,526 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:58:35,647 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:58:35,648 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:58:35,650 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:58:56,963 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:58:56,964 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:58:56,969 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:58:57,307 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:58:57,307 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:58:57,310 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:59:14,549 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:59:14,550 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:59:14,552 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:59:14,878 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:59:14,881 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:59:14,887 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 12:59:54,349 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 12:59:54,351 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 12:59:54,353 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:02:48,354 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:02:48,355 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:02:48,358 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:14,239 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:14,240 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:14,242 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:14,558 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:14,558 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:14,559 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:15,001 - app.main - WARNING - PERF_SLOW GET /tasks 307ms
+2026-07-06 13:04:15,003 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:15,004 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:15,007 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:15,321 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:15,321 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:15,323 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:21,589 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:21,589 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:21,591 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:21,834 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:21,835 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:21,837 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:55,358 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:55,359 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:55,362 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:55,682 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:55,683 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:55,686 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:56,005 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:56,005 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:56,007 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:04:56,321 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:04:56,321 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:04:56,325 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:05:01,541 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:05:01,541 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:05:01,543 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:05:01,788 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:05:01,789 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:05:01,791 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:05:03,225 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:05:03,225 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:05:03,228 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:05:03,507 - app.main - WARNING - PERF_SLOW GET /tasks 288ms
+2026-07-06 13:05:03,547 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:05:03,547 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:05:03,549 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:05:03,892 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:05:03,894 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:05:03,896 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:05:04,211 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:05:04,212 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:05:04,215 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:21:51,682 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:21:51,682 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:21:51,685 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:21:52,006 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:21:52,007 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:21:52,009 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:22:17,191 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:22:17,191 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:22:17,193 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:22:17,623 - app.main - WARNING - PERF_SLOW GET /tasks 442ms
+2026-07-06 13:22:17,627 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:22:17,627 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:22:17,630 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:22:45,242 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:22:45,243 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:22:45,245 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:22:45,566 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:22:45,566 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:22:45,568 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:23:16,714 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:23:16,715 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:23:16,718 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:23:17,041 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:23:17,041 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:23:17,044 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:24:26,988 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:24:26,989 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:24:26,992 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:24:27,282 - app.main - WARNING - PERF_SLOW GET /tasks 298ms
+2026-07-06 13:24:27,309 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:24:27,309 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:24:27,311 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:24:27,690 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:24:27,691 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:24:27,696 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:24:28,027 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:24:28,028 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:24:28,030 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:26:47,614 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:26:47,615 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:26:47,617 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:26:47,954 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:26:47,954 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:26:47,958 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:26:48,300 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:26:48,300 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:26:48,302 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:26:48,618 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:26:48,619 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:26:48,621 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:13,180 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:13,194 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:13,196 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:13,218 - app.main - WARNING - PERF_SLOW GET /api/users 224ms
+2026-07-06 13:27:13,226 - app.main - WARNING - PERF_SLOW GET /api/projects/summary 232ms
+2026-07-06 13:27:13,448 - app.main - WARNING - PERF_SLOW GET /tasks 460ms
+2026-07-06 13:27:13,530 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:13,530 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:13,533 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:35,205 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:35,205 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:35,207 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:35,446 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:35,447 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:35,449 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:39,540 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:39,541 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:39,550 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:39,871 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:39,871 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:39,874 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:40,274 - app.main - WARNING - PERF_SLOW GET /tasks 277ms
+2026-07-06 13:27:40,277 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:40,278 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:40,280 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:40,592 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:40,592 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:40,594 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:53,467 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:53,468 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:53,471 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:27:53,787 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:27:53,788 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:27:53,790 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:28:42,345 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:28:42,346 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:28:42,352 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:28:42,667 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:28:42,668 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:28:42,670 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:28:42,986 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:28:42,986 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:28:42,988 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:28:43,304 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:28:43,304 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:28:43,306 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:28:48,069 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:28:48,069 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:28:48,073 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:28:48,310 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:28:48,310 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:28:48,313 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:29:08,396 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:29:08,396 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:29:08,399 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:29:08,689 - app.main - WARNING - PERF_SLOW GET /tasks 300ms
+2026-07-06 13:29:08,692 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:29:08,693 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:29:08,695 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:29:09,011 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:29:09,011 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:29:09,013 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 13:29:09,329 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 13:29:09,329 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 13:29:09,331 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:02:32,861 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:02:32,882 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:02:32,884 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:02:33,113 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:02:33,113 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:02:33,115 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:02:33,553 - app.main - WARNING - PERF_SLOW GET /api/user-activities 235ms
+2026-07-06 15:03:02,561 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:03:02,561 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:03:02,603 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:03:02,796 - app.main - WARNING - PERF_SLOW GET /tasks 245ms
+2026-07-06 15:03:02,805 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:03:02,805 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:03:02,807 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:03:03,572 - app.main - WARNING - PERF_SLOW GET /tasks 626ms
+2026-07-06 15:05:38,270 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:05:38,270 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:05:38,273 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:05:38,594 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:05:38,595 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:05:38,597 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:05:39,138 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:05:39,138 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:05:39,143 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:05:39,200 - app.main - WARNING - PERF_SLOW GET /tasks 349ms
+2026-07-06 15:05:39,487 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:05:39,487 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:05:39,490 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:15:14,434 - app.main - WARNING - PERF_SLOW POST /api/user-activities 480ms
+2026-07-06 15:19:44,815 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:19:44,816 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:19:44,820 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:19:45,161 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:19:45,162 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:19:45,164 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:19:46,537 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:19:46,537 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:19:46,539 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:19:46,801 - app.main - WARNING - PERF_SLOW GET /tasks 268ms
+2026-07-06 15:19:46,854 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:19:46,854 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:19:46,856 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:29:56,377 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:29:56,378 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:29:56,379 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:30:02,368 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:30:02,369 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:30:02,371 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 15:30:02,684 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 15:30:02,685 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 15:30:02,687 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 16:40:19,211 - app.main - WARNING - PERF_SLOW GET /api/user-activities 472ms
+2026-07-06 17:02:42,236 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:42,236 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:42,240 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:42,476 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:42,476 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:42,478 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:42,530 - app.main - WARNING - PERF_SLOW GET /api/projects/summary 271ms
+2026-07-06 17:02:42,946 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:42,946 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:42,950 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:43,001 - app.main - WARNING - PERF_SLOW GET /tasks 291ms
+2026-07-06 17:02:43,284 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:43,285 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:43,287 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:46,513 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:46,513 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:46,519 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:46,877 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:46,878 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:46,881 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:47,202 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:47,203 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:47,206 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:47,599 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:47,601 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:47,607 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:02:47,668 - app.main - WARNING - PERF_SLOW GET /tasks 307ms
+2026-07-06 17:02:59,865 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:02:59,866 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:02:59,868 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:00,236 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:00,237 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:00,248 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:00,802 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:00,802 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:00,804 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:01,083 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:01,083 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:01,085 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:01,091 - app.main - WARNING - PERF_SLOW GET /tasks 295ms
+2026-07-06 17:03:02,774 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:02,774 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:02,777 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:03,094 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:03,094 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:03,096 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:03,474 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:03,474 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:03,476 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:03,509 - app.main - WARNING - PERF_SLOW GET /tasks 290ms
+2026-07-06 17:03:03,815 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:03,815 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:03,817 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:10,465 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:10,466 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:10,468 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:10,781 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:10,782 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:10,784 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:21,589 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:21,590 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:21,592 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:21,870 - app.main - WARNING - PERF_SLOW GET /tasks 284ms
+2026-07-06 17:03:21,872 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:21,872 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:21,874 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:22,187 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:22,187 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:22,190 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:22,503 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:22,504 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:22,507 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:55,857 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:55,858 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:55,860 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:56,196 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:56,196 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:56,198 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:56,902 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:56,903 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:56,904 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:57,223 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 17:03:57,224 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 17:03:57,226 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 17:03:57,653 - app.main - WARNING - PERF_SLOW GET /tasks 420ms
+2026-07-06 19:19:56,105 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 19:19:56,107 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 19:19:56,109 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-06 19:19:56,473 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-06 19:19:56,473 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-06 19:19:56,475 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 20:05:50,731 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-07 20:05:50,737 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-07 20:08:01,254 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-07 20:08:01,256 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-07 20:54:25,279 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-07 20:54:25,281 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-07 20:57:10,330 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 20:57:10,330 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 20:57:10,332 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 20:57:10,667 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 20:57:10,667 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 20:57:10,670 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 20:57:11,339 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 20:57:11,339 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 20:57:11,341 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 20:57:11,582 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 20:57:11,582 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 20:57:11,584 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 20:57:11,890 - app.main - WARNING - PERF_SLOW POST /api/user-activities 229ms
+2026-07-07 20:57:11,946 - app.main - WARNING - PERF_SLOW GET /tasks 276ms
+2026-07-07 21:02:22,776 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:02:22,777 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:02:22,780 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:02:22,993 - app.main - WARNING - PERF_SLOW GET /tasks 233ms
+2026-07-07 21:02:23,129 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:02:23,130 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:02:23,131 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:02:23,729 - app.main - WARNING - PERF_SLOW GET /tasks 294ms
+2026-07-07 21:08:22,645 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-07 21:08:22,649 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-07 21:12:07,243 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:12:07,244 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:12:07,247 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:12:07,601 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:12:07,602 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:12:07,604 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:12:10,245 - app.main - WARNING - PERF_SLOW POST /api/user-activities 209ms
+2026-07-07 21:12:10,353 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:12:10,353 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:12:10,356 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:12:10,680 - app.main - WARNING - PERF_SLOW GET /tasks 335ms
+2026-07-07 21:12:10,839 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:12:10,839 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:12:10,842 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:17:14,912 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:17:14,913 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:17:14,917 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:17:15,264 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:17:15,264 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:17:15,266 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:17:15,873 - app.main - WARNING - PERF_SLOW GET /tasks 292ms
+2026-07-07 21:17:55,795 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:17:55,796 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:17:55,798 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:17:56,121 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:17:56,122 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:17:56,125 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:17:56,439 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:17:56,439 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:17:56,442 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:17:56,755 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:17:56,755 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:17:56,758 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:23:42,401 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:23:42,401 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:23:42,402 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:23:42,720 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:23:42,720 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:23:42,723 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:26:47,643 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:26:47,644 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:26:47,647 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:26:48,003 - app.main - WARNING - PERF_SLOW GET /tasks 380ms
+2026-07-07 21:26:48,006 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:26:48,007 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:26:48,008 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:29:16,257 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:29:16,258 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:29:16,261 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:29:16,472 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:29:16,472 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:29:16,474 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:29:16,896 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:29:16,906 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:29:16,909 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:29:16,994 - app.main - WARNING - PERF_SLOW GET /tasks 264ms
+2026-07-07 21:29:17,231 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:29:17,231 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:29:17,234 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:29:19,434 - app.main - WARNING - PERF_SLOW GET /tasks 308ms
+2026-07-07 21:29:19,442 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:29:19,443 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:29:19,445 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:29:19,761 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:29:19,761 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:29:19,763 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:31:09,354 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-07 21:31:09,355 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-07 21:32:26,947 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:32:26,948 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:32:26,950 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:32:27,301 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:32:27,302 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:32:27,304 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:16,398 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:16,399 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:16,402 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:16,780 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:16,781 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:16,783 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:16,856 - app.main - WARNING - PERF_SLOW GET /tasks 472ms
+2026-07-07 21:33:17,158 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:17,159 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:17,161 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:17,477 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:17,478 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:17,480 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:41,967 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:41,968 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:41,970 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:42,200 - app.main - WARNING - PERF_SLOW GET /tasks 246ms
+2026-07-07 21:33:42,205 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:42,206 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:42,212 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:42,533 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:42,534 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:42,542 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:42,821 - app.main - WARNING - PERF_SLOW GET /api/users 289ms
+2026-07-07 21:33:42,881 - app.main - WARNING - PERF_SLOW GET /tasks 371ms
+2026-07-07 21:33:43,134 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:43,710 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:43,712 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:43,725 - app.main - WARNING - PERF_SLOW GET /api/users 591ms
+2026-07-07 21:33:55,633 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:55,634 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:55,636 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:55,865 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:55,865 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:55,868 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:56,221 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:56,221 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:56,228 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:33:56,296 - app.main - WARNING - PERF_SLOW GET /tasks 203ms
+2026-07-07 21:33:56,569 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:33:56,570 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:33:56,573 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:25,765 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:25,766 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:25,770 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:26,018 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:26,018 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:26,021 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:26,069 - app.main - WARNING - PERF_SLOW GET /tasks 305ms
+2026-07-07 21:34:29,917 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:29,917 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:29,918 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:30,209 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:30,210 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:30,211 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:30,706 - app.main - WARNING - PERF_SLOW GET /api/projects/53/production-tracker 487ms
+2026-07-07 21:34:53,614 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:53,614 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:53,617 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:53,939 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:53,940 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:53,941 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:54,621 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:54,622 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:54,623 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:54,948 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:54,949 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:54,951 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:58,597 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:58,597 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:58,599 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:58,911 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:34:58,912 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:34:58,914 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:34:59,290 - app.main - WARNING - PERF_SLOW GET /api/user-activities 340ms
+2026-07-07 21:35:00,513 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:35:00,513 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:35:00,515 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-07 21:35:00,761 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-07 21:35:00,762 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-07 21:35:00,764 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT

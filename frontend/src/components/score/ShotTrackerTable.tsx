@@ -29,6 +29,7 @@ import {
 } from '@mui/icons-material';
 import { User } from '../../types';
 import { formatTaskLabel } from '../../utils/taskLabel';
+import { getTaskStatusColor, getTaskStatusLabel } from '../../utils/taskStatus';
 
 interface TaskInfo {
     id: number;
@@ -75,31 +76,9 @@ export const ShotTrackerTable: React.FC<ShotTrackerTableProps> = ({
     const theme = useTheme();
     const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'todo': return '#2196F3';
-            case 'in-progress': return '#FF9800';
-            case 'review': return '#9C27B0';
-            case 'approved': return '#4CAF50';
-            case 'delayed': return '#F44336';
-            case 'completed': return '#9E9E9E';
-            case 'retake': return '#E91E63';
-            default: return '#BDBDBD';
-        }
-    };
-
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'todo': return 'TODO';
-            case 'in-progress': return 'WIP';
-            case 'review': return 'REVI';
-            case 'approved': return 'APPR';
-            case 'delayed': return 'DELAY';
-            case 'completed': return 'DONE';
-            case 'retake': return 'RETK';
-            default: return status.toUpperCase().slice(0, 4);
-        }
-    };
+    // task_status_redesign_plan.md §6.2 の系統色とラベル定義に集約
+    const getStatusColor = (status: string) => getTaskStatusColor(status);
+    const getStatusLabel = (status: string) => getTaskStatusLabel(status);
 
     const renderTaskCell = (tasks: TaskInfo[] | undefined, shotID?: string) => {
         if (!tasks || tasks.length === 0) return <Box sx={{ opacity: 0.1, py: 1 }}>-</Box>;

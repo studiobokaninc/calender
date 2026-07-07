@@ -145,54 +145,51 @@ for p_idx, project in enumerate(projects):
         start_date_str = start_date_obj.strftime('%Y-%m-%d') # (インデントレベル2)
         due_date_str = due_date_obj.strftime('%Y-%m-%d') # (インデントレベル2)
 
-        # 業務ステータス生成 (インデントレベル2)
+        # 業務ステータス生成 (新19体系。旧値 COMPLETED→DELIVER, TODO→MK, IN_PROGRESS→WIP, REVIEW→QC)
         task_status_choices = [s for s in models.TaskStatus]
-        if project["status"] == models.ProjectStatus.COMPLETED.value: 
-            final_db_status = models.TaskStatus.COMPLETED # (インデントレベル3)
+        if project["status"] == models.ProjectStatus.COMPLETED.value:
+            final_db_status = models.TaskStatus.DELIVER
         elif project["status"] == models.ProjectStatus.CANCELLED.value or project["status"] == models.ProjectStatus.ON_HOLD.value:
-            final_db_status = random.choice([models.TaskStatus.TODO, models.TaskStatus.IN_PROGRESS]) # (インデントレベル3)
+            final_db_status = random.choice([models.TaskStatus.MK, models.TaskStatus.WIP])
         else:
-            final_db_status = random.choice(task_status_choices) # (インデントレベル3)
+            final_db_status = random.choice(task_status_choices)
 
-        # ★ 遅延判定ロジックを追加 ★
-        if final_db_status not in [models.TaskStatus.COMPLETED, models.TaskStatus.REVIEW] and \
-           due_date_obj < datetime.now() and \
-           project["status"] not in [models.ProjectStatus.COMPLETED, models.ProjectStatus.CANCELLED, models.ProjectStatus.ON_HOLD]:
-            if random.random() < 0.3: 
-                final_db_status = models.TaskStatus.DELAYED
+        # 遅延はステータスではなく UI 派生フラグに移行したためモックからも撤廃。
+        # 期日超過があっても status を変更しない。
+        # (旧: 30% の確率で DELAYED を代入していた処理を廃止)
 
         # statusHistory 生成 (簡易版)
-        status_history = [] # ★インデントを修正 (レベル2へ)
-        history_start_date = start_date_obj # インデントを status_history = [] に合わせる
+        status_history = []
+        history_start_date = start_date_obj
         status_history.append({
-            "status": models.TaskStatus.TODO.value,
+            "status": models.TaskStatus.MK.value,
             "changed_at": history_start_date.strftime('%Y-%m-%d'),
             "changed_by": assignee
         })
-        if final_db_status == models.TaskStatus.IN_PROGRESS or final_db_status == models.TaskStatus.COMPLETED or final_db_status == models.TaskStatus.REVIEW:
+        if final_db_status in (models.TaskStatus.WIP, models.TaskStatus.DELIVER, models.TaskStatus.QC):
             inprogress_date = history_start_date + timedelta(days=random.randint(0, task_duration // 2))
             if isAfter(inprogress_date, history_start_date):
                 status_history.append({
-                    "status": models.TaskStatus.IN_PROGRESS.value,
+                    "status": models.TaskStatus.WIP.value,
                     "changed_at": inprogress_date.strftime('%Y-%m-%d'),
                     "changed_by": assignee
                 })
                 history_start_date = inprogress_date
-        if final_db_status == models.TaskStatus.REVIEW or final_db_status == models.TaskStatus.COMPLETED:
+        if final_db_status in (models.TaskStatus.QC, models.TaskStatus.DELIVER):
             review_date = history_start_date + timedelta(days=random.randint(0, (due_date_obj - history_start_date).days // 2 if (due_date_obj - history_start_date).days > 0 else 0))
             if isAfter(review_date, history_start_date):
                 status_history.append({
-                    "status": models.TaskStatus.REVIEW.value,
+                    "status": models.TaskStatus.QC.value,
                     "changed_at": review_date.strftime('%Y-%m-%d'),
                     "changed_by": assignee
                 })
                 history_start_date = review_date
-        if final_db_status == models.TaskStatus.COMPLETED:
+        if final_db_status == models.TaskStatus.DELIVER:
             completed_date = history_start_date + timedelta(days=random.randint(0, (due_date_obj - history_start_date).days if (due_date_obj - history_start_date).days >=0 else 0))
             completed_date = min(completed_date, due_date_obj)
             if isAfter(completed_date, history_start_date) or isEqual(completed_date, history_start_date):
                 status_history.append({
-                    "status": models.TaskStatus.COMPLETED.value,
+                    "status": models.TaskStatus.DELIVER.value,
                     "changed_at": completed_date.strftime('%Y-%m-%d'),
                     "changed_by": assignee
                 })

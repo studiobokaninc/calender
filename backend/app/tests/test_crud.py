@@ -45,29 +45,29 @@ def test_create_and_get_tasks(db: Session):
     assert task.id is not None
     assert task.name == "Test Task"
     
-    # get_tasks (辞書形式)
+    # get_tasks (辞書形式)。新体系: 既定は 'mk' (旧 todo)
     tasks = crud.get_tasks(db, project_id=proj.id)
     assert len(tasks) == 1
     assert tasks[0]["name"] == "Test Task"
-    assert tasks[0]["status"] == "todo"
+    assert tasks[0]["status"] == "mk"
 
 def test_update_task_status(db: Session):
     proj = models.Project(name="Proj", status=models.ProjectStatus.PLANNING)
     db.add(proj)
     db.commit()
-    
-    task = models.Task(name="Old Task", project_id=proj.id, status=models.TaskStatus.TODO)
+
+    task = models.Task(name="Old Task", project_id=proj.id, status=models.TaskStatus.MK)
     db.add(task)
     db.commit()
-    
-    task_update = schemas.TaskUpdate(status=models.TaskStatus.IN_PROGRESS)
+
+    task_update = schemas.TaskUpdate(status=models.TaskStatus.WIP)
     updated = crud.update_task(db, task, task_update)
-    assert updated.status == models.TaskStatus.IN_PROGRESS
-    
+    assert updated.status == models.TaskStatus.WIP
+
     # 履歴が追加されたか確認
     history = db.query(models.TaskStatusHistory).filter_by(task_id=task.id).all()
     assert len(history) == 1
-    assert history[0].status == models.TaskStatus.IN_PROGRESS
+    assert history[0].status == models.TaskStatus.WIP
 
 def test_project_level_task_seq_pm(db: Session):
     proj = models.Project(name="Proj PM Test", status=models.ProjectStatus.PLANNING)

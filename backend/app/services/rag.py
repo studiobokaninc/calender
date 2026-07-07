@@ -55,7 +55,11 @@ class RAGService:
                 self.provider = "local"
                 self.api_key = None
                 persist_dir = os.path.join(str(Path(__file__).resolve().parent.parent.parent), "data", "rag_index_local")
-                base_url = os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1").rstrip("/")
+                # CALENDER_LLM_BASE_URL 優先、旧 LOCAL_LLM_BASE_URL は未移行環境向けフォールバック
+                base_url = (
+                    os.getenv("CALENDER_LLM_BASE_URL")
+                    or os.getenv("LOCAL_LLM_BASE_URL", "http://localhost:11434/v1")
+                ).rstrip("/")
                 # Ollama ネイティブAPIは /v1 サフィックス無しのベースURLを使う
                 ollama_base = base_url[:-3].rstrip("/") if base_url.endswith("/v1") else base_url
                 model_name = os.getenv("LOCAL_LLM_MODEL", "qwen2.5:7b")

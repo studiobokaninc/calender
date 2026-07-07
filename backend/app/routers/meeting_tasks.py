@@ -58,7 +58,7 @@ async def adopt_meeting_task(
         name=db_mtg_task.content,
         project_id=meeting.project_id,
         description=f"Meeting: {meeting.title} より採用\n原文: {db_mtg_task.content}",
-        status=models.TaskStatus.TODO,
+        status=models.TaskStatus.MK,
         priority=models.TaskPriority.MEDIUM,
         type=db_mtg_task.type or "meeting"
     )

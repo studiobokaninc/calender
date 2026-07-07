@@ -31,24 +31,43 @@ type Order = 'asc' | 'desc';
 type OrderBy = keyof DelayedTaskInfo; // ソート対象の列キー
 
 // 遅延タスクデータを計算・加工する関数
+// 表示条件 (task_status_redesign_plan.md §3.1 派生フラグ isOverdue に整合):
+//   1) 親プロジェクトが display_status === 'online' である
+//   2) タスクの status が 'deliver' (納品完了、新体系の唯一の完了) ではない
+//   3) タスクの status が 'omit' (作業対象外) ではない
+//   4) 期限日が有効かつ今日より前 (期日超過)
+// 旧値 'completed' も互換で完了扱い。
 const calculateDelayedTaskData = (
     tasks: Task[],
     users: User[],
     projects: Project[]
 ): DelayedTaskInfo[] => {
-    const today = startOfDay(new Date()); // 今日の開始時刻
+    const today = startOfDay(new Date());
 
-    // ★★★ フィルター条件を変更 ★★★
+    // オンラインプロジェクトの ID セットを構築 (毎タスク走査時の O(1) 判定用)
+    const onlineProjectIdSet = new Set<number>(
+        projects
+            .filter(p => (p.display_status ?? 'online') === 'online')
+            .map(p => p.id)
+    );
+
     const delayedTasks = tasks.filter(task => {
-        // 1. 期限日があるか？
+        // 1. 期限日があるか
         if (!task.due_date) return false;
 
+        // 2. 期限日が有効で、かつ過去か
         const dueDate = startOfDay(parseISO(task.due_date));
-        // 2. 期限日が有効で、かつ過去か？
         if (!isValid(dueDate) || !isBefore(dueDate, today)) return false;
 
-        // 3. ステータスが完了でないか？
-        return task.status !== 'completed';
+        // 3. 親プロジェクトがオンラインか
+        if (task.project_id == null || !onlineProjectIdSet.has(task.project_id)) return false;
+
+        // 4. ステータスが完了 (deliver) または対象外 (omit) でないか
+        //    旧値 'completed' も互換で完了扱いにして除外する
+        const status = (task.status || '').toLowerCase();
+        if (status === 'deliver' || status === 'completed' || status === 'omit') return false;
+
+        return true;
     });
 
     // マッピング処理 (変更なし、ただし遅延日数の計算基準が today になる)
@@ -186,10 +205,11 @@ const DelayedTaskList: React.FC<DelayedTaskListProps> = ({ tasks, users, project
                 <MuiTooltip
                     title={
                         <Box sx={{ fontSize: '0.75rem' }}>
-                            期限日が過ぎており、かつステータスが完了('Done')でないタスクの一覧です。
+                            オンラインプロジェクトのタスクのうち、期限日を過ぎており、かつステータスが
+                            <b>納品完了 (Deliver)</b> または <b>対象外 (Omit)</b> でないものの一覧です。
                         </Box>
                     }
-                    placement="top-start" // Tooltipの表示位置
+                    placement="top-start"
                 >
                     <IconButton size="small">
                         <HelpOutlineIcon fontSize="small" />

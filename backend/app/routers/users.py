@@ -117,8 +117,7 @@ async def get_users_endpoint(
         for u in users:
             if u.email and '@' in u.email:
                 u_data = schemas.UserResponse.from_orm(u)
-                if not u_data.avatar_url:
-                    u_data.avatar_url = f"/api/users/{u.id}/avatar"
+                u_data.avatar_url = f"/api/users/{u.id}/avatar"
                 response_users.append(u_data)
         return response_users
     except Exception:
@@ -198,17 +197,14 @@ async def get_user_avatar(
 
     # もしモデルの avatar_url があってファイルが存在すればそれを返却
     if db_user.avatar_url:
-        if db_user.avatar_url.startswith("http://") or db_user.avatar_url.startswith("https://"):
-            return RedirectResponse(url=db_user.avatar_url)
-        elif os.path.exists(db_user.avatar_url):
-            return FileResponse(db_user.avatar_url)
-        else:
-            # staticディレクトリからの相対パスなどの場合
-            BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # backend
-            relative_path = db_user.avatar_url.lstrip("/")
-            full_path = os.path.join(BASE_DIR, relative_path)
-            if os.path.exists(full_path):
-                return FileResponse(full_path)
+        url = db_user.avatar_url
+        if url.startswith("http://") or url.startswith("https://"):
+            return RedirectResponse(url=url)
+        # /static/... や /uploads/... 等の相対パスを解決
+        relative = url.lstrip("/")
+        full_path = BASE_DIR / relative
+        if full_path.is_file():
+            return FileResponse(str(full_path))
 
     # アバターがない、またはファイルが見つからない場合は動的SVGを生成して返却
     display_name = db_user.full_name or db_user.name or db_user.username or "User"
@@ -284,7 +280,7 @@ async def upload_user_avatar(
     db.commit()
     db.refresh(db_user)
 
-    return {"avatar_url": relative_path}
+    return {"avatar_url": f"/api/users/{user_id}/avatar"}
 
 
 # --- User Profile Expansion APIs (§5-bis) ---
@@ -298,8 +294,7 @@ async def get_my_profile(
 ):
     """自身のプロフィールを取得 (全フィールド表示)"""
     profile_data = schemas.UserProfileResponse.from_orm(current_user)
-    if not profile_data.avatar_url:
-        profile_data.avatar_url = f"/api/users/{current_user.id}/avatar"
+    profile_data.avatar_url = f"/api/users/{current_user.id}/avatar"
     return profile_data
 
 
@@ -321,7 +316,7 @@ async def update_my_avatar(
     db.add(target_user)
     db.commit()
     db.refresh(target_user)
-    return {"avatar_url": target_user.avatar_url}
+    return {"avatar_url": f"/api/users/{actor_id}/avatar"}
 
 
 @me_router.patch("/profile", response_model=schemas.UserProfileResponse)
@@ -340,8 +335,7 @@ async def update_my_profile(
     db.refresh(current_user)
     
     profile_data = schemas.UserProfileResponse.from_orm(current_user)
-    if not profile_data.avatar_url:
-        profile_data.avatar_url = f"/api/users/{current_user.id}/avatar"
+    profile_data.avatar_url = f"/api/users/{current_user.id}/avatar"
     return profile_data
 
 

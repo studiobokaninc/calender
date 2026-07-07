@@ -16,6 +16,7 @@ import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import ja from 'date-fns/locale/ja';
 import { Project, User, Group, CalendarEvent, Task } from '../types';
 import { formatTaskLabel } from '../utils/taskLabel';
+import { TASK_STATUS_OPTIONS } from '../utils/taskStatus';
 
 import { DateClickArg } from '@fullcalendar/interaction';
 
@@ -1262,11 +1263,9 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       label="ステータス"
                       onChange={handleChange}
                     >
-                      <MenuItem value="todo">未着手</MenuItem>
-                      <MenuItem value="in-progress">進行中</MenuItem>
-                      <MenuItem value="review">レビュー中</MenuItem>
-                      <MenuItem value="completed">完了</MenuItem>
-                      <MenuItem value="delayed">遅延</MenuItem>
+                      {TASK_STATUS_OPTIONS.map(opt => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>

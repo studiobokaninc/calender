@@ -926,7 +926,7 @@ const CalendarPage: React.FC = () => {
                     height: '100%',
                     overflow: 'hidden',
                     backgroundColor: bgColor,
-                    color: '#ffffff',
+                    color: (isCompleted || isDelayed) ? '#ffffff' : (isDark ? '#ffffff' : '#202124'),
                     borderRadius: '4px',
                     padding: '0 4px',
                     boxSizing: 'border-box',
@@ -1413,7 +1413,9 @@ const CalendarPage: React.FC = () => {
                         }
 
                         .deadline-event-content,
-                        .milestone-event-content {
+                        .deadline-event-content *,
+                        .milestone-event-content,
+                        .milestone-event-content * {
                             color: #d32f2f !important;
                             background: none !important;
                             border: none !important;
@@ -1596,7 +1598,8 @@ const CalendarPage: React.FC = () => {
                             const taskStatusStr = arg.event.extendedProps.taskStatus ? String(arg.event.extendedProps.taskStatus).toLowerCase() : undefined;
                             const eventStatusStr = arg.event.extendedProps.status ? String(arg.event.extendedProps.status).toLowerCase() : undefined;
 
-                            if (taskStatusStr === 'completed' || eventStatusStr === 'completed' || eventStatusStr === 'cancelled') {
+                            // task_status_redesign: 完了扱いは 'deliver' のみ (旧 'completed' は互換のため残す)
+                            if (taskStatusStr === 'deliver' || taskStatusStr === 'completed' || eventStatusStr === 'completed' || eventStatusStr === 'cancelled') {
                                 classes.push('grey-event');
                             }
 
@@ -1609,7 +1612,7 @@ const CalendarPage: React.FC = () => {
                             if (normalizedType === 'project') {
                                 classes.push('project-event');
                             } else if (normalizedType === 'task') {
-                                if (taskStatusStr === 'completed') {
+                                if (taskStatusStr === 'deliver' || taskStatusStr === 'completed') {
                                     classes.push('grey-task');
                                 }
                             } else if (normalizedType === 'deadline') {
@@ -1624,7 +1627,11 @@ const CalendarPage: React.FC = () => {
                                 classes.push('custom-event', 'workshop-event');
                             } else if (normalizedType === 'generic' || normalizedType === 'event') {
                                 classes.push('custom-event', 'generic-event');
-                            } else if (normalizedType !== 'task' && normalizedType !== 'project' && normalizedType !== 'deadline' && normalizedType !== 'milestone') {
+                            } else if (normalizedType === 'deadline') {
+                                classes.push('custom-event', 'deadline-event');
+                            } else if (normalizedType === 'milestone') {
+                                classes.push('custom-event', 'milestone-event');
+                            } else if (normalizedType !== 'task' && normalizedType !== 'project') {
                                 classes.push('custom-event');
                             }
 

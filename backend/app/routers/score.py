@@ -20,6 +20,17 @@ router = APIRouter(prefix="/api", tags=["score"])
 
 # --- Helpers ---
 
+def _get_pm_director_project_ids(db: Session, actor_id: int) -> List[int]:
+    """
+    PM または Director ロールが設定されているプロジェクトIDを返す。
+    score_user_roles テーブルで role が 'pm' または 'director' のエントリを検索する。
+    """
+    roles = db.query(models.ScoreUserRole).filter(
+        models.ScoreUserRole.user_id == actor_id,
+        models.ScoreUserRole.role.in_(['pm', 'director'])
+    ).all()
+    return [r.project_id for r in roles]
+
 def get_actor_user_id(
     x_actor_user_id: Optional[int] = Header(None),
     current_user: models.User = Depends(get_current_user)
@@ -123,9 +134,9 @@ def approve_shot(
 
     tasks = db.query(models.Task).filter(models.Task.shot_id == id).all()
     for t in tasks:
-        if t.status == models.TaskStatus.COMPLETED:
+        if t.status == models.TaskStatus.DELIVER:
             continue  # 完了済みタスクはAPPROVEDへ降格させない
-        t.status = models.TaskStatus.APPROVED
+        t.status = models.TaskStatus.AP
         db.add(models.TaskStatusHistory(
             task_id=t.id,
             status=t.status,
@@ -148,7 +159,7 @@ def approve_task(
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
-    db_task.status = models.TaskStatus.APPROVED
+    db_task.status = models.TaskStatus.AP
     db.add(models.TaskStatusHistory(
         task_id=db_task.id,
         status=db_task.status,
@@ -713,15 +724,31 @@ def get_my_tasks(
     actor_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db)
 ):
-    return db.query(models.Task).filter(models.Task.assigned_to == actor_id).all()
+    # 自分がアサインされているタスク + PM/Director として設定されているプロジェクトのタスク
+    pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
+    cond = [models.Task.assigned_to == actor_id]
+    if pm_director_project_ids:
+        cond.append(models.Task.project_id.in_(pm_director_project_ids))
+    return db.query(models.Task).filter(or_(*cond)).distinct().all()
 
 @router.get("/me/shots", response_model=List[schemas.ShotResponse])
 def get_my_shots(
     actor_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db)
 ):
-    # タスクがアサインされているショットを抽出
-    return db.query(models.Shot).join(models.Task).filter(models.Task.assigned_to == actor_id).distinct().all()
+    # タスクがアサインされているショット + PM/Director として設定されているプロジェクトのすべてのショット
+    pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
+    cond = [
+        models.Shot.id.in_(
+            db.query(models.Task.shot_id).filter(
+                models.Task.assigned_to == actor_id,
+                models.Task.shot_id.isnot(None)
+            )
+        )
+    ]
+    if pm_director_project_ids:
+        cond.append(models.Shot.project_id.in_(pm_director_project_ids))
+    return db.query(models.Shot).filter(or_(*cond)).distinct().all()
 
 @router.get("/me/notifications", response_model=List[schemas.Notification])
 def get_my_notifications(
@@ -747,8 +774,19 @@ def get_my_projects(
     actor_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db)
 ):
-    # タスクがアサインされているプロジェクト
-    return db.query(models.Project).join(models.Task).filter(models.Task.assigned_to == actor_id).distinct().all()
+    # タスクがアサインされているプロジェクト + PM/Director として設定されているプロジェクト
+    task_project_ids = [
+        t.project_id for t in
+        db.query(models.Task.project_id).filter(
+            models.Task.assigned_to == actor_id,
+            models.Task.project_id.isnot(None)
+        ).distinct().all()
+    ]
+    pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
+    all_project_ids = list(set(task_project_ids + pm_director_project_ids))
+    if not all_project_ids:
+        return []
+    return db.query(models.Project).filter(models.Project.id.in_(all_project_ids)).all()
 
 @router.get("/me/retakes", response_model=List[schemas.Retake])
 def get_my_retakes(
@@ -756,8 +794,10 @@ def get_my_retakes(
     db: Session = Depends(get_db)
 ):
     # 自分が発行した、または自分の担当ショットに対するリテイク
+    # + PM/Director として設定されているプロジェクトのすべてのリテイク
     from sqlalchemy.orm import aliased
     Creator = aliased(models.User)
+    pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
     query = db.query(
         models.Retake,
         models.Shot.shot_code,
@@ -766,10 +806,15 @@ def get_my_retakes(
     ).join(models.Shot, models.Retake.shot_id == models.Shot.id)\
      .join(models.Project, models.Shot.project_id == models.Project.id)\
      .join(Creator, models.Retake.created_by == Creator.id)\
-     .join(models.Task, models.Task.shot_id == models.Shot.id, isouter=True)\
-     .filter(
-        (models.Retake.created_by == actor_id) | (models.Task.assigned_to == actor_id)
-    ).distinct()
+     .join(models.Task, models.Task.shot_id == models.Shot.id, isouter=True)
+
+    retake_cond = [
+        models.Retake.created_by == actor_id,
+        models.Task.assigned_to == actor_id,
+    ]
+    if pm_director_project_ids:
+        retake_cond.append(models.Shot.project_id.in_(pm_director_project_ids))
+    query = query.filter(or_(*retake_cond)).distinct()
     
     results = query.options(selectinload(models.Retake.timecodes)).all()
     
@@ -811,9 +856,11 @@ def get_my_troubles(
     db: Session = Depends(get_db)
 ):
     # 自分が報告した、または自分にアサインされたトラブル
+    # + PM/Director として設定されているプロジェクトのすべてのトラブル
     from sqlalchemy.orm import aliased
     Reporter = aliased(models.User)
     Assignee = aliased(models.User)
+    pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
     query = db.query(
         models.Trouble,
         models.Shot.shot_code,
@@ -823,10 +870,15 @@ def get_my_troubles(
     ).join(models.Shot, models.Trouble.shot_id == models.Shot.id)\
      .join(models.Project, models.Shot.project_id == models.Project.id)\
      .join(Reporter, models.Trouble.created_by == Reporter.id)\
-     .outerjoin(Assignee, models.Trouble.assigned_to == Assignee.id)\
-     .filter(
-        (models.Trouble.created_by == actor_id) | (models.Trouble.assigned_to == actor_id)
-    )
+     .outerjoin(Assignee, models.Trouble.assigned_to == Assignee.id)
+
+    trouble_cond = [
+        models.Trouble.created_by == actor_id,
+        models.Trouble.assigned_to == actor_id,
+    ]
+    if pm_director_project_ids:
+        trouble_cond.append(models.Shot.project_id.in_(pm_director_project_ids))
+    query = query.filter(or_(*trouble_cond))
     
     results = query.all()
     

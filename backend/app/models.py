@@ -21,13 +21,30 @@ class ProjectPriority(str, enum.Enum):
     LOW = "low"
 
 class TaskStatus(str, enum.Enum):
-    TODO = "todo"
-    IN_PROGRESS = "in-progress"
-    REVIEW = "review"
-    APPROVED = "approved"
-    COMPLETED = "completed"
-    DELAYED = "delayed"
-    RETAKE = "retake"
+    # 状態カテゴリ「未着手」
+    MK = "mk"
+    # 状態カテゴリ「進行中」(共通 + 工程別)
+    WIP = "wip"
+    MODELING = "modeling"
+    LOOKDEV = "lookdev"
+    CACHING = "caching"
+    RIG = "rig"
+    FACIAL = "facial"
+    # 状態カテゴリ「チェック・FB」
+    V1QC = "v1qc"
+    QC = "qc"
+    QC_FB = "qc_fb"
+    AP = "ap"
+    AP_FB = "ap_fb"
+    DIR_WT = "dir_wt"
+    DIR_AP = "dir_ap"
+    DIR_FB = "dir_fb"
+    FIX = "fix"
+    # 状態カテゴリ「完了」
+    DELIVER = "deliver"
+    # 状態カテゴリ「対象外・ストップ」
+    OMIT = "omit"
+    WT = "wt"
 
 class TaskPriority(str, enum.Enum):
     HIGH = "HIGH"

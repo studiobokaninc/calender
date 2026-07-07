@@ -1,6 +1,18 @@
 // Base types based on previous context
 
-export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'approved' | 'completed' | 'delayed' | 'retake';
+// task_status_redesign_plan.md §2 準拠の新ステータス体系 (19種)。
+// 旧 (todo/in-progress/review/approved/completed/delayed/retake) は API 側で自動変換される。
+export type TaskStatus =
+  // 未着手
+  | 'mk'
+  // 進行中 (共通 + 工程別)
+  | 'wip' | 'modeling' | 'lookdev' | 'caching' | 'rig' | 'facial'
+  // チェック・FB
+  | 'v1qc' | 'qc' | 'qc_fb' | 'ap' | 'ap_fb' | 'dir_wt' | 'dir_ap' | 'dir_fb' | 'fix'
+  // 完了
+  | 'deliver'
+  // 対象外・ストップ
+  | 'omit' | 'wt';
 
 export interface Project {
   id: number;

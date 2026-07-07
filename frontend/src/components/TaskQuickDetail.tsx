@@ -25,6 +25,11 @@ import { TaskLabel } from '@/components/common/TaskLabel';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import {
+    getTaskStatusColor,
+    getTaskStatusLabel,
+    TASK_STATUS_OPTIONS,
+} from '../utils/taskStatus';
 
 interface TaskQuickDetailProps {
     task: Task;
@@ -35,32 +40,6 @@ interface TaskQuickDetailProps {
     tasks?: Task[];
     onEdit?: () => void;
 }
-
-const getTaskStatusColor = (status?: string | null) => {
-    switch (status?.toLowerCase()) {
-        case 'todo': return '#2196F3';           // 青: 未着手
-        case 'in-progress': return '#FF9800';    // オレンジ: 進行中
-        case 'review': return '#9C27B0';        // 紫: 確認中
-        case 'approved': return '#4CAF50';      // 緑: 承認済
-        case 'completed': return '#9E9E9E';     // グレー: 完了
-        case 'delayed': return '#F44336';       // 赤: 遅延
-        case 'retake': return '#E91E63';        // マゼンタ: リテイク
-        default: return '#BDBDBD';
-    }
-};
-
-const getTaskStatusLabel = (status?: string | null) => {
-    switch (status?.toLowerCase()) {
-        case 'todo': return '未着手';
-        case 'in-progress': return '進行中';
-        case 'review': return '確認中';
-        case 'approved': return '承認済';
-        case 'completed': return '完了';
-        case 'delayed': return '遅延';
-        case 'retake': return 'リテイク';
-        default: return status || '未定';
-    }
-};
 
 const formatDate = (dateInput: string | null | undefined): string => {
     if (!dateInput) return '未設定';
@@ -465,27 +444,34 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                             <TaskAltIcon fontSize="small" color="primary" /> ステータス
                         </Typography>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                            {['todo', 'in-progress', 'review', 'approved', 'completed', 'delayed', 'retake'].map((s) => (
-                                <Chip
-                                    key={s}
-                                    label={getTaskStatusLabel(s)}
-                                    size="medium"
-                                    onClick={() => onUpdate(task.id, { status: s })}
-                                    variant={task.status === s ? "filled" : "outlined"}
-                                    sx={{
-                                        transition: 'all 0.2s',
-                                        px: 0.5,
-                                        backgroundColor: task.status === s ? getTaskStatusColor(s) : 'transparent',
-                                        color: task.status === s ? 'white' : 'text.primary',
-                                        borderColor: getTaskStatusColor(s),
-                                        '&:hover': {
-                                            backgroundColor: getTaskStatusColor(s),
-                                            color: 'white',
-                                        }
-                                    }}
-                                />
-                            ))}
+                        {/* task_status_redesign_plan.md §2 準拠の 19 値を全て選択可能に */}
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                            {TASK_STATUS_OPTIONS.map((opt) => {
+                                const s = opt.value;
+                                const selected = task.status === s;
+                                const color = getTaskStatusColor(s);
+                                return (
+                                    <Chip
+                                        key={s}
+                                        label={opt.label}
+                                        size="small"
+                                        onClick={() => onUpdate(task.id, { status: s })}
+                                        variant={selected ? "filled" : "outlined"}
+                                        sx={{
+                                            transition: 'all 0.2s',
+                                            px: 0.5,
+                                            backgroundColor: selected ? color : 'transparent',
+                                            color: selected ? 'white' : 'text.primary',
+                                            borderColor: color,
+                                            fontWeight: selected ? 700 : 500,
+                                            '&:hover': {
+                                                backgroundColor: color,
+                                                color: 'white',
+                                            }
+                                        }}
+                                    />
+                                );
+                            })}
                         </Box>
                     </Box>
 
@@ -794,7 +780,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                                         期日
                                     </Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }} color={task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed' ? 'error.main' : 'inherit'}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }} color={task.due_date && new Date(task.due_date) < new Date() && task.status !== 'deliver' && task.status !== 'completed' && task.status !== 'omit' ? 'error.main' : 'inherit'}>
                                         {formatDate(task.due_date)}
                                     </Typography>
                                 </Box>

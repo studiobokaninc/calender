@@ -1,13 +1,84 @@
+import logging
 from pydantic import BaseModel, Field, EmailStr, validator, root_validator, computed_field
 from typing import Optional, List, Dict, Any, ForwardRef, Literal
 from datetime import datetime, date, timezone
 from . import models # models をインポート
 
+logger = logging.getLogger(__name__)
+
 VALID_TASK_TYPES = {
-    "animation", "layout", "comp", "fx", "lighting", "asset", 
-    "programming", "design", "testing", "documentation", 
+    "animation", "layout", "comp", "fx", "lighting", "asset",
+    "programming", "design", "testing", "documentation",
     "shoot", "gs", "report", "other"
 }
+
+# --- タスクステータス正規化 (task_status_redesign_plan.md §4.2 / §5.2 準拠) ---
+# 旧 API ステータス → 新体系。表記揺れの吸収も兼ねる。
+API_STATUS_DEPRECATION_MAP = {
+    'todo': 'mk',
+    'in-progress': 'wip',
+    'in_progress': 'wip',
+    'review': 'qc',
+    'approved': 'ap',
+    'completed': 'deliver',
+    'delayed': 'wip',      # 遅延はステータスから廃止、UI 派生フラグへ移行
+    'retake': 'qc_fb',
+    'cashing': 'caching',  # スペル修正
+}
+
+# 新ステータスのハイフン⇄アンダースコア表記揺れ救済
+NEW_STATUS_ALIAS_MAP = {
+    'qc-fb': 'qc_fb',
+    'ap-fb': 'ap_fb',
+    'dir-wt': 'dir_wt',
+    'dir-ap': 'dir_ap',
+    'dir-fb': 'dir_fb',
+}
+
+# CSV インポート等の日本語ラベル救済
+CSV_STATUS_LABEL_MAP = {
+    '未着手': 'mk',
+    '進行中': 'wip',
+    '確認中': 'qc',
+    '承認済み': 'ap',
+    '完了': 'deliver',
+    '完了済み': 'deliver',
+    '遅延': 'wip',
+    'リテイク': 'qc_fb',
+}
+
+
+def canonicalize_task_status(value: Optional[str], is_csv: bool = False) -> Optional[str]:
+    """タスクステータス文字列を新体系(小文字, アンダースコア形式)に正規化する。
+    is_csv=True の場合は日本語ラベルも救済対象に含める。
+    未知の値は素通しし、Enum 変換で最終的に弾かれる想定。
+    """
+    if value is None:
+        return None
+    # Enum 値が来た場合は文字列化
+    s = str(value.value if hasattr(value, 'value') else value)
+    s = s.strip().replace('　', '').replace(' ', '').lower()
+    if not s:
+        return None
+    if is_csv and s in CSV_STATUS_LABEL_MAP:
+        return CSV_STATUS_LABEL_MAP[s]
+    if s in API_STATUS_DEPRECATION_MAP:
+        return API_STATUS_DEPRECATION_MAP[s]
+    return NEW_STATUS_ALIAS_MAP.get(s, s)
+
+
+def _validate_status_value(raw: Any, is_csv: bool = False) -> Optional[str]:
+    """schemas 内 validator 共通実装。旧→新変換と警告ログ。"""
+    if raw is None:
+        return None
+    s = str(raw.value if hasattr(raw, 'value') else raw)
+    canonical = canonicalize_task_status(s, is_csv=is_csv)
+    if canonical is not None and canonical != s.strip().lower():
+        logger.warning(
+            "Deprecated or alias task status received: '%s' -> automatically mapped to '%s'.",
+            s, canonical,
+        )
+    return canonical
 
 # --- User Schemas ---
 
@@ -188,24 +259,7 @@ class StatusHistoryBase(BaseModel):
 
     @validator('status', pre=True)
     def validate_status(cls, v):
-        if v is None:
-            return None
-        if hasattr(v, "value"):
-            s = str(v.value)
-        else:
-            s = str(v)
-        s = s.strip().lower().replace('_', '-')
-        status_map = {
-            'todo': 'todo',
-            'in-progress': 'in-progress',
-            'in_progress': 'in-progress',
-            'review': 'review',
-            'approved': 'approved',
-            'completed': 'completed',
-            'delayed': 'delayed',
-            'retake': 'retake'
-        }
-        return status_map.get(s, s)
+        return _validate_status_value(v)
 
 class StatusHistoryCreate(BaseModel):
     status: str
@@ -268,24 +322,21 @@ class TaskBase(BaseModel):
 
     @validator('status', pre=True)
     def validate_status(cls, v):
+        return _validate_status_value(v)
+
+    @validator('progress', pre=True)
+    def validate_progress_range(cls, v):
         if v is None:
             return None
-        if hasattr(v, "value"):
-            s = str(v.value)
-        else:
-            s = str(v)
-        s = s.strip().lower().replace('_', '-')
-        status_map = {
-            'todo': 'todo',
-            'in-progress': 'in-progress',
-            'in_progress': 'in-progress',
-            'review': 'review',
-            'approved': 'approved',
-            'completed': 'completed',
-            'delayed': 'delayed',
-            'retake': 'retake'
-        }
-        return status_map.get(s, s)
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        if f < 0:
+            return 0
+        if f > 100:
+            return 100
+        return f if isinstance(v, float) else int(round(f))
 
     @validator('type', pre=True)
     def validate_task_type(cls, v):
@@ -327,24 +378,21 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
 
     @validator('status', pre=True)
     def validate_status_update(cls, v):
+        return _validate_status_value(v)
+
+    @validator('progress', pre=True)
+    def validate_progress_range_update(cls, v):
         if v is None:
             return None
-        if hasattr(v, "value"):
-            s = str(v.value)
-        else:
-            s = str(v)
-        s = s.strip().lower().replace('_', '-')
-        status_map = {
-            'todo': 'todo',
-            'in-progress': 'in-progress',
-            'in_progress': 'in-progress',
-            'review': 'review',
-            'approved': 'approved',
-            'completed': 'completed',
-            'delayed': 'delayed',
-            'retake': 'retake'
-        }
-        return status_map.get(s, s)
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        if f < 0:
+            return 0
+        if f > 100:
+            return 100
+        return f if isinstance(v, float) else int(round(f))
 
     @validator('type', pre=True)
     def validate_task_type_update(cls, v):

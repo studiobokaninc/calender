@@ -44,6 +44,7 @@ import {
 } from '@mui/icons-material';
 import api, { mockDataApi, fetchProjects, fetchUsers, shotsApi, fetchAssets } from '../services/api';
 import { Project, Task, User, Retake, Trouble, ChangeRequest, LookDistribution, Notification, UserMessage, Asset, Delivery } from '../types';
+import { getTaskStatusColor, getTaskStatusLabel } from '../utils/taskStatus';
 import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { useAuth } from '../contexts/AuthContext';
@@ -385,31 +386,9 @@ const ProductionTrackerPage: React.FC = () => {
         }
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'todo': return '#2196F3';
-            case 'in-progress': return '#FF9800';
-            case 'review': return '#9C27B0';
-            case 'approved': return '#4CAF50';
-            case 'delayed': return '#F44336';
-            case 'completed': return '#9E9E9E';
-            case 'retake': return '#E91E63';
-            default: return '#BDBDBD';
-        }
-    };
-
-    const getStatusLabel = (status: string) => {
-        switch (status) {
-            case 'todo': return 'TODO';
-            case 'in-progress': return 'WIP';
-            case 'review': return 'REVI';
-            case 'approved': return 'APPR';
-            case 'delayed': return 'DELAY';
-            case 'completed': return 'DONE';
-            case 'retake': return 'RETK';
-            default: return status.toUpperCase().slice(0, 4);
-        }
-    };
+    // task_status_redesign_plan.md §6.2 の系統色とラベル定義に集約 (utils/taskStatus.ts)
+    const getStatusColor = (status: string) => getTaskStatusColor(status);
+    const getStatusLabel = (status: string) => getTaskStatusLabel(status);
 
     return (
         <Box sx={{ p: 4, height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

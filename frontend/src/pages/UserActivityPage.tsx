@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -14,31 +14,27 @@ import {
   TextField,
   Button,
   Stack,
-  Card,
-  CardContent,
+  Avatar,
+  Tooltip,
   useMediaQuery,
   useTheme,
   Breadcrumbs,
-  Link
+  Link,
+  IconButton,
 } from '@mui/material';
 import {
   AccessTime as AccessTimeIcon,
-  Timeline as TimelineIcon
+  Circle as CircleIcon,
+  Refresh as RefreshIcon,
+  FilterAltOff as FilterAltOffIcon,
+  CalendarToday as CalendarTodayIcon,
+  Person as PersonIcon,
+  Schedule as ScheduleIcon,
+  Login as LoginIcon,
 } from '@mui/icons-material';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ReferenceLine
-} from 'recharts';
 import api from '../services/api';
 import { User } from '../types';
-import { format, parseISO, getHours, getMinutes } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
 interface UserActivity {
@@ -53,19 +49,63 @@ interface UserActivityWithUser extends UserActivity {
   user?: User;
 }
 
-// 今日の周期日（5:00〜翌4:59の「日」）を YYYY-MM-DD で返す
 function getTodayCycleDateString(): string {
   const today = new Date();
-  const cycleDate = today.getHours() < 5
-    ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
-    : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const cycleDate =
+    today.getHours() < 5
+      ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+      : new Date(today.getFullYear(), today.getMonth(), today.getDate());
   return format(cycleDate, 'yyyy-MM-dd');
+}
+
+function getUserDisplayName(user?: User): string {
+  return user?.full_name || user?.name || user?.username || user?.email || 'Unknown';
+}
+
+function getUserInitials(user?: User): string {
+  const name = getUserDisplayName(user);
+  return name
+    .split(/[\s_]/)
+    .slice(0, 2)
+    .map((n) => n[0]?.toUpperCase() || '')
+    .join('');
+}
+
+const USER_COLORS = [
+  '#1976d2', '#d32f2f', '#388e3c', '#f57c00',
+  '#7b1fa2', '#0288d1', '#c2185b', '#00796b',
+  '#5d4037', '#455a64', '#e64a19', '#512da8',
+];
+
+// 周期時間を cycleHour（5～28）に変換
+function toCycleHour(date: Date): number {
+  const h = date.getHours();
+  return h < 5 ? h + 24 : h;
+}
+
+// タイムライングリッドのスロット数（5:00〜29:00, 30分刻み = 48スロット）
+const SLOT_MINUTES = 30;
+const HOUR_START = 5;
+const HOUR_END = 29; // 翌5:00 = exclusive
+const TOTAL_SLOTS = ((HOUR_END - HOUR_START) * 60) / SLOT_MINUTES;
+
+function getSlotLabel(slotIndex: number): string {
+  const totalMinutes = HOUR_START * 60 + slotIndex * SLOT_MINUTES;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  const displayH = h >= 24 ? h - 24 : h;
+  return `${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function getSlotCycleMinutes(slotIndex: number): number {
+  return HOUR_START * 60 + slotIndex * SLOT_MINUTES;
 }
 
 const UserActivityPage: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDark = theme.palette.mode === 'dark';
 
   const [activities, setActivities] = useState<UserActivityWithUser[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -73,411 +113,315 @@ const UserActivityPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | ''>('');
   const [selectedCycleDate, setSelectedCycleDate] = useState<string>('');
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // 表示対象の周期日（未選択時は今日の周期）。取得・表示は常に「その日」単位
   const effectiveCycleDate = selectedCycleDate || getTodayCycleDateString();
+  const isShowingToday = effectiveCycleDate === getTodayCycleDateString();
 
+  // リアルタイム時刻更新（1分ごと）
   useEffect(() => {
-    fetchUsers();
-    fetchActivities();
+    const id = setInterval(() => setCurrentTime(new Date()), 60_000);
+    return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    fetchActivities();
-  }, [selectedUserId, selectedCycleDate]);
-
-  // リアルタイム更新（30秒ごと）
-  useEffect(() => {
-    if (loading) return;
-
-    const intervalId = setInterval(() => {
-      fetchActivities();
-    }, 30000); // 30秒ごとに更新
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [selectedUserId, selectedCycleDate, loading]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
-      const response = await api.get<User[]>('/api/users');
-      setUsers(response.data);
-    } catch (err: any) {
-      console.error('Failed to fetch users:', err);
+      const res = await api.get<User[]>('/api/users');
+      setUsers(res.data);
+    } catch (e) {
+      console.error('Failed to fetch users:', e);
     }
-  };
+  }, []);
 
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params: any = {};
-      if (selectedUserId) {
-        params.user_id = selectedUserId;
-      }
-      // 常に周期日で取得（日ごとのログイン回数表示のため。未選択時は今日の周期）
-      params.cycle_date = effectiveCycleDate;
+      const params: Record<string, unknown> = { cycle_date: effectiveCycleDate };
+      if (selectedUserId) params.user_id = selectedUserId;
 
-      const response = await api.get<UserActivity[]>('/api/user-activities', { params });
-      const activitiesData = response.data;
-
-      // ユーザー情報を結合
-      const activitiesWithUsers: UserActivityWithUser[] = activitiesData.map(activity => {
-        const user = users.find(u => u.id === activity.user_id);
-        return { ...activity, user };
-      });
-
-      setActivities(activitiesWithUsers);
+      const res = await api.get<UserActivity[]>('/api/user-activities', { params });
+      setActivities(
+        res.data.map((a) => ({ ...a, user: users.find((u) => u.id === a.user_id) }))
+      );
     } catch (err: any) {
-      console.error('Failed to fetch activities:', err);
       setError(err.response?.data?.detail || 'アクティビティの取得に失敗しました');
     } finally {
       setLoading(false);
     }
-  };
-
-  // 現在時刻を取得（リアルタイム更新用）
-  const [currentTime, setCurrentTime] = useState(new Date());
+  }, [effectiveCycleDate, selectedUserId, users]);
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000); // 1分ごとに更新
-
-    return () => {
-      clearInterval(intervalId);
-    };
+    fetchUsers();
   }, []);
 
-  // 現在時刻のラベルを計算（5:00〜28:59の周期に対応、10分刻み）
-  const currentTimeLabel = useMemo(() => {
-    const now = currentTime;
-    const hour = getHours(now);
-    const minute = getMinutes(now);
+  useEffect(() => {
+    if (users.length > 0) fetchActivities();
+  }, [selectedUserId, selectedCycleDate, users]);
 
-    // 5:00〜28:59の周期に変換
-    let cycleHour = hour;
-    if (hour < 5) {
-      cycleHour = hour + 24; // 前日の5:00以降として扱う
-    }
+  // 30秒ごと自動更新
+  useEffect(() => {
+    if (loading || users.length === 0) return;
+    const id = setInterval(() => fetchActivities(), 30_000);
+    return () => clearInterval(id);
+  }, [loading, fetchActivities, users]);
 
-    // 10分刻みに丸める（例：13:07 → 13:10, 13:23 → 13:20）
-    const roundedMinute = Math.floor(minute / 10) * 10;
+  // ユーザーリスト（アクティビティに登場するユーザー）
+  const activeUserIds = useMemo(
+    () => Array.from(new Set(activities.map((a) => a.user_id))),
+    [activities]
+  );
 
-    const displayHour = cycleHour >= 24 ? cycleHour - 24 : cycleHour;
-    const dayLabel = cycleHour >= 24 ? '翌日' : '当日';
-    // グラフのtimeLabel形式に合わせる（10分刻み）
-    const timeLabel = `${dayLabel} ${displayHour.toString().padStart(2, '0')}:${roundedMinute.toString().padStart(2, '0')}`;
+  const userColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    activeUserIds.forEach((uid, i) => map.set(uid, USER_COLORS[i % USER_COLORS.length]));
+    return map;
+  }, [activeUserIds]);
 
-    return {
-      cycleHour,
-      roundedMinute,
-      timeLabel,
-      timeKey: `${cycleHour * 60 + roundedMinute}` // グラフのtimeキーと一致させる（分数で表現）
-    };
-  }, [currentTime]);
+  // ユーザーごとのアクティビティを時系列ソート
+  const activitiesByUser = useMemo(() => {
+    const map = new Map<number, Date[]>();
+    activities.forEach((a) => {
+      if (!map.has(a.user_id)) map.set(a.user_id, []);
+      map.get(a.user_id)!.push(parseISO(a.active_at));
+    });
+    map.forEach((dates) => dates.sort((a, b) => a.getTime() - b.getTime()));
+    return map;
+  }, [activities]);
 
-  // 表示中の周期日が「今日の周期」かどうか（現在時刻ライン表示用）
-  const isShowingToday = useMemo(() => {
-    return effectiveCycleDate === getTodayCycleDateString();
-  }, [effectiveCycleDate]);
+  // ユーザー統計（セッション数・アクティブ時間・最終アクセス）
+  const userStats = useMemo(() => {
+    const SESSION_GAP = 15; // 15分以上空いたら別セッション
+    return activeUserIds.map((userId) => {
+      const user = users.find((u) => u.id === userId);
+      const dates = activitiesByUser.get(userId) || [];
 
-  // 時間帯別アクティビティ状態（ユーザー別）- オンオフ表示用（10分刻み）
-  // 表示対象の周期日（effectiveCycleDate）の基準日
-  const chartCycleBase = useMemo(() => {
+      const sessions: { start: Date; end: Date; minutes: number }[] = [];
+      let sessionStart: Date | null = null;
+      let lastTime: Date | null = null;
+
+      for (const d of dates) {
+        if (!sessionStart) {
+          sessionStart = d;
+          lastTime = d;
+        } else if (lastTime) {
+          const gap = (d.getTime() - lastTime.getTime()) / 60_000;
+          if (gap > SESSION_GAP) {
+            sessions.push({ start: sessionStart, end: lastTime, minutes: (lastTime.getTime() - sessionStart.getTime()) / 60_000 });
+            sessionStart = d;
+          }
+          lastTime = d;
+        }
+      }
+      if (sessionStart && lastTime) {
+        sessions.push({ start: sessionStart, end: lastTime, minutes: (lastTime.getTime() - sessionStart.getTime()) / 60_000 });
+      }
+
+      const totalMinutes = sessions.reduce((s, sess) => s + sess.minutes, 0);
+      const lastActive = dates[dates.length - 1] ?? null;
+      const minutesSinceLast = lastActive
+        ? (currentTime.getTime() - lastActive.getTime()) / 60_000
+        : Infinity;
+      const isOnline = isShowingToday && minutesSinceLast <= 10;
+
+      return {
+        userId,
+        user,
+        name: getUserDisplayName(user),
+        initials: getUserInitials(user),
+        sessionCount: sessions.length,
+        totalMinutes,
+        activeHours: Math.round((totalMinutes / 60) * 10) / 10,
+        lastActive,
+        minutesSinceLast,
+        isOnline,
+        color: userColorMap.get(userId) || USER_COLORS[0],
+      };
+    }).sort((a, b) => b.sessionCount - a.sessionCount || a.name.localeCompare(b.name));
+  }, [activeUserIds, activitiesByUser, users, currentTime, isShowingToday, userColorMap]);
+
+  // タイムライングリッド（各ユーザー × 各スロット）
+  const cycleBase = useMemo(() => {
     const d = parseISO(effectiveCycleDate);
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }, [effectiveCycleDate]);
 
-  const hourlyDataByUser = useMemo(() => {
-    // ユーザーごとのアクティビティ時刻を記録（時系列でソート）
-    const userActivitiesMap = new Map<number, Array<Date>>();
+  const currentSlotIndex = useMemo(() => {
+    if (!isShowingToday) return -1;
+    const cycleH = toCycleHour(currentTime);
+    const m = currentTime.getMinutes();
+    const totalMin = cycleH * 60 + m - HOUR_START * 60;
+    return Math.floor(totalMin / SLOT_MINUTES);
+  }, [currentTime, isShowingToday]);
 
-    activities.forEach(activity => {
-      const date = parseISO(activity.active_at);
-      if (!userActivitiesMap.has(activity.user_id)) {
-        userActivitiesMap.set(activity.user_id, []);
-      }
-      userActivitiesMap.get(activity.user_id)!.push(date);
-    });
+  const timelineGrid = useMemo(() => {
+    return userStats.map(({ userId, color }) => {
+      const dates = activitiesByUser.get(userId) || [];
+      const slots = Array.from({ length: TOTAL_SLOTS }, (_, i) => {
+        const slotCycleMin = getSlotCycleMinutes(i);
+        const slotH = Math.floor(slotCycleMin / 60);
+        const slotM = slotCycleMin % 60;
 
-    // 各ユーザーのアクティビティを時系列でソート
-    userActivitiesMap.forEach((dates, _userId) => {
-      dates.sort((a, b) => a.getTime() - b.getTime());
-    });
+        const slotStart = new Date(cycleBase);
+        slotStart.setHours(slotH >= 24 ? slotH - 24 : slotH, slotM, 0, 0);
+        if (slotH >= 24) slotStart.setDate(slotStart.getDate() + 1);
 
-    // 各10分スロットは「その時間帯に記録が1件以上あるとき」のみオン。現在周期では最後の記録から10分経過後はオフ表示
-    const ACTIVE_THRESHOLD_MINUTES = 10;
-    const now = currentTime;
+        const slotEnd = new Date(slotStart.getTime() + SLOT_MINUTES * 60_000);
 
-    const result: Array<{ time: string; timeLabel: string;[key: string]: string | number }> = [];
+        // 未来スロットはグレー
+        if (isShowingToday && slotStart > currentTime) return 'future';
 
-    // 5:00から28:59まで10分刻みで生成（5:00, 5:10, 5:20, ..., 28:50＝翌4:50。28:50〜29:00で4:50〜4:59をカバー）
-    for (let h = 5; h < 29; h++) {
-      for (let m = 0; m < 60; m += 10) {
-        const cycleMinutes = h * 60 + m; // 周期内の分数（5:00 = 300分, 28:50 = 1730分）
-        const displayHour = h >= 24 ? h - 24 : h;
-        const timeLabel = `${displayHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-        const dayLabel = h >= 24 ? '翌日' : '当日';
-
-        // 時間帯の開始時刻を計算（表示対象の周期日を基準に：選択日 or 今日の周期）
-        const cycleDate = new Date(chartCycleBase.getTime());
-        const timeSlotStart = new Date(cycleDate);
-        timeSlotStart.setHours(h >= 24 ? h - 24 : h, m, 0, 0);
-        if (h >= 24) {
-          timeSlotStart.setDate(timeSlotStart.getDate() + 1);
-        }
-
-        const timeSlotEnd = new Date(timeSlotStart);
-        timeSlotEnd.setMinutes(timeSlotEnd.getMinutes() + 10);
-
-        const dataPoint: any = {
-          time: `${cycleMinutes}`,
-          timeLabel: `${dayLabel} ${timeLabel}`
-        };
-
-        // 表示しているのが「現在の周期」かどうか（未来スロットを0にするかどうか）
-        const todayCycleDay = now.getHours() < 5 ? now.getDate() - 1 : now.getDate();
-        const isCurrentCycle =
-          chartCycleBase.getFullYear() === now.getFullYear() &&
-          chartCycleBase.getMonth() === now.getMonth() &&
-          chartCycleBase.getDate() === todayCycleDay;
-
-        userActivitiesMap.forEach((activityDates, userId) => {
-          const user = users.find(u => u.id === userId);
-          const userName = user?.name || user?.username || `ユーザー${userId}`;
-
-          // 現在周期を表示しているときのみ：その時間帯が現在時刻より後なら非アクティブ
-          if (isCurrentCycle && timeSlotStart > now) {
-            dataPoint[userName] = 0;
-            return;
-          }
-
-          // その10分間（h:m ～ h:m+10）にアクティビティが1件以上あるときだけオンとする（1ログイン＝最大10分表示）
-          let isActive = false;
-          for (const activityDate of activityDates) {
-            const activityTime = new Date(activityDate);
-            if (activityTime >= timeSlotStart && activityTime < timeSlotEnd) {
-              isActive = true;
-              break;
-            }
-          }
-          // 現在周期のみ：この時間帯に記録はあるが、最後のアクティビティから10分以上経過していれば非アクティブ表示
-          if (isActive && isCurrentCycle) {
-            const lastActivity = activityDates[activityDates.length - 1];
-            const lastActivityTime = new Date(lastActivity);
-            const minutesSinceLastActivity = (now.getTime() - lastActivityTime.getTime()) / (1000 * 60);
-            if (minutesSinceLastActivity > ACTIVE_THRESHOLD_MINUTES && timeSlotStart > lastActivityTime) {
-              isActive = false;
-            }
-          }
-          dataPoint[userName] = isActive ? 1 : 0;
-        });
-
-        result.push(dataPoint);
-      }
-    }
-
-    return result;
-  }, [activities, users, currentTime, chartCycleBase, selectedCycleDate]);
-
-  // ユーザー別のセッション数とアクティブ時間（ログイン回数とセッション時間）
-  const userStats = useMemo(() => {
-    // ユーザーごとのアクティビティを時系列でソート
-    const userActivitiesMap = new Map<number, UserActivityWithUser[]>();
-
-    activities.forEach(activity => {
-      if (!userActivitiesMap.has(activity.user_id)) {
-        userActivitiesMap.set(activity.user_id, []);
-      }
-      userActivitiesMap.get(activity.user_id)!.push(activity);
-    });
-
-    // 各ユーザーについて、セッションを計算
-    const statsMap = new Map<number, { sessionCount: number; totalActiveMinutes: number; sessions: Array<{ start: Date; end: Date; minutes: number }> }>();
-
-    userActivitiesMap.forEach((userActivities, userId) => {
-      // アクティビティを時系列でソート
-      const sortedActivities = userActivities.sort((a, b) =>
-        parseISO(a.active_at).getTime() - parseISO(b.active_at).getTime()
-      );
-
-      // セッションを検出（アクティビティの間隔が15分以上空いたら新しいセッションとみなす）
-      const SESSION_GAP_MINUTES = 15;
-      const sessions: Array<{ start: Date; end: Date; minutes: number }> = [];
-      let currentSessionStart: Date | null = null;
-      let lastActivityTime: Date | null = null;
-
-      for (const activity of sortedActivities) {
-        const activityTime = parseISO(activity.active_at);
-
-        if (currentSessionStart === null) {
-          // 最初のアクティビティでセッション開始
-          currentSessionStart = activityTime;
-          lastActivityTime = activityTime;
-        } else if (lastActivityTime) {
-          const minutesDiff = (activityTime.getTime() - lastActivityTime.getTime()) / (1000 * 60);
-
-          if (minutesDiff > SESSION_GAP_MINUTES) {
-            // 15分以上空いたら前のセッションを終了
-            const sessionMinutes = (lastActivityTime.getTime() - currentSessionStart.getTime()) / (1000 * 60);
-            sessions.push({
-              start: currentSessionStart,
-              end: lastActivityTime,
-              minutes: sessionMinutes
-            });
-            // 新しいセッション開始
-            currentSessionStart = activityTime;
-          }
-          lastActivityTime = activityTime;
-        }
-      }
-
-      // 最後のセッションを追加
-      if (currentSessionStart && lastActivityTime) {
-        const sessionMinutes = (lastActivityTime.getTime() - currentSessionStart.getTime()) / (1000 * 60);
-        sessions.push({
-          start: currentSessionStart,
-          end: lastActivityTime,
-          minutes: sessionMinutes
-        });
-      }
-
-      const totalActiveMinutes = sessions.reduce((sum, session) => sum + session.minutes, 0);
-      statsMap.set(userId, {
-        sessionCount: sessions.length,
-        totalActiveMinutes,
-        sessions
+        // このスロット内にアクティビティがあるか
+        const hasActivity = dates.some((d) => d >= slotStart && d < slotEnd);
+        return hasActivity ? 'active' : 'inactive';
       });
+      return { userId, color, slots };
     });
-
-    return Array.from(statsMap.entries())
-      .map(([userId, stats]) => {
-        const user = users.find(u => u.id === userId);
-        return {
-          userId,
-          name: user?.name || user?.username || `ユーザー${userId}`,
-          sessionCount: stats.sessionCount,
-          totalActiveMinutes: stats.totalActiveMinutes,
-          activeHours: Math.round(stats.totalActiveMinutes / 60 * 10) / 10
-        };
-      })
-      .sort((a, b) => b.sessionCount - a.sessionCount);
-  }, [activities, users]);
-
-  // ユーザーリストと色のマッピング
-  const userColors = useMemo(() => {
-    const colors = [
-      '#1976d2', '#d32f2f', '#388e3c', '#f57c00',
-      '#7b1fa2', '#0288d1', '#c2185b', '#00796b',
-      '#5d4037', '#455a64', '#e64a19', '#512da8',
-      '#0097a7', '#c51162', '#303f9f', '#00796b'
-    ];
-
-    const userList = Array.from(new Set(activities.map(a => a.user_id)))
-      .map(userId => {
-        const user = users.find(u => u.id === userId);
-        return {
-          userId,
-          name: user?.name || user?.username || `ユーザー${userId}`,
-          email: user?.email
-        };
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const colorMap = new Map<number, string>();
-    userList.forEach((user, index) => {
-      colorMap.set(user.userId, colors[index % colors.length]);
-    });
-
-    return { userList, colorMap };
-  }, [activities, users]);
-
+  }, [userStats, activitiesByUser, cycleBase, currentTime, isShowingToday]);
 
   const handleClearFilters = () => {
     setSelectedUserId('');
     setSelectedCycleDate('');
   };
 
+  // 時間軸ラベル（偶数時間のみ表示）
+  const axisLabels = useMemo(
+    () =>
+      Array.from({ length: TOTAL_SLOTS }, (_, i) => {
+        const totalMin = HOUR_START * 60 + i * SLOT_MINUTES;
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        return m === 0 && h % 2 === 1 ? getSlotLabel(i) : '';
+      }),
+    []
+  );
+
   return (
-    <Box sx={{ p: isMobile ? 1.5 : 3, pb: isMobile ? 10 : 3 }}>
-      <Box sx={{ mb: 4 }}>
+    <Box sx={{ p: isMobile ? 1.5 : 3, pb: isMobile ? 10 : 4 }}>
+      {/* ヘッダー */}
+      <Box sx={{ mb: 3 }}>
         <Breadcrumbs sx={{ mb: 1.5 }}>
-          <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+          <Link
+            color="inherit"
+            onClick={() => navigate('/dashboard')}
+            sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+          >
             App
           </Link>
-          <Typography color="text.primary" sx={{ fontWeight: 500 }}>User Activities</Typography>
-        </Breadcrumbs>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <AccessTimeIcon sx={{ fontSize: '2rem', color: '#00BCD4' }} />
-          <Typography
-            variant="h4"
-            sx={{
-              fontWeight: 800,
-              background: 'linear-gradient(45deg, #00BCD4 30%, #3F51B5 90%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              fontSize: { xs: '1.75rem', sm: '2.25rem' }
-            }}
-          >
-            User Activity Log
+          <Typography color="text.primary" sx={{ fontWeight: 500 }}>
+            ユーザーアクティビティ
           </Typography>
+        </Breadcrumbs>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 2.5,
+                background: 'linear-gradient(135deg, #00BCD4 0%, #3F51B5 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AccessTimeIcon sx={{ color: '#fff', fontSize: '1.4rem' }} />
+            </Box>
+            <Box>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 800,
+                  background: isDark
+                    ? 'linear-gradient(90deg, #4dd0e1, #7986cb)'
+                    : 'linear-gradient(90deg, #0097a7, #303f9f)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  lineHeight: 1.2,
+                }}
+              >
+                ユーザーアクティビティ
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {format(parseISO(effectiveCycleDate), 'yyyy年M月d日（EEE）', { locale: ja })} ・ 5:00〜翌4:59
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {isShowingToday && (
+              <Chip
+                icon={<CircleIcon sx={{ fontSize: '0.55rem !important' }} />}
+                label="リアルタイム"
+                size="small"
+                color="success"
+                sx={{ fontWeight: 700, fontSize: '0.72rem' }}
+              />
+            )}
+            <Tooltip title="今すぐ更新">
+              <IconButton size="small" onClick={fetchActivities} disabled={loading}>
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.95rem' }}>
-          プロジェクトメンバーのシステム利用状況とアクティブ時間を確認できます。
-        </Typography>
       </Box>
 
       {/* フィルター */}
-      <Paper sx={{ p: 2, mb: 3, borderRadius: 3 }}>
-        <Typography variant="subtitle1" gutterBottom fontWeight={600}>
-          フィルター
-        </Typography>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={2}
-          alignItems={{ xs: 'stretch', sm: 'center' }}
-          flexWrap="wrap"
-        >
-          <FormControl fullWidth={isMobile} sx={{ minWidth: { xs: '100%', sm: 200 } }} size="small">
-            <InputLabel>ユーザー</InputLabel>
+      <Paper
+        sx={{
+          p: 2,
+          mb: 3,
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+          background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
+        }}
+        elevation={0}
+      >
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
+          <CalendarTodayIcon sx={{ color: 'text.disabled', display: { xs: 'none', sm: 'block' } }} />
+          <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 200 } }}>
+            <InputLabel>ユーザー絞込</InputLabel>
             <Select
               value={selectedUserId}
-              label="ユーザー"
+              label="ユーザー絞込"
               onChange={(e) => setSelectedUserId(e.target.value as number | '')}
               sx={{ borderRadius: 2 }}
             >
-              <MenuItem value="">すべて</MenuItem>
-              {users.map(user => (
-                <MenuItem key={user.id} value={user.id}>
-                  {user.name || user.username || user.email}
+              <MenuItem value="">全員</MenuItem>
+              {users.map((u) => (
+                <MenuItem key={u.id} value={u.id}>
+                  {getUserDisplayName(u)}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
           <TextField
-            label="周期日"
+            label="日付（周期日）"
             type="date"
-            fullWidth={isMobile}
+            size="small"
             value={selectedCycleDate}
             onChange={(e) => setSelectedCycleDate(e.target.value)}
             InputLabelProps={{ shrink: true }}
-            size="small"
             sx={{ minWidth: { xs: '100%', sm: 200 }, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
           />
-          <Button
-            variant="outlined"
-            onClick={handleClearFilters}
-            sx={{ width: { xs: '100%', sm: 'auto' }, borderRadius: 2 }}
-          >
-            解除
-          </Button>
+          {(selectedUserId !== '' || selectedCycleDate !== '') && (
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<FilterAltOffIcon />}
+              onClick={handleClearFilters}
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              フィルター解除
+            </Button>
+          )}
         </Stack>
       </Paper>
 
+      {/* ローディング */}
       {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 6 }}>
           <CircularProgress />
         </Box>
       )}
@@ -491,166 +435,334 @@ const UserActivityPage: React.FC = () => {
       {!loading && !error && (
         <>
           {activities.length === 0 ? (
-            <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="body1" color="text.secondary">
-                アクティビティデータがありません
+            <Paper sx={{ p: 5, textAlign: 'center', borderRadius: 3 }} elevation={0}>
+              <ScheduleIcon sx={{ fontSize: '3rem', color: 'text.disabled', mb: 1 }} />
+              <Typography color="text.secondary" fontWeight={600}>
+                この日のアクティビティデータがありません
+              </Typography>
+              <Typography variant="caption" color="text.disabled">
+                別の日付を選択するか、フィルターを解除してください
               </Typography>
             </Paper>
           ) : (
-            <Card sx={{ height: { xs: '600px', md: 'calc(100vh - 280px)' }, display: 'flex', flexDirection: 'column' }}>
-              <CardContent sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, pb: 2 }}>
-                <Box sx={{ mb: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <TimelineIcon color="primary" />
-                      ユーザー別アクティブ状態（5:00〜翌4:59）
-                    </Typography>
-                    <Chip
-                      label="リアルタイム更新中"
-                      color="success"
-                      size="small"
-                      sx={{ fontSize: '0.7rem' }}
-                    />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    各時間帯におけるユーザーのアクティブ状態を表示しています。その10分間にアクティビティが1件以上記録された時間帯のみオン（1）になります。1回のログインは最大10分として表示されます。
-                  </Typography>
-
-                  {/* ユーザー統計情報（表示中の周期日＝その日のログイン回数・アクティブ時間） */}
-                  <Paper sx={{ p: 1.5, mb: 1.5 }} elevation={0}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                      {format(parseISO(effectiveCycleDate), 'M/d', { locale: ja })}（5:00〜翌4:59）のログイン回数・アクティブ時間
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {userStats.slice(0, 8).map(stat => {
-                        const color = userColors.colorMap.get(stat.userId) || '#1976d2';
-                        return (
-                          <Box key={stat.userId} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Box
-                              sx={{
-                                width: 12,
-                                height: 12,
-                                borderRadius: '50%',
-                                bgcolor: color
-                              }}
-                            />
-                            <Typography variant="caption" sx={{ fontWeight: 'bold' }}>
-                              {stat.name}:
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {stat.sessionCount}回ログイン ({stat.activeHours}時間)
-                            </Typography>
-                          </Box>
-                        );
-                      })}
-                      {userStats.length > 8 && (
-                        <Typography variant="caption" color="text.secondary">
-                          他 {userStats.length - 8}名
-                        </Typography>
-                      )}
-                    </Box>
-                  </Paper>
-                </Box>
-                <Box sx={{
-                  flex: 1,
-                  minHeight: 0,
-                  overflowX: isMobile ? 'auto' : 'visible',
-                  '&::-webkit-scrollbar': { height: '8px' },
-                  '&::-webkit-scrollbar-thumb': { backgroundColor: 'divider', borderRadius: '4px' }
-                }}>
-                  <Box sx={{
-                    minWidth: isMobile ? '800px' : 'auto',
-                    height: isMobile ? 'calc(100% - 10px)' : '100%',
-                    pb: isMobile ? 1 : 0
-                  }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={hourlyDataByUser} margin={{ top: 10, right: 30, left: 0, bottom: 80 }}>
-                        <defs>
-                          {userColors.userList.map(user => {
-                            const color = userColors.colorMap.get(user.userId) || '#1976d2';
-                            return (
-                              <linearGradient key={user.userId} id={`color${user.userId}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={color} stopOpacity={0.4} />
-                                <stop offset="95%" stopColor={color} stopOpacity={0.05} />
-                              </linearGradient>
-                            );
-                          })}
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                        <XAxis
-                          dataKey="timeLabel"
-                          angle={-45}
-                          textAnchor="end"
-                          height={80}
-                          interval={isMobile ? 2 : 5}
-                          tick={{ fontSize: isMobile ? 10 : 9 }}
-                          label={{ value: '時間帯（10分刻み）', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fontSize: 12 } }}
-                        />
-                        <YAxis
-                          label={{ value: 'アクティブ状態', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 12 } }}
-                          tick={{ fontSize: 11 }}
-                          domain={[0, 1]}
-                          ticks={[0, 1]}
-                          tickFormatter={(value) => value === 1 ? 'オン' : 'オフ'}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                            fontSize: '12px',
-                            border: '1px solid #ccc',
-                            borderRadius: '4px',
-                            padding: '8px'
+            <>
+              {/* ユーザーサマリーカード */}
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.72rem' }}>
+                メンバー概要
+              </Typography>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr 1fr',
+                    sm: 'repeat(3, 1fr)',
+                    md: 'repeat(4, 1fr)',
+                    lg: 'repeat(5, 1fr)',
+                  },
+                  gap: 1.5,
+                  mb: 3,
+                }}
+              >
+                {userStats.map((stat) => (
+                  <Paper
+                    key={stat.userId}
+                    elevation={0}
+                    sx={{
+                      p: 1.75,
+                      borderRadius: 3,
+                      border: '1.5px solid',
+                      borderColor: stat.isOnline ? `${stat.color}55` : 'divider',
+                      background: stat.isOnline
+                        ? isDark
+                          ? `${stat.color}18`
+                          : `${stat.color}0d`
+                        : isDark
+                        ? 'rgba(255,255,255,0.03)'
+                        : 'rgba(0,0,0,0.015)',
+                      transition: 'all 0.2s',
+                      '&:hover': { borderColor: stat.color, transform: 'translateY(-1px)' },
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
+                      <Avatar
+                        sx={{
+                          width: 34,
+                          height: 34,
+                          bgcolor: stat.color,
+                          fontSize: '0.8rem',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {stat.initials || <PersonIcon sx={{ fontSize: '1rem' }} />}
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 700,
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.8rem',
                           }}
-                          formatter={(value: any, name: string) => [value === 1 ? 'アクティブ' : '非アクティブ', name]}
-                          labelFormatter={(label) => `時間帯: ${label}`}
-                        />
-                        <Legend
-                          wrapperStyle={{ paddingTop: '10px', fontSize: '11px' }}
-                          iconType="circle"
-                          iconSize={8}
-                          verticalAlign="top"
-                          height={36}
-                        />
-                        {isShowingToday && currentTimeLabel.cycleHour >= 5 && currentTimeLabel.cycleHour < 29 && (
-                          <ReferenceLine
-                            x={currentTimeLabel.timeLabel}
-                            stroke="#ff0000"
-                            strokeWidth={2.5}
-                            strokeDasharray="5 5"
-                            label={{
-                              value: '現在',
-                              position: 'top',
-                              fill: '#ff0000',
-                              fontSize: 11,
-                              fontWeight: 'bold',
-                              offset: 5
+                        >
+                          {stat.name}
+                        </Typography>
+                        {stat.isOnline ? (
+                          <Chip
+                            label="オンライン"
+                            size="small"
+                            sx={{
+                              height: 16,
+                              fontSize: '0.62rem',
+                              fontWeight: 700,
+                              bgcolor: `${stat.color}22`,
+                              color: stat.color,
+                              border: `1px solid ${stat.color}44`,
+                              '& .MuiChip-label': { px: 0.75 },
                             }}
                           />
+                        ) : (
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
+                            {stat.lastActive
+                              ? `最終: ${format(stat.lastActive, 'HH:mm', { locale: ja })}`
+                              : 'ログインなし'}
+                          </Typography>
                         )}
-                        {userColors.userList.map(user => {
-                          const color = userColors.colorMap.get(user.userId) || '#1976d2';
-                          return (
-                            <Area
-                              key={user.userId}
-                              type="stepAfter"
-                              dataKey={user.name}
-                              stroke={color}
-                              fill={`url(#color${user.userId})`}
-                              strokeWidth={2.5}
-                              name={user.name}
-                              connectNulls={false}
-                              isAnimationActive={false}
-                              strokeOpacity={0.8}
-                              fillOpacity={0.3}
-                            />
-                          );
-                        })}
-                      </AreaChart>
-                    </ResponsiveContainer>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1.5 }}>
+                      <Tooltip title="セッション数（ログイン回数）">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                          <LoginIcon sx={{ fontSize: '0.9rem', color: 'text.disabled' }} />
+                          <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.85rem', color: stat.color }}>
+                            {stat.sessionCount}
+                          </Typography>
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
+                            回
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                      <Tooltip title="推定アクティブ時間">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4 }}>
+                          <ScheduleIcon sx={{ fontSize: '0.9rem', color: 'text.disabled' }} />
+                          <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.85rem', color: stat.color }}>
+                            {stat.activeHours}
+                          </Typography>
+                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem' }}>
+                            h
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+
+              {/* タイムライングリッド */}
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.72rem' }}>
+                タイムライン（30分刻み）
+              </Typography>
+              <Paper
+                elevation={0}
+                sx={{
+                  borderRadius: 3,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  overflow: 'hidden',
+                }}
+              >
+                {/* 時間軸ヘッダー */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.025)',
+                  }}
+                >
+                  {/* 名前列ヘッダー */}
+                  <Box
+                    sx={{
+                      minWidth: isMobile ? 72 : 120,
+                      width: isMobile ? 72 : 120,
+                      flexShrink: 0,
+                      p: 1,
+                      borderRight: '1px solid',
+                      borderColor: 'divider',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem', fontWeight: 700 }}>
+                      メンバー
+                    </Typography>
+                  </Box>
+                  {/* 時間ラベル */}
+                  <Box sx={{ flex: 1, overflowX: 'auto' }}>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${TOTAL_SLOTS}, 1fr)`,
+                        minWidth: isMobile ? `${TOTAL_SLOTS * 14}px` : '100%',
+                      }}
+                    >
+                      {Array.from({ length: TOTAL_SLOTS }, (_, i) => (
+                        <Box key={i} sx={{ borderRight: i % 2 === 1 ? '1px solid' : 'none', borderColor: 'divider', px: 0.25, py: 0.5, minWidth: 0 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontSize: '0.6rem',
+                              color: axisLabels[i] ? 'text.secondary' : 'transparent',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                              userSelect: 'none',
+                            }}
+                          >
+                            {axisLabels[i] || '·'}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
                   </Box>
                 </Box>
-              </CardContent>
-            </Card>
+
+                {/* ユーザー行 */}
+                {timelineGrid.map((row, rowIdx) => {
+                  const stat = userStats.find((s) => s.userId === row.userId);
+                  if (!stat) return null;
+                  return (
+                    <Box
+                      key={row.userId}
+                      sx={{
+                        display: 'flex',
+                        borderBottom: rowIdx < timelineGrid.length - 1 ? '1px solid' : 'none',
+                        borderColor: 'divider',
+                        '&:hover': {
+                          background: isDark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.015)',
+                        },
+                      }}
+                    >
+                      {/* ユーザー名 */}
+                      <Box
+                        sx={{
+                          minWidth: isMobile ? 72 : 120,
+                          width: isMobile ? 72 : 120,
+                          flexShrink: 0,
+                          p: 1,
+                          borderRight: '1px solid',
+                          borderColor: 'divider',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.75,
+                        }}
+                      >
+                        <Avatar sx={{ width: 22, height: 22, bgcolor: stat.color, fontSize: '0.6rem', fontWeight: 800, flexShrink: 0 }}>
+                          {stat.initials}
+                        </Avatar>
+                        {!isMobile && (
+                          <Typography
+                            variant="caption"
+                            sx={{ fontWeight: 700, fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {stat.name}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {/* スロット列 */}
+                      <Box sx={{ flex: 1, overflowX: 'auto' }}>
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: `repeat(${TOTAL_SLOTS}, 1fr)`,
+                            minWidth: isMobile ? `${TOTAL_SLOTS * 14}px` : '100%',
+                            height: 36,
+                          }}
+                        >
+                          {row.slots.map((slotState, slotIdx) => {
+                            const isCurrentSlot = slotIdx === currentSlotIndex;
+                            const label = getSlotLabel(slotIdx);
+                            return (
+                              <Tooltip
+                                key={slotIdx}
+                                title={
+                                  slotState === 'active'
+                                    ? `${stat.name} ${label} アクティブ`
+                                    : slotState === 'future'
+                                    ? `${label} （未来）`
+                                    : `${stat.name} ${label} 非アクティブ`
+                                }
+                                arrow
+                              >
+                                <Box
+                                  sx={{
+                                    height: '100%',
+                                    bgcolor:
+                                      slotState === 'active'
+                                        ? row.color
+                                        : slotState === 'future'
+                                        ? isDark
+                                          ? 'rgba(255,255,255,0.03)'
+                                          : 'rgba(0,0,0,0.03)'
+                                        : 'transparent',
+                                    opacity: slotState === 'active' ? 0.85 : 1,
+                                    borderRight: slotIdx % 2 === 1 ? '1px solid' : 'none',
+                                    borderColor: 'divider',
+                                    outline: isCurrentSlot ? `2px solid #f44336` : 'none',
+                                    outlineOffset: -2,
+                                    transition: 'background 0.15s',
+                                    cursor: 'default',
+                                  }}
+                                />
+                              </Tooltip>
+                            );
+                          })}
+                        </Box>
+                      </Box>
+                    </Box>
+                  );
+                })}
+
+                {/* 凡例フッター */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    px: 2,
+                    py: 1.25,
+                    borderTop: '1px solid',
+                    borderColor: 'divider',
+                    flexWrap: 'wrap',
+                    background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{ width: 18, height: 12, borderRadius: 0.5, bgcolor: '#1976d2', opacity: 0.85 }} />
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                      アクティブ
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{ width: 18, height: 12, borderRadius: 0.5, bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)' }} />
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                      非アクティブ
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box sx={{ width: 18, height: 12, borderRadius: 0.5, border: '2px solid #f44336' }} />
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                      現在時刻
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem', ml: 'auto' }}>
+                    ※ 1スロット = 30分。アクティビティが1件以上記録された時間帯をアクティブと判定
+                  </Typography>
+                </Box>
+              </Paper>
+            </>
           )}
         </>
       )}

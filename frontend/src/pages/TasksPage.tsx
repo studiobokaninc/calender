@@ -24,6 +24,12 @@ import { useTasksPageState, usePageState } from '../contexts/PageStateContext';
 import { useAuth } from '../contexts/AuthContext';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { TaskQuickDetail } from '../components/TaskQuickDetail';
+import {
+    getTaskStatusColor,
+    getTaskStatusLabel,
+    getTaskStatusChipStyle,
+    TASK_STATUS_OPTIONS,
+} from '../utils/taskStatus';
 
 
 
@@ -42,47 +48,6 @@ const formatDate = (dateInput: string | Date | null | undefined): string => {
         return '-';
     }
 };
-
-
-
-
-// カレンダー（calendarEventColors.ts）と色・ラベルを統一
-const getTaskStatusColor = (status?: string | null): string => {
-    switch (status?.toLowerCase()) {
-        case 'todo':        return '#2196F3';  // 青: 未着手
-        case 'in-progress': return '#FF9800';  // オレンジ: 進行中
-        case 'review':      return '#9C27B0';  // 紫: レビュー中
-        case 'approved':    return '#4CAF50';  // 緑: 承認済
-        case 'delayed':     return '#F44336';  // 赤: 遅延
-        case 'completed':   return '#9E9E9E';  // グレー: 完了
-        case 'retake':      return '#E91E63';  // マゼンタ: リテイク
-        default:            return '#BDBDBD';
-    }
-};
-
-const getTaskStatusLabel = (status?: string | null): string => {
-    switch (status?.toLowerCase()) {
-        case 'todo':        return '未着手';
-        case 'in-progress': return '進行中';
-        case 'review':      return 'レビュー中';
-        case 'approved':    return '承認済';
-        case 'delayed':     return '遅延';
-        case 'completed':   return '完了';
-        case 'retake':      return 'リテイク';
-        default:            return status || '未定';
-    }
-};
-
-// ステータス選択肢（タスクページで使う全ステータス）
-const TASK_STATUS_OPTIONS = [
-    { value: 'todo',        label: '未着手' },
-    { value: 'in-progress', label: '進行中' },
-    { value: 'review',      label: 'レビュー中' },
-    { value: 'approved',    label: '承認済' },
-    { value: 'delayed',     label: '遅延' },
-    { value: 'completed',   label: '完了' },
-    { value: 'retake',      label: 'リテイク' },
-];
 
 const isDatePast = (dateStr: string | null | undefined): boolean => {
     if (!dateStr) return false;

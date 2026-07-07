@@ -32,6 +32,7 @@ import {
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Task, Project, User } from '../types'; // ★★★ パス修正 ../../types -> ../types ★★★
+import { getTaskStatusColor, migrateLegacyStatus } from '../utils/taskStatus';
 import { parseISO, format as formatDate, isValid, differenceInCalendarDays, addDays, startOfDay, isEqual } from 'date-fns';
 import api, { setAuthErrorCallback } from '../services/api';
 import axios from 'axios';
@@ -149,54 +150,40 @@ const calculateProgress = (task: Task): number => {
 
 
 
+// task_status_redesign_plan.md §6.2 の系統色を利用して gantt-task-react 向けに
+// (background / backgroundSelected / progress / progressSelected) の 4 段階へ展開する。
+// 濃淡は同じ色から HSL の lightness をずらして作る簡易実装。
+const _hexToHsl = (hex: string): [number, number, number] => {
+  const m = hex.replace('#', '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return [0, 0, 50];
+  const r = parseInt(m[1], 16) / 255, g = parseInt(m[2], 16) / 255, b = parseInt(m[3], 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0; const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return [h * 360, s * 100, l * 100];
+};
+const _hslCss = (h: number, s: number, l: number) => `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.max(0, Math.min(100, Math.round(l)))}%)`;
+
 // ステータスに基づいてタスクのスタイルを決定する関数、ガントチャートの色を決定するための関数です。
 const getTaskStyle = (task: Task) => {
-  switch (task.status) { // ★★★ Fix: taskStatus -> status ★★★
-    case 'todo':
-      return {
-        backgroundColor: '#4dabf5',
-        backgroundSelectedColor: '#2196f3',
-        progressColor: '#1769aa',
-        progressSelectedColor: '#115293'
-      };
-    case 'in-progress':
-      return {
-        backgroundColor: '#ffb74d',
-        backgroundSelectedColor: '#ff9800',
-        progressColor: '#f57c00',
-        progressSelectedColor: '#e65100'
-      };
-    case 'review':      // ★ 'review' ケースを追加 ★
-      return {
-        backgroundColor: '#ba68c8', // 例: 紫系
-        backgroundSelectedColor: '#ab47bc',
-        progressColor: '#8e24aa',
-        progressSelectedColor: '#6a1b9a'
-      };
-    case 'delayed': // ★★★ Add 'delayed' case if needed, or handle in default ★★★
-      return {
-        backgroundColor: '#f6685e',
-        backgroundSelectedColor: '#f44336',
-        progressColor: '#aa2e25',
-        progressSelectedColor: '#7f1f1a'
-      };
-    case 'completed': // ★★★ Fix: 'done' -> 'completed' ★★★ (アプリ全体で completed はグレー統一)
-      return {
-        backgroundColor: '#bdbdbd',
-        backgroundSelectedColor: '#9e9e9e',
-        progressColor: '#757575',
-        progressSelectedColor: '#616161'
-      };
-    default:
-      // null や予期せぬステータスの場合
-      console.warn(`Unknown task status for styling: ${task.status}`); // ★ 警告ログ追加
-      return {
-        backgroundColor: '#9e9e9e',
-        backgroundSelectedColor: '#757575',
-        progressColor: '#616161',
-        progressSelectedColor: '#424242'
-      };
-  }
+  const status = migrateLegacyStatus(task.status || '') ?? (task.status || '');
+  const base = getTaskStatusColor(status);
+  const [h, s, l] = _hexToHsl(base);
+  return {
+    backgroundColor: _hslCss(h, s, Math.min(85, l + 15)),          // 明るめ
+    backgroundSelectedColor: base,                                  // ベース色
+    progressColor: _hslCss(h, s, Math.max(15, l - 15)),            // 暗め
+    progressSelectedColor: _hslCss(h, s, Math.max(10, l - 25)),    // より暗め
+  };
 };
 
 // 列幅の状態を共有するためのコンテキスト、コンテキストとは、どこからでもアクセスできるようにするためのオブジェクトです。関数の外で宣言して、他の関数でも使用できるようにするために使用します。

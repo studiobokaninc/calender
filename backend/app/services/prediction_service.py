@@ -19,9 +19,9 @@ from .llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
-_DONE_STATUSES = {models.TaskStatus.COMPLETED, models.TaskStatus.APPROVED}
-_IN_PROGRESS_STATUS = models.TaskStatus.IN_PROGRESS
-_DELAYED_STATUS = models.TaskStatus.DELAYED
+_DONE_STATUSES = {models.TaskStatus.DELIVER, models.TaskStatus.AP}
+_IN_PROGRESS_STATUS = models.TaskStatus.WIP
+_DELAYED_STATUS = models.TaskStatus.WIP
 
 
 def get_task_completion_stats(

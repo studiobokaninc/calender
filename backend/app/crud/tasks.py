@@ -14,8 +14,9 @@ from .base import _parse_datetime, _parse_int_safe, _safe_json_load
 
 logger = logging.getLogger(__name__)
 
-_DONE_STATUSES = {"completed"}
-_APPROVED_OR_DONE = {"approved", "completed"}
+_DONE_STATUSES = {"deliver"}
+_APPROVED_OR_DONE_ONLY = {"deliver", "fix", "dir_ap", "ap"}
+_HELD_STATUSES = {"omit"}  # Shot 集約から除外する状態
 
 # shots.py SHOT_CODE_REGEX と同一パターン（routers→crud の逆依存回避のため inline 定義）。
 # ★案B緩和（cmd_496 / 2026-06-12）で両所を同時更新。shots.py:SHOT_CODE_REGEX と必ず一致させること。
@@ -29,26 +30,37 @@ _SKIP_SHOT_CODES = {"master"}
 
 
 def _recalc_shot_status(db: Session, shot_id: int) -> None:
-    """Shot に紐づく全Taskのstatusを集計し、shot.statusを自動更新する。
+    """Shot に紐づく全Taskのstatusを新体系(19種)で集計し、shot.statusを自動更新する。
     commit は呼び出し側(update_task)のトランザクションに委譲。
+
+    集約ルール (task_status_redesign_plan.md §4.1 ②):
+      - 有効タスク(omit以外)が存在しない、または全てが mk    → planning
+      - 有効タスクが全て deliver                              → completed
+      - 有効タスクが全て {deliver, fix, dir_ap, ap} の中で、
+        かつ deliver 以外の未納品が残っている                 → approved
+      - 有効タスクに mk 以外のステータス(進行中/FB/wt 等)が
+        1つでもある                                           → in_progress
+      - それ以外                                              → planning
     """
     shot = db.query(models.Shot).filter(models.Shot.id == shot_id).first()
     if shot is None:
         return
 
     tasks = db.query(models.Task).filter(models.Task.shot_id == shot_id).all()
-    statuses = [
+    all_statuses = [
         (t.status.value if hasattr(t.status, "value") else t.status)
         for t in tasks if t.status is not None
     ]
+    # omit は集約対象から除外
+    statuses = [s for s in all_statuses if s not in _HELD_STATUSES]
 
     if not statuses:
         new_status = "planning"
     elif all(s in _DONE_STATUSES for s in statuses):
         new_status = "completed"
-    elif all(s in _APPROVED_OR_DONE for s in statuses):
+    elif all(s in _APPROVED_OR_DONE_ONLY for s in statuses) and any(s != "deliver" for s in statuses):
         new_status = "approved"
-    elif any(s != "todo" for s in statuses):
+    elif any(s != "mk" for s in statuses):
         new_status = "in_progress"
     else:
         new_status = "planning"
@@ -105,16 +117,17 @@ def get_task(db: Session, task_id: int) -> Optional[models.Task]:
 
 def _task_row_to_dict(row: Any, history_map: Dict[int, List[Dict[str, Any]]]) -> Dict[str, Any]:
     """SQL結果の1行をタスク辞書に変換するヘルパー（安全なパース処理を含む）"""
-    
-    # 1. ステータスの正規化 (Enum検証回避のための大文字->小文字変換)
-    task_status = 'todo'
+
+    # 1. ステータスの正規化。schemas.canonicalize_task_status に一元化して
+    #    旧値 (todo/in-progress/completed 等) と Enum 大文字名 (TODO/IN_PROGRESS/...) の
+    #    両方を新19値へマップする。従来の replace('_','-') は qc_fb/dir_ap 等を壊すため撤廃。
+    task_status = 'mk'
     if hasattr(row, 'status') and row.status:
-        status_map = {
-            'TODO': 'todo', 'IN_PROGRESS': 'in-progress', 'REVIEW': 'review',
-            'APPROVED': 'approved', 'COMPLETED': 'completed', 'DELAYED': 'delayed', 'RETAKE': 'retake'
-        }
-        raw_status = row.status
-        task_status = status_map.get(raw_status, raw_status.lower().replace('_', '-'))
+        from .. import schemas as _schemas
+        raw_status = str(row.status)
+        # SQLAlchemy Enum は物理値(小文字)を返すが、旧レコードの大文字名残存に備え lower 化
+        canonical = _schemas.canonicalize_task_status(raw_status.lower())
+        task_status = canonical or 'mk'
 
     # 2. JSONフィールドの安全なパース
     depends_on = _safe_json_load(getattr(row, 'dependsOn', None))
@@ -422,7 +435,7 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         assigned_to=task.assigned_to,
         project_id=task.project_id,
         due_date=_parse_datetime(task.due_date) if hasattr(task, 'due_date') else _parse_datetime(getattr(task, 'taskDueDate', None)),
-        status=task.status or models.TaskStatus.TODO,
+        status=task.status or models.TaskStatus.MK,
         display_status=task.display_status or 'online',
         priority=task.priority or models.TaskPriority.MEDIUM,
         type=task.type,
@@ -465,9 +478,15 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
     return db_task
 
 def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) -> models.Task:
-    """タスク情報を更新"""
+    """タスク情報を更新。
+    task_status_redesign_plan.md §3.1 に従い、auto_started/auto_delayed の書き換えと
+    締切超過による自動遷移は廃止。auto_delayed カラムは互換のため残すが本メソッドから触れない。
+    """
     update_data = task_in.dict(exclude_unset=True)
-    original_status = db_task.status
+    original_status = (
+        db_task.status.value if hasattr(db_task.status, "value") else db_task.status
+    )
+    original_progress = db_task.progress
 
     # フィールド名のマッピング定義
     field_map = {
@@ -484,30 +503,35 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
     for key, value in update_data.items():
         if key == "display_status" and value not in ['online', 'offline', 'archived']:
             continue
-            
+
         db_key, converter = field_map.get(key, (key, None))
         parsed_value = converter(value) if converter else value
-        
+
         if db_key in ["project_id", "assigned_to"] and parsed_value is None and value is not None:
             continue
 
         if hasattr(db_task, db_key):
-            if db_key == "start_date" and db_task.start_date != parsed_value:
-                db_task.auto_started = False
-            if db_key == "due_date" and db_task.due_date != parsed_value:
-                db_task.auto_delayed = False
-                
-            # 手動でステータスが変更された場合
-            if db_key == "status" and db_task.status != parsed_value:
-                # 期日を過ぎているタスクのステータスを手動で変更したなら、自動遅延を抑止する
-                if db_task.due_date:
-                    due_date = db_task.due_date.date() if hasattr(db_task.due_date, 'date') else db_task.due_date
-                    if due_date < now_jst_naive().date():
-                        db_task.auto_delayed = True
-
             setattr(db_task, db_key, parsed_value)
             if db_key in ["phases", "check_items", "deliverables", "dependsOn"]:
                 flag_modified(db_task, db_key)
+
+    # progress 補正 (§3.3): status 変更に伴う整合性を API 層で一元的に担保する
+    new_status_val = (
+        db_task.status.value if hasattr(db_task.status, "value") else db_task.status
+    )
+    if new_status_val != original_status:
+        progress_explicit = "progress" in update_data
+        if new_status_val == "deliver":
+            # deliver への遷移は明示 progress 指定より優先して 100 に強制補正
+            db_task.progress = 100
+        elif new_status_val == "mk":
+            # mk への遷移も同様に 0 へ強制補正
+            db_task.progress = 0
+        elif original_status == "deliver" and not progress_explicit:
+            # deliver から他へ差し戻す際、progress 未指定なら納品前の値(=既存値)を保持する。
+            # ここでは original_progress を書き戻すことで、
+            # 前段の setattr で入ったかもしれない値を上書きしない (progress が update_data 未含なので実質NO-OP)
+            db_task.progress = original_progress
 
     # 規則: 特定のSHOTに紐づかないタスク (shotID / shot_id が空) の場合、seqID を "SEQ_PM" で統一する
     db_task.shot_id = _resolve_and_sync_shot_id(db, db_task.project_id, db_task.shot_id, db_task.shotID)

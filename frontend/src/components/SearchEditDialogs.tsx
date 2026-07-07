@@ -7,6 +7,7 @@ import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import api, { mockDataApi, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
 import { usePageState } from '../contexts/PageStateContext';
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
+import { TASK_STATUS_OPTIONS } from '../utils/taskStatus';
 import EventAddModal from './EventAddModal';
 import { Group } from '../types';
 import { TaskLabel } from '@/components/common/TaskLabel';
@@ -429,13 +430,9 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
             <FormControl fullWidth size="small">
               <InputLabel>ステータス</InputLabel>
               <Select name="status" value={form.status} label="ステータス" onChange={handleChange}>
-                <MenuItem value="todo">未着手</MenuItem>
-                <MenuItem value="in-progress">進行中</MenuItem>
-                <MenuItem value="review">レビュー中</MenuItem>
-                <MenuItem value="approved">承認済</MenuItem>
-                <MenuItem value="completed">完了</MenuItem>
-                <MenuItem value="delayed">遅延</MenuItem>
-                <MenuItem value="retake">リテイク</MenuItem>
+                {TASK_STATUS_OPTIONS.map(opt => (
+                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                ))}
               </Select>
             </FormControl>
             <FormControl fullWidth size="small">

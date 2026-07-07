@@ -442,43 +442,57 @@ const getTasksByStatusOnDate = (
     return filteredTasks;
 };
 
-// メトリクスの計算
-const calculateMetrics = (tasks: Task[]) => {
-    console.log('メトリクス計算開始:', { tasks });
-
+// メトリクスの計算 (task_status_redesign_plan.md 準拠)
+//   完了 = status ∈ {deliver, 旧completed}
+//   進行中 = status ∈ 進行中カテゴリ (wip/工程別) + FB・チェック系 + 停止 + 旧値互換
+//   遅延 = オンラインプロジェクトのタスクで status ∉ {deliver, omit, 旧completed} かつ 期日超過 (派生フラグ)
+const calculateMetrics = (tasks: Task[], projects: Project[] = []) => {
     const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(task => task.status === 'completed').length;
-    const inProgressTasks = tasks.filter(task => task.status === 'in-progress').length;
-    const delayedTasks = tasks.filter(task => task.status === 'delayed').length;
+    const onlineIds = new Set<number>(
+        projects.filter(p => (p.display_status ?? 'online') === 'online').map(p => p.id)
+    );
+    const today = new Date(new Date().setHours(0, 0, 0, 0));
 
-    console.log('基本メトリクス:', {
-        totalTasks,
-        completedTasks,
-        inProgressTasks,
-        delayedTasks
-    });
+    const isDone = (s: string) => s === 'deliver' || s === 'completed';
+    const inProgressSet = new Set([
+        'wip', 'modeling', 'lookdev', 'caching', 'rig', 'facial',
+        'v1qc', 'qc', 'qc_fb', 'ap', 'ap_fb', 'dir_wt', 'dir_ap', 'dir_fb', 'fix',
+        'wt',
+        'in-progress', 'in_progress', 'review', 'approved', 'retake',
+    ]);
+
+    let completedTasks = 0;
+    let inProgressTasks = 0;
+    let delayedTasks = 0;
+    for (const task of tasks) {
+        const status = (task.status || '').toLowerCase();
+        if (isDone(status)) completedTasks++;
+        else if (inProgressSet.has(status)) inProgressTasks++;
+
+        // 遅延 (派生フラグ): projects があればオンラインに限定、なければ status のみで判定
+        if (task.due_date && !isDone(status) && status !== 'omit') {
+            const dueDate = task.due_date ? new Date(task.due_date) : null;
+            if (dueDate && !isNaN(dueDate.getTime()) && dueDate < today) {
+                const onlineOk = projects.length === 0
+                    || (task.project_id != null && onlineIds.has(task.project_id));
+                if (onlineOk) delayedTasks++;
+            }
+        }
+    }
 
     // プロジェクト進捗の計算（完了タスク数 / 総タスク数）
     const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-    console.log('最終メトリクス:', {
-        totalTasks,
-        completedTasks,
-        inProgressTasks,
-        delayedTasks,
-        progress: Math.round(progress)
-    });
 
     return {
         totalTasks,
         completedTasks,
         inProgressTasks,
         delayedTasks,
-        progress
+        progress,
     };
 };
 
-const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, projects: _projects }) => {
+const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, projects }) => {
     const [selectedUserId, setSelectedUserId] = useState<string | 'all'>('all');
     const [hoveredDate, setHoveredDate] = useState<string | null>(null);
     const [statusCountsAtHoveredDate, setStatusCountsAtHoveredDate] = useState<StatusCounts>({ todo: 0, inProgress: 0, delayed: 0, done: 0 });
@@ -622,7 +636,7 @@ const UserProgressChart: React.FC<UserProgressChartProps> = ({ tasks, users, pro
 
     // メトリクスの表示部分
     const renderMetrics = () => {
-        const metrics = calculateMetrics(tasks);
+        const metrics = calculateMetrics(tasks, projects);
 
         return (
             <Box sx={{ mb: 3 }}>

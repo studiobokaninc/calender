@@ -173,21 +173,27 @@ const ProjectsPage: React.FC = () => {
                 const summary = scoreSummary[String(project.id)] || { shots: 0, retakes: 0, troubles: 0 };
                 const projRoles = rolesByProject[project.id as number] || {};
 
+                // task_status_redesign_plan.md §3.4 のウェイト定義を適用 (旧値互換込み)。
+                // omit は加算対象外だが、分母の totalCost には含める既存挙動を維持する
+                // (プロジェクト画面の粗い進捗表示なので厳密な omit 除外はしない)。
                 const totalCost = relatedTasks.reduce((sum, task) => sum + (Number(task.cost) || 0), 0);
                 const completedCost = relatedTasks.reduce((sum, task) => {
                     const cost = Number(task.cost) || 0;
-                    const status = task.status || 'todo';
+                    const status = ((task.status || 'mk') as string).toLowerCase();
+                    let weight = 0;
                     switch (status) {
-                        case 'completed':
-                            return sum + cost * 1.0;
-                        case 'in-progress':
-                            return sum + cost * 0.4;
-                        case 'review':
-                            return sum + cost * 0.7;
-                        case 'todo':
-                        default:
-                            return sum + cost * 0.0;
+                        case 'deliver': case 'completed':                                       weight = 1.0; break;
+                        case 'fix': case 'dir_ap':                                              weight = 0.95; break;
+                        case 'ap': case 'approved':                                             weight = 0.85; break;
+                        case 'qc': case 'v1qc': case 'dir_wt': case 'review':                   weight = 0.7; break;
+                        case 'wip': case 'modeling': case 'lookdev': case 'caching': case 'rig':
+                        case 'facial': case 'qc_fb': case 'ap_fb': case 'dir_fb':
+                        case 'in-progress': case 'in_progress': case 'retake': case 'delayed':  weight = 0.4; break;
+                        case 'wt':                                                              weight = 0.2; break;
+                        case 'mk': case 'todo': case 'omit':                                    weight = 0.0; break;
+                        default:                                                                weight = 0.0;
                     }
+                    return sum + cost * weight;
                 }, 0);
 
                 const progress = totalCost > 0 ? Math.round((completedCost / totalCost) * 100) : 0;
@@ -197,17 +203,40 @@ const ProjectsPage: React.FC = () => {
                 let delayedCount = 0;
                 let completedCount = 0;
 
+                // 遅延判定 = オンラインプロジェクトのタスクで status ∉ {deliver, omit, 旧completed} かつ 期日超過
+                //   → このループは当該プロジェクト内のタスクなので、
+                //     project.display_status が 'online' の時のみ delayed をカウントする。
+                const isProjectOnline = (project.display_status ?? 'online') === 'online';
+                const _today = new Date(new Date().setHours(0, 0, 0, 0));
+
                 relatedTasks.forEach(task => {
-                    const status = (task.status || 'todo').toLowerCase();
-                    
-                    if (status === 'completed' || status === 'approved') {
+                    const status = ((task.status || 'mk') as string).toLowerCase();
+
+                    // deliver のみが「完了」の唯一の値。ap/fix/dir_ap は承認済だが未納品なので進行中扱い。
+                    if (status === 'deliver' || status === 'completed') {
                         completedCount++;
-                    } else if (status === 'delayed') {
-                        delayedCount++;
-                    } else if (status === 'in-progress' || status === 'review' || status === 'retake') {
-                        inProgressCount++;
-                    } else if (status === 'todo' || status === 'planning') {
+                    } else if (
+                        // 未着手
+                        status === 'mk' || status === 'todo' || status === 'planning'
+                    ) {
                         todoCount++;
+                    } else if (
+                        // 除外 (集計対象外)
+                        status === 'omit'
+                    ) {
+                        // no-op
+                    } else {
+                        // それ以外 (wip/工程別/qc/v1qc/qc_fb/ap/ap_fb/dir_wt/dir_ap/dir_fb/fix/wt/旧 in-progress/review/retake/approved/delayed)
+                        // は「進行中扱い」でカウント。delayed は独立バケツを廃止し進行中に含める。
+                        inProgressCount++;
+                    }
+
+                    // 派生の遅延カウント (完了/対象外 は除外・オンラインのみ)
+                    if (isProjectOnline && task.due_date && status !== 'deliver' && status !== 'completed' && status !== 'omit') {
+                        const dd = task.due_date ? new Date(task.due_date) : null;
+                        if (dd && !isNaN(dd.getTime()) && dd < _today) {
+                            delayedCount++;
+                        }
                     }
                 });
 
@@ -654,7 +683,43 @@ const ProjectsPage: React.FC = () => {
 
                                                         {/* ステータスバッジ群 */}
                                                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
-                                                            <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
+                                                            {isAdmin ? (
+                                                                <Select
+                                                                    size="small"
+                                                                    value={project.status || 'planning'}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    onChange={async (e: SelectChangeEvent) => {
+                                                                        const newStatus = e.target.value as string;
+                                                                        try {
+                                                                            await api.put(`/projects/${project.id}`, { status: newStatus });
+                                                                            setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, status: newStatus } : p));
+                                                                            setSnackbar({ open: true, message: 'プロジェクトステータスを更新しました', severity: 'success' });
+                                                                            if (refreshGlobalData) {
+                                                                                await refreshGlobalData();
+                                                                            }
+                                                                        } catch {
+                                                                            setSnackbar({ open: true, message: 'プロジェクトステータスの更新に失敗しました', severity: 'error' });
+                                                                        }
+                                                                    }}
+                                                                    sx={{
+                                                                        height: 30,
+                                                                        fontSize: '0.85rem',
+                                                                        fontWeight: 700,
+                                                                        backgroundColor: getProjectStatusColor(project.status ?? undefined),
+                                                                        color: '#fff',
+                                                                        '& .MuiSelect-select': { color: '#fff', py: 0, px: 1.5 },
+                                                                        '& .MuiOutlinedInput-notchedOutline': { borderColor: getProjectStatusColor(project.status ?? undefined) },
+                                                                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: getProjectStatusColor(project.status ?? undefined) },
+                                                                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: getProjectStatusColor(project.status ?? undefined) }
+                                                                    }}
+                                                                >
+                                                                    {['planning', 'in-progress', 'completed', 'delayed', 'on-hold', 'cancelled'].map(statusVal => (
+                                                                        <MenuItem key={statusVal} value={statusVal} sx={{ fontSize: '0.85rem' }}>{statusVal}</MenuItem>
+                                                                    ))}
+                                                                </Select>
+                                                            ) : (
+                                                                <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
+                                                            )}
                                                             <Chip label={project.priority || '未設定'} size="small" variant="outlined" sx={{ fontSize: '0.85rem', height: 30, borderColor: getPriorityColor(project.priority ?? undefined), color: getPriorityColor(project.priority ?? undefined), fontWeight: 700 }} />
                                                             {isAdmin ? (
                                                                 <Select
@@ -805,6 +870,23 @@ const ProjectsPage: React.FC = () => {
                                                             </Box>
                                                             <Button
                                                                 size="small"
+                                                                variant="contained"
+                                                                onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}`); }}
+                                                                sx={{
+                                                                    textTransform: 'none',
+                                                                    fontSize: '0.8rem',
+                                                                    fontWeight: 600,
+                                                                    borderRadius: 2,
+                                                                    py: 0.5,
+                                                                    px: 1.5,
+                                                                    whiteSpace: 'nowrap',
+                                                                    flexShrink: 0
+                                                                }}
+                                                            >
+                                                                詳細
+                                                            </Button>
+                                                            <Button
+                                                                size="small"
                                                                 variant="outlined"
                                                                 startIcon={<ShotListIcon sx={{ fontSize: '0.9rem' }} />}
                                                                 onClick={(e) => { e.stopPropagation(); navigate(`/projects/${project.id}/shotlist`); }}
@@ -900,18 +982,53 @@ const ProjectsPage: React.FC = () => {
                                             </TableCell>
                                             
                                             {/* ステータス */}
-                                            <TableCell>
+                                            <TableCell onClick={(e) => e.stopPropagation()}>
                                                 <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                                    <Chip 
-                                                        label={project.status || '-'} 
-                                                        size="small" 
-                                                        sx={{ 
-                                                            backgroundColor: getProjectStatusColor(project.status ?? undefined), 
-                                                            color: '#fff', 
-                                                            fontSize: '0.75rem', 
-                                                            fontWeight: 700 
-                                                        }} 
-                                                    />
+                                                    {isAdmin ? (
+                                                        <Select
+                                                            size="small"
+                                                            value={project.status || 'planning'}
+                                                            onChange={async (e: SelectChangeEvent) => {
+                                                                const newStatus = e.target.value as string;
+                                                                try {
+                                                                    await api.put(`/projects/${project.id}`, { status: newStatus });
+                                                                    setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, status: newStatus } : p));
+                                                                    setSnackbar({ open: true, message: 'プロジェクトステータスを更新しました', severity: 'success' });
+                                                                    if (refreshGlobalData) {
+                                                                        await refreshGlobalData();
+                                                                    }
+                                                                } catch {
+                                                                    setSnackbar({ open: true, message: 'プロジェクトステータスの更新に失敗しました', severity: 'error' });
+                                                                }
+                                                            }}
+                                                            sx={{
+                                                                height: 26,
+                                                                fontSize: '0.75rem',
+                                                                fontWeight: 700,
+                                                                backgroundColor: getProjectStatusColor(project.status ?? undefined),
+                                                                color: '#fff',
+                                                                '& .MuiSelect-select': { color: '#fff', py: 0.25, px: 1 },
+                                                                '& .MuiOutlinedInput-notchedOutline': { borderColor: getProjectStatusColor(project.status ?? undefined) },
+                                                                '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: getProjectStatusColor(project.status ?? undefined) },
+                                                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: getProjectStatusColor(project.status ?? undefined) }
+                                                            }}
+                                                        >
+                                                            {['planning', 'in-progress', 'completed', 'delayed', 'on-hold', 'cancelled'].map(statusVal => (
+                                                                <MenuItem key={statusVal} value={statusVal} sx={{ fontSize: '0.75rem' }}>{statusVal}</MenuItem>
+                                                            ))}
+                                                        </Select>
+                                                    ) : (
+                                                        <Chip 
+                                                            label={project.status || '-'} 
+                                                            size="small" 
+                                                            sx={{ 
+                                                                backgroundColor: getProjectStatusColor(project.status ?? undefined), 
+                                                                color: '#fff', 
+                                                                fontSize: '0.75rem', 
+                                                                fontWeight: 700 
+                                                            }} 
+                                                        />
+                                                    )}
                                                     <Chip 
                                                         label={project.priority || '未設定'} 
                                                         size="small" 
@@ -1040,6 +1157,22 @@ const ProjectsPage: React.FC = () => {
                                             {/* 操作 */}
                                             <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        onClick={() => navigate(`/projects/${project.id}`)}
+                                                        sx={{
+                                                            textTransform: 'none',
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 600,
+                                                            borderRadius: 1.5,
+                                                            py: 0.25,
+                                                            px: 1,
+                                                            whiteSpace: 'nowrap'
+                                                        }}
+                                                    >
+                                                        詳細
+                                                    </Button>
                                                     <Button
                                                         size="small"
                                                         variant="outlined"

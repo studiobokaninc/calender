@@ -219,117 +219,81 @@ class MeetingAnalyzer:
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
     async def _process_segment_with_retry(self, path: str, index: int, total: int, meeting_id: int) -> Optional[Dict[str, Any]]:
-        """リトライとバックオフ付きでセグメントを処理する"""
-        max_retries = 3
+        """セグメントを処理する。
+        方針:
+        1) 文字起こしは Whisper の【生テキストをそのまま】採用する（LLMに書き換え・補完させない）。
+        2) 生テキストが空なら、LLMに架空内容を捏造させないため、そのセグメントはスキップする。
+        3) LLMは「本文に実在する情報のみの抽出」だけに使う（決定/タスク/論点/期限）。
+        """
+        # --- 1) 逐語文字起こし（verbatim）を取得 ---
+        raw = ""
+        try:
+            raw = (await self.llm_client.transcribe_audio(path)).strip()
+        except Exception as e:
+            logger.warning(f"chunk {index}/{total}: 文字起こし失敗: [{type(e).__name__}] {e}")
+
+        if not raw:
+            # 空データをLLMに渡すと音声と無関係な内容を捏造するため、ここで打ち切る
+            logger.warning(f"chunk {index}/{total}: 文字起こしが空。捏造防止のためスキップ。")
+            return None
+
+        # transcript は生テキストをそのまま保持（この後も一切書き換えない）
+        result: Dict[str, Any] = {
+            "transcript": raw, "decisions": [], "tasks": [],
+            "discussion_points": [], "deadlines": [],
+        }
+
+        # --- 2) LLMは「抽出のみ」。文字起こしの再生成・創作は禁止 ---
+        segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
+        extract_prompt = f"""あなたは会議の文字起こしから重要情報だけを抽出する精密な議事録アシスタントです。{segment_info}
+
+【最重要ルール】
+- 出力は必ず日本語。中国語・英語の混在は禁止。
+- **下記の文字起こしに実際に含まれる情報だけを抽出**してください。推測・一般論・創作の追加は固く禁止します。該当が無ければそのセクションには「なし」とだけ書いてください。
+- 文字起こし本文は出力しないでください（抽出結果のみ）。挨拶・前置き・「改善します」等の締め文句も一切書かないでください。
+
+【対象の文字起こし】
+{raw}
+
+【出力フォーマット】（このキーワードだけをセクション区切りに使用し、他の説明文は書かない）
+===DECISIONS===
+- 決定事項（なければ「なし」）
+===TASKS===
+- [タイプ] 担当者：内容（期限）
+    ※タイプは以下から選択：[design], [documentation], [testing], [review], [meeting], [fx], [asset], [animation], [lighting], [comp]。該当がなければ最適な単語。
+===DISCUSSION_POINTS===
+- 主要な論点・意見（なければ「なし」）
+===DEADLINES===
+- 具体的な期限・日程（なければ「なし」）
+"""
+        max_retries = 2
         for attempt in range(max_retries + 1):
             try:
-                segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
-                
-                # プロバイダー（Gemini vs OpenAI/Anthropic）に応じた指示の微調整
-                is_text_input = (self.llm_client.provider in ["openai", "anthropic"])
-                
-                # 指示：Geminiは直接聴けるが、OpenAIとAnthropicはWhisper後のテキストを受け取る前提
-                action_instr = "提供された会議の文字起こしデータを詳細に分析し、" if is_text_input else "提供された会議音声を詳細に分析し、"
-                transcript_instr = "1. 詳細な全文文字起こし（整形・補完）:" if is_text_input else "1. 全文を詳細に文字起こし:"
-                transcript_sub_instr = (
-                    "提供された文字起こしデータの【全内容】を、意味を損なうことなく、読みやすく整形して出力してください。"
-                    if is_text_input else "日本語で全文を一字一句漏らさず（不要な相槌を除く）文字起こししてください。"
-                )
-
-                prompt = f"""
-あなたは、{action_instr}重要な情報を一切漏らさない精密な議事録を作成するプロフェッショナルAIエディターです。
-現在、会議のセグメント{segment_info}を処理しています。
-
-以下の【要件】に厳密に従って、出力を生成してください。
-
-【出力言語（最優先・絶対厳守）】
-出力は、見出し・本文・抽出項目のすべてを【必ず日本語】で記述してください。
-中国語（简体字・繁体字）や英語で出力することは固く禁止します。入力の文字起こしは日本語です。
-固有名詞や専門用語以外は、一字たりとも中国語を混在させないでください。
-
-【システム制約上の最重要指示】
-このタスクは自動化されたパイプラインの一部として実行されます。
-与えられたデータが短かったり、部分的・不完全であっても、絶対に作業を拒否せず、提供された情報のみから推測を交えずに最大限の抽出を行ってください。
-「文脈が不足している」「作業を進めることができません」などの謝罪や作業拒否のメッセージは、後続のシステム処理でエラーとなるため出力しないでください。
-
-【要件】
-{transcript_instr}
-   - {transcript_sub_instr}
-   - **重要：情報を一切省略せず、元々の発言内容をすべて残してください。要約はしないでください。**
-   - 発言者（A, B, C... または会話から推測される名前）を特定し、発言ごとに以下のタグを先頭に付与してください。
-     [議題] [提案] [決定] [タスク] [質問] [雑談]
-   - **重要：知らない人の名前を勝手に捏造しないでください。** 名前が不明な場合は、一貫して「話者A」「話者B」のように記号で区別してください。
-   - 文脈から明らかに不要な相槌（「あー」「えー」等）や、意味のない言い直しのみを削り、発言の真意がすべて伝わるように整形してください。
-
-2. 重要情報の抽出（各セグメントの最後に出力されます）:
-   - 決定事項: 会議で合意された、または決定した方針。
-   - タスク: 「誰が」「いつまでに」「何をするか」。些細な依頼もすべて抽出してください。
-   - 論点: 議論されているポイント、出された意見、懸案事項。
-   - スケジュール: 具体的日程、期限、次回の予定。
-
-【出力順序について】
-まずは「文字起こし全文」を丁寧に出力し、その直後に構造化した重要情報を出力してください。
-
-【出力フォーマット】（以下のキーワードをセクション区切りとして使用し、それ以外の説明は不要です）
-===DECISIONS===
-- 決定事項のリスト（なければ「なし」）
-
-===TASKS===
-- [タイプ] 担当者：内容（期限）（なければ「なし」）
-    ※タイプは以下から選択：[design], [documentation], [testing], [review], [meeting], [fx], [asset], [animation], [lighting], [comp]。該当がない場合は最適な単語。
-
-===DISCUSSION_POINTS===
-- 主要な論点・意見のリスト（なければ「なし」）
-
-===DEADLINES===
-- 具体的期限・日程のリスト（なければ「なし」）
-
-===TRANSCRIPT===
-（タグ付き文字起こし全文）
-"""
-                inputs = {"mode": "utility", "attachments": [path], "no_actions": True}
-                response_text = ""
-                
-                # 指数バックオフ
                 if attempt > 0:
-                    # 429エラーの場合はより長く待機
-                    wait = (2 ** attempt) * 30
-                    if attempt == 1: wait = 45 # 初回リトライは45秒
-                    logger.info(f"Retry {attempt}/{max_retries} for chunk {index}. Waiting {wait}s...")
-                    await asyncio.sleep(wait)
-                
-                # 会話履歴が干渉しないよう、セグメントごとにユニークなIDを使用
+                    await asyncio.sleep(min((2 ** attempt) * 10, 60))
                 conv_id = f"mtg_{meeting_id}_seg_{index}_v{attempt}"
-                
-                async for chunk in self.llm_client.stream_chat(prompt, conv_id, inputs):
+                response_text = ""
+                async for chunk in self.llm_client.stream_chat(
+                    extract_prompt, conv_id, {"mode": "utility", "no_actions": True}
+                ):
                     if chunk.get("event") == "message":
                         response_text += chunk.get("answer", "")
                     elif chunk.get("event") == "error":
-                        error_msg = chunk.get("message", "Unknown LLM error")
-                        logger.error(f"LLM Error during chunk {index}: {error_msg}")
-                        raise Exception(f"LLM API Error: {error_msg}")
-                
+                        raise Exception(chunk.get("message", "Unknown LLM error"))
+
                 if response_text.strip():
                     parsed = self._parse_output(response_text)
-                    # 文字起こし、あるいは何らかのまとめ項目があれば成功とみなす
-                    if parsed.get("transcript") or parsed.get("decisions") or parsed.get("tasks"):
-                        return parsed
-                    else:
-                        logger.warning(f"Response received for chunk {index} but no structured data found. RAW: {response_text[:500]}")
-                
-                logger.warning(f"Empty or invalid response for chunk {index}, attempt {attempt}")
-
-                    
+                    result["decisions"] = parsed.get("decisions", [])
+                    result["tasks"] = parsed.get("tasks", [])
+                    result["discussion_points"] = parsed.get("discussion_points", [])
+                    result["deadlines"] = parsed.get("deadlines", [])
+                    return result
+                logger.warning(f"chunk {index}/{total}: 抽出応答が空 (attempt {attempt})")
             except Exception as e:
-                err_str = str(e)
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    logger.warning(f"Rate limit hit at chunk {index}.")
-                    if attempt == max_retries: break # 最後のリトライなら諦める
-                    # バックオフは次のループ開始時に sleep する
-                else:
-                    logger.error(f"Segment {index} processing error: {e}")
-                    if attempt == max_retries: break
-        return None
+                logger.error(f"chunk {index}/{total} 抽出エラー (attempt {attempt}): {e}")
+
+        # 抽出に失敗しても、逐語文字起こしは確保できているので返す（transcriptは失わない）
+        return result
 
     def _parse_output(self, text: str) -> Dict[str, Any]:
         """LLMの応答をパースして辞書に格納する"""
@@ -385,6 +349,12 @@ class MeetingAnalyzer:
         "承知しました", "了解しました", "申し訳", "以下の", "以下に", "出力します",
         "処理を続け", "続けて", "フォーマット", "については以上", "特にありません",
         "情報はありません", "該当なし", "該当する", "見当たりません",
+        # モデルが末尾に付けがちな「お手伝い/改善の申し出」系の締め文句。
+        # 構造化フィールド（特に期限・日程候補）への混入を防ぐ。
+        "フィードバック", "追加情報", "提供いただ", "いただければ", "いただけましたら",
+        "改善させ", "改善いたし", "お気軽に", "お知らせください", "ご連絡ください",
+        "ご確認ください", "よろしくお願い", "お手伝いし", "サポートさせ",
+        "ご質問が", "ご要望が", "遠慮なく", "お申し付け",
     )
 
     def _is_meta_line(self, item: str) -> bool:
@@ -462,7 +432,7 @@ class MeetingAnalyzer:
         try:
             accumulated_summary = ""
             # テキスト統合なので attachments は不要
-            async for chunk in self.llm_client.stream_chat(summary_prompt, f"mtg_{meeting_id}_final", {"mode": "admin", "no_actions": True}):
+            async for chunk in self.llm_client.stream_chat(summary_prompt, f"mtg_{meeting_id}_final", {"mode": "utility", "no_actions": True}):
                 if chunk.get("event") == "message":
                     accumulated_summary += chunk.get("answer", "")
             

@@ -1,7 +1,56 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { GridSortModel } from '@mui/x-data-grid';
+import { migrateLegacyStatus } from '../utils/taskStatus';
 
 const GLOBAL_DATA_TTL_MS = 5 * 60 * 1000; // 5分
+
+// task_status_redesign_plan.md §9: フロントエンドデプロイ時、sessionStorage 内の
+// 旧ステータス値(todo/completed 等)を検出したら新値へ変換、変換できなければ空に戻す。
+// 'all' や '' はステータス以外(全件表示など)の意味なので素通し。
+const migrateLegacyStatusValue = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  if (value === '' || value === 'all') return value;
+  const migrated = migrateLegacyStatus(value);
+  return migrated ?? '';
+};
+
+const migrateLegacyStatusList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const v of value) {
+    if (typeof v !== 'string') continue;
+    const migrated = migrateLegacyStatus(v);
+    if (migrated) out.push(migrated);
+  }
+  return out;
+};
+
+// 保存済み PageStates をロードした直後に旧ステータス値を新値に置き換える。
+// 破壊的変更ではなく、対応不能な値だけを空文字にフォールバックする。
+const migratePageStatesStatusFilters = (raw: any): any => {
+  if (!raw || typeof raw !== 'object') return raw;
+  const next = { ...raw };
+  if (next.tasks && typeof next.tasks === 'object') {
+    next.tasks = {
+      ...next.tasks,
+      statusFilter: migrateLegacyStatusValue(next.tasks.statusFilter),
+    };
+  }
+  if (next.metrics && typeof next.metrics === 'object') {
+    next.metrics = {
+      ...next.metrics,
+      statusFilter: migrateLegacyStatusValue(next.metrics.statusFilter),
+      selectedDisplayStatuses: migrateLegacyStatusList(next.metrics.selectedDisplayStatuses),
+    };
+  }
+  if (next.calendar && typeof next.calendar === 'object') {
+    next.calendar = {
+      ...next.calendar,
+      filterStatus: migrateLegacyStatusValue(next.calendar.filterStatus),
+    };
+  }
+  return next;
+};
 
 // ページごとの状態を管理する型定義
 interface PageStates {
@@ -143,8 +192,9 @@ export const PageStateProvider: React.FC<PageStateProviderProps> = ({ children }
       const savedStates = sessionStorage.getItem('page_states');
       if (savedStates) {
         const parsedStates = JSON.parse(savedStates);
-        console.log('Restoring saved states:', parsedStates);
-        setPageStates(parsedStates);
+        const migrated = migratePageStatesStatusFilters(parsedStates);
+        console.log('Restoring saved states:', migrated);
+        setPageStates(migrated);
       } else {
         setPageStates(defaultStates);
       }

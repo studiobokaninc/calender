@@ -5,6 +5,7 @@ import { Box, Typography, Paper, Grid, Modal, IconButton, FormControl, InputLabe
 import CloseIcon from '@mui/icons-material/Close';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // ヘルプアイコン
 import { parseISO, isValid, isBefore, startOfDay } from 'date-fns';
+import { isOverdue as _isOverdue } from '../utils/taskStatus';
 
 interface AssigneeLoadChartProps {
     tasks: Task[];
@@ -26,12 +27,21 @@ interface AssigneeLoadData {
 }
 
 // ★★★ データ計算ロジック変更: 新しい遅延定義を適用 ★★★
+// 遅延判定 = オンラインプロジェクトのタスクで、status ∉ {deliver, omit, 旧completed} かつ 期日超過
 const calculateAssigneeLoadData = (
     tasks: Task[],
-    users: User[]
+    users: User[],
+    projects: Project[],
 ): AssigneeLoadData[] => {
     const today = startOfDay(new Date()); // 今日の開始時刻
     const assignees = users.filter(u => u.role !== 'admin');
+
+    // オンラインプロジェクト ID セット (O(1) 判定用)
+    const onlineProjectIdSet = new Set<number>(
+        projects
+            .filter(p => (p.display_status ?? 'online') === 'online')
+            .map(p => p.id)
+    );
 
     // 渡されたtasksをそのまま使用（上位でフィルター済み）
     const filteredTasks = tasks;
@@ -53,37 +63,55 @@ const calculateAssigneeLoadData = (
             const cost = typeof task.cost === 'number' ? task.cost : 0;
             let isDelayed = false;
 
-            // 遅延判定 (新しい定義)
-            if (task.due_date) {
+            // 遅延判定 (新しい定義):
+            //   オンラインプロジェクトのタスクで、
+            //   status が deliver / omit / 旧completed でなく、
+            //   期日超過であること
+            if (task.due_date && task.project_id != null && onlineProjectIdSet.has(task.project_id)) {
                 const dueDate = startOfDay(parseISO(task.due_date));
-                if (isValid(dueDate) && isBefore(dueDate, today) && task.status !== 'completed') {
+                const status = (task.status || '').toLowerCase();
+                const isDone = status === 'deliver' || status === 'completed' || status === 'omit';
+                if (isValid(dueDate) && isBefore(dueDate, today) && !isDone) {
                     isDelayed = true;
                 }
             }
 
-            // 集計
+            // 集計 (task_status_redesign_plan.md §3.2 の 5 カテゴリでバケット化)
+            // - 未着手 (mk / 旧 todo) → todoTasks
+            // - 進行中 (wip 系 + FB 系 / 旧 in-progress・retake) → inProgressTasks
+            // - 完了 (deliver / 旧 completed) → doneTasks
+            // - チェック中や停止 (qc/qc_fb/ap/ap_fb/dir_wt/dir_ap/dir_fb/fix/wt) は inProgress に含めておく
+            // - omit は除外 (工程外)
             if (isDelayed) {
                 delayedTasks++;
                 delayedCost += cost;
             } else {
-                // 遅延でない場合は元のステータスで分類
-                switch (task.status) {
+                const raw = (task.status || '').toLowerCase();
+                switch (raw) {
+                    // 未着手
+                    case 'mk':
                     case 'todo':
                         todoTasks++;
                         todoCost += cost;
                         break;
-                    case 'in-progress':
-                        inProgressTasks++;
-                        inProgressCost += cost;
-                        break;
+                    // 完了 (唯一)
+                    case 'deliver':
                     case 'completed':
                         doneTasks++;
                         doneCost += cost;
                         break;
-                    // taskStatus が 'delayed' だが isDelayed が false (例: dueDate が未来) の場合は
-                    // 本来ありえないが、もしあれば todo or in-progress に分類するか、無視するか。
-                    // 今回は status が delayed だが isDelayed=false なら無視される。
-                    // 必要ならここに case 'delayed': を追加してハンドリング。
+                    // 除外 (集計対象外)
+                    case 'omit':
+                        break;
+                    // それ以外の作業中扱い (進行中カテゴリ + チェック/FB/停止)
+                    case 'wip': case 'modeling': case 'lookdev': case 'caching': case 'rig': case 'facial':
+                    case 'v1qc': case 'qc': case 'qc_fb': case 'ap':
+                    case 'ap_fb': case 'dir_wt': case 'dir_ap': case 'dir_fb': case 'fix':
+                    case 'wt':
+                    case 'in-progress': case 'in_progress': case 'review': case 'approved': case 'retake':
+                        inProgressTasks++;
+                        inProgressCost += cost;
+                        break;
                     default:
                         break;
                 }
@@ -146,13 +174,13 @@ const modalStyle = {
     flexDirection: 'column'
 };
 
-const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users }) => { // projects は使用しないので削除
+const AssigneeLoadChart: React.FC<AssigneeLoadChartProps> = ({ tasks, users, projects }) => {
     // ★★★ フィルター用の State ★★★
     const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<number[]>([]); // 初期は空（=全員表示）
 
     const assigneeLoadDataAll = useMemo(
-        () => calculateAssigneeLoadData(tasks, users),
-        [tasks, users] // selectedProjectId を削除
+        () => calculateAssigneeLoadData(tasks, users, projects),
+        [tasks, users, projects]
     );
 
     // ★★★ 担当者リスト（フィルター用）★★★

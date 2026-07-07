@@ -35,7 +35,7 @@ def get_dashboard_metrics(
     try:
         num_completed_tasks = db.query(models.Task).join(models.Project).filter(
             models.Project.display_status == 'online',
-            models.Task.status == models.TaskStatus.COMPLETED
+            models.Task.status == models.TaskStatus.DELIVER
         ).count()
     except Exception as e:
         logger.error(f"Error counting completed tasks for metrics: {e}")
@@ -73,7 +73,7 @@ def get_dashboard_metrics(
             models.Project.id,
             models.Project.name,
             func.count(models.Task.id).label('total_tasks'),
-            func.sum(case((models.Task.status == models.TaskStatus.COMPLETED, 1), else_=0)).label('completed_tasks')
+            func.sum(case((models.Task.status == models.TaskStatus.DELIVER, 1), else_=0)).label('completed_tasks')
         ).outerjoin(models.Task, models.Project.id == models.Task.project_id)\
          .filter(models.Project.display_status == 'online')\
          .group_by(models.Project.id, models.Project.name).all()

@@ -565,12 +565,17 @@ async def process_concat_and_analyze(
             str(output_audio_path)
         ]
         
-        process = await asyncio.create_subprocess_exec(
-            *cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        if process.returncode != 0:
-            raise Exception(f"ffmpeg concat failed: {stderr.decode()}")
+        # 重要: asyncio.create_subprocess_exec は稼働中uvicornワーカーのイベントループ上で
+        # Windows 上 NotImplementedError(空)になり必ず失敗する（whisper/split と同じ地雷）。
+        # 実績のある subprocess.run + asyncio.to_thread（イベントループを塞がずスレッドで実行）に統一する。
+        def _run_concat():
+            return subprocess.run(
+                cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="ignore", timeout=1800,
+            )
+        proc = await asyncio.to_thread(_run_concat)
+        if proc.returncode != 0:
+            raise Exception(f"ffmpeg concat failed: {(proc.stderr or '')[:1000]}")
 
         # ----------------------------------------------------
         # PHASE 3: 音声パスの更新 (DBセッション2)

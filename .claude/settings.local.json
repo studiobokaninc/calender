@@ -51,7 +51,11 @@
       "Bash(./venv/Scripts/python.exe -m alembic heads)",
       "Bash(./venv/Scripts/python.exe -m alembic upgrade head)",
       "Bash(./venv/Scripts/python.exe -m alembic stamp h1a2b3c4d5e6)",
-      "Bash(./venv/Scripts/python.exe -m pytest app/tests/test_task_status_redesign.py app/tests/test_crud.py -q --tb=line)"
+      "Bash(./venv/Scripts/python.exe -m pytest app/tests/test_task_status_redesign.py app/tests/test_crud.py -q --tb=line)",
+      "Bash(./venv/Scripts/python.exe -X utf8 -c ' *)",
+      "Bash(./venv/Scripts/python.exe -m pytest app/tests/ -q --tb=line)",
+      "Bash(./venv/Scripts/python.exe -m pytest app/tests/ --tb=line)",
+      "Bash(./venv/Scripts/python.exe -m pytest app/tests/test_assets_api.py --tb=line)"
     ]
   }
 }

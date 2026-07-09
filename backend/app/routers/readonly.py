@@ -322,3 +322,14 @@ def list_score_user_roles(
     rows = q.offset(offset).limit(limit).all()
     items = [schemas.ReadonlyScoreUserRole.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+# ---- Task status metadata ----
+
+@router.get("/task-statuses", response_model=list[dict])
+def get_task_statuses(
+    _: None = Depends(verify_readonly_token),
+):
+    """ステータスメタデータ一覧 (凡例・フィルタ・ピッカー用)"""
+    from app.status_meta import STATUS_META_LIST
+    return STATUS_META_LIST

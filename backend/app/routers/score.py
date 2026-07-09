@@ -22,8 +22,14 @@ router = APIRouter(prefix="/api", tags=["score"])
 
 def _get_pm_director_project_ids(db: Session, actor_id: int) -> List[int]:
     """
-    PM または Director ロールが設定されているプロジェクトIDを返す。
+    ある actor が PM または Director として設定されているプロジェクトID を返す。
     score_user_roles テーブルで role が 'pm' または 'director' のエントリを検索する。
+
+    注意: 以前は User.role in ('pm', 'admin') の場合に全 online プロジェクトを返す
+    ショートカットが存在したが、以下の副作用があったため廃止した:
+      - admin ユーザーの /api/me/tasks に、割当のない他人のタスクが混入する
+      - admin ユーザーの /api/me/projects に、role assignment のないプロジェクトが混入する
+    ロールごとの見え方は score_user_roles テーブルを唯一の真実源として扱う。
     """
     roles = db.query(models.ScoreUserRole).filter(
         models.ScoreUserRole.user_id == actor_id,
@@ -724,19 +730,32 @@ def get_my_tasks(
     actor_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db)
 ):
-    # 自分がアサインされているタスク + PM/Director として設定されているプロジェクトのタスク
-    pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
-    cond = [models.Task.assigned_to == actor_id]
-    if pm_director_project_ids:
-        cond.append(models.Task.project_id.in_(pm_director_project_ids))
-    return db.query(models.Task).filter(or_(*cond)).distinct().all()
+    """自分が assigned_to のタスクのみを返す (strict assignment)。
+    オフラインプロジェクトのタスクは、PM/Director として登録されていても表示しない。
+
+    以前は PM/Director プロジェクトの全タスクを合流させていたが、
+    Score ダッシュボードで「他人のタスクが本日 TODO に載る」原因となっていたため撤廃。
+    プロジェクトの可視性は /api/me/projects で別途担保する。
+    """
+    query = db.query(models.Task).outerjoin(
+        models.Project, models.Task.project_id == models.Project.id
+    ).filter(
+        models.Task.assigned_to == actor_id,  # 割当のみ
+    ).filter(
+        or_(
+            models.Task.project_id.is_(None),
+            models.Project.display_status == 'online',
+        )
+    )
+    return query.distinct().all()
 
 @router.get("/me/shots", response_model=List[schemas.ShotResponse])
 def get_my_shots(
     actor_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db)
 ):
-    # タスクがアサインされているショット + PM/Director として設定されているプロジェクトのすべてのショット
+    # タスクがアサインされているショット + オンラインの PM/Director プロジェクトのすべてのショット
+    # (オフラインプロジェクトのショットは PM/Director でも表示しない)
     pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
     cond = [
         models.Shot.id.in_(
@@ -748,7 +767,14 @@ def get_my_shots(
     ]
     if pm_director_project_ids:
         cond.append(models.Shot.project_id.in_(pm_director_project_ids))
-    return db.query(models.Shot).filter(or_(*cond)).distinct().all()
+
+    query = db.query(models.Shot).outerjoin(models.Project, models.Shot.project_id == models.Project.id).filter(
+        or_(
+            models.Shot.project_id.is_(None),
+            models.Project.display_status == 'online',
+        )
+    )
+    return query.filter(or_(*cond)).distinct().all()
 
 @router.get("/me/notifications", response_model=List[schemas.Notification])
 def get_my_notifications(
@@ -774,7 +800,9 @@ def get_my_projects(
     actor_id: int = Depends(get_actor_user_id),
     db: Session = Depends(get_db)
 ):
-    # タスクがアサインされているプロジェクト + PM/Director として設定されているプロジェクト
+    # タスクがアサインされているプロジェクト + PM/Director プロジェクト
+    # ただし display_status='online' のプロジェクトのみを返す
+    # (オフラインは PM/Director 割当があっても表示しない)
     task_project_ids = [
         t.project_id for t in
         db.query(models.Task.project_id).filter(
@@ -786,7 +814,10 @@ def get_my_projects(
     all_project_ids = list(set(task_project_ids + pm_director_project_ids))
     if not all_project_ids:
         return []
-    return db.query(models.Project).filter(models.Project.id.in_(all_project_ids)).all()
+    return db.query(models.Project).filter(
+        models.Project.id.in_(all_project_ids),
+        models.Project.display_status == 'online',
+    ).all()
 
 @router.get("/me/retakes", response_model=List[schemas.Retake])
 def get_my_retakes(
@@ -815,7 +846,10 @@ def get_my_retakes(
     if pm_director_project_ids:
         retake_cond.append(models.Shot.project_id.in_(pm_director_project_ids))
     query = query.filter(or_(*retake_cond)).distinct()
-    
+
+    # オフラインプロジェクトのリテイクは PM/Director でも表示しない
+    query = query.filter(models.Project.display_status == 'online')
+
     results = query.options(selectinload(models.Retake.timecodes)).all()
     
     for r, sc, pn, cn in results:
@@ -879,7 +913,10 @@ def get_my_troubles(
     if pm_director_project_ids:
         trouble_cond.append(models.Shot.project_id.in_(pm_director_project_ids))
     query = query.filter(or_(*trouble_cond))
-    
+
+    # オフラインプロジェクトのトラブルは PM/Director でも表示しない
+    query = query.filter(models.Project.display_status == 'online')
+
     results = query.all()
     
     for t, sc, pn, rn, an in results:
@@ -1295,6 +1332,11 @@ def get_my_shot_detail(
     shot = db.query(models.Shot).filter(models.Shot.id == id).first()
     if not shot:
         raise HTTPException(status_code=404, detail="Shot not found")
+
+    # オフラインプロジェクトのショットは PM/Director でもアクセス不可
+    project = db.query(models.Project).filter(models.Project.id == shot.project_id).first()
+    if project and project.display_status != 'online':
+        raise HTTPException(status_code=403, detail="Access denied for offline project")
         
     my_tasks = db.query(models.Task).filter(
         models.Task.shot_id == id,
@@ -1349,6 +1391,16 @@ def get_my_events(
     else:
         query = query.filter(cond_a)
         
+    # 一般ユーザー（非特権ユーザー）は、自分がPM/Directorになっていないオフラインプロジェクトのイベントを除外する
+    pm_director_project_ids = _get_pm_director_project_ids(db, actor_id)
+    query = query.outerjoin(models.Project, models.Event.project_id == models.Project.id).filter(
+        or_(
+            models.Event.project_id.is_(None),
+            models.Project.display_status == 'online',
+            models.Event.project_id.in_(pm_director_project_ids)
+        )
+    )
+
     if start_date:
         query = query.filter(models.Event.start_time >= start_date)
     if end_date:
@@ -1365,6 +1417,10 @@ def get_my_project_detail(
     project = db.query(models.Project).filter(models.Project.id == id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # オフラインプロジェクトは PM/Director でもアクセス不可
+    if project.display_status != 'online':
+        raise HTTPException(status_code=403, detail="Access denied for offline project")
         
     my_shots = db.query(models.Shot).join(models.Task).filter(
         models.Shot.project_id == id,
@@ -1623,13 +1679,26 @@ def create_score_user_role(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Score制作ロールを新規登録。同一(user_id, project_id)が既存なら409"""
-    existing = db.query(models.ScoreUserRole).filter(
+    """Score制作ロールを新規登録。
+    409 を返すケース:
+      - 同一 (user_id, project_id) が既存 (1 user は 1 project につき 1 role)
+      - 同一 (project_id, role) が既存 (1 project は 1 role につき 1 user、director/PM の重複割当防止)
+    """
+    existing_user = db.query(models.ScoreUserRole).filter(
         models.ScoreUserRole.user_id == payload.user_id,
         models.ScoreUserRole.project_id == payload.project_id
     ).first()
-    if existing:
+    if existing_user:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="この user_id + project_id の組み合わせは既に登録されています")
+    existing_role = db.query(models.ScoreUserRole).filter(
+        models.ScoreUserRole.project_id == payload.project_id,
+        models.ScoreUserRole.role == payload.role
+    ).first()
+    if existing_role:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"project_id={payload.project_id} には既に role='{payload.role}' の担当者 (user_id={existing_role.user_id}) が割り当てられています。先に既存割当を削除・変更してください。",
+        )
     new_role = models.ScoreUserRole(
         user_id=payload.user_id,
         project_id=payload.project_id,
@@ -1648,10 +1717,23 @@ def update_score_user_role(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Score制作ロールのroleフィールドを変更"""
+    """Score制作ロールのroleフィールドを変更。
+    変更後の (project_id, role) が別レコードと衝突する場合は 409。
+    """
     target = db.query(models.ScoreUserRole).filter(models.ScoreUserRole.id == role_id).first()
     if not target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="指定されたロール割当が見つかりません")
+    if payload.role != target.role:
+        conflict = db.query(models.ScoreUserRole).filter(
+            models.ScoreUserRole.project_id == target.project_id,
+            models.ScoreUserRole.role == payload.role,
+            models.ScoreUserRole.id != role_id,
+        ).first()
+        if conflict:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"project_id={target.project_id} には既に role='{payload.role}' の担当者 (user_id={conflict.user_id}) が割り当てられています",
+            )
     target.role = payload.role
     db.commit()
     db.refresh(target)

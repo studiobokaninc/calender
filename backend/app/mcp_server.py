@@ -97,6 +97,8 @@ def get_today_tasks(
             q = q.filter(models.Task.project_id == project_id)
         if shot_id is not None:
             q = q.filter(models.Task.shot_id == shot_id)
+        if actor_id is not None:
+            q = q.filter(models.Task.assigned_to == actor_id)
         today_str = datetime.date.today().isoformat()
         q = q.filter(func.date(models.Task.due_date) == today_str)
         rows = q.limit(500).all()

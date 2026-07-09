@@ -422,6 +422,20 @@ class TaskResponse(TaskBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     status_history: List[StatusHistoryResponse] = [] # status_history フィールドを追加
+    status_color: Optional[str] = None
+    status_label: Optional[str] = None
+    status_category: Optional[str] = None
+
+    @root_validator(pre=False, skip_on_failure=True)
+    def fill_task_response_status_meta(cls, values):
+        from app.status_meta import get_status_color, get_status_label, get_status_category
+        s = values.get('status')
+        if s is not None and hasattr(s, 'value'):
+            s = s.value
+        values['status_color'] = get_status_color(s)
+        values['status_label'] = get_status_label(s)
+        values['status_category'] = get_status_category(s)
+        return values
 
     # Pydantic V1 の場合
     class Config:
@@ -1253,6 +1267,20 @@ class ReadonlyTask(BaseModel):
     display_status: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    status_color: Optional[str] = None
+    status_label: Optional[str] = None
+    status_category: Optional[str] = None
+
+    @root_validator(pre=False, skip_on_failure=True)
+    def fill_readonly_status_meta(cls, values):
+        from app.status_meta import get_status_color, get_status_label, get_status_category
+        s = values.get('status')
+        if s is not None and hasattr(s, 'value'):
+            s = s.value
+        values['status_color'] = get_status_color(s)
+        values['status_label'] = get_status_label(s)
+        values['status_category'] = get_status_category(s)
+        return values
 
     class Config:
         from_attributes = True

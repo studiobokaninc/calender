@@ -486,7 +486,12 @@ class KnowledgeTag(Base):
 
 class ScoreUserRole(Base):
     __tablename__ = "score_user_roles"
-    __table_args__ = (UniqueConstraint('user_id', 'project_id', name='uix_user_project'),)
+    __table_args__ = (
+        # 1 user は 1 project につき 1 role のみ
+        UniqueConstraint('user_id', 'project_id', name='uix_user_project'),
+        # 1 project は 1 role につき 1 user のみ (director/PM の重複割当を防ぐ)
+        UniqueConstraint('project_id', 'role', name='uix_project_role'),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)

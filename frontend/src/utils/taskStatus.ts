@@ -84,32 +84,52 @@ export const getTaskStatusColor = (status?: string | null): string => {
   const lower = status.toLowerCase();
   const canonical = LEGACY_STATUS_MAP[lower] ?? lower;
   switch (canonical) {
+    // 0.0: 未着手 (クールカラー)
     case 'mk':
-      return '#2196F3'; // 1. 未着手 (青)
-    case 'omit':
-      return '#E0E0E0'; // 2. 作業対象外 (最薄グレー)
+      return '#1E88E5'; // Blue 600
+    // 0.2: 作業ストップ (警告・一時停止)
     case 'wt':
-      return '#F44336'; // 3. 作業ストップ (赤)
+      return '#E53935'; // Red 600
+    // 0.4: 進行中 (暖色系・進行順)
     case 'wip':
+      return '#FFA726'; // Orange 400
     case 'modeling':
+      return '#FB8C00'; // Orange 600
     case 'lookdev':
+      return '#F57C00'; // Orange 700
     case 'caching':
+      return '#E65100'; // Orange 900
     case 'rig':
+      return '#FFB300'; // Amber 600
     case 'facial':
-      return '#FF9800'; // 4. 進行中 (オレンジ)
-    case 'v1qc':
-    case 'qc':
+      return '#FDD835'; // Yellow 600
+    // 0.4: 各種フィードバック (アクション要・ピンク/ローズ系)
     case 'qc_fb':
-    case 'ap':
-      return '#9C27B0'; // 5. 社内チェック (パープル)
+      return '#E91E63'; // Pink 500 (社内FB)
     case 'ap_fb':
-    case 'dir_wt':
-    case 'dir_ap':
+      return '#D81B60'; // Pink 600 (社外FB)
     case 'dir_fb':
+      return '#C2185B'; // Pink 700 (ディレクターFB)
+    // 0.7: レビュー中 (中間色・パープル/ティール系)
+    case 'v1qc':
+      return '#BA68C8'; // Orchid/Purple 300 (社内チェック初回)
+    case 'qc':
+      return '#8E24AA'; // Purple 600 (社内チェック中)
+    case 'dir_wt':
+      return '#26A69A'; // Teal 500 (クライアント確認待ち)
+    // 0.85 - 0.95: 承認済・最終調整 (グリーン系・ゴール目前)
+    case 'ap':
+      return '#81C784'; // Light Green 400 (社内承認済)
+    case 'dir_ap':
+      return '#4CAF50'; // Green 500 (社外承認済)
     case 'fix':
-      return '#4CAF50'; // 6. 社外チェック (緑)
+      return '#2E7D32'; // Green 800 (最終FIX)
+    // 1.0: 完了 (用済み・グレー)
     case 'deliver':
-      return '#757575'; // 7. 完了 (ダークグレー)
+      return '#757575'; // Gray 600 (納品完了)
+    // その他/対象外
+    case 'omit':
+      return '#E0E0E0'; // Light Gray (対象外)
     default:
       return '#BDBDBD';
   }
@@ -118,7 +138,7 @@ export const getTaskStatusColor = (status?: string | null): string => {
 // ---------------------------------------------------------------------------
 // Chip 統合スタイル (§6.2 の getTaskStatusChipStyle)
 // - omit は取り消し線 + ダッシュボーダーでアクセシビリティ確保
-// - オレンジ系は白文字だとコントラスト不足のためダーク文字に自動切替
+// - オレンジ・黄・ライトグリーン・ライトティール等の明度の高い色は白文字だとコントラスト不足のためダーク文字に自動切替
 // - theme 引数があれば MUI palette.getContrastText を優先利用
 // ---------------------------------------------------------------------------
 export const getTaskStatusChipStyle = (
@@ -127,7 +147,8 @@ export const getTaskStatusChipStyle = (
 ): CSSProperties => {
   const color = getTaskStatusColor(status);
   const s = status?.toLowerCase();
-  const isOmit = s === 'omit';
+  const canonical = LEGACY_STATUS_MAP[s ?? ''] ?? s;
+  const isOmit = canonical === 'omit';
 
   let textColor: string = 'white';
   if (isOmit) {
@@ -135,12 +156,15 @@ export const getTaskStatusChipStyle = (
   } else if (theme?.palette?.getContrastText) {
     textColor = theme.palette.getContrastText(color);
   } else if (
-    s === 'wip' ||
-    s === 'modeling' ||
-    s === 'lookdev' ||
-    s === 'caching' ||
-    s === 'rig' ||
-    s === 'facial'
+    canonical === 'wip' ||
+    canonical === 'modeling' ||
+    canonical === 'lookdev' ||
+    canonical === 'caching' ||
+    canonical === 'rig' ||
+    canonical === 'facial' ||
+    canonical === 'v1qc' ||
+    canonical === 'dir_wt' ||
+    canonical === 'ap'
   ) {
     textColor = '#202124';
   }
@@ -299,4 +323,56 @@ export const migrateLegacyStatus = (value?: string | null): TaskStatus | null =>
   if (LEGACY_STATUS_MAP[s]) return LEGACY_STATUS_MAP[s];
   if (NEW_STATUS_SET.has(s)) return s as TaskStatus;
   return null;
+};
+
+export interface StatusBreakdown {
+  todo: number;
+  inProgress: number;
+  delayed: number;
+  completed: number;
+}
+
+export const getStatusBreakdown = (
+  tasks: any[],
+  options?: { projectDisplayStatus?: string | null }
+): StatusBreakdown => {
+  let todo = 0;
+  let inProgress = 0;
+  let delayed = 0;
+  let completed = 0;
+
+  const today = todayStrJST();
+
+  tasks.forEach(task => {
+    const status = (task.status || 'mk').toLowerCase();
+    const canonical = (LEGACY_STATUS_MAP[status] ?? status) as string;
+
+    // Completed: deliver, completed
+    if (canonical === 'deliver' || canonical === 'completed') {
+      completed++;
+      return;
+    }
+
+    // Excluded from breakdown: omit and wt
+    if (canonical === 'omit' || canonical === 'wt') {
+      return;
+    }
+
+    // Check if task is overdue
+    if (isOverdue(task, today, options)) {
+      delayed++;
+      return;
+    }
+
+    // Todo: mk, todo, planning
+    if (canonical === 'mk' || canonical === 'todo' || canonical === 'planning') {
+      todo++;
+      return;
+    }
+
+    // In Progress: everything else
+    inProgress++;
+  });
+
+  return { todo, inProgress, delayed, completed };
 };

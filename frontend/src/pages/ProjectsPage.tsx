@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
 import ProjectDeleteDialog from '../components/ProjectDeleteDialog';
+import { getStatusBreakdown } from '../utils/taskStatus';
 
 // Helper function to determine sort priority by display status (online first)
 const displayStatusOrder = (s: string): number => {
@@ -198,47 +199,13 @@ const ProjectsPage: React.FC = () => {
 
                 const progress = totalCost > 0 ? Math.round((completedCost / totalCost) * 100) : 0;
 
-                let todoCount = 0;
-                let inProgressCount = 0;
-                let delayedCount = 0;
-                let completedCount = 0;
-
-                // 遅延判定 = オンラインプロジェクトのタスクで status ∉ {deliver, omit, 旧completed} かつ 期日超過
-                //   → このループは当該プロジェクト内のタスクなので、
-                //     project.display_status が 'online' の時のみ delayed をカウントする。
-                const isProjectOnline = (project.display_status ?? 'online') === 'online';
-                const _today = new Date(new Date().setHours(0, 0, 0, 0));
-
-                relatedTasks.forEach(task => {
-                    const status = ((task.status || 'mk') as string).toLowerCase();
-
-                    // deliver のみが「完了」の唯一の値。ap/fix/dir_ap は承認済だが未納品なので進行中扱い。
-                    if (status === 'deliver' || status === 'completed') {
-                        completedCount++;
-                    } else if (
-                        // 未着手
-                        status === 'mk' || status === 'todo' || status === 'planning'
-                    ) {
-                        todoCount++;
-                    } else if (
-                        // 除外 (集計対象外)
-                        status === 'omit'
-                    ) {
-                        // no-op
-                    } else {
-                        // それ以外 (wip/工程別/qc/v1qc/qc_fb/ap/ap_fb/dir_wt/dir_ap/dir_fb/fix/wt/旧 in-progress/review/retake/approved/delayed)
-                        // は「進行中扱い」でカウント。delayed は独立バケツを廃止し進行中に含める。
-                        inProgressCount++;
-                    }
-
-                    // 派生の遅延カウント (完了/対象外 は除外・オンラインのみ)
-                    if (isProjectOnline && task.due_date && status !== 'deliver' && status !== 'completed' && status !== 'omit') {
-                        const dd = task.due_date ? new Date(task.due_date) : null;
-                        if (dd && !isNaN(dd.getTime()) && dd < _today) {
-                            delayedCount++;
-                        }
-                    }
-                });
+                // 4バケツ内訳（排他・omit/wt除外・mk期日超過は遅延・online限定の遅延判定）は
+                // utils/taskStatus の getStatusBreakdown に集約し、ステータス定義の二重管理を避ける。
+                const _bd = getStatusBreakdown(relatedTasks, { projectDisplayStatus: project.display_status });
+                const todoCount = _bd.todo;
+                const inProgressCount = _bd.inProgress;
+                const delayedCount = _bd.delayed;
+                const completedCount = _bd.completed;
 
                 return {
                     ...project,

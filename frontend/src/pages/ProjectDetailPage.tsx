@@ -68,7 +68,7 @@ import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { TaskLabel } from '../components/common/TaskLabel';
 import { getTaskColor } from '../utils/calendarEventColors';
-import { TASK_STATUS_OPTIONS } from '../utils/taskStatus';
+import { TASK_STATUS_OPTIONS, getStatusBreakdown } from '../utils/taskStatus';
 
 const progressMap: { [key: string]: number } = {
   todo: 0,
@@ -191,27 +191,12 @@ const ProjectDetailPage: React.FC = () => {
     return Math.round((weightedCompletedCost / totalCost) * 100);
   }, [tasks, totalCost]);
 
-  const taskCounts = useMemo(() => {
-    let todo = 0;
-    let inProgress = 0;
-    let delayed = 0;
-    let completed = 0;
-
-    tasks.forEach(task => {
-      const status = (task.status || 'todo').toLowerCase();
-      if (status === 'completed' || status === 'approved') {
-        completed++;
-      } else if (status === 'delayed') {
-        delayed++;
-      } else if (status === 'in-progress' || status === 'review' || status === 'retake') {
-        inProgress++;
-      } else {
-        todo++;
-      }
-    });
-
-    return { todo, inProgress, delayed, completed };
-  }, [tasks]);
+  // 4バケツ内訳（未着手/進行中/遅延中/完了）は utils/taskStatus に集約。
+  // 19種の新ステータスに対応し、遅延は「deliver以外＆期日超過(online限定)」の派生・排他。
+  const taskCounts = useMemo(
+    () => getStatusBreakdown(tasks, { projectDisplayStatus: project?.display_status }),
+    [tasks, project?.display_status],
+  );
 
   const involvedUsers = useMemo(() => {
     const memberIds = new Set<number>();

@@ -18789,3 +18789,184 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-07-07 21:35:00,761 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
 2026-07-07 21:35:00,762 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
 2026-07-07 21:35:00,764 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 12:35:04,943 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-08 12:35:04,965 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-08 12:35:04,994 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 12:35:04,994 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 12:35:06,344 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-08 12:35:06,352 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-08 12:35:06,353 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-08 12:35:06,354 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-08 12:35:06,354 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-08 12:35:06,355 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-08 12:35:06,398 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-08 12:36:48,488 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-07-08 12:36:48,569 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-07-08 12:36:48,656 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-07-08 12:36:48,657 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-07-08 12:36:48,657 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-07-08 12:36:48,657 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-07-08 12:36:48,657 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-08 12:36:48,666 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-07-08 12:36:48,667 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-07-08 12:36:48,667 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-07-08 12:36:48,667 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-07-08 12:36:48,667 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-07-08 13:43:58,365 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:43:58,365 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:43:58,367 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:43:58,703 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:43:58,704 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:43:58,706 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:43:59,414 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:43:59,414 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:43:59,416 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:43:59,749 - app.main - WARNING - PERF_SLOW GET /tasks 340ms
+2026-07-08 13:43:59,756 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:43:59,757 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:43:59,759 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:44:16,517 - app.main - WARNING - PERF_SLOW PUT /tasks/3277 381ms
+2026-07-08 13:52:07,885 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:52:07,897 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:52:07,910 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:52:07,972 - app.main - WARNING - PERF_SLOW GET /tasks 203ms
+2026-07-08 13:52:08,218 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:52:08,218 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:52:08,221 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:52:08,505 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:52:08,505 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:52:08,509 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:52:08,580 - app.main - WARNING - PERF_SLOW GET /tasks 349ms
+2026-07-08 13:52:08,838 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:52:08,839 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:52:08,842 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:54:10,687 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:54:10,688 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:54:10,691 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 13:54:10,934 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 13:54:10,934 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 13:54:10,936 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:00:34,215 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:00:34,216 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:00:34,219 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:00:34,521 - app.main - WARNING - PERF_SLOW GET /tasks 335ms
+2026-07-08 14:00:34,541 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:00:34,541 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:00:34,543 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:00:35,037 - app.main - WARNING - PERF_SLOW GET /tasks 206ms
+2026-07-08 14:06:52,435 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 14:06:52,941 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 14:06:53,872 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-08 14:06:53,875 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-08 14:06:55,430 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-08 14:06:55,439 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-08 14:06:55,439 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-08 14:06:55,440 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-08 14:06:55,440 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-08 14:06:55,440 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-08 14:06:55,447 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-08 14:41:09,670 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:41:09,670 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:41:09,673 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:41:10,172 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:41:10,172 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:41:10,180 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:41:10,237 - app.main - WARNING - PERF_SLOW GET /tasks 419ms
+2026-07-08 14:41:10,522 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:41:10,523 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:41:10,525 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:41:10,842 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:41:10,843 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:41:10,846 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:44:49,081 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:44:49,081 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:44:49,085 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:44:49,352 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:44:49,353 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:44:49,360 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:44:49,421 - app.main - WARNING - PERF_SLOW GET /api/score_user_roles 348ms
+2026-07-08 14:44:49,428 - app.main - WARNING - PERF_SLOW GET /tasks 356ms
+2026-07-08 14:44:49,699 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:44:49,700 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:44:49,701 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:44:50,017 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 14:44:50,017 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 14:44:50,019 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 14:45:55,419 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 14:45:55,893 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 14:45:56,707 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-08 14:45:56,709 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-08 14:45:58,543 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-08 14:45:58,552 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-08 14:45:58,553 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-08 14:45:58,554 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-08 14:45:58,554 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-08 14:45:58,554 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-08 14:45:58,562 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-08 16:09:26,671 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 16:09:26,671 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 16:09:26,675 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 16:09:26,686 - app.main - WARNING - PERF_SLOW GET /calendar/events 416ms
+2026-07-08 16:09:26,688 - app.main - WARNING - PERF_SLOW GET /api/users 415ms
+2026-07-08 16:09:26,732 - app.main - WARNING - PERF_SLOW GET /projects 465ms
+2026-07-08 16:09:26,814 - app.main - WARNING - PERF_SLOW GET /tasks 544ms
+2026-07-08 16:09:27,008 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 16:09:27,009 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 16:09:27,010 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 16:09:27,775 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 16:09:27,775 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 16:09:27,780 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 16:09:28,213 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 16:09:28,213 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 16:09:28,216 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 16:09:28,290 - app.main - WARNING - PERF_SLOW GET /tasks 527ms
+2026-07-08 17:30:10,089 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 17:30:10,089 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 17:30:10,091 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 17:30:10,410 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 17:30:10,411 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 17:30:10,414 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 17:30:15,849 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 17:30:15,849 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 17:30:15,852 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 17:30:15,874 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 17:30:15,875 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 17:30:15,877 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 18:06:24,484 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 18:06:24,484 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 18:06:24,486 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 18:06:24,676 - app.main - WARNING - PERF_SLOW GET /tasks 201ms
+2026-07-08 18:06:24,720 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 18:06:24,720 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 18:06:24,723 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 18:06:25,555 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 18:06:25,567 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 18:06:25,575 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 18:06:25,638 - app.main - WARNING - PERF_SLOW GET /tasks 655ms
+2026-07-08 18:06:25,887 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-08 18:06:25,888 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-08 18:06:25,891 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-08 19:09:08,852 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-08 19:09:08,854 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-08 19:37:41,361 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 19:37:41,735 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-08 19:37:41,737 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-08 19:37:41,808 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 19:37:43,185 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-08 19:37:43,192 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-08 19:37:43,192 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-08 19:37:43,193 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-08 19:37:43,193 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-08 19:37:43,193 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-08 19:37:43,199 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-08 19:38:03,031 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 19:38:03,449 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-08 19:38:03,450 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-08 19:38:03,481 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-08 19:38:04,948 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-08 19:38:04,954 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-08 19:38:04,955 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-08 19:38:04,956 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-08 19:38:04,956 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-08 19:38:04,956 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-08 19:38:04,962 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

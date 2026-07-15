@@ -428,6 +428,8 @@ def _resolve_and_sync_shot_id(db: Session, project_id: Optional[int], shot_id: O
 
 def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
     """新規タスクを作成"""
+    init_status = task.status or models.TaskStatus.MK
+    init_status_val = init_status.value if hasattr(init_status, 'value') else str(init_status)
     resolved_shot_id = _resolve_and_sync_shot_id(db, task.project_id, task.shot_id, task.shotID)
     db_task = models.Task(
         name=task.name if hasattr(task, 'name') and task.name else getattr(task, 'title', '新しいたタスク'),
@@ -435,7 +437,7 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         assigned_to=task.assigned_to,
         project_id=task.project_id,
         due_date=_parse_datetime(task.due_date) if hasattr(task, 'due_date') else _parse_datetime(getattr(task, 'taskDueDate', None)),
-        status=task.status or models.TaskStatus.MK,
+        status=init_status,
         display_status=task.display_status or 'online',
         priority=task.priority or models.TaskPriority.MEDIUM,
         type=task.type,
@@ -448,7 +450,8 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         shot_id=resolved_shot_id,
         phases=task.phases or [],
         deliverables=task.deliverables or "",
-        check_items=task.check_items or []
+        check_items=task.check_items or [],
+        completed_at=now_jst_naive() if init_status_val.lower() == "deliver" else None
     )
     db.add(db_task)
     db.commit()
@@ -542,6 +545,13 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
 
     new_status = db_task.status
     if new_status and new_status != original_status:
+        new_status_val = new_status.value if hasattr(new_status, 'value') else str(new_status)
+        if new_status_val.lower() == "deliver":
+            if db_task.completed_at is None:
+                db_task.completed_at = db_task.updated_at
+        else:
+            db_task.completed_at = None
+
         db.add(models.TaskStatusHistory(
             task_id=db_task.id,
             status=new_status,

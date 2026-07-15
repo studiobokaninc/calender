@@ -185,14 +185,7 @@ _PERF_SLOW_EXCLUDE_PATHS = {"/api/auth/token", "/auth/token"}
 
 @app.middleware("http")
 async def timing_middleware(request: Request, call_next):
-    start = time.time()
-    response = await call_next(request)
-    ms = (time.time() - start) * 1000
-    if ms > 200 and request.url.path not in _PERF_SLOW_EXCLUDE_PATHS:
-        logger.warning("PERF_SLOW %s %s %.0fms", request.method, request.url.path, ms)
-    else:
-        logger.debug("PERF %s %s %.0fms", request.method, request.url.path, ms)
-    return response
+    return await call_next(request)
 
 
 # --- Router Registration ---

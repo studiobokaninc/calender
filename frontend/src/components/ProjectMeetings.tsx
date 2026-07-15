@@ -15,7 +15,8 @@ import {
     CheckCircle as CheckCircleIcon,
     Assignment as AssignmentIcon,
     Help as HelpIcon,
-    Schedule as ScheduleIcon
+    Schedule as ScheduleIcon,
+    Download as DownloadIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 import { Meeting } from '../types';
@@ -24,6 +25,15 @@ import MeetingRecorder from './MeetingRecorder';
 interface ProjectMeetingsProps {
     projectId: number;
 }
+
+// 議事録生成の所要時間(秒)を「X分Y秒」表記にする
+const fmtDuration = (sec?: number | null): string => {
+    if (sec == null) return '';
+    if (sec < 60) return `${sec}秒`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s ? `${m}分${s}秒` : `${m}分`;
+};
 
 const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
     const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -198,7 +208,11 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                             <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
                                                 実施日: {new Date(meeting.date).toLocaleDateString('ja-JP')}
                                             </Typography>
-
+                                            {meeting.analysis_seconds != null && (
+                                                <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                                                    <ScheduleIcon sx={{ fontSize: 14 }} /> 生成時間: {fmtDuration(meeting.analysis_seconds)}
+                                                </Typography>
+                                            )}
                                         </Box>
                                     </Box>
                                     {meeting.status === 'failed' ? (
@@ -213,6 +227,19 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                             icon={meeting.status === 'processing' ? <CircularProgress size={12} /> : undefined}
                                         />
                                     )}
+                                    {meeting.audio_url && (
+                                        <IconButton
+                                            size="small"
+                                            component="a"
+                                            href={`${meeting.audio_url}?token=${encodeURIComponent(localStorage.getItem('token') || '')}`}
+                                            download
+                                            title="音声をダウンロード"
+                                            onClick={(e) => e.stopPropagation()}
+                                            sx={{ mr: 0.5 }}
+                                        >
+                                            <DownloadIcon fontSize="small" />
+                                        </IconButton>
+                                    )}
                                     <IconButton
                                         size="small"
                                         color="error"
@@ -225,7 +252,20 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                             <AccordionDetails sx={{ bgcolor: 'background.paper', borderTop: '1px solid', borderColor: 'divider', p: 3 }}>
                                 <Grid container spacing={3}>
                                     <Grid item xs={12}>
-                                        {/* Audio download removed by request */}
+                                        {meeting.audio_url && (
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<DownloadIcon fontSize="small" />}
+                                                component="a"
+                                                href={`${meeting.audio_url}?token=${encodeURIComponent(localStorage.getItem('token') || '')}`}
+                                                download
+                                                onClick={(e) => e.stopPropagation()}
+                                                sx={{ textTransform: 'none' }}
+                                            >
+                                                音声をダウンロード
+                                            </Button>
+                                        )}
                                     </Grid>
 
                                     {meeting.transcript ? (

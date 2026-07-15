@@ -175,23 +175,36 @@ def authenticate_user(db: Session, username: str, password: str) -> Union[models
 async def verify_readonly_token(
     x_readonly_token: Optional[str] = Header(None),
     authorization: Optional[str] = Header(None),
+    x_actor_user_id: Optional[int] = Header(None),
+    db: Session = Depends(get_db),
 ) -> None:
-    """Score向け read-only トークン検証。CLI_BYPASS_TOKEN とは完全別系統。"""
-    readonly_token = os.getenv("SCORE_READONLY_TOKEN")
-    if not readonly_token:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="SCORE_READONLY_TOKEN がサーバーに設定されていません。",
-        )
+    """Score向け read-only 認可。次のいずれかで許可する（read-only エンドポイント専用）:
+      (1) 専用 SCORE_READONLY_TOKEN が X-Readonly-Token または Authorization: Bearer で一致。
+      (2) 通常の有効な認証（管理者JWT、または CLIバイパストークン + X-Actor-User-Id）。
+    ※ Score(calendar_client._headers) は SCORE_READONLY_TOKEN ではなく管理者JWT/m2mトークンの
+      Authorization: Bearer で叩いてくるため、(2) を許可しないと read-only 取得が 401 になる。"""
     bearer_token = None
     if authorization and authorization.startswith("Bearer "):
         bearer_token = authorization.split("Bearer ", 1)[1].strip()
+
+    # (1) 専用 read-only トークン
+    readonly_token = os.getenv("SCORE_READONLY_TOKEN")
     candidate = x_readonly_token or bearer_token
-    if not candidate or candidate != readonly_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="有効な read-only トークンが必要です。X-Readonly-Token ヘッダまたは Authorization: Bearer を使用してください。",
-        )
+    if readonly_token and candidate and candidate == readonly_token:
+        return
+
+    # (2) 通常認証でも read-only は許可（有効な JWT / CLIバイパス）
+    if bearer_token:
+        try:
+            await verify_token(bearer_token, db, x_actor_user_id)
+            return
+        except HTTPException:
+            pass
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="有効な read-only トークン、または認証が必要です。X-Readonly-Token ヘッダ、または Authorization: Bearer を使用してください。",
+    )
 
 
 async def verify_casper_write_token(

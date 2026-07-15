@@ -5,8 +5,6 @@ import {
   Paper,
   CircularProgress,
   Alert,
-  Tab,
-  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -24,8 +22,29 @@ import {
   TextField,
   Snackbar,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  ListSubheader,
+  Tooltip,
 } from '@mui/material';
-import { OpenInNew as OpenInNewIcon, Close as CloseIcon } from '@mui/icons-material';
+import {
+  OpenInNew as OpenInNewIcon,
+  Close as CloseIcon,
+  Refresh as RefreshIcon,
+  Notifications as NotificationsIcon,
+  ChatBubbleOutline as ChatIcon,
+  MailOutline as MailIcon,
+  PhotoLibrary as PhotoLibraryIcon,
+  Image as ImageIcon,
+  LocalShipping as LocalShippingIcon,
+  AccessTime as AccessTimeIcon,
+  PlaylistAddCheck as ChecklistIcon,
+  ReportProblem as ReportProblemIcon,
+  Badge as BadgeIcon,
+  InboxOutlined as InboxIcon,
+} from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchAdminTimecards,
@@ -44,6 +63,8 @@ import {
   fetchUsers,
   fetchProjects,
 } from '../services/api';
+import MaterialsView from '../components/score/MaterialsView';
+import DmView from '../components/score/DmView';
 
 const PAGE_LIMIT = 50;
 
@@ -53,6 +74,37 @@ const actionCellSx = { fontSize: '0.8rem', whiteSpace: 'nowrap' as const, width:
 
 const USER_ID_KEYS = new Set(['user_id', 'author_id', 'created_by', 'sender_id', 'recipient_id', 'assigned_to']);
 const PROJECT_ID_KEYS = new Set(['project_id']);
+
+// 生のカラム名 → 日本語ラベル（テーブル見出しの可読性向上）
+const FIELD_LABEL: Record<string, string> = {
+  id: 'ID', created_at: '日時', updated_at: '更新', submitted_at: '提出', read_at: '既読日時',
+  clock_out_at: '退勤', date: '日付', channel_id: 'チャンネル', thread_id: 'スレッド',
+  shot_id: 'ショット', task_id: 'タスク', project_id: 'プロジェクト', shot_code: 'ショット',
+  author_id: '作成者', created_by: '作成者', sender_id: '送信者', recipient_id: '受信者', user_id: 'ユーザー',
+  body: '本文', content: '本文', title: 'タイトル', memo: 'メモ', description: '説明',
+  status: 'ステータス', qc_status: 'QC', type: '種別', media_type: '種別', role: 'ロール',
+  is_read: '既読', timecode: 'TC', file_path: 'ファイル', version: 'Ver', severity: '重要度',
+  category: 'カテゴリ', reporter_name: '報告者', worked_minutes: '稼働(分)', break_minutes: '休憩(分)',
+  condition: 'コンディション', blockers: 'ブロッカー',
+};
+const fieldLabel = (col: string) => FIELD_LABEL[col] ?? col;
+
+const DATE_FIELDS = new Set(['created_at', 'updated_at', 'read_at', 'submitted_at', 'clock_out_at', 'date']);
+const fmtDateTime = (v: unknown): string => {
+  if (v == null || v === '') return '—';
+  const d = new Date(String(v));
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleString('ja-JP', { dateStyle: 'short', timeStyle: 'short' });
+};
+
+// 空状態（アイコン＋メッセージ）
+function EmptyState({ label = 'データがありません' }: { label?: string }) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', py: 5, color: 'text.disabled', gap: 1 }}>
+      <InboxIcon sx={{ fontSize: 40 }} />
+      <Typography sx={{ fontSize: '0.85rem' }}>{label}</Typography>
+    </Box>
+  );
+}
 
 function resolveUser(id: unknown, map: Record<number, string>): string {
   if (id == null) return '—';
@@ -96,15 +148,15 @@ function DataTable({
   projectMap: Record<number, string>;
 }) {
   if (!rows || rows.length === 0) {
-    return <Typography sx={{ p: 2, color: 'text.secondary', fontSize: '0.85rem' }}>データなし</Typography>;
+    return <EmptyState />;
   }
   return (
-    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 480 }}>
+    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 520 }}>
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
             {columns.map((col) => (
-              <TableCell key={col} sx={headerSx}>{col}</TableCell>
+              <TableCell key={col} sx={headerSx}>{fieldLabel(col)}</TableCell>
             ))}
           </TableRow>
         </TableHead>
@@ -112,13 +164,24 @@ function DataTable({
           {rows.map((row, i) => (
             <TableRow key={i} hover>
               {columns.map((col) => {
+                const v = row[col];
                 if (USER_ID_KEYS.has(col)) {
-                  return <ResolvedCell key={col} value={row[col]} resolved={resolveUser(row[col], userMap)} />;
+                  return <ResolvedCell key={col} value={v} resolved={resolveUser(v, userMap)} />;
                 }
                 if (PROJECT_ID_KEYS.has(col)) {
-                  return <ResolvedCell key={col} value={row[col]} resolved={resolveProject(row[col], projectMap)} />;
+                  return <ResolvedCell key={col} value={v} resolved={resolveProject(v, projectMap)} />;
                 }
-                return <TruncatedCell key={col} value={row[col]} />;
+                if (DATE_FIELDS.has(col)) {
+                  return <TableCell key={col} sx={cellSx} title={String(v ?? '')}>{fmtDateTime(v)}</TableCell>;
+                }
+                if (typeof v === 'boolean') {
+                  return (
+                    <TableCell key={col} sx={cellSx}>
+                      <Chip size="small" label={v ? '✓' : '—'} color={v ? 'success' : 'default'} variant={v ? 'filled' : 'outlined'} sx={{ height: 18, fontSize: '0.65rem' }} />
+                    </TableCell>
+                  );
+                }
+                return <TruncatedCell key={col} value={v} />;
               })}
             </TableRow>
           ))}
@@ -311,21 +374,46 @@ interface ToastState {
   severity: 'success' | 'error';
 }
 
-const TABS = [
-  { label: 'Notification', key: 'notification' },
-  { label: 'Timecard', key: 'timecard' },
-  { label: 'Routine', key: 'routine' },
-  { label: 'UserMessage', key: 'user_message' },
-  { label: 'Delivery', key: 'delivery' },
-  { label: 'Reference Material', key: 'reference_material' },
-  { label: 'DM Threads', key: 'dm_thread' },
-  { label: 'ScoreUserRole', key: 'score_user_role' },
-  { label: 'Trouble', key: 'trouble' },
+// カテゴリでグループ化したナビゲーション（左サイドバー）
+const NAV: Array<{ category: string; items: Array<{ key: string; label: string; icon: React.ReactNode }> }> = [
+  {
+    category: 'やり取り',
+    items: [
+      { key: 'notification', label: '通知', icon: <NotificationsIcon fontSize="small" /> },
+      { key: 'user_message', label: 'コメント', icon: <ChatIcon fontSize="small" /> },
+      { key: 'dm_thread', label: 'ダイレクトメッセージ', icon: <MailIcon fontSize="small" /> },
+    ],
+  },
+  {
+    category: '資料',
+    items: [
+      { key: 'materials_preview', label: '資料プレビュー', icon: <PhotoLibraryIcon fontSize="small" /> },
+      { key: 'reference_material', label: '参照素材', icon: <ImageIcon fontSize="small" /> },
+      { key: 'delivery', label: '納品', icon: <LocalShippingIcon fontSize="small" /> },
+    ],
+  },
+  {
+    category: '記録',
+    items: [
+      { key: 'timecard', label: 'タイムカード', icon: <AccessTimeIcon fontSize="small" /> },
+      { key: 'routine', label: 'ルーティン', icon: <ChecklistIcon fontSize="small" /> },
+    ],
+  },
+  {
+    category: '管理',
+    items: [
+      { key: 'trouble', label: 'トラブル', icon: <ReportProblemIcon fontSize="small" /> },
+      { key: 'score_user_role', label: 'ユーザーロール', icon: <BadgeIcon fontSize="small" /> },
+    ],
+  },
 ];
+const ITEM_LABEL: Record<string, string> = Object.fromEntries(
+  NAV.flatMap((g) => g.items.map((it) => [it.key, it.label])),
+);
 
 export default function ScoreDataAdminPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState(0);
+  const [activeKey, setActiveKey] = useState<string>('materials_preview');
 
   const [userMap, setUserMap] = useState<Record<number, string>>({});
   const [projectMap, setProjectMap] = useState<Record<number, string>>({});
@@ -347,27 +435,36 @@ export default function ScoreDataAdminPage() {
   const scoreUserRoles = useSection(fetchAdminScoreUserRoles);
   const troubles = useSection(fetchAdminTroubles);
 
-  const sections = [notifications, timecards, routines, userMessages, deliveries, referenceMaterials, dmThreads, scoreUserRoles, troubles];
+  const sectionByKey: Record<string, ReturnType<typeof useSection>> = {
+    notification: notifications, timecard: timecards, routine: routines,
+    user_message: userMessages, delivery: deliveries, reference_material: referenceMaterials,
+    dm_thread: dmThreads, score_user_role: scoreUserRoles, trouble: troubles,
+  };
+  const active = sectionByKey[activeKey];
 
   useEffect(() => {
     fetchUsers().then((users: any[]) => {
       const m: Record<number, string> = {};
-      users.forEach((u: any) => { m[u.id] = u.display_name ?? u.name ?? u.email ?? String(u.id); });
+      users.forEach((u: any) => {
+        // name/full_name は空文字のことがあるため || で username/email へフォールバックする
+        // （?? だと空文字 '' が残り、resolveUser で falsy 扱いされて ID 表示になる）
+        m[u.id] = (u.full_name || '').trim() || (u.name || '').trim() || u.username || u.email || String(u.id);
+      });
       setUserMap(m);
     }).catch(() => {});
     fetchProjects().then((projects: any[]) => {
       const m: Record<number, string> = {};
-      projects.forEach((p: any) => { m[p.id] = p.name ?? String(p.id); });
+      projects.forEach((p: any) => { m[p.id] = p.name || String(p.id); });
       setProjectMap(m);
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    sections[tab].load();
+    if (active) active.load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [activeKey]);
 
-  const { data, loading, error } = sections[tab];
+  const { data, loading, error } = active ?? { data: [] as any[], loading: false, error: null as string | null };
   const columns = data.length > 0 ? Object.keys(data[0]) : [];
 
   const handleNotificationRead = async (id: number) => {
@@ -429,11 +526,17 @@ export default function ScoreDataAdminPage() {
       return (
         <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
           {error}
-          {tab >= 4 && tab <= 6 && ' (BE未実装のEPは接続後に利用可能になります)'}
+          {['delivery', 'reference_material', 'dm_thread'].includes(activeKey) && ' (BE未実装のEPは接続後に利用可能になります)'}
         </Alert>
       );
     }
-    const tabKey = TABS[tab].key;
+    const tabKey = activeKey;
+    if (tabKey === 'materials_preview') {
+      return <MaterialsView userMap={userMap} />;
+    }
+    if (tabKey === 'dm_thread') {
+      return <DmView userMap={userMap} />;
+    }
     if (tabKey === 'notification') {
       return <NotificationTable rows={data} onRead={handleNotificationRead} userMap={userMap} />;
     }
@@ -478,36 +581,56 @@ export default function ScoreDataAdminPage() {
         をご利用ください。
       </Alert>
 
-      <Paper variant="outlined">
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{ borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { fontSize: '0.8rem', minHeight: 40 } }}
-        >
-          {TABS.map((t) => (
-            <Tab key={t.key} label={t.label} />
-          ))}
-        </Tabs>
+      <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexDirection: { xs: 'column', md: 'row' } }}>
+        {/* カテゴリ・サイドバー */}
+        <Paper variant="outlined" sx={{ width: { xs: '100%', md: 240 }, flexShrink: 0, py: 0.5, position: { md: 'sticky' }, top: { md: 16 } }}>
+          <List dense disablePadding>
+            {NAV.map((group) => (
+              <React.Fragment key={group.category}>
+                <ListSubheader disableSticky sx={{ fontSize: '0.7rem', fontWeight: 800, lineHeight: 2.6, color: 'text.secondary', bgcolor: 'transparent' }}>
+                  {group.category}
+                </ListSubheader>
+                {group.items.map((it) => (
+                  <ListItemButton
+                    key={it.key}
+                    selected={activeKey === it.key}
+                    onClick={() => setActiveKey(it.key)}
+                    sx={{ py: 0.5, mx: 0.5, borderRadius: 1 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 32, color: activeKey === it.key ? 'primary.main' : 'text.secondary' }}>
+                      {it.icon}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={it.label}
+                      primaryTypographyProps={{ fontSize: '0.82rem', fontWeight: activeKey === it.key ? 700 : 500 }}
+                    />
+                  </ListItemButton>
+                ))}
+              </React.Fragment>
+            ))}
+          </List>
+        </Paper>
 
-        <Box sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>
-              {TABS[tab].label}
-            </Typography>
-            <Chip label="Score連携" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
-            {!loading && !error && (
-              <Chip label={`${data.length}件`} size="small" sx={{ fontSize: '0.75rem', height: 20 }} />
-            )}
-            <Button size="small" onClick={() => sections[tab].load()} sx={{ fontSize: '0.75rem', ml: 'auto' }}>
-              再取得
-            </Button>
+        {/* コンテンツ */}
+        <Paper variant="outlined" sx={{ flex: 1, minWidth: 0, width: '100%' }}>
+          <Box sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <Typography sx={{ fontSize: '1rem', fontWeight: 700 }}>{ITEM_LABEL[activeKey] ?? ''}</Typography>
+              {active && !loading && !error && (
+                <Chip label={`${data.length}件`} size="small" sx={{ fontSize: '0.72rem', height: 20 }} />
+              )}
+              {active && (
+                <Tooltip title="再取得">
+                  <IconButton size="small" onClick={() => active.load()} sx={{ ml: 'auto' }}>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+            {renderContent()}
           </Box>
-
-          {renderContent()}
-        </Box>
-      </Paper>
+        </Paper>
+      </Box>
 
       {/* Trouble 確認ダイアログ */}
       <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog((d) => ({ ...d, open: false }))}>

@@ -56,7 +56,7 @@ def test_task(db, test_project, admin_user):
         name="Layout",
         project_id=test_project.id,
         assigned_to=admin_user.id,
-        status="todo"
+        status="mk"
     )
     db.add(task)
     db.commit()

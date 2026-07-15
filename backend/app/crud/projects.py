@@ -132,6 +132,8 @@ def complete_tasks_for_project(db: Session, project_id: int) -> int:
     now = now_jst_naive()
     for task in tasks:
         task.status = models.TaskStatus.DELIVER
+        if task.completed_at is None:
+            task.completed_at = now
         task.updated_at = now
         db.add(models.TaskStatusHistory(
             task_id=task.id,

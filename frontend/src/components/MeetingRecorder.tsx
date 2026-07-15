@@ -42,6 +42,23 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
   const [pendingRecording, setPendingRecording] = useState<SavedRecording | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
 
+  // マイク(getUserMedia)はセキュアコンテキスト(HTTPS/localhost)限定。http://<LAN-IP> 等では
+  // navigator.mediaDevices が無く、Chromeのサイト設定でもマイク許可がグレーアウトして変更できない。
+  const [showMicHelp, setShowMicHelp] = useState(false);
+  const micUnavailable = typeof window !== 'undefined'
+    && (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia);
+  const pageOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const copyText = async (text: string) => {
+    try {
+      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
+    } catch { /* fallthrough to execCommand */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    } catch { /* noop */ }
+  };
+
   const streamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -109,6 +126,8 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
   // 録音の開始
   const handleStart = async () => {
     setError(null);
+    // 非セキュア接続ではブラウザがマイクを許可しない。タイトル入力前に手順ダイアログを出す。
+    if (micUnavailable) { setShowMicHelp(true); return; }
     const meetingTitle = window.prompt('会議のタイトルを入力してください：', `定例会議_${new Date().toLocaleDateString('ja-JP')}`);
     if (meetingTitle === null) return; // キャンセル
 
@@ -293,9 +312,15 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
     setIsSaving(true);
     isStoppingRef.current = true;
 
-    // チャンクローテーションタイマーの解除
+    // チャンクローテーション＆経過タイマーの解除（停止時は必ず両方止める）
+    // ※タイマーが止まらない不具合対策: 従来は chunkInterval のみ解除し timerInterval が回り続けていた
     if (chunkIntervalRef.current) {
       clearInterval(chunkIntervalRef.current);
+      chunkIntervalRef.current = null;
+    }
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
     }
 
     // 録音の停止（最終チャンクの onstop が走り、最後のアップロードが起動する）
@@ -316,30 +341,45 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
     const checkAndComplete = setInterval(async () => {
       try {
         const unsent = await getUnsentChunks(currentMeetingId);
-        if (unsent.length === 0) {
-          clearInterval(checkAndComplete);
-          setUploadingStatus('音声ファイルを結合・解析しています...');
+        if (unsent.length > 0) {
+          setUploadingStatus(`残りの音声データを送信中... (残り: ${unsent.length}件)`);
+          return;
+        }
+        clearInterval(checkAndComplete);
+        setUploadingStatus('音声ファイルを結合・解析しています...');
 
+        try {
           // 完了APIの呼び出し (force=true で結合)
           const completeData = new FormData();
           completeData.append('total_chunks', totalChunks.toString());
           completeData.append('force', 'true');
-
           await api.post(`/meetings/${currentMeetingId}/record/complete`, completeData);
 
-          // ローカルのクリーンアップ
+          // 成功時のみローカルをクリーンアップ
           localStorage.removeItem('current_recording');
           await clearMeetingChunks(currentMeetingId);
           releaseWakeLock();
-
           setIsRecording(false);
           setIsSaving(false);
           setUploadingStatus('');
           onRecordingComplete();
-        } else {
-          setUploadingStatus(`残りの音声データを送信中... (残り: ${unsent.length}件)`);
+        } catch (err: any) {
+          // 完了APIが失敗（401=認証切れ等）。UIを必ず復帰させ、原因を明示する。
+          // 録音データ(IndexedDB / current_recording)は消さず、再ログイン後に「復旧」できるようにする。
+          console.error('record/complete failed:', err);
+          releaseWakeLock();
+          setIsRecording(false);
+          setIsSaving(false);
+          setUploadingStatus('');
+          const st = err?.response?.status;
+          setError(
+            st === 401
+              ? '録音の完了処理に失敗しました（ログインの有効期限が切れている可能性）。一度再ログインし、下に表示される「未送信の録音データ」から復旧してください。録音データは保存されています。'
+              : '録音の完了処理に失敗しました。録音データは保存されているので、画面を再読み込みし「未送信の録音データ」から復旧してください。'
+          );
         }
       } catch (e) {
+        // getUnsentChunks 等の一時エラーはリトライ継続
         console.error('Error during upload check:', e);
       }
     }, 2000);
@@ -434,6 +474,68 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
           {error}
         </Alert>
       )}
+
+      {/* 非セキュア接続でマイクが使えない場合の案内バナー */}
+      {micUnavailable && !isRecording && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => setShowMicHelp(true)}>
+              解決方法
+            </Button>
+          }
+        >
+          このページ（{pageOrigin}）はHTTPSではないため、ブラウザがマイクを許可しません。録音するには対処が必要です。
+        </Alert>
+      )}
+
+      {/* マイク有効化の手順ダイアログ（Chromeフラグによる回避策） */}
+      <Dialog open={showMicHelp} onClose={() => setShowMicHelp(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>マイクを有効にする方法</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            ブラウザのマイク（録音）は <b>HTTPS</b> か <b>localhost</b> でしか使えません。
+            現在のURLは非セキュアなため、Chromeがマイクをブロックし、サイト設定のマイク許可もグレーアウトして変更できません。
+          </Typography>
+
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>方法A（このPCだけで試す）</Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            アドレスバーで <code>http://localhost:5175</code> を開いてください（localhost は例外的にマイクが使えます）。
+          </Typography>
+
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>方法B（このURLのまま使う・Chrome）</Typography>
+          <Box component="ol" sx={{ pl: 3, m: 0, mb: 2, '& li': { mb: 1.5 } }}>
+            <li>
+              次のURLをアドレスバーに貼り付けて開く：
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Box component="code" sx={{ px: 1, py: 0.5, bgcolor: 'action.hover', borderRadius: 1, fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                  chrome://flags/#unsafely-treat-insecure-origin-as-secure
+                </Box>
+                <Button size="small" onClick={() => copyText('chrome://flags/#unsafely-treat-insecure-origin-as-secure')}>コピー</Button>
+              </Box>
+            </li>
+            <li>
+              「Insecure origins treated as secure」のテキスト欄に次を入力：
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Box component="code" sx={{ px: 1, py: 0.5, bgcolor: 'action.hover', borderRadius: 1, fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                  {pageOrigin}
+                </Box>
+                <Button size="small" onClick={() => copyText(pageOrigin)}>コピー</Button>
+              </Box>
+            </li>
+            <li>右のドロップダウンを <b>Enabled</b> にして、<b>Chromeを再起動</b>。</li>
+            <li>再度このページを開き、「ブラウザ録音を開始」→ マイクの使用を「許可」。</li>
+          </Box>
+
+          <Typography variant="caption" color="text.secondary">
+            ※方法Bはテスト用の回避策で、デバイスごとに設定が必要です。複数端末や本番運用では HTTPS 化（ngrok 等）を推奨します。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowMicHelp(false)}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 復旧確認ダイアログ */}
       {pendingRecording && (

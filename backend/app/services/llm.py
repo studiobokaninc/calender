@@ -64,6 +64,75 @@ def _get_openai_whisper_model(model_name: str):
         _OPENAI_WHISPER_MODELS[model_name] = mdl
     return mdl
 
+def _collapse_repetitions(text: str) -> str:
+    """Whisperに多い無意味な繰り返し(hallucinationループ)を畳む安全網。
+    1) 連続する同一行を1行に集約。
+    2) 行内で同じ短フレーズ(2〜40字)が3回以上連続する箇所を1回に集約。
+    フラグ(-mc 0 等)で抑えきれない残りを後処理で除去する。"""
+    if not text or not text.strip():
+        return text
+    # 1) 連続する同一行を1つに
+    out_lines: List[str] = []
+    prev = None
+    for ln in text.split("\n"):
+        norm = ln.strip()
+        if norm and norm == prev:
+            continue  # 直前と同一の行はスキップ
+        prev = norm
+        out_lines.append(ln)
+    collapsed = "\n".join(out_lines)
+    # 2) 行内の短フレーズ連続反復（同じ塊が3回以上連続）→ 1回に
+    try:
+        collapsed = re.sub(r"(.{2,40}?)\1{2,}", r"\1", collapsed)
+    except re.error:
+        pass
+    return collapsed.strip()
+
+
+async def _transcribe_whisper_remote(audio_path: str) -> str:
+    """リモート whisper.cpp server (/inference) へ音声を投げて文字起こしする。
+    BOX2 等で高精度モデル(large-v3-turbo)を運用し、本番機のCPU負荷を無くす。
+    WHISPER_REMOTE_URL で指定。16kHzモノWAVに変換して multipart POST し {"text": ...} を受ける。"""
+    import shutil
+    import tempfile
+    import httpx
+
+    url = os.getenv("WHISPER_REMOTE_URL", "").strip()
+    if not url:
+        raise RuntimeError("WHISPER_REMOTE_URL が未設定です。")
+    lang = os.getenv("WHISPER_LANG", "ja")
+    req_timeout = float(os.getenv("WHISPER_REMOTE_TIMEOUT", "900"))
+
+    tmp_dir = tempfile.mkdtemp()
+    tmp_wav = os.path.join(tmp_dir, "audio16k.wav")
+    ffmpeg_exe = shutil.which("ffmpeg") or "ffmpeg"
+    try:
+        # サーバ推奨の16kHzモノWAVへ変換（非同期サブプロセスは避け subprocess.run をスレッドで）
+        def _run_ffmpeg():
+            return subprocess.run(
+                [ffmpeg_exe, "-y", "-i", audio_path, "-ar", "16000", "-ac", "1", tmp_wav],
+                capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=300,
+            )
+        r1 = await asyncio.to_thread(_run_ffmpeg)
+        if not os.path.exists(tmp_wav):
+            raise RuntimeError(f"ffmpeg 16kHz変換失敗(code={r1.returncode}): {(r1.stderr or '')[:300]}")
+
+        async with httpx.AsyncClient(timeout=req_timeout) as client:
+            with open(tmp_wav, "rb") as f:
+                files = {"file": ("audio16k.wav", f, "audio/wav")}
+                data = {"response_format": "json", "language": lang, "temperature": "0"}
+                resp = await client.post(url, files=files, data=data)
+        resp.raise_for_status()
+        try:
+            j = resp.json()
+            text = (j.get("text") or "") if isinstance(j, dict) else str(j)
+        except Exception:
+            text = resp.text
+        return text.strip()
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 async def _transcribe_whisper_cpp(audio_path: str) -> str:
     """whisper.cpp の CLI 実行ファイルで文字起こしする（別プロセスで実行）。
     AVX2非対応CPU(例: Sandy Bridge)向けに AVX2/FMA を無効化して自前ビルドした whisper-cli を使う。
@@ -106,7 +175,11 @@ async def _transcribe_whisper_cpp(audio_path: str) -> str:
         def _run_whisper():
             return subprocess.run(
                 [bin_path, "-m", model_path, "-f", tmp_wav, "-l", "ja",
-                 "-t", str(threads), "-otxt", "-of", out_base, "-np"],
+                 "-t", str(threads), "-otxt", "-of", out_base, "-np",
+                 # 無意味な繰り返し(hallucinationループ)対策:
+                 #  -mc 0 : 直前の出力を文脈に持ち越さない → 反復カスケードを防ぐ（最重要）
+                 #  -sns  : 非音声トークンを抑制 → 無音/雑音での幻覚を減らす
+                 "-mc", "0", "-sns"],
                 capture_output=True, text=True, encoding="utf-8", errors="ignore", timeout=1800,
             )
         r2 = await asyncio.to_thread(_run_whisper)
@@ -119,7 +192,7 @@ async def _transcribe_whisper_cpp(audio_path: str) -> str:
         if not os.path.exists(txt_path):
             return ""
         with open(txt_path, encoding="utf-8") as f:
-            return f.read().strip()
+            return _collapse_repetitions(f.read().strip())
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -359,8 +432,19 @@ class LLMClient:
                 logger.warning(f"OpenAI Whisper API failed: {e}. ローカルWhisperにフォールバック")
 
         if not t_text:
+            # WHISPER_IMPL: remote(BOX2 whisper-server) / cpp(ローカルwhisper.cpp/base) / openai / faster
             _whisper_impl = os.getenv("WHISPER_IMPL", "faster").lower()
-            if _whisper_impl == "cpp":
+            if _whisper_impl == "remote":
+                try:
+                    logger.info(f"Transcribing {p.name} via remote whisper server...")
+                    t_text = (await _transcribe_whisper_remote(file_path)).strip()
+                except Exception as e:
+                    logger.warning(f"remote whisper failed: {e}. ローカル whisper.cpp にフォールバックします")
+                    try:
+                        t_text = (await _transcribe_whisper_cpp(file_path)).strip()
+                    except Exception as e2:
+                        logger.warning(f"whisper.cpp フォールバックも失敗: {e2}")
+            elif _whisper_impl == "cpp":
                 logger.info(f"Transcribing {p.name} via whisper.cpp CLI...")
                 t_text = (await _transcribe_whisper_cpp(file_path)).strip()
             elif _whisper_impl == "openai":
@@ -375,7 +459,7 @@ class LLMClient:
                     return "".join(s.text for s in segs)
                 t_text = (await asyncio.to_thread(_transcribe_faster)).strip()
 
-        return t_text
+        return _collapse_repetitions(t_text)
 
     async def _stream_gemini(self, query: str, conversation_id: str, inputs: Dict[str, Any], history: List[Dict[str, Any]]):
         system_prompt = self.generate_system_prompt(inputs)

@@ -90,7 +90,7 @@ def test_task(db, test_project, user1):
         name="Layout",
         project_id=test_project.id,
         assigned_to=user1.id,
-        status="todo"
+        status="mk"
     )
     db.add(task)
     db.commit()

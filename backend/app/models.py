@@ -210,6 +210,7 @@ class Task(Base):
     created_at: Mapped[Optional[datetime]] = mapped_column()
     display_status: Mapped[str] = mapped_column(String, default='online', index=True)
     updated_at: Mapped[Optional[datetime]] = mapped_column()
+    completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
     assignee: Mapped[Optional["User"]] = relationship("User")
     project: Mapped[Optional["Project"]] = relationship("Project")
@@ -387,6 +388,7 @@ class Meeting(Base):
     date: Mapped[datetime] = mapped_column(default=now_jst_naive)
     status: Mapped[str] = mapped_column(String(50), default="pending", index=True) # pending, processing, completed, failed
     audio_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 保存先パス
+    analysis_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 議事録生成(文字起こし＋抽出)にかかった秒数
     transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     decisions: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     tasks: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)

@@ -70,6 +70,15 @@ def check_and_migrate_db():
             cursor.execute("ALTER TABLE notes ADD COLUMN audio_positions JSON")
             conn.commit()
             print("audio_positionsカラムを追加しました。")
+
+        # meetingsテーブル: 議事録生成の所要時間(秒)
+        cursor.execute("PRAGMA table_info(meetings)")
+        meeting_columns = [row[1] for row in cursor.fetchall()]
+        if 'analysis_seconds' not in meeting_columns:
+            print("analysis_secondsカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE meetings ADD COLUMN analysis_seconds INTEGER")
+            conn.commit()
+            print("analysis_secondsカラムを追加しました。")
             
         # user_google_tokensテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(user_google_tokens)")
@@ -194,6 +203,28 @@ def check_and_migrate_db():
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_shot ON tasks(shot_id)")
             conn.commit()
             print("shot_idカラムを追加しました。")
+        
+        # tasksテーブルにcompleted_atカラムが存在するか確認して追加
+        if 'completed_at' not in task_columns:
+            print("completed_atカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE tasks ADD COLUMN completed_at DATETIME")
+            conn.commit()
+            print("completed_atカラムを追加しました。")
+            
+        # 既存の完了タスクの completed_at を履歴データからバックフィル（LOWERで大文字小文字を許容）
+        print("既存の完了タスクの completed_at を履歴データからバックフィルしています...")
+        cursor.execute("""
+            UPDATE tasks
+            SET completed_at = (
+                SELECT MIN(changed_at)
+                FROM task_status_history
+                WHERE task_status_history.task_id = tasks.id
+                  AND LOWER(task_status_history.status) = 'deliver'
+            )
+            WHERE LOWER(status) = 'deliver' AND completed_at IS NULL
+        """)
+        conn.commit()
+        print("completed_atのバックフィルを完了しました。")
         
         # eventsテーブルにuser_idsカラムが存在するか確認して追加
         cursor.execute("PRAGMA table_info(events)")

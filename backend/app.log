@@ -18970,3 +18970,967 @@ WHERE task_status_history.task_id IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 2026-07-08 19:38:04,956 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-07-08 19:38:04,956 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-07-08 19:38:04,962 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-10 12:08:33,509 - app.main - WARNING - PERF_SLOW GET /api/users/me 391ms
+2026-07-10 12:08:34,169 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 12:08:34,171 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 12:08:34,176 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 12:08:34,361 - app.main - WARNING - PERF_SLOW GET /tasks 201ms
+2026-07-10 12:08:34,580 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 12:08:34,580 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 12:08:34,582 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 12:08:35,314 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 12:08:35,315 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 12:08:35,316 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 12:08:35,636 - app.main - WARNING - PERF_SLOW GET /tasks 328ms
+2026-07-10 12:08:35,644 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 12:08:35,645 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 12:08:35,647 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:20,971 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:20,972 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:20,974 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:21,382 - app.main - WARNING - PERF_SLOW GET /tasks 417ms
+2026-07-10 13:10:21,391 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:21,391 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:21,393 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:35,688 - app.main - WARNING - PERF_SLOW POST /admin/mock-data/import-csv 504ms
+2026-07-10 13:10:36,059 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:36,060 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:36,064 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:36,384 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:36,384 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:36,386 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:36,835 - app.main - WARNING - PERF_SLOW GET /tasks 302ms
+2026-07-10 13:10:36,837 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:36,837 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:36,838 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:37,154 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:37,155 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:37,157 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:40,509 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:40,510 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:40,512 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:40,731 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:40,732 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:40,736 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:48,284 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:48,284 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:48,286 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:48,603 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:48,603 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:48,605 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:48,926 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:48,926 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:48,927 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:10:49,242 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:10:49,243 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:10:49,244 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:30:43,105 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:30:43,105 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:30:43,109 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:30:43,301 - app.main - WARNING - PERF_SLOW GET /tasks 215ms
+2026-07-10 13:30:43,431 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:30:43,432 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:30:43,434 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:30:43,848 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:30:43,852 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:30:43,853 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:30:43,921 - app.main - WARNING - PERF_SLOW GET /tasks 312ms
+2026-07-10 13:30:44,170 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:30:44,171 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:30:44,173 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:30:45,724 - app.main - WARNING - PERF_SLOW POST /api/user-activities 235ms
+2026-07-10 13:30:51,285 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:30:51,285 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:30:51,288 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:30:51,701 - app.main - WARNING - PERF_SLOW GET /tasks 283ms
+2026-07-10 13:30:51,707 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:30:51,707 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:30:51,709 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:30:59,927 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:30:59,928 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:30:59,932 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:31:00,167 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:31:00,167 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:31:00,169 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:31:00,503 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:31:00,503 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:31:00,509 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:31:00,848 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:31:00,848 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:31:00,850 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:31:09,691 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:31:09,692 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:31:09,694 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:31:09,937 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:31:09,938 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:31:09,939 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:44:52,037 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:44:52,038 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:44:52,042 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:44:52,446 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-10 13:44:52,446 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-10 13:44:52,448 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-10 13:44:52,462 - app.main - WARNING - PERF_SLOW GET /tasks 440ms
+2026-07-11 03:01:24,422 - app.main - WARNING - PERF_SLOW POST /api/user-activities 472ms
+2026-07-13 19:13:33,275 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:13:33,276 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:13:33,281 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:13:33,602 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:13:33,603 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:13:33,607 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:13:33,754 - app.main - WARNING - PERF_SLOW GET /tasks 426ms
+2026-07-13 19:13:34,669 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:13:34,669 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:13:34,671 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:13:34,986 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:13:34,986 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:13:34,988 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:13:35,642 - app.main - WARNING - PERF_SLOW GET /tasks 978ms
+2026-07-13 19:41:49,965 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:41:49,965 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:41:49,969 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:41:50,329 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:41:50,329 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:41:50,332 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:41:50,961 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:41:50,962 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:41:50,963 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:41:51,256 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:41:51,257 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:41:51,258 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:52:22,476 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 19:52:22,915 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 19:52:24,842 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-13 19:52:24,844 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-13 19:52:26,286 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-13 19:52:26,293 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-13 19:52:26,295 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-13 19:52:26,295 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-13 19:52:26,295 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-13 19:52:26,295 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-13 19:52:26,302 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-13 19:52:58,201 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-13 19:52:58,203 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-13 19:54:05,775 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:54:05,775 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:54:05,779 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:54:06,109 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:54:06,109 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:54:06,111 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:54:06,744 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:54:06,745 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:54:06,747 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:54:07,066 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:54:07,066 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:54:07,069 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:54:14,962 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:54:14,962 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:54:14,964 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:54:15,211 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-13 19:54:15,212 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-13 19:54:15,217 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-13 19:55:36,918 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 19:55:37,456 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 19:55:39,382 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-13 19:55:39,384 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-13 19:55:40,800 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-13 19:55:40,807 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-13 19:55:40,807 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-13 19:55:40,808 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-13 19:55:40,809 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-13 19:55:40,809 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-13 19:55:40,816 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-13 20:00:30,571 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 20:00:31,030 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 20:00:32,612 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-13 20:00:32,613 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-13 20:00:34,003 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-13 20:00:34,013 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-13 20:00:34,014 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-13 20:00:34,015 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-13 20:00:34,016 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-13 20:00:34,016 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-13 20:00:34,025 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-13 20:00:56,213 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-07-13 20:00:56,310 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-07-13 20:00:56,375 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-07-13 20:00:56,375 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-07-13 20:00:56,376 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-07-13 20:00:56,376 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-07-13 20:00:56,376 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-13 20:00:56,381 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-07-13 20:00:56,381 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-07-13 20:00:56,382 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-07-13 20:00:56,382 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-07-13 20:00:56,382 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-07-13 20:01:56,046 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 20:01:56,510 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-13 20:01:57,863 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-13 20:01:57,866 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-13 20:01:59,513 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-13 20:01:59,523 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-13 20:01:59,525 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-13 20:01:59,525 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-13 20:01:59,525 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-13 20:01:59,526 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-13 20:01:59,536 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-14 14:54:58,540 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-14 14:54:58,540 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-14 14:54:58,625 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-14 14:54:58,627 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-14 14:55:00,219 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-14 14:55:00,226 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-14 14:55:00,227 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-14 14:55:00,227 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-14 14:55:00,228 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-14 14:55:00,228 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-14 14:55:00,235 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-14 16:54:50,978 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-14 16:54:51,507 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-14 16:54:53,003 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-14 16:54:53,005 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-14 16:54:54,554 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-14 16:54:54,565 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-14 16:54:54,567 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-14 16:54:54,568 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-14 16:54:54,568 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-14 16:54:54,568 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-14 16:54:54,577 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-14 17:00:26,315 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:26,317 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:26,318 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:26,412 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:26,673 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:26,674 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:26,676 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:26,845 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:27,094 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:27,096 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:27,097 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:27,199 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:27,417 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:27,418 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:27,419 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:27,554 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:27,751 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:27,751 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:27,752 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:27,900 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:28,071 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:28,071 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:28,075 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:28,251 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:28,391 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:28,391 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:28,393 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:28,630 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:28,706 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:28,711 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:28,714 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:28,992 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:29,044 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:29,045 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:29,047 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:29,358 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: WT, MK, WIP, ..., OMIT
+2026-07-14 17:00:29,360 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:29,364 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:29,366 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:51,241 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:51,241 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:51,246 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:51,305 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: MK, WIP, MODELING, ..., WT
+2026-07-14 17:00:51,614 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:51,615 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:51,618 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:51,702 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: MK, WIP, MODELING, ..., WT
+2026-07-14 17:00:51,965 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:51,967 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:51,969 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:52,052 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: MK, WIP, MODELING, ..., WT
+2026-07-14 17:00:52,286 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:52,286 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:52,288 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:52,405 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: MK, WIP, MODELING, ..., WT
+2026-07-14 17:00:52,600 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:52,601 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:52,602 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:52,754 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: MK, WIP, MODELING, ..., WT
+2026-07-14 17:00:52,916 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:52,917 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:52,919 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:53,101 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: MK, WIP, MODELING, ..., WT
+2026-07-14 17:00:53,232 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:53,232 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:53,235 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:00:53,454 - app.routers.tasks - ERROR - タスクの取得に失敗しました
+Traceback (most recent call last):
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1700, in _object_value_for_elem
+    return self._object_lookup[elem]  # type: ignore[return-value]
+           ~~~~~~~~~~~~~~~~~~~^^^^^^
+KeyError: 'deliver'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "E:\calender\backend\app\routers\tasks.py", line 84, in get_tasks_endpoint
+    ).all()
+      ^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\query.py", line 2704, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1774, in all
+    return self._allrows()
+           ^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 548, in _allrows
+    rows = self._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 1681, in _fetchall_impl
+    return self._real_result._fetchall_impl()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 2275, in _fetchall_impl
+    return list(self.iterator)
+           ^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\orm\loading.py", line 219, in chunks
+    fetch = cursor._raw_all_rows()
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\engine\result.py", line 541, in _raw_all_rows
+    return [make_row(row) for row in rows]
+            ^^^^^^^^^^^^^
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 22, in sqlalchemy.cyextension.resultproxy.BaseRow.__init__
+  File "lib/sqlalchemy/cyextension/resultproxy.pyx", line 79, in sqlalchemy.cyextension.resultproxy._apply_processors
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1820, in process
+    value = self._object_value_for_elem(value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\calender\backend\venv\Lib\site-packages\sqlalchemy\sql\sqltypes.py", line 1702, in _object_value_for_elem
+    raise LookupError(
+LookupError: 'deliver' is not among the defined enum values. Enum name: taskstatus. Possible values: MK, WIP, MODELING, ..., WT
+2026-07-14 17:00:53,550 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:00:53,550 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:00:53,552 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:03:09,039 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:03:09,041 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:03:09,046 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:03:09,370 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:03:09,371 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:03:09,375 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:03:10,189 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:03:10,190 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:03:10,193 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-14 17:03:10,665 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-07-14 17:03:10,665 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-07-14 17:03:10,675 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT

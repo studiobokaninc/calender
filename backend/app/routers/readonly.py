@@ -333,3 +333,109 @@ def get_task_statuses(
     """ステータスメタデータ一覧 (凡例・フィルタ・ピッカー用)"""
     from app.status_meta import STATUS_META_LIST
     return STATUS_META_LIST
+
+
+@router.get("/onschedule")
+def get_onschedule_stats(
+    group_by: Optional[str] = Query(default=None, description="group_by fields, e.g., 'assignee', 'type', or 'assignee,type'"),
+    project_id: Optional[int] = Query(default=None),
+    assignee_id: Optional[int] = Query(default=None),
+    type: Optional[str] = Query(default=None),
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    """オンスケ率の統計情報を集計して取得する"""
+    from sqlalchemy import func
+    import math
+
+    # 1. オンラインプロジェクトに紐づき、かつ omit/wt 以外のタスクを対象にする
+    q = db.query(models.Task).join(models.Project, models.Task.project_id == models.Project.id)
+    q = q.filter(models.Project.display_status == 'online')
+    q = q.filter(~func.lower(models.Task.status).in_(['omit', 'wt']))
+
+    # フィルタ
+    if project_id is not None:
+        q = q.filter(models.Task.project_id == project_id)
+    if assignee_id is not None:
+        q = q.filter(models.Task.assigned_to == assignee_id)
+    if type is not None:
+        q = q.filter(models.Task.type == type)
+
+    tasks = q.all()
+
+    # ユーザー表示名解決用の辞書
+    users_dict = {u.id: u.full_name or u.username for u in db.query(models.User).all()}
+
+    # グルーピングキーのパース
+    group_keys = []
+    if group_by:
+        group_keys = [k.strip() for k in group_by.split(",") if k.strip()]
+
+    # 集計処理
+    groups = {}
+    for task in tasks:
+        gk = []
+        for key in group_keys:
+            if key == "assignee":
+                gk.append(str(task.assigned_to or "unassigned"))
+            elif key == "type":
+                gk.append(str(task.type or "other"))
+            else:
+                gk.append("all")
+        
+        gk_tuple = tuple(gk)
+        if gk_tuple not in groups:
+            groups[gk_tuple] = {
+                "completed": 0,
+                "on_time": 0,
+                "assignee_id": task.assigned_to if "assignee" in group_keys else None,
+                "assignee_name": users_dict.get(task.assigned_to) if "assignee" in group_keys and task.assigned_to else None,
+                "type": task.type if "type" in group_keys else None,
+            }
+        
+        status_str = task.status.value if hasattr(task.status, 'value') else str(task.status or '')
+        if status_str.lower() == "deliver":
+            groups[gk_tuple]["completed"] += 1
+            # 期日内完了の判定
+            is_on_time_task = True
+            if task.due_date:
+                if task.completed_at:
+                    is_on_time_task = (task.completed_at.date() <= task.due_date.date())
+                else:
+                    is_on_time_task = (task.updated_at.date() <= task.due_date.date()) if task.updated_at else False
+            if is_on_time_task:
+                groups[gk_tuple]["on_time"] += 1
+
+    results = []
+    for gk_tuple, data in groups.items():
+        n = data["completed"]
+        on_time = data["on_time"]
+        rate = round(on_time / n, 3) if n > 0 else None
+        
+        # Wilsonスコア区間計算 (95% 信頼区間)
+        if n > 0:
+            p = on_time / n
+            z = 1.96
+            denominator = 1 + z**2 / n
+            center = (p + z**2 / (2 * n)) / denominator
+            spread = z * math.sqrt((p * (1 - p) / n) + (z**2 / (4 * n**2))) / denominator
+            ci_lower = max(0.0, center - spread)
+            ci_upper = min(1.0, center + spread)
+            ci = [round(ci_lower, 3), round(ci_upper, 3)]
+        else:
+            ci = [0.0, 1.0]
+
+        results.append({
+            "assignee_id": data["assignee_id"],
+            "assignee_name": data["assignee_name"],
+            "type": data["type"],
+            "completed": n,
+            "on_time": on_time,
+            "rate": rate,
+            "n": n,
+            "ci": ci
+        })
+
+    # ソートして決定論的に返す
+    results.sort(key=lambda x: (x["assignee_name"] or "", x["type"] or ""))
+    return results

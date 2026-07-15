@@ -55,7 +55,18 @@
       "Bash(./venv/Scripts/python.exe -X utf8 -c ' *)",
       "Bash(./venv/Scripts/python.exe -m pytest app/tests/ -q --tb=line)",
       "Bash(./venv/Scripts/python.exe -m pytest app/tests/ --tb=line)",
-      "Bash(./venv/Scripts/python.exe -m pytest app/tests/test_assets_api.py --tb=line)"
+      "Bash(./venv/Scripts/python.exe -m pytest app/tests/test_assets_api.py --tb=line)",
+      "Read(//x/cg/proj/kikaku/score/score-main/tutorial/roles/**)",
+      "Bash(net use *)",
+      "Bash(curl -s -m 8 -X POST \"http://192.168.44.253:8001/api/auth/token\" -d \"username=tanaka@example.com&password=adminpassword\" -H \"Content-Type: application/x-www-form-urlencoded\")",
+      "Bash(curl -s -m 6 \"http://192.168.44.253:8001/api/me\" -H \"Authorization: Bearer studio_bokan_score_git_process_flow_calender\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d[:3], ensure_ascii=False, indent=1\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(p, list\\(m.keys\\(\\)\\)\\) for p,m in d.get\\('paths',{}\\).items\\(\\) if 'event' in p.lower\\(\\)]\")",
+      "Bash(curl -s -m 8 \"http://192.168.44.253:8001/openapi.json\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); evs=d if isinstance\\(d,list\\) else d.get\\('events',[]\\); print\\('count=',len\\(evs\\)\\); print\\(json.dumps\\(evs[:3], ensure_ascii=False, indent=1\\)\\)\")",
+      "Bash(curl -s -m 8 \"http://192.168.44.253:8001/api/readonly/events\" -H \"Authorization: Bearer studio_bokan_score_git_process_flow_calender\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); evs=d if isinstance\\(d,list\\) else d.get\\('events',[]\\); print\\('count=',len\\(evs\\)\\); import collections; print\\(json.dumps\\(evs[:1], ensure_ascii=False, indent=1\\)\\)\")"
     ]
   }
 }

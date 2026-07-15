@@ -72,15 +72,28 @@ class KnowledgeProcessor:
                 "date": ref_date.isoformat()
             }
 
+            is_local = os.getenv("LLM_PROVIDER", "").lower() == "local"
+
             if file_type == "pdf":
-                # Use Gemini for OCR - much better than simple local read
-                print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini OCR 解読を開始...")
-                content_text = await self._ocr_pdf_via_gemini(file_path, is_summary=False)
-                print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini 要約作成を開始...")
-                summary = await self._ocr_pdf_via_gemini(file_path, is_summary=True)
-                
-                print(f"KnowledgeProcessor: [{db_item.file_name}] RAG に PDF 内容を追加中...")
-                await rag_service.add_text(content_text, metadata=rag_metadata)
+                if is_local:
+                    # ローカル(無料): PyMuPDF でテキスト層を抽出 → ローカルLLMで要約。
+                    # 画像スキャンPDF(テキスト層なし)はローカルOCR未対応のため空になる。
+                    print(f"KnowledgeProcessor: [{db_item.file_name}] PyMuPDF テキスト抽出を開始 (local)...")
+                    content_text = await asyncio.to_thread(self._extract_pdf_text_local, file_path)
+                    if content_text.strip():
+                        summary = await self._generate_summary_from_text(content_text[:30000])
+                    else:
+                        summary = "（このPDFはテキスト層が無く、ローカル環境では画像OCR未対応のため本文を抽出できませんでした。ビジョンモデル導入で対応予定。）"
+                else:
+                    # Use Gemini for OCR - much better than simple local read
+                    print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini OCR 解読を開始...")
+                    content_text = await self._ocr_pdf_via_gemini(file_path, is_summary=False)
+                    print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini 要約作成を開始...")
+                    summary = await self._ocr_pdf_via_gemini(file_path, is_summary=True)
+
+                if content_text.strip():
+                    print(f"KnowledgeProcessor: [{db_item.file_name}] RAG に PDF 内容を追加中...")
+                    await rag_service.add_text(content_text, metadata=rag_metadata)
 
             elif file_type in ["excel", "ppt"]:
                 # Custom local extraction + LLM Summary
@@ -94,11 +107,18 @@ class KnowledgeProcessor:
                 await rag_service.add_text(full_kb_text, metadata=rag_metadata)
 
             elif file_type == "image":
-                content_text = await self._ocr_image(file_path)
-                summary = await self._generate_summary_from_text(content_text)
-                
-                print(f"KnowledgeProcessor: RAG に画像テキストを追加中... ({db_item.file_name})")
-                await rag_service.add_text(content_text, metadata=rag_metadata)
+                if is_local:
+                    # ローカル画像OCR: pytesseract があれば使用、無ければ graceful degrade。
+                    content_text = await asyncio.to_thread(self._ocr_image_local, file_path)
+                else:
+                    content_text = await self._ocr_image(file_path)
+
+                if content_text.strip():
+                    summary = await self._generate_summary_from_text(content_text)
+                    print(f"KnowledgeProcessor: RAG に画像テキストを追加中... ({db_item.file_name})")
+                    await rag_service.add_text(content_text, metadata=rag_metadata)
+                else:
+                    summary = "（画像のOCRに失敗、またはローカル環境では画像OCR未対応です。ビジョンモデル/Tesseract 導入で対応可能。）"
 
             elif file_type == "audio":
                 res = await self.meeting_analyzer._process_segment_with_retry(file_path, 1, 1, 0)
@@ -184,6 +204,32 @@ class KnowledgeProcessor:
             if chunk.get("event") == "message":
                 response_text += chunk.get("answer", "")
         return {"summary": response_text, "content": extracted_text}
+
+    def _extract_pdf_text_local(self, file_path: str) -> str:
+        """PyMuPDF でPDFのテキスト層を抽出（ローカル・無料）。
+        スキャンPDF(テキスト層なし)の場合は空文字を返す（呼び出し側で graceful 処理）。"""
+        try:
+            import fitz  # PyMuPDF
+            parts: List[str] = []
+            with fitz.open(file_path) as doc:
+                for page in doc:
+                    parts.append(page.get_text("text"))
+            return "\n".join(parts).strip()
+        except Exception as e:
+            logger.error(f"PyMuPDF text extraction failed for {file_path}: {e}")
+            return ""
+
+    def _ocr_image_local(self, file_path: str) -> str:
+        """ローカル画像OCR。pytesseract(+Pillow) があれば使用、無ければ空文字（graceful degrade）。
+        Tesseract 本体は別途インストールが必要。lang は env TESSERACT_LANG で上書き可。"""
+        try:
+            import pytesseract  # type: ignore
+            from PIL import Image  # type: ignore
+            lang = os.getenv("TESSERACT_LANG", "jpn+eng")
+            return pytesseract.image_to_string(Image.open(file_path), lang=lang).strip()
+        except Exception as e:
+            logger.warning(f"Local image OCR unavailable/failed for {file_path}: {e}")
+            return ""
 
     async def _ocr_pdf_via_gemini(self, file_path: str, is_summary: bool = False) -> str:
         prompt = "このPDFの内容を【日本語で】要約してください。" if is_summary else "このPDFのすべてのテキストをMarkdown形式で【日本語で】書き起こしてください。"

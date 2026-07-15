@@ -96,3 +96,8 @@ def override_get_db():
     _fastapi_app.dependency_overrides[get_db] = _get_test_db
     yield
     _fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"

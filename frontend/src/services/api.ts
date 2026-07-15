@@ -445,6 +445,11 @@ export const fetchAdminDMThreads = async (params?: { limit?: number; offset?: nu
   return response.data.items;
 };
 
+export const fetchAdminDMMessages = async (threadId: number, params?: { limit?: number; offset?: number }): Promise<any[]> => {
+  const response = await api.get('/api/admin/score/dm/messages', { params: { thread_id: threadId, ...params } });
+  return response.data.items;
+};
+
 export const fetchAdminScoreUserRoles = async (params?: { limit?: number; offset?: number }): Promise<any[]> => {
   const response = await api.get('/api/score_user_roles', { params });
   return response.data;

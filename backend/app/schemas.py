@@ -319,6 +319,7 @@ class TaskBase(BaseModel):
     phases: Optional[List[Dict[str, Any]]] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
+    completed_at: Optional[datetime] = None
 
     @validator('status', pre=True)
     def validate_status(cls, v):
@@ -695,6 +696,7 @@ class MeetingResponse(MeetingBase):
     version_group: Optional[str] = None
     uuid: Optional[str] = None
     detected_tasks: List[MeetingTaskResponse] = []
+    analysis_seconds: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -1267,6 +1269,7 @@ class ReadonlyTask(BaseModel):
     display_status: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
     status_color: Optional[str] = None
     status_label: Optional[str] = None
     status_category: Optional[str] = None

@@ -133,6 +133,37 @@ def list_dm_threads(
     }
 
 
+@router.get("/dm/messages")
+def list_dm_messages(
+    thread_id: int = Query(...),
+    limit: int = Query(default=1000, ge=1, le=5000),
+    offset: int = Query(default=0),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """指定スレッドのDM本文を時系列で返す（管理者用・参加者制限なし）。"""
+    q = (
+        db.query(models.DirectMessage)
+        .filter(models.DirectMessage.thread_id == thread_id)
+        .order_by(models.DirectMessage.created_at.asc())
+    )
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    items = [
+        {
+            "id": m.id,
+            "thread_id": m.thread_id,
+            "sender_id": m.sender_id,
+            "recipient_id": m.recipient_id,
+            "body": m.body,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "read_at": m.read_at.isoformat() if m.read_at else None,
+        }
+        for m in rows
+    ]
+    return {"total": total, "offset": offset, "limit": limit, "items": items}
+
+
 @router.patch("/notifications/{id}/read", response_model=schemas.Notification)
 def admin_read_notification(
     id: int,

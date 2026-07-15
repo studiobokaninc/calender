@@ -11,6 +11,8 @@ from sqlalchemy import func
 
 from .database import SessionLocal
 from . import models, schemas, crud
+from .timezone import now_jst_naive
+from .services.audit_service import record_event
 import httpx
 import pathlib
 
@@ -124,28 +126,65 @@ def upload_asset(
     p = pathlib.Path(file_path)
     if not p.exists():
         return {"error": f"file not found: {file_path}"}
-    form: dict = {}
-    if shot_id is not None:
-        form["shot_id"] = str(shot_id)
-    if task_id is not None:
-        form["task_id"] = str(task_id)
-    if version is not None:
-        form["version"] = version
-    with open(p, "rb") as fh:
-        files = {"file": (p.name, fh, "application/octet-stream")}
+    
+    db = SessionLocal()
+    try:
+        actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not actor:
+            return {"error": f"actor_id={actor_id} not found or inactive"}
+
+        if version is None:
+            version = "1"
+
+        if shot_id is None and task_id is not None:
+            db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+            if db_task:
+                shot_id = db_task.shot_id
+
+        base_dir = pathlib.Path(__file__).resolve().parent.parent
+        assets_dir = base_dir / "static" / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
+
+        shot_id_str = str(shot_id) if shot_id is not None else "none"
+        dest_file_path = assets_dir / f"shot_{shot_id_str}_task_{task_id}_{version}_{p.name}"
+
+        import shutil
         try:
-            resp = httpx.post(
-                f"{_INTERNAL_BASE}/api/assets",
-                files=files,
-                data=form,
-                headers=_write_headers(actor_id),
-                timeout=30.0,
-            )
-        except httpx.RequestError as exc:
-            return {"error": f"request failed: {exc}"}
-    if not resp.is_success:
-        return {"error": resp.text, "status_code": resp.status_code}
-    return resp.json()
+            shutil.copy(p, dest_file_path)
+        except OSError as e:
+            return {"error": f"ファイルの保存に失敗しました: {e}"}
+
+        db_asset = models.Asset(
+            shot_id=shot_id,
+            task_id=task_id,
+            version=version,
+            file_path=str(dest_file_path.as_posix()),
+            created_by=actor_id,
+            created_at=now_jst_naive()
+        )
+        try:
+            db.add(db_asset)
+            db.commit()
+            db.refresh(db_asset)
+        except Exception as e:
+            db.rollback()
+            try:
+                dest_file_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return {"error": f"アセットの DB 保存に失敗しました: {e}"}
+
+        return {
+            "id": db_asset.id,
+            "shot_id": db_asset.shot_id,
+            "task_id": db_asset.task_id,
+            "version": db_asset.version,
+            "file_path": db_asset.file_path,
+            "created_by": db_asset.created_by,
+            "created_at": db_asset.created_at.isoformat() if db_asset.created_at else None
+        }
+    finally:
+        db.close()
 
 
 @mcp.tool()
@@ -163,28 +202,39 @@ def add_reference_material(
     err = _require_write_scope()
     if err:
         return err
-    payload: dict = {
-        "shot_id": shot_id,
-        "title": title,
-        "media_type": media_type,
-        "file_path": file_path,
-    }
-    if task_id is not None:
-        payload["task_id"] = task_id
-    if created_by is not None:
-        payload["created_by"] = created_by
+    
+    db = SessionLocal()
     try:
-        resp = httpx.post(
-            f"{_INTERNAL_BASE}/api/reference_materials",
-            json=payload,
-            headers=_write_headers(actor_id),
-            timeout=15.0,
+        creator = actor_id if created_by is None else created_by
+        new_material = models.ReferenceMaterial(
+            shot_id=shot_id,
+            task_id=task_id,
+            title=title,
+            media_type=media_type,
+            file_path=file_path,
+            created_by=creator,
+            created_at=now_jst_naive()
         )
-    except httpx.RequestError as exc:
-        return {"error": f"request failed: {exc}"}
-    if not resp.is_success:
-        return {"error": resp.text, "status_code": resp.status_code}
-    return resp.json()
+        try:
+            db.add(new_material)
+            db.commit()
+            db.refresh(new_material)
+        except Exception as e:
+            db.rollback()
+            return {"error": f"参考資料の DB 保存に失敗しました: {e}"}
+
+        return {
+            "id": new_material.id,
+            "shot_id": new_material.shot_id,
+            "task_id": new_material.task_id,
+            "title": new_material.title,
+            "media_type": new_material.media_type,
+            "file_path": new_material.file_path,
+            "created_by": new_material.created_by,
+            "created_at": new_material.created_at.isoformat() if new_material.created_at else None
+        }
+    finally:
+        db.close()
 
 
 @mcp.tool()
@@ -195,37 +245,105 @@ def get_messages(
     limit: Annotated[int, Field(description="取得件数上限 (任意・デフォルト50)")] = 50,
 ) -> dict:
     """actor_id ユーザーの DM スレッド一覧、またはスレッドのメッセージ一覧を取得。
-    thread_id 指定 → スレッドのメッセージ / peer_user_id 指定 → 1対1メッセージ /
+    thread_id 指定 → スレッド of メッセージ / peer_user_id 指定 → 1対1メッセージ /
     両方未指定 → スレッド一覧。"""
     err = _require_write_scope()
     if err:
         return err
-    headers = _actor_headers(actor_id)
+    
+    db = SessionLocal()
     try:
-        if thread_id is not None:
-            resp = httpx.get(
-                f"{_INTERNAL_BASE}/api/dm/threads/{thread_id}/messages",
-                headers=headers,
-                timeout=15.0,
-            )
-        elif peer_user_id is not None:
-            tid = min(actor_id, peer_user_id) * 10000 + max(actor_id, peer_user_id)
-            resp = httpx.get(
-                f"{_INTERNAL_BASE}/api/dm/threads/{tid}/messages",
-                headers=headers,
-                timeout=15.0,
-            )
+        if thread_id is not None or peer_user_id is not None:
+            tid = thread_id
+            if tid is None:
+                tid = min(actor_id, peer_user_id) * 10000 + max(actor_id, peer_user_id)
+            
+            if tid >= 10000000:
+                member = db.query(models.DmThreadParticipant).filter(
+                    models.DmThreadParticipant.thread_id == tid,
+                    models.DmThreadParticipant.user_id == actor_id
+                ).first()
+                if not member:
+                    return {"error": "このスレッドの参加者ではありません", "status_code": 403}
+            else:
+                p1 = tid // 10000
+                p2 = tid % 10000
+                if actor_id not in (p1, p2):
+                    return {"error": "このスレッドの参加者ではありません", "status_code": 403}
+            
+            messages = db.query(models.DirectMessage).filter(
+                models.DirectMessage.thread_id == tid
+            ).order_by(models.DirectMessage.created_at.desc()).limit(limit).all()
+            
+            messages = list(reversed(messages))
+            
+            items = []
+            for m in messages:
+                items.append({
+                    "id": m.id,
+                    "thread_id": m.thread_id,
+                    "sender_id": m.sender_id,
+                    "recipient_id": m.recipient_id,
+                    "body": m.body,
+                    "context_json": m.context_json,
+                    "created_at": m.created_at.isoformat() if m.created_at else None,
+                    "is_read": getattr(m, "is_read", False)
+                })
+            return {"messages": items}
+        
         else:
-            resp = httpx.get(
-                f"{_INTERNAL_BASE}/api/me/dm/threads",
-                headers=headers,
-                timeout=15.0,
-            )
-    except httpx.RequestError as exc:
-        return {"error": f"request failed: {exc}"}
-    if not resp.is_success:
-        return {"error": resp.text, "status_code": resp.status_code}
-    return {"messages": resp.json()} if (thread_id is not None or peer_user_id is not None) else {"threads": resp.json()}
+            dm_threads = db.query(models.DirectMessage.thread_id).filter(
+                (models.DirectMessage.sender_id == actor_id) | (models.DirectMessage.recipient_id == actor_id)
+            ).distinct().all()
+            dm_tids = [row[0] for row in dm_threads]
+            
+            g_tids_rows = db.query(models.DmThreadParticipant.thread_id).filter(
+                models.DmThreadParticipant.user_id == actor_id
+            ).distinct().all()
+            g_tids = [row[0] for row in g_tids_rows]
+
+            all_tids = list(set(dm_tids + g_tids))
+            if not all_tids:
+                return {"threads": []}
+
+            threads_list = []
+            for tid in all_tids:
+                last_dm = db.query(models.DirectMessage).filter(
+                    models.DirectMessage.thread_id == tid
+                ).order_by(models.DirectMessage.created_at.desc()).first()
+                if not last_dm:
+                    continue
+                
+                if tid >= 10000000:
+                    members = db.query(models.DmThreadParticipant.user_id).filter(
+                        models.DmThreadParticipant.thread_id == tid
+                    ).all()
+                    p_ids = [uid for (uid,) in members]
+                else:
+                    p1 = tid // 10000
+                    p2 = tid % 10000
+                    p_ids = [p1, p2]
+                
+                participants_info = []
+                for pid in sorted(list(set(p_ids))):
+                    if pid == actor_id:
+                        participants_info.append({"user_id": actor_id, "name": "Me"})
+                    else:
+                        user = db.query(models.User).filter(models.User.id == pid).first()
+                        name = user.full_name or user.username if user else f"User {pid}"
+                        participants_info.append({"user_id": pid, "name": name})
+                
+                threads_list.append({
+                    "thread_id": tid,
+                    "participants": participants_info,
+                    "last_message": last_dm.body,
+                    "updated_at": last_dm.created_at.isoformat() if last_dm.created_at else None
+                })
+            
+            threads_list.sort(key=lambda x: x["updated_at"] or "", reverse=True)
+            return {"threads": threads_list}
+    finally:
+        db.close()
 
 
 @mcp.tool()
@@ -238,17 +356,34 @@ def mark_read(
     err = _require_write_scope()
     if err:
         return err
+    
+    db = SessionLocal()
     try:
-        resp = httpx.post(
-            f"{_INTERNAL_BASE}/api/dm/threads/{thread_id}/read",
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
-        )
-    except httpx.RequestError as exc:
-        return {"error": f"request failed: {exc}"}
-    if not resp.is_success:
-        return {"error": resp.text, "status_code": resp.status_code}
-    return {"ok": True}
+        if thread_id >= 10000000:
+            member = db.query(models.DmThreadParticipant).filter(
+                models.DmThreadParticipant.thread_id == thread_id,
+                models.DmThreadParticipant.user_id == actor_id
+            ).first()
+            if not member:
+                return {"error": "このスレッドの参加者ではありません", "status_code": 403}
+        else:
+            p1 = thread_id // 10000
+            p2 = thread_id % 10000
+            if actor_id not in (p1, p2):
+                return {"error": "このスレッドの参加者ではありません", "status_code": 403}
+
+        unread = db.query(models.DirectMessage).filter(
+            models.DirectMessage.thread_id == thread_id,
+            models.DirectMessage.sender_id != actor_id,
+            models.DirectMessage.read_at == None
+        ).all()
+        now = now_jst_naive()
+        for msg in unread:
+            msg.read_at = now
+        db.commit()
+        return {"ok": True, "thread_id": thread_id, "read_count": len(unread)}
+    finally:
+        db.close()
 
 
 @mcp.tool()
@@ -264,31 +399,53 @@ def send_message(
     err = _require_write_scope()
     if err:
         return err
-    payload: dict = {
-        "recipient_id": to_user_id,
-        "body": body,
-    }
-    if context_json is not None:
-        payload["context_json"] = context_json
+    
+    db = SessionLocal()
     try:
-        resp = httpx.post(
-            f"{_INTERNAL_BASE}/api/dm",
-            json=payload,
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
+        recipient_id = to_user_id
+        participants = [actor_id, recipient_id]
+        thread_id = min(actor_id, recipient_id) * 10000 + max(actor_id, recipient_id)
+
+        other_participants = [p for p in set(participants) if p != actor_id]
+        if not other_participants:
+            return {"error": "有効な受信者が存在しません", "status_code": 400}
+            
+        representative_id = other_participants[0]
+
+        db_dm = models.DirectMessage(
+            thread_id=thread_id,
+            sender_id=actor_id,
+            recipient_id=representative_id,
+            body=body,
+            context_json=context_json,
+            created_at=now_jst_naive()
         )
-    except httpx.RequestError as exc:
-        return {"error": f"request failed: {exc}"}
-    if not resp.is_success:
-        return {"error": resp.text, "status_code": resp.status_code}
-    result = resp.json()
-    return {
-        "id": result.get("id"),
-        "thread_id": result.get("thread_id"),
-        "sender_id": result.get("sender_id"),
-        "recipient_id": result.get("recipient_id"),
-        "created_at": result.get("created_at"),
-    }
+        db.add(db_dm)
+        db.commit()
+        db.refresh(db_dm)
+
+        from app.utils.webhook_sender import send_webhook_in_thread
+        try:
+            send_webhook_in_thread("dm_thread.new_message", {
+                "thread_id": db_dm.thread_id,
+                "message_id": db_dm.id,
+                "sender_id": db_dm.sender_id,
+                "participants": participants,
+                "body": db_dm.body,
+                "created_at": db_dm.created_at.isoformat() if db_dm.created_at else None,
+            })
+        except Exception:
+            pass
+
+        return {
+            "id": db_dm.id,
+            "thread_id": db_dm.thread_id,
+            "sender_id": db_dm.sender_id,
+            "recipient_id": db_dm.recipient_id,
+            "created_at": db_dm.created_at.isoformat() if db_dm.created_at else None,
+        }
+    finally:
+        db.close()
 
 
 _VALID_TASK_TYPES = {
@@ -298,7 +455,7 @@ _VALID_TASK_TYPES = {
 
 
 @mcp.tool()
-async def create_project(
+def create_project(
     actor_id: int,
     name: str,
     description: str = "",
@@ -314,71 +471,58 @@ async def create_project(
     if err:
         return err
 
-    # --- dedup guard ---
-    # 1. client_ref指定あり → REST GET で全件取得し client_ref 照合
-    if client_ref:
-        try:
-            chk = httpx.get(
-                f"{_INTERNAL_BASE}/api/projects",
-                headers=_actor_headers(actor_id),
-                timeout=15.0,
-            )
-            if chk.is_success:
-                for p in chk.json():
-                    if p.get("client_ref") == client_ref:
-                        return {"ok": True, "project": {
-                            "id": p["id"], "name": p["name"],
-                            "code": p.get("code"), "client_ref": p.get("client_ref"),
-                        }, "reused": True}
-        except httpx.RequestError:
-            pass  # dedup失敗でも作成を試みる
-
-    # 2. client_ref未指定 → 同名PJ照合
-    else:
-        try:
-            chk = httpx.get(
-                f"{_INTERNAL_BASE}/api/projects",
-                headers=_actor_headers(actor_id),
-                timeout=15.0,
-            )
-            if chk.is_success:
-                for p in chk.json():
-                    if p.get("name") == name:
-                        return {"ok": True, "project": {
-                            "id": p["id"], "name": p["name"],
-                            "code": p.get("code"), "client_ref": p.get("client_ref"),
-                        }, "reused": True}
-        except httpx.RequestError:
-            pass  # dedup失敗でも作成を試みる
-    # --- end dedup guard ---
-
-    payload = {
-        "name": name,
-        "description": description,
-        "start_date": start_date or None,
-        "end_date": end_date or None,
-        "client_ref": client_ref or None,
-    }
+    db = SessionLocal()
     try:
-        resp = httpx.post(
-            f"{_INTERNAL_BASE}/api/projects",
-            json=payload,
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
+        actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not actor:
+            return {"error": f"actor_id={actor_id} not found or inactive"}
+        if actor.role != "admin":
+            return {"error": "管理者権限が必要です"}
+
+        if client_ref:
+            p = db.query(models.Project).filter(models.Project.client_ref == client_ref).first()
+            if p:
+                return {"ok": True, "project": {
+                    "id": p.id, "name": p.name,
+                    "code": getattr(p, "code", None), "client_ref": p.client_ref,
+                }, "reused": True}
+        else:
+            p = db.query(models.Project).filter(models.Project.name == name).first()
+            if p:
+                return {"ok": True, "project": {
+                    "id": p.id, "name": p.name,
+                    "code": getattr(p, "code", None), "client_ref": p.client_ref,
+                }, "reused": True}
+
+        project_data = schemas.ProjectCreate(
+            name=name,
+            description=description,
+            start_date=datetime.date.fromisoformat(start_date) if start_date else None,
+            end_date=datetime.date.fromisoformat(end_date) if end_date else None,
+            client_ref=client_ref or None
         )
-    except httpx.RequestError as exc:
-        return {"error": str(exc)}
-    if not resp.is_success:
-        return {"error": f"REST {resp.status_code}: {resp.text}"}
-    data = resp.json()
-    return {"ok": True, "project": {
-        "id": data.get("id"), "name": data.get("name"),
-        "code": data.get("code"), "client_ref": data.get("client_ref"),
-    }}
+        created_project = crud.create_project(db=db, project=project_data)
+
+        from app.services.meeting_scanner import create_project_folder
+        try:
+            create_project_folder(created_project.name)
+        except Exception:
+            pass
+
+        from app.services.google_sync import auto_sync_project_bg
+        import threading
+        threading.Thread(target=auto_sync_project_bg, args=(created_project.id,)).start()
+
+        return {"ok": True, "project": {
+            "id": created_project.id, "name": created_project.name,
+            "code": getattr(created_project, "code", None), "client_ref": created_project.client_ref,
+        }}
+    finally:
+        db.close()
 
 
 @mcp.tool()
-async def delete_project(
+def delete_project(
     actor_id: int,
     project_id: int,
 ) -> dict:
@@ -388,23 +532,38 @@ async def delete_project(
     err = _require_write_scope()
     if err:
         return err
+    
+    db = SessionLocal()
     try:
-        resp = httpx.delete(
-            f"{_INTERNAL_BASE}/api/projects/{project_id}",
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
-        )
-    except httpx.RequestError as exc:
-        return {"error": str(exc)}
-    if resp.status_code == 204:
+        actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not actor:
+            return {"error": f"actor_id={actor_id} not found or inactive"}
+        if actor.role != "admin":
+            return {"error": "管理者権限が必要です"}
+
+        project = db.query(models.Project).filter(models.Project.id == project_id).first()
+        if not project:
+            return {"error": f"project_id={project_id} not found"}
+        project_name = project.name
+
+        success = crud.delete_project_with_cascade(db, project_id)
+        if not success:
+            return {"error": "プロジェクトの削除に失敗しました"}
+        
+        if project_name:
+            from app.services.meeting_scanner import delete_project_folder
+            try:
+                delete_project_folder(project_name)
+            except Exception:
+                pass
+
         return {"ok": True, "deleted_project_id": project_id}
-    if not resp.is_success:
-        return {"error": f"REST {resp.status_code}: {resp.text}"}
-    return {"ok": True, "deleted_project_id": project_id}
+    finally:
+        db.close()
 
 
 @mcp.tool()
-async def update_project(
+def update_project(
     actor_id: int,
     project_id: int,
     name: str = "",
@@ -418,42 +577,67 @@ async def update_project(
     err = _require_write_scope()
     if err:
         return err
-    payload: dict = {}
-    if name:
-        payload["name"] = name
-    if description:
-        payload["description"] = description
-    if start_date:
-        payload["start_date"] = start_date
-    if end_date:
-        payload["end_date"] = end_date
-    if display_status:
-        if display_status not in ("online", "offline", "archived"):
-            return {"error": f"display_status は online/offline/archived のみ有効。指定値: {display_status}"}
-        payload["display_status"] = display_status
-    if not payload:
-        return {"error": "更新するフィールドが指定されていません。name/description/start_date/end_date/display_status のいずれかを指定してください。"}
+    
+    db = SessionLocal()
     try:
-        resp = httpx.put(
-            f"{_INTERNAL_BASE}/api/projects/{project_id}",
-            json=payload,
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
-        )
-    except httpx.RequestError as exc:
-        return {"error": str(exc)}
-    if not resp.is_success:
-        return {"error": f"REST {resp.status_code}: {resp.text}"}
-    data = resp.json()
-    return {"ok": True, "project": {
-        "id": data.get("id"), "name": data.get("name"),
-        "display_status": data.get("display_status"),
-        "client_ref": data.get("client_ref"),
-    }}
+        actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not actor:
+            return {"error": f"actor_id={actor_id} not found or inactive"}
+        if actor.role != "admin":
+            return {"error": "管理者権限が必要です"}
+
+        db_project = crud.get_project(db=db, project_id=project_id)
+        if db_project is None:
+            return {"error": f"project_id={project_id} not found"}
+
+        payload = {}
+        if name:
+            payload["name"] = name
+        if description:
+            payload["description"] = description
+        if start_date:
+            payload["start_date"] = datetime.date.fromisoformat(start_date)
+        if end_date:
+            payload["end_date"] = datetime.date.fromisoformat(end_date)
+        if display_status:
+            if display_status not in ("online", "offline", "archived"):
+                return {"error": f"display_status は online/offline/archived のみ有効。指定値: {display_status}"}
+            payload["display_status"] = display_status
+        
+        if not payload:
+            return {"error": "更新するフィールドが指定されていません。name/description/start_date/end_date/display_status のいずれかを指定してください。"}
+
+        project_data = schemas.ProjectUpdate(**payload)
+
+        old_name = db_project.name
+        updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
+
+        if old_name != updated_project.name:
+            from app.services.meeting_scanner import rename_project_folder
+            try:
+                rename_project_folder(old_name, updated_project.name)
+            except Exception:
+                pass
+
+        if updated_project.status in [models.ProjectStatus.COMPLETED, models.ProjectStatus.CANCELLED]:
+            crud.complete_tasks_for_project(db=db, project_id=project_id)
+
+        from app.services.google_sync import auto_sync_project_bg
+        import threading
+        threading.Thread(target=auto_sync_project_bg, args=(updated_project.id,)).start()
+
+        return {"ok": True, "project": {
+            "id": updated_project.id,
+            "name": updated_project.name,
+            "display_status": updated_project.display_status,
+            "client_ref": updated_project.client_ref,
+        }}
+    finally:
+        db.close()
 
 
 @mcp.tool()
-async def import_shots(
+def import_shots(
     actor_id: int,
     project_id: int,
     shots: list,
@@ -464,35 +648,62 @@ async def import_shots(
     err = _require_write_scope()
     if err:
         return err
-    created = []
-    failed = []
-    for i, shot in enumerate(shots):
-        payload = {
-            "project_id": project_id,
-            "seq_code": shot.get("code", ""),
-            "shot_code": shot.get("name", shot.get("code", "")),
-            "description": shot.get("note", ""),
-        }
-        try:
-            resp = httpx.post(
-                f"{_INTERNAL_BASE}/api/shots",
-                json=payload,
-                headers=_actor_headers(actor_id),
-                timeout=15.0,
+    
+    db = SessionLocal()
+    try:
+        actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not actor:
+            return {"error": f"actor_id={actor_id} not found or inactive"}
+
+        from app.routers.shots import SEQ_CODE_REGEX, SHOT_CODE_REGEX
+        
+        created = []
+        failed = []
+        for i, shot in enumerate(shots):
+            seq_code = shot.get("code", "")
+            shot_code = shot.get("name", shot.get("code", ""))
+            note = shot.get("note", "")
+
+            if not SEQ_CODE_REGEX.match(seq_code):
+                failed.append({"index": i, "code": seq_code, "error": "Invalid seq_code format"})
+                continue
+            if not SHOT_CODE_REGEX.match(shot_code):
+                failed.append({"index": i, "code": seq_code, "error": "Invalid shot_code format"})
+                continue
+
+            existing = db.query(models.Shot).filter(
+                models.Shot.project_id == project_id,
+                models.Shot.seq_code == seq_code,
+                models.Shot.shot_code == shot_code
+            ).first()
+            if existing:
+                failed.append({"index": i, "code": seq_code, "error": "Shot already exists"})
+                continue
+
+            new_shot = models.Shot(
+                project_id=project_id,
+                seq_code=seq_code,
+                shot_code=shot_code,
+                display_order=0,
+                status="planning",
+                description=note
             )
-        except httpx.RequestError as exc:
-            failed.append({"index": i, "code": shot.get("code", ""), "error": str(exc)})
-            continue
-        if not resp.is_success:
-            failed.append({"index": i, "code": shot.get("code", ""), "error": f"REST {resp.status_code}: {resp.text}"})
-        else:
-            data = resp.json()
-            created.append({"index": i, "code": shot.get("code", ""), "id": data.get("id")})
-    return {"created": created, "failed": failed}
+            try:
+                db.add(new_shot)
+                db.commit()
+                db.refresh(new_shot)
+                created.append({"index": i, "code": seq_code, "id": new_shot.id})
+            except Exception as e:
+                db.rollback()
+                failed.append({"index": i, "code": seq_code, "error": f"DB Save failed: {e}"})
+
+        return {"created": created, "failed": failed}
+    finally:
+        db.close()
 
 
 @mcp.tool()
-async def bulk_create_tasks(
+def bulk_create_tasks(
     actor_id: int,
     tasks: list,
 ) -> dict:
@@ -505,91 +716,88 @@ async def bulk_create_tasks(
     if err:
         return err
 
-    # users 一覧取得 → username→id マップ構築
-    username_to_id: dict = {}
-    users_warning = None
+    db = SessionLocal()
     try:
-        users_resp = httpx.get(
-            f"{_INTERNAL_BASE}/api/users",
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
-        )
-        if users_resp.is_success:
-            for u in users_resp.json():
-                uname = u.get("username") or u.get("name")
-                if uname and u.get("id"):
-                    username_to_id[uname] = u["id"]
-        else:
-            users_warning = f"users fetch failed: REST {users_resp.status_code}"
-    except httpx.RequestError as exc:
-        users_warning = f"users fetch error: {exc}"
+        actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not actor:
+            return {"error": f"actor_id={actor_id} not found or inactive"}
 
-    # shots 一覧取得 → shot_code→id マップ構築
-    shot_code_to_id: dict = {}
-    try:
-        shots_resp = httpx.get(
-            f"{_INTERNAL_BASE}/api/shots",
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
-        )
-        if shots_resp.is_success:
-            for s in shots_resp.json():
-                code = s.get("shot_code")
-                if code and s.get("id"):
-                    shot_code_to_id[code] = s["id"]
-    except httpx.RequestError:
-        pass
+        users = db.query(models.User).filter(models.User.is_active == True).all()
+        username_to_id = {}
+        for u in users:
+            uname = u.username or u.name
+            if uname:
+                username_to_id[uname] = u.id
 
-    created = []
-    failed = []
-    for i, task in enumerate(tasks):
-        task_type = task.get("type", "")
-        if task_type not in _VALID_TASK_TYPES:
-            failed.append({"index": i, "reason": f"invalid type: {task_type!r}"})
-            continue
+        shots_rows = db.query(models.Shot).filter(models.Shot.is_deleted == False).all()
+        shot_code_to_id = {}
+        for s in shots_rows:
+            if s.shot_code:
+                shot_code_to_id[s.shot_code] = s.id
 
-        # assignee 解決
-        resolved_user_id = None
-        assignee = task.get("assignee", "")
-        if assignee:
-            resolved_user_id = username_to_id.get(assignee)
-            if resolved_user_id is None:
-                reason = "assignee not found" if not users_warning else f"assignee not found (warning: {users_warning})"
-                failed.append({"index": i, "reason": reason})
+        from app.services.google_sync import auto_sync_task_bg
+        import threading
+
+        created = []
+        failed = []
+        for i, task in enumerate(tasks):
+            task_type = task.get("type", "")
+            if task_type not in _VALID_TASK_TYPES:
+                failed.append({"index": i, "reason": f"invalid type: {task_type!r}"})
                 continue
 
-        # shot 解決
-        resolved_shot_id = None
-        shot_code = task.get("shot", "")
-        if shot_code:
-            resolved_shot_id = shot_code_to_id.get(shot_code)
-            if resolved_shot_id is None:
-                failed.append({"index": i, "reason": f"shot not found: {shot_code!r}"})
+            resolved_user_id = None
+            assignee = task.get("assignee", "")
+            if assignee:
+                resolved_user_id = username_to_id.get(assignee)
+                if resolved_user_id is None:
+                    failed.append({"index": i, "reason": f"assignee not found: {assignee!r}"})
+                    continue
+
+            resolved_shot_id = None
+            shot_code = task.get("shot", "")
+            if shot_code:
+                resolved_shot_id = shot_code_to_id.get(shot_code)
+                if resolved_shot_id is None:
+                    failed.append({"index": i, "reason": f"shot not found: {shot_code!r}"})
+                    continue
+
+            shot_project_id = None
+            if resolved_shot_id:
+                shot_obj = db.query(models.Shot).filter(models.Shot.id == resolved_shot_id).first()
+                if shot_obj:
+                    shot_project_id = shot_obj.project_id
+
+            task_payload = {
+                "name": task.get("note") or f"{task_type} task",
+                "type": task_type,
+                "assigned_to": resolved_user_id,
+                "due_date": task.get("due") or None,
+                "shot_id": resolved_shot_id,
+                "project_id": shot_project_id
+            }
+            try:
+                task_schema = schemas.TaskCreate(**task_payload)
+            except Exception as e:
+                failed.append({"index": i, "reason": f"validation error: {e}"})
                 continue
 
-        payload = {
-            "name": task.get("note") or f"{task_type} task",
-            "type": task_type,
-            "assigned_to": resolved_user_id,
-            "due_date": task.get("due") or None,
-            "shot_id": resolved_shot_id,
-        }
-        try:
-            resp = httpx.post(
-                f"{_INTERNAL_BASE}/api/tasks",
-                json=payload,
-                headers=_actor_headers(actor_id),
-                timeout=15.0,
-            )
-        except httpx.RequestError as exc:
-            failed.append({"index": i, "reason": str(exc)})
-            continue
-        if not resp.is_success:
-            failed.append({"index": i, "reason": f"REST {resp.status_code}: {resp.text}"})
-        else:
-            data = resp.json()
-            created.append({"index": i, "task_id": data.get("id"), "name": data.get("name")})
-    return {"created": created, "failed": failed}
+            try:
+                created_task = crud.create_task(db=db, task=task_schema)
+                record_event(db, "task.create", actor_uid=actor_id,
+                             target_type="task", target_id=created_task.id,
+                             detail={"project_id": created_task.project_id})
+                
+                threading.Thread(target=auto_sync_task_bg, args=(created_task.id,)).start()
+
+                created.append({"index": i, "task_id": created_task.id, "name": created_task.name})
+            except Exception as e:
+                db.rollback()
+                failed.append({"index": i, "reason": f"DB Save failed: {e}"})
+
+        return {"created": created, "failed": failed}
+    finally:
+        db.close()
 
 
 class _MCPAuthMiddleware:
@@ -660,7 +868,7 @@ def get_events(
 
 
 @mcp.tool()
-async def update_task(
+def update_task(
     actor_id: int,
     task_id: int,
     assignee: str = "",
@@ -678,29 +886,6 @@ async def update_task(
     err = _require_write_scope()
     if err:
         return err
-
-    # ---- 権限チェック (DBで直接照会) ----
-    db = SessionLocal()
-    try:
-        actor = db.query(models.User).filter(
-            models.User.id == actor_id, models.User.is_active == True
-        ).first()
-        if not actor:
-            return {"error": "403", "detail": f"actor_id={actor_id} が見つかりません"}
-
-        db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
-        if not db_task:
-            return {"error": "404", "detail": f"task_id={task_id} が見つかりません"}
-
-        is_admin = (actor.role == "admin")
-        is_assignee = (db_task.assigned_to == actor_id)
-        if not is_admin and not is_assignee:
-            return {
-                "error": "403",
-                "detail": "このタスクを更新する権限がありません (担当者または管理者のみ可)",
-            }
-    finally:
-        db.close()
 
     # ---- type enum 検証 ----
     if type and type not in _VALID_TASK_TYPES:
@@ -720,20 +905,17 @@ async def update_task(
     # ---- assignee 解決 (username → uid) ----
     resolved_assignee_id = None
     if assignee:
+        db = SessionLocal()
         try:
-            uresp = httpx.get(f"{_INTERNAL_BASE}/api/users", headers=_actor_headers(actor_id), timeout=10.0)
-        except httpx.RequestError as exc:
-            return {"error": f"users fetch failed: {exc}"}
-        if not uresp.is_success:
-            return {"error": "users fetch failed", "status_code": uresp.status_code}
-        username_to_id = {}
-        for u in (uresp.json() or []):
-            uname = u.get("username") or ""
-            if uname:
-                username_to_id[uname] = u.get("id") or u.get("uid")
-        resolved_assignee_id = username_to_id.get(assignee)
-        if resolved_assignee_id is None:
-            return {"error": "assignee not found", "detail": f"username '{assignee}' が見つかりません"}
+            target_user = db.query(models.User).filter(
+                (models.User.username == assignee) | (models.User.name == assignee),
+                models.User.is_active == True
+            ).first()
+            if not target_user:
+                return {"error": "assignee not found", "detail": f"username '{assignee}' が見つかりません"}
+            resolved_assignee_id = target_user.id
+        finally:
+            db.close()
 
     # ---- 部分更新ペイロード (指定項目のみ) ----
     payload: dict = {}
@@ -748,29 +930,47 @@ async def update_task(
     if not payload:
         return {"error": "no_fields", "detail": "更新する項目を1つ以上指定してください"}
 
-    # ---- REST呼び出し ----
+    db = SessionLocal()
     try:
-        resp = httpx.put(
-            f"{_INTERNAL_BASE}/api/tasks/{task_id}",
-            json=payload,
-            headers=_actor_headers(actor_id),
-            timeout=15.0,
-        )
-    except httpx.RequestError as exc:
-        return {"error": f"request failed: {exc}"}
-    if not resp.is_success:
-        return {"error": resp.text, "status_code": resp.status_code}
+        actor = db.query(models.User).filter(
+            models.User.id == actor_id, models.User.is_active == True
+        ).first()
+        if not actor:
+            return {"error": "403", "detail": f"actor_id={actor_id} が見つかりません"}
 
-    data = resp.json()
-    return {
-        "ok": True,
-        "task_id": task_id,
-        "updated_fields": list(payload.keys()),
-        "assigned_to": data.get("assigned_to"),
-        "status": data.get("status"),
-        "type": data.get("type"),
-        "due_date": str(data.get("due_date") or ""),
-    }
+        db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+        if not db_task:
+            return {"error": "404", "detail": f"task_id={task_id} が見つかりません"}
+
+        is_admin = (actor.role == "admin")
+        is_assignee = (db_task.assigned_to == actor_id)
+        if not is_admin and not is_assignee:
+            return {
+                "error": "403",
+                "detail": "このタスクを更新する権限がありません (担当者または管理者のみ可)",
+            }
+
+        task_in = schemas.TaskUpdate(**payload)
+        updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_in)
+
+        record_event(db, "task.update", actor_uid=actor_id,
+                     target_type="task", target_id=task_id)
+
+        from app.services.google_sync import auto_sync_task_bg
+        import threading
+        threading.Thread(target=auto_sync_task_bg, args=(updated_task.id,)).start()
+
+        return {
+            "ok": True,
+            "task_id": task_id,
+            "updated_fields": list(payload.keys()),
+            "assigned_to": updated_task.assigned_to,
+            "status": updated_task.status.value if hasattr(updated_task.status, 'value') else updated_task.status,
+            "type": updated_task.type,
+            "due_date": str(updated_task.due_date or ""),
+        }
+    finally:
+        db.close()
 
 
 mcp_http = mcp.http_app(path="/")

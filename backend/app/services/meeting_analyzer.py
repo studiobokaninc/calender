@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import mimetypes
 import subprocess
+import time
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 from .. import crud, models, schemas
@@ -115,6 +116,7 @@ class MeetingAnalyzer:
         """音声を分割し、レート制限に配慮しながら段階的に解析・統合する"""
         # ANALYZE_SEMAPHORE により同時実行数を制限し、バックエンドのフリーズを防止
         async with ANALYZE_SEMAPHORE:
+            analysis_start = time.time()  # 議事録生成の所要時間計測開始
             from ..database import SessionLocal
             db = SessionLocal()
             db_meeting = None
@@ -169,7 +171,7 @@ class MeetingAnalyzer:
                 try:
                     db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
                     if db_meeting:
-                        crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed"})
+                        crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed", "analysis_seconds": int(time.time() - analysis_start)})
                         
                         # RAGメタデータの準備と追加
                         ref_date = db_meeting.date or now_jst_naive()

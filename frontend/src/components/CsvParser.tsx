@@ -73,8 +73,9 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
       // インポート結果サマリを表示
       const projectsImported = result.projects?.imported || 0;
       const tasksImported = result.tasks?.imported || 0;
+      const tasksUpdated = result.tasks?.updated || 0;
       const eventsImported = result.events?.imported || 0;
-      setSuccess(`インポート完了: プロジェクト ${projectsImported}件、タスク ${tasksImported}件、イベント ${eventsImported}件`);
+      setSuccess(`インポート完了: プロジェクト ${projectsImported}件、タスク 新規 ${tasksImported}件・更新 ${tasksUpdated}件、イベント ${eventsImported}件`);
 
       // 警告がある場合は表示
       if (result.warnings && result.warnings.length > 0) {

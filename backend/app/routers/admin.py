@@ -128,7 +128,8 @@ async def import_csv_data(
     section = None
     project = None
     imported_projects = 0
-    imported_tasks = 0
+    imported_tasks = 0          # 新規追加したタスク数
+    updated_task_ids = set()    # 変更が発生した既存タスクの id (二重カウント防止)
     warnings = []
     
     # 依存関係解決のためのキャッシュ
@@ -221,58 +222,82 @@ async def import_csv_data(
                 start_date = current_d
             
             user_id = _find_user_by_identifier(db, assignee)
-            
-            # 既存タスクがあるか確認
+
+            # get-or-create shot FK (seqID→seq_code / shotID→shot_code)。両方揃う時のみ解決。
+            _seq = (seq_id or '').strip()
+            _shot = (shot_id or '').strip()
+            resolved_shot_id = None
+            if _seq and _shot:
+                resolved_shot_id = crud.get_or_create_shot(db, project.id, _seq, _shot)
+
+            # 既存タスクがあるか確認 (同一プロジェクト内・タスク名+期日 で一意)
+            # 同名タスクが別々の期日で複数行あるスケジュール型CSV(例: 同一shotを日毎に計画)を
+            # 全件取り込めるよう、識別キーに due_date を含める。期日が同じ同名行のみ集約される。
             task_obj = db.query(models.Task).filter(
                 models.Task.project_id == project.id,
-                models.Task.name == name
+                models.Task.name == name,
+                models.Task.due_date == due_date
             ).first()
 
+            dep_names = [d.strip() for d in deps_raw.replace("、", ",").split(",") if d.strip()] if deps_raw else []
+
             if not task_obj:
+                # --- 新規タスク: 未着手(MK)で登録し、全項目を CSV から設定 ---
                 task_obj = models.Task(
                     name=name,
                     project_id=project.id,
-                    created_at=now_jst_naive()
+                    created_at=now_jst_naive(),
                 )
-                db.add(task_obj)
-                imported_tasks += 1
-            else:
-                # 既存タスクがある場合も「更新」としてカウントする場合
-                # imported_tasks += 1
-                pass
-
-            # プロパティ更新
-            task_obj.due_date = due_date
-            task_obj.start_date = start_date or task_obj.start_date
-            task_obj.description = desc
-            task_obj.assigned_to = user_id
-            task_obj.cost = cost
-            task_obj.type = t_type
-            task_obj.seqID = seq_id
-            task_obj.shotID = shot_id
-            # get-or-create shot FK (seqID→seq_code / shotID→shot_code)。空のみスキップ。
-            _seq = (seq_id or '').strip()
-            _shot = (shot_id or '').strip()
-            if _seq and _shot:
-                resolved_shot_id = crud.get_or_create_shot(db, project.id, _seq, _shot)
+                task_obj.due_date = due_date
+                task_obj.start_date = start_date
+                task_obj.description = desc
+                task_obj.assigned_to = user_id
+                task_obj.cost = cost
+                task_obj.type = t_type
+                task_obj.seqID = seq_id
+                task_obj.shotID = shot_id
                 if resolved_shot_id:
                     task_obj.shot_id = resolved_shot_id
-            task_obj.status = models.TaskStatus.MK
-            task_obj.priority = models.TaskPriority.MEDIUM
-            task_obj.updated_at = now_jst_naive()
-            
-            # 依存関係はID確定後に解決するためメモしておく
-            if deps_raw:
-                dep_names = [d.strip() for d in deps_raw.replace("、", ",").split(",") if d.strip()]
-                tasks_to_resolve_deps.append((task_obj, dep_names))
+                task_obj.status = models.TaskStatus.MK          # 新規は「未着手」で登録
+                task_obj.priority = models.TaskPriority.MEDIUM
+                task_obj.updated_at = now_jst_naive()
+                db.add(task_obj)
+                imported_tasks += 1
+                # 新規は依存関係を必ず適用 (ID確定後の二次パスで解決)
+                tasks_to_resolve_deps.append((task_obj, dep_names, True))
             else:
-                task_obj.dependsOn = []
+                # --- 既存タスク: 変更のある項目のみ更新。status は変更しない ---
+                # start_date は CSV から計算できた時のみ対象 (None は既存維持)
+                target_start = start_date if start_date is not None else task_obj.start_date
+                candidates = {
+                    # due_date は識別キーのため変更検出対象から除外
+                    "start_date": target_start,
+                    "description": desc,
+                    "assigned_to": user_id,
+                    "cost": cost,
+                    "type": t_type,
+                    "seqID": seq_id,
+                    "shotID": shot_id,
+                }
+                if resolved_shot_id is not None:
+                    candidates["shot_id"] = resolved_shot_id
+                changed = False
+                for attr, new_val in candidates.items():
+                    if getattr(task_obj, attr) != new_val:
+                        setattr(task_obj, attr, new_val)
+                        changed = True
+                if changed:
+                    task_obj.updated_at = now_jst_naive()
+                    updated_task_ids.add(task_obj.id)
+                # status / priority は既存タスクでは維持 (更新しない)
+                # 依存関係は二次パスで差分判定 (変化があれば更新扱い)
+                tasks_to_resolve_deps.append((task_obj, dep_names, False))
 
     db.flush() # IDを確定させる
 
     # --- 依存関係の解決 (タスク名 -> ID) ---
     from sqlalchemy.orm.attributes import flag_modified
-    for task_obj, dep_names in tasks_to_resolve_deps:
+    for task_obj, dep_names, is_new in tasks_to_resolve_deps:
         dep_ids = []
         for d_name in dep_names:
             # 同一プロジェクト内から名前でタスクを検索
@@ -284,18 +309,27 @@ async def import_csv_data(
                 dep_ids.append(str(dep_task.id))
             else:
                 warnings.append(f"タスク '{task_obj.name}': 依存先 '{d_name}' が見つかりませんでした")
-        
-        task_obj.dependsOn = dep_ids
-        flag_modified(task_obj, "dependsOn")
 
+        if is_new:
+            task_obj.dependsOn = dep_ids
+            flag_modified(task_obj, "dependsOn")
+        else:
+            # 既存タスク: 依存関係に変化がある時のみ更新 (無変更なら何もしない)
+            if list(task_obj.dependsOn or []) != dep_ids:
+                task_obj.dependsOn = dep_ids
+                flag_modified(task_obj, "dependsOn")
+                task_obj.updated_at = now_jst_naive()
+                updated_task_ids.add(task_obj.id)
+
+    updated_tasks = len(updated_task_ids)
     db.commit()
-    
+
     return {
         "message": "CSVインポートが完了しました",
         "projects": {"imported": imported_projects},
-        "tasks": {"imported": imported_tasks},
+        "tasks": {"imported": imported_tasks, "updated": updated_tasks},
         "warnings": warnings,
-        "detail": f"プロジェクト: {imported_projects}件, タスク: {imported_tasks}件 登録/更新しました。"
+        "detail": f"プロジェクト: {imported_projects}件 / タスク: 新規 {imported_tasks}件, 更新 {updated_tasks}件"
     }
 
 @router.post("/backup-db/token")

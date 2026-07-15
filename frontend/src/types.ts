@@ -444,6 +444,7 @@ export interface Meeting {
   event_id?: number | null; // ★★★ 追加: event 紐付き用 ID ★★★
   attendees?: string[] | null; // ★★★ 追加: 出席者リスト ★★★
   audio_url?: string | null;
+  analysis_seconds?: number | null; // 議事録生成にかかった秒数
   transcript?: string | null;
   decisions?: string[] | null;
   tasks?: string[] | null;

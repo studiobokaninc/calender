@@ -45,11 +45,11 @@ def test_create_and_get_tasks(db: Session):
     assert task.id is not None
     assert task.name == "Test Task"
     
-    # get_tasks (辞書形式)。新体系: 既定は 'mk' (旧 todo)
+    # get_tasks (辞書形式)。task_status_redesign_v2: 作成時の既定はシステム自動の 'wt'
     tasks = crud.get_tasks(db, project_id=proj.id)
     assert len(tasks) == 1
     assert tasks[0]["name"] == "Test Task"
-    assert tasks[0]["status"] == "mk"
+    assert tasks[0]["status"] == "wt"
 
 def test_update_task_status(db: Session):
     proj = models.Project(name="Proj", status=models.ProjectStatus.PLANNING)

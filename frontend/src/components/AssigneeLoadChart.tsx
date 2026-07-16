@@ -5,7 +5,7 @@ import { Box, Typography, Paper, Grid, Modal, IconButton, FormControl, InputLabe
 import CloseIcon from '@mui/icons-material/Close';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'; // ヘルプアイコン
 import { parseISO, isValid, isBefore, startOfDay } from 'date-fns';
-import { isOverdue as _isOverdue } from '../utils/taskStatus';
+import { isOverdue as _isOverdue, getTaskStatusCategory } from '../utils/taskStatus';
 
 interface AssigneeLoadChartProps {
     tasks: Task[];
@@ -63,58 +63,34 @@ const calculateAssigneeLoadData = (
             const cost = typeof task.cost === 'number' ? task.cost : 0;
             let isDelayed = false;
 
-            // 遅延判定 (新しい定義):
-            //   オンラインプロジェクトのタスクで、
-            //   status が deliver / omit / 旧completed でなく、
-            //   期日超過であること
+            // task_status_redesign_v2 §2 の5カテゴリでバケット化
+            //   completed = ap/client_ap/deliver / held = wt/omit(除外) / todo = mk
+            //   review(qc/qc_fb) と in_progress(wip) は inProgress に集約
+            const cat = getTaskStatusCategory(task.status);
+
+            // 遅延判定: オンラインプロジェクトのタスクで、完了/待機・対象外でなく、期日超過
             if (task.due_date && task.project_id != null && onlineProjectIdSet.has(task.project_id)) {
                 const dueDate = startOfDay(parseISO(task.due_date));
-                const status = (task.status || '').toLowerCase();
-                const isDone = status === 'deliver' || status === 'completed' || status === 'omit';
-                if (isValid(dueDate) && isBefore(dueDate, today) && !isDone) {
+                const excluded = cat === 'completed' || cat === 'held';
+                if (isValid(dueDate) && isBefore(dueDate, today) && !excluded) {
                     isDelayed = true;
                 }
             }
 
-            // 集計 (task_status_redesign_plan.md §3.2 の 5 カテゴリでバケット化)
-            // - 未着手 (mk / 旧 todo) → todoTasks
-            // - 進行中 (wip 系 + FB 系 / 旧 in-progress・retake) → inProgressTasks
-            // - 完了 (deliver / 旧 completed) → doneTasks
-            // - チェック中や停止 (qc/qc_fb/ap/ap_fb/dir_wt/dir_ap/dir_fb/fix/wt) は inProgress に含めておく
-            // - omit は除外 (工程外)
             if (isDelayed) {
                 delayedTasks++;
                 delayedCost += cost;
-            } else {
-                const raw = (task.status || '').toLowerCase();
-                switch (raw) {
-                    // 未着手
-                    case 'mk':
-                    case 'todo':
-                        todoTasks++;
-                        todoCost += cost;
-                        break;
-                    // 完了 (唯一)
-                    case 'deliver':
-                    case 'completed':
-                        doneTasks++;
-                        doneCost += cost;
-                        break;
-                    // 除外 (集計対象外)
-                    case 'omit':
-                        break;
-                    // それ以外の作業中扱い (進行中カテゴリ + チェック/FB/停止)
-                    case 'wip': case 'modeling': case 'lookdev': case 'caching': case 'rig': case 'facial':
-                    case 'v1qc': case 'qc': case 'qc_fb': case 'ap':
-                    case 'ap_fb': case 'dir_wt': case 'dir_ap': case 'dir_fb': case 'fix':
-                    case 'wt':
-                    case 'in-progress': case 'in_progress': case 'review': case 'approved': case 'retake':
-                        inProgressTasks++;
-                        inProgressCost += cost;
-                        break;
-                    default:
-                        break;
-                }
+            } else if (cat === 'completed') {
+                doneTasks++;
+                doneCost += cost;
+            } else if (cat === 'held') {
+                // wt / omit は集計対象外
+            } else if (cat === 'todo') {
+                todoTasks++;
+                todoCost += cost;
+            } else if (cat === 'in_progress' || cat === 'review') {
+                inProgressTasks++;
+                inProgressCost += cost;
             }
         });
 

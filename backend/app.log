@@ -19934,3 +19934,55 @@ LookupError: 'deliver' is not among the defined enum values. Enum name: taskstat
 2026-07-14 17:03:10,665 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
 2026-07-14 17:03:10,665 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
 2026-07-14 17:03:10,675 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-07-16 15:00:25,614 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 15:00:25,737 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 15:01:58,427 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 15:01:58,428 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 15:01:58,495 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 15:01:58,511 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 15:02:01,010 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-16 15:02:01,020 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-16 15:02:01,021 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-16 15:02:01,021 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-16 15:02:01,022 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-16 15:02:01,022 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-16 15:02:01,028 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-16 15:02:32,109 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 15:02:32,111 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 15:02:53,832 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 15:02:54,333 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 15:02:55,661 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 15:02:55,663 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 15:02:57,481 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-16 15:02:57,488 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-16 15:02:57,489 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-16 15:02:57,489 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-16 15:02:57,489 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-16 15:02:57,489 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-16 15:02:57,495 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-16 15:18:41,979 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 15:18:41,982 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 15:19:18,625 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 15:19:18,628 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 15:19:38,324 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 15:19:38,838 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 15:19:40,431 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 15:19:40,432 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 15:19:42,475 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-16 15:19:42,483 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-16 15:19:42,484 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-16 15:19:42,484 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-16 15:19:42,485 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-16 15:19:42,485 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-16 15:19:42,491 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-16 17:03:04,675 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-16 17:03:04,775 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-16 17:03:04,982 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 17:03:04,982 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-16 17:03:06,998 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-16 17:03:07,007 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-16 17:03:07,008 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-16 17:03:07,009 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-16 17:03:07,009 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-16 17:03:07,009 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-16 17:03:07,017 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

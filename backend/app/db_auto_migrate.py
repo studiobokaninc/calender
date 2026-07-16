@@ -225,7 +225,40 @@ def check_and_migrate_db():
         """)
         conn.commit()
         print("completed_atのバックフィルを完了しました。")
-        
+
+        # === task_status_redesign_v2: 旧19体系 → 新9体系への集約（冪等） ===
+        # 有効9値: wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/omit
+        # SQLAlchemy Enum は NAME(大文字)で保存するため LOWER 照合し大文字 NAME を書き込む。
+        _v2_collapse = {
+            'modeling': 'WIP', 'lookdev': 'WIP', 'caching': 'WIP', 'rig': 'WIP', 'facial': 'WIP',
+            'v1qc': 'QC', 'dir_wt': 'QC',
+            'ap_fb': 'QC_FB', 'dir_fb': 'QC_FB', 'fix': 'QC_FB',
+            'dir_ap': 'AP',
+        }
+        _case = ("CASE " + " ".join(f"WHEN LOWER(status)='{k}' THEN '{v}'" for k, v in _v2_collapse.items())
+                 + " ELSE status END")
+        _in_list = ",".join(f"'{k}'" for k in _v2_collapse)
+        try:
+            cursor.execute(f"UPDATE tasks SET status = {_case} WHERE LOWER(status) IN ({_in_list})")
+            cursor.execute(f"UPDATE task_status_history SET status = {_case} WHERE LOWER(status) IN ({_in_list})")
+            # 廃止された中間 shot ステータス 'approved' → in_progress（§6）
+            cursor.execute("UPDATE shots SET status = 'in_progress' WHERE LOWER(status) = 'approved'")
+            # completed_at バックフィルを完了カテゴリ {ap, client_ap, deliver} へ拡張
+            cursor.execute("""
+                UPDATE tasks
+                SET completed_at = (
+                    SELECT MIN(changed_at)
+                    FROM task_status_history h
+                    WHERE h.task_id = tasks.id
+                      AND LOWER(h.status) IN ('ap', 'client_ap', 'deliver')
+                )
+                WHERE LOWER(status) IN ('ap', 'client_ap', 'deliver') AND completed_at IS NULL
+            """)
+            conn.commit()
+            print("task_status_redesign_v2: 旧19→新9集約・shots.approved廃止・completed_at拡張を完了しました。")
+        except sqlite3.Error as _v2err:
+            print(f"警告: task_status_redesign_v2 集約中にエラー（続行します）: {_v2err}")
+
         # eventsテーブルにuser_idsカラムが存在するか確認して追加
         cursor.execute("PRAGMA table_info(events)")
         event_columns = [row[1] for row in cursor.fetchall()]

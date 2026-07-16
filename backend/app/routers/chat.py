@@ -502,7 +502,10 @@ def _execute_task_action_internal(
                 update_data["cost"] = task_data_dict["cost"]
 
             task_data = schemas.TaskUpdate(**update_data)
-            updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data)
+            updated_task = crud.update_task(
+                db=db, db_task=db_task, task_in=task_data,
+                actor_id=current_user.id if current_user else None,
+            )
 
             return {
                 "success": True,

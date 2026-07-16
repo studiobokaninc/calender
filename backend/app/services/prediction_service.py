@@ -15,13 +15,34 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 
 from .. import models
+from ..timezone import now_jst_naive
+from ..status_meta import COMPLETED_STATUSES, HELD_STATUSES
 from .llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
-_DONE_STATUSES = {models.TaskStatus.DELIVER, models.TaskStatus.AP}
+# task_status_redesign_v2: 完了カテゴリ {ap, client_ap, deliver}
+_DONE_STATUSES = {models.TaskStatus.AP, models.TaskStatus.CLIENT_AP, models.TaskStatus.DELIVER}
 _IN_PROGRESS_STATUS = models.TaskStatus.WIP
-_DELAYED_STATUS = models.TaskStatus.WIP
+
+
+def _status_value(st) -> Optional[str]:
+    if st is None:
+        return None
+    return (st.value if hasattr(st, "value") else str(st)).lower()
+
+
+def _is_delayed(task, now) -> bool:
+    """遅延判定 (§2): 期日超過 かつ 未完了 かつ 非待機(wt/omit以外)。"""
+    if task.due_date is None:
+        return False
+    sv = _status_value(task.status)
+    if sv in COMPLETED_STATUSES or sv in HELD_STATUSES:
+        return False
+    try:
+        return task.due_date < now
+    except TypeError:
+        return False
 
 
 def get_task_completion_stats(
@@ -48,9 +69,11 @@ def get_task_completion_stats(
     progress_count = 0
     total_delayed = 0
 
+    _now = now_jst_naive()
     for t in tasks:
         st = t.status if isinstance(t.status, models.TaskStatus) else None
-        if st == _DELAYED_STATUS:
+        delayed = _is_delayed(t, _now)
+        if delayed:
             total_delayed += 1
 
         # 担当者別集計
@@ -67,10 +90,10 @@ def get_task_completion_stats(
             by_assignee[t.assigned_to]["total"] += 1
             if st in _DONE_STATUSES:
                 by_assignee[t.assigned_to]["completed"] += 1
+            elif delayed:
+                by_assignee[t.assigned_to]["delayed"] += 1
             elif st == _IN_PROGRESS_STATUS:
                 by_assignee[t.assigned_to]["in_progress"] += 1
-            elif st == _DELAYED_STATUS:
-                by_assignee[t.assigned_to]["delayed"] += 1
             else:
                 by_assignee[t.assigned_to]["todo"] += 1
 

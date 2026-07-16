@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
 import ProjectDeleteDialog from '../components/ProjectDeleteDialog';
-import { getStatusBreakdown } from '../utils/taskStatus';
+import { getStatusBreakdown, getStatusProgressWeight } from '../utils/taskStatus';
 
 // Helper function to determine sort priority by display status (online first)
 const displayStatusOrder = (s: string): number => {
@@ -174,26 +174,13 @@ const ProjectsPage: React.FC = () => {
                 const summary = scoreSummary[String(project.id)] || { shots: 0, retakes: 0, troubles: 0 };
                 const projRoles = rolesByProject[project.id as number] || {};
 
-                // task_status_redesign_plan.md §3.4 のウェイト定義を適用 (旧値互換込み)。
-                // omit は加算対象外だが、分母の totalCost には含める既存挙動を維持する
+                // task_status_redesign_v2 §4 のウェイト定義を getStatusProgressWeight に集約 (旧値互換込み)。
+                // omit は加算対象外(null)だが、分母の totalCost には含める既存挙動を維持する
                 // (プロジェクト画面の粗い進捗表示なので厳密な omit 除外はしない)。
                 const totalCost = relatedTasks.reduce((sum, task) => sum + (Number(task.cost) || 0), 0);
                 const completedCost = relatedTasks.reduce((sum, task) => {
                     const cost = Number(task.cost) || 0;
-                    const status = ((task.status || 'mk') as string).toLowerCase();
-                    let weight = 0;
-                    switch (status) {
-                        case 'deliver': case 'completed':                                       weight = 1.0; break;
-                        case 'fix': case 'dir_ap':                                              weight = 0.95; break;
-                        case 'ap': case 'approved':                                             weight = 0.85; break;
-                        case 'qc': case 'v1qc': case 'dir_wt': case 'review':                   weight = 0.7; break;
-                        case 'wip': case 'modeling': case 'lookdev': case 'caching': case 'rig':
-                        case 'facial': case 'qc_fb': case 'ap_fb': case 'dir_fb':
-                        case 'in-progress': case 'in_progress': case 'retake': case 'delayed':  weight = 0.4; break;
-                        case 'wt':                                                              weight = 0.2; break;
-                        case 'mk': case 'todo': case 'omit':                                    weight = 0.0; break;
-                        default:                                                                weight = 0.0;
-                    }
+                    const weight = getStatusProgressWeight(task.status) ?? 0;  // omit(null) は 0 加算
                     return sum + cost * weight;
                 }, 0);
 

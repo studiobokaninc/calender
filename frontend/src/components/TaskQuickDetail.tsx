@@ -28,7 +28,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
     getTaskStatusColor,
     getTaskStatusLabel,
-    TASK_STATUS_OPTIONS,
+    getStatusOptionsFor,
 } from '../utils/taskStatus';
 
 interface TaskQuickDetailProps {
@@ -444,17 +444,18 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                             <TaskAltIcon fontSize="small" color="primary" /> ステータス
                         </Typography>
-                        {/* task_status_redesign_plan.md §2 準拠の 19 値を全て選択可能に */}
+                        {/* task_status_redesign_v2 §1.3: 推奨遷移(★)を先頭に。全9値を選択可能。 */}
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                            {TASK_STATUS_OPTIONS.map((opt) => {
+                            {getStatusOptionsFor(task.status).map((opt) => {
                                 const s = opt.value;
                                 const selected = task.status === s;
                                 const color = getTaskStatusColor(s);
                                 return (
                                     <Chip
                                         key={s}
-                                        label={opt.label}
+                                        label={opt.recommended ? `★ ${opt.label}` : opt.label}
                                         size="small"
+                                        title={opt.recommended ? '推奨される次の遷移先' : undefined}
                                         onClick={() => onUpdate(task.id, { status: s })}
                                         variant={selected ? "filled" : "outlined"}
                                         sx={{
@@ -463,7 +464,8 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                             backgroundColor: selected ? color : 'transparent',
                                             color: selected ? 'white' : 'text.primary',
                                             borderColor: color,
-                                            fontWeight: selected ? 700 : 500,
+                                            borderWidth: opt.recommended && !selected ? 2 : 1,
+                                            fontWeight: selected ? 700 : (opt.recommended ? 700 : 500),
                                             '&:hover': {
                                                 backgroundColor: color,
                                                 color: 'white',

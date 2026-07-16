@@ -14,9 +14,12 @@ from .base import _parse_datetime, _parse_int_safe, _safe_json_load
 
 logger = logging.getLogger(__name__)
 
-_DONE_STATUSES = {"deliver"}
-_APPROVED_OR_DONE_ONLY = {"deliver", "fix", "dir_ap", "ap"}
-_HELD_STATUSES = {"omit"}  # Shot 集約から除外する状態
+from ..status_meta import COMPLETED_STATUSES
+
+# task_status_redesign_v2 のカテゴリ集合（status_meta を単一の真実として参照）
+_COMPLETED_STATUSES = set(COMPLETED_STATUSES)   # {ap, client_ap, deliver}
+_HELD_STATUSES = {"omit"}  # Shot 集約から除外する状態（wt は集約では未着手扱い）
+_TODO_STATUSES = {"wt", "mk"}  # Shot 集約で「計画中」とみなす未着手系
 
 # shots.py SHOT_CODE_REGEX と同一パターン（routers→crud の逆依存回避のため inline 定義）。
 # ★案B緩和（cmd_496 / 2026-06-12）で両所を同時更新。shots.py:SHOT_CODE_REGEX と必ず一致させること。
@@ -30,40 +33,41 @@ _SKIP_SHOT_CODES = {"master"}
 
 
 def _recalc_shot_status(db: Session, shot_id: int) -> None:
-    """Shot に紐づく全Taskのstatusを新体系(19種)で集計し、shot.statusを自動更新する。
+    """Shot に紐づく全Taskのstatusを新9体系で集計し、shot.statusを自動更新する。
     commit は呼び出し側(update_task)のトランザクションに委譲。
 
-    集約ルール (task_status_redesign_plan.md §4.1 ②):
-      - 有効タスク(omit以外)が存在しない、または全てが mk    → planning
-      - 有効タスクが全て deliver                              → completed
-      - 有効タスクが全て {deliver, fix, dir_ap, ap} の中で、
-        かつ deliver 以外の未納品が残っている                 → approved
-      - 有効タスクに mk 以外のステータス(進行中/FB/wt 等)が
-        1つでもある                                           → in_progress
-      - それ以外                                              → planning
+    集約ルール (task_status_redesign_v2_plan.md §6, 3値):
+      - 有効タスク(omit以外)が存在しない、または全てが wt/mk       → planning
+      - 有効タスクが全て完了カテゴリ {ap, client_ap, deliver}      → completed
+      - それ以外（wip/qc/qc_fb を含む、または一部のみ完了）        → in_progress
+
+    ※ 旧体系の中間 shot ステータス 'approved' は廃止（3値へ収束）。
+      status は canonicalize して旧19値も新9値へ畳み込んでから判定する。
     """
     shot = db.query(models.Shot).filter(models.Shot.id == shot_id).first()
     if shot is None:
         return
 
+    from .. import schemas as _schemas
     tasks = db.query(models.Task).filter(models.Task.shot_id == shot_id).all()
-    all_statuses = [
-        (t.status.value if hasattr(t.status, "value") else t.status)
-        for t in tasks if t.status is not None
-    ]
+    all_statuses = []
+    for t in tasks:
+        if t.status is None:
+            continue
+        raw = t.status.value if hasattr(t.status, "value") else str(t.status)
+        all_statuses.append(_schemas.canonicalize_task_status(raw) or raw)
+
     # omit は集約対象から除外
     statuses = [s for s in all_statuses if s not in _HELD_STATUSES]
 
     if not statuses:
         new_status = "planning"
-    elif all(s in _DONE_STATUSES for s in statuses):
-        new_status = "completed"
-    elif all(s in _APPROVED_OR_DONE_ONLY for s in statuses) and any(s != "deliver" for s in statuses):
-        new_status = "approved"
-    elif any(s != "mk" for s in statuses):
-        new_status = "in_progress"
-    else:
+    elif all(s in _TODO_STATUSES for s in statuses):
         new_status = "planning"
+    elif all(s in _COMPLETED_STATUSES for s in statuses):
+        new_status = "completed"
+    else:
+        new_status = "in_progress"
 
     if shot.status != new_status:
         shot.status = new_status
@@ -386,6 +390,108 @@ def _auto_create_task_dm_thread(db: Session, task_id: int, project_id: Optional[
         
     return thread_id
 
+def _create_status_notification(
+    db: Session,
+    recipient_id: Optional[int],
+    task: models.Task,
+    ntype: str,
+    title: str,
+    to_status: str,
+    actor_id: Optional[int],
+    extra_meta: Optional[Dict[str, Any]] = None,
+) -> None:
+    """ステータス遷移通知を1件生成する（§1.4 共通ルール適用）。
+    - 宛先が空、または宛先==操作者(自己通知)ならスキップ。
+    - 同一 (recipient_id, task_id, to) の未読通知が既にあれば重複生成しない。
+    """
+    if not recipient_id:
+        return
+    if actor_id is not None and recipient_id == actor_id:
+        return  # 自己通知の抑制
+
+    # 重複抑制: 同一宛先・同一タスク・同一遷移先の未読通知が既にあるか
+    dup = db.execute(
+        text(
+            "SELECT 1 FROM notifications "
+            "WHERE recipient_id = :rid AND is_read = 0 "
+            "AND json_extract(meta, '$.task_id') = :tid "
+            "AND json_extract(meta, '$.to') = :to LIMIT 1"
+        ),
+        {"rid": recipient_id, "tid": task.id, "to": to_status},
+    ).fetchone()
+    if dup:
+        return
+
+    meta: Dict[str, Any] = {"task_id": task.id, "to": to_status, "actor_id": actor_id}
+    if extra_meta:
+        meta.update(extra_meta)
+
+    db.add(models.Notification(
+        recipient_id=recipient_id,
+        title=title,
+        type=ntype,
+        body=title,
+        meta=meta,
+        project_id=task.project_id,
+    ))
+
+
+def _notify_status_change(
+    db: Session,
+    task: models.Task,
+    from_status: str,
+    to_status: str,
+    actor_id: Optional[int] = None,
+) -> None:
+    """ステータス遷移に応じた通知を生成する (task_status_redesign_v2 §1.4)。"""
+    name = task.name or f"Task#{task.id}"
+    assignee = task.assigned_to
+
+    if to_status == "qc":
+        # チェック依頼 → プロジェクト監督者(Lead/Director/PM)へ
+        if task.project_id:
+            for sup in _get_project_supervisors(db, task.project_id):
+                _create_status_notification(
+                    db, sup, task, "task_review_requested",
+                    f"チェック依頼: {name}", to_status, actor_id,
+                )
+    elif to_status == "qc_fb":
+        # 完了カテゴリからの差し戻し = クライアントFB修正 (アーティスト+ディレクター)
+        # それ以外 = 社内FB (アーティストのみ)
+        if from_status in _COMPLETED_STATUSES:
+            _create_status_notification(
+                db, assignee, task, "client_fb",
+                f"クライアントFB修正: {name}", to_status, actor_id,
+            )
+            if task.project_id:
+                for sup in _get_project_supervisors(db, task.project_id):
+                    _create_status_notification(
+                        db, sup, task, "client_fb",
+                        f"クライアントFB修正: {name}", to_status, actor_id,
+                    )
+        else:
+            _create_status_notification(
+                db, assignee, task, "task_feedback",
+                f"修正依頼(FB): {name}", to_status, actor_id,
+            )
+    elif to_status == "ap":
+        _create_status_notification(
+            db, assignee, task, "task_status_changed",
+            f"社内承認(AP): {name}", to_status, actor_id,
+        )
+    elif to_status == "client_ap":
+        _create_status_notification(
+            db, assignee, task, "task_status_changed",
+            f"クライアント承認: {name}", to_status, actor_id,
+        )
+    elif to_status == "deliver":
+        _create_status_notification(
+            db, assignee, task, "task_status_changed",
+            f"納品/引渡し: {name}", to_status, actor_id,
+        )
+    # wt/mk/wip/omit への遷移は通知なし
+
+
 def _resolve_and_sync_shot_id(db: Session, project_id: Optional[int], shot_id: Optional[int], shot_id_str: Optional[str]) -> Optional[int]:
     """shotID(文字列)とproject_idから、対応するShotレコードのid(数値)を解決する。
     無ければ自動的に新規Shotレコードを作成してそのidを返す。
@@ -428,7 +534,8 @@ def _resolve_and_sync_shot_id(db: Session, project_id: Optional[int], shot_id: O
 
 def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
     """新規タスクを作成"""
-    init_status = task.status or models.TaskStatus.MK
+    # task_status_redesign_v2 §1.2: 作成時の初期ステータスはシステム自動の WT。
+    init_status = task.status or models.TaskStatus.WT
     init_status_val = init_status.value if hasattr(init_status, 'value') else str(init_status)
     resolved_shot_id = _resolve_and_sync_shot_id(db, task.project_id, task.shot_id, task.shotID)
     db_task = models.Task(
@@ -451,7 +558,7 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         phases=task.phases or [],
         deliverables=task.deliverables or "",
         check_items=task.check_items or [],
-        completed_at=now_jst_naive() if init_status_val.lower() == "deliver" else None
+        completed_at=now_jst_naive() if init_status_val.lower() in _COMPLETED_STATUSES else None
     )
     db.add(db_task)
     db.commit()
@@ -480,10 +587,13 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
 
     return db_task
 
-def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) -> models.Task:
+def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, actor_id: Optional[int] = None) -> models.Task:
     """タスク情報を更新。
     task_status_redesign_plan.md §3.1 に従い、auto_started/auto_delayed の書き換えと
     締切超過による自動遷移は廃止。auto_delayed カラムは互換のため残すが本メソッドから触れない。
+
+    actor_id: 操作者ユーザーID。ステータス履歴の changed_by と通知の自己抑制/actor_id に使用。
+    未指定時は担当者(assigned_to)を changed_by に用いる（後方互換）。
     """
     update_data = task_in.dict(exclude_unset=True)
     original_status = (
@@ -518,20 +628,21 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             if db_key in ["phases", "check_items", "deliverables", "dependsOn"]:
                 flag_modified(db_task, db_key)
 
-    # progress 補正 (§3.3): status 変更に伴う整合性を API 層で一元的に担保する
+    # progress 補正 (§3.2): status 変更に伴う整合性を API 層で一元的に担保する
     new_status_val = (
         db_task.status.value if hasattr(db_task.status, "value") else db_task.status
     )
     if new_status_val != original_status:
         progress_explicit = "progress" in update_data
-        if new_status_val == "deliver":
-            # deliver への遷移は明示 progress 指定より優先して 100 に強制補正
+        if new_status_val in _COMPLETED_STATUSES:
+            # 完了カテゴリ (ap/client_ap/deliver) への遷移は
+            # 明示 progress 指定より優先して 100 に強制補正
             db_task.progress = 100
-        elif new_status_val == "mk":
-            # mk への遷移も同様に 0 へ強制補正
+        elif new_status_val in ("mk", "wt"):
+            # 未着手・待機への移行は 0 へ強制補正
             db_task.progress = 0
-        elif original_status == "deliver" and not progress_explicit:
-            # deliver から他へ差し戻す際、progress 未指定なら納品前の値(=既存値)を保持する。
+        elif original_status in _COMPLETED_STATUSES and not progress_explicit:
+            # 完了カテゴリから非完了へ差し戻す際、progress 未指定なら完了前の値(=既存値)を保持する。
             # ここでは original_progress を書き戻すことで、
             # 前段の setattr で入ったかもしれない値を上書きしない (progress が update_data 未含なので実質NO-OP)
             db_task.progress = original_progress
@@ -545,8 +656,12 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
 
     new_status = db_task.status
     if new_status and new_status != original_status:
-        new_status_val = new_status.value if hasattr(new_status, 'value') else str(new_status)
-        if new_status_val.lower() == "deliver":
+        new_status_val = (new_status.value if hasattr(new_status, 'value') else str(new_status)).lower()
+        # completed_at 制御 (§3.1): 完了カテゴリ集合 {ap, client_ap, deliver} で判定。
+        #  - 非完了 → 完了: 新規記録 (completed_at 未設定時のみ)
+        #  - 完了 → 完了 (ap→client_ap→deliver): 上書きせず維持
+        #  - 完了 → 非完了 (差し戻し): None にリセット
+        if new_status_val in _COMPLETED_STATUSES:
             if db_task.completed_at is None:
                 db_task.completed_at = db_task.updated_at
         else:
@@ -556,9 +671,15 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
             task_id=db_task.id,
             status=new_status,
             changed_at=db_task.updated_at,
-            changed_by=db_task.assigned_to,
+            changed_by=actor_id if actor_id is not None else db_task.assigned_to,
             change_source='manual'
         ))
+
+        # ステータス遷移通知 (§1.4)
+        try:
+            _notify_status_change(db, db_task, original_status, new_status_val, actor_id)
+        except Exception as e:
+            logger.warning(f"ステータス遷移通知の生成に失敗 (task_id={db_task.id}): {e}")
 
     if db_task.shot_id is not None:
         _recalc_shot_status(db, db_task.shot_id)
@@ -567,14 +688,14 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate) 
     db.refresh(db_task)
     return db_task
 
-def bulk_update_tasks(db: Session, task_ids: List[int], updates: dict) -> int:
+def bulk_update_tasks(db: Session, task_ids: List[int], updates: dict, actor_id: Optional[int] = None) -> int:
     """複数タスクに同じ更新を適用。更新したタスク数を返す。"""
     tasks = db.query(models.Task).filter(models.Task.id.in_(task_ids)).all()
     count = 0
     for task in tasks:
         # updates が dict なので、schemas.TaskUpdate に変換して共通ロジックを通す
         task_update = schemas.TaskUpdate(**updates)
-        update_task(db, task, task_update)
+        update_task(db, task, task_update, actor_id=actor_id)
         count += 1
     return count
 

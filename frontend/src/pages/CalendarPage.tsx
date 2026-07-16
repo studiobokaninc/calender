@@ -59,6 +59,7 @@ import { useCalendarActions } from '../hooks/useCalendarActions';
 // utils
 import { getEventColor, getTaskColor } from '../utils/calendarEventColors';
 import { getEventRank } from '../utils/calendarEventMapper';
+import { getTaskStatusCategory } from '../utils/taskStatus';
 
 const DOUBLE_CLICK_THRESHOLD = 400;
 
@@ -1598,8 +1599,9 @@ const CalendarPage: React.FC = () => {
                             const taskStatusStr = arg.event.extendedProps.taskStatus ? String(arg.event.extendedProps.taskStatus).toLowerCase() : undefined;
                             const eventStatusStr = arg.event.extendedProps.status ? String(arg.event.extendedProps.status).toLowerCase() : undefined;
 
-                            // task_status_redesign: 完了扱いは 'deliver' のみ (旧 'completed' は互換のため残す)
-                            if (taskStatusStr === 'deliver' || taskStatusStr === 'completed' || eventStatusStr === 'completed' || eventStatusStr === 'cancelled') {
+                            // task_status_redesign_v2: 完了カテゴリ (ap/client_ap/deliver) を完了扱い
+                            const taskIsCompleted = getTaskStatusCategory(taskStatusStr) === 'completed';
+                            if (taskIsCompleted || eventStatusStr === 'completed' || eventStatusStr === 'cancelled') {
                                 classes.push('grey-event');
                             }
 
@@ -1612,7 +1614,7 @@ const CalendarPage: React.FC = () => {
                             if (normalizedType === 'project') {
                                 classes.push('project-event');
                             } else if (normalizedType === 'task') {
-                                if (taskStatusStr === 'deliver' || taskStatusStr === 'completed') {
+                                if (taskIsCompleted) {
                                     classes.push('grey-task');
                                 }
                             } else if (normalizedType === 'deadline') {

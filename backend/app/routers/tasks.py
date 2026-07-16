@@ -146,7 +146,7 @@ async def update_task_endpoint(
         if current_user.role != 'admin':
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="タスクの表示ステータスを変更する権限がありません")
 
-    updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data)
+    updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data, actor_id=current_user.id)
     record_event(db, "task.update", actor_uid=current_user.id,
                  target_type="task", target_id=task_id)
 
@@ -176,7 +176,7 @@ async def bulk_update_tasks_endpoint(
     if not updates:
         return {"updated": 0, "message": "更新項目が指定されていません"}
         
-    updated = crud.bulk_update_tasks(db=db, task_ids=payload.task_ids, updates=updates)
+    updated = crud.bulk_update_tasks(db=db, task_ids=payload.task_ids, updates=updates, actor_id=current_user.id)
     
     from app.services.google_sync import auto_sync_task_bg
     for tid in payload.task_ids:

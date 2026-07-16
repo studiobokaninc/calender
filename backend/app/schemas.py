@@ -33,6 +33,24 @@ NEW_STATUS_ALIAS_MAP = {
     'dir-wt': 'dir_wt',
     'dir-ap': 'dir_ap',
     'dir-fb': 'dir_fb',
+    'client-ap': 'client_ap',
+}
+
+# task_status_redesign_v2: 旧19体系 → 新9体系への畳み込み。
+# 移行マイグレーション後は不要だが、未移行の入力/レガシー値を実行時にも正規化する
+# （防御的措置）。有効9値: wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/omit。
+LEGACY_PIPELINE_COLLAPSE_MAP = {
+    'modeling': 'wip',
+    'lookdev': 'wip',
+    'caching': 'wip',
+    'rig': 'wip',
+    'facial': 'wip',
+    'v1qc': 'qc',
+    'dir_wt': 'qc',
+    'ap_fb': 'qc_fb',
+    'dir_fb': 'qc_fb',
+    'fix': 'qc_fb',
+    'dir_ap': 'ap',
 }
 
 # CSV インポート等の日本語ラベル救済
@@ -64,7 +82,9 @@ def canonicalize_task_status(value: Optional[str], is_csv: bool = False) -> Opti
         return CSV_STATUS_LABEL_MAP[s]
     if s in API_STATUS_DEPRECATION_MAP:
         return API_STATUS_DEPRECATION_MAP[s]
-    return NEW_STATUS_ALIAS_MAP.get(s, s)
+    # ハイフン表記揺れを解消してから旧19→新9へ畳み込む
+    s = NEW_STATUS_ALIAS_MAP.get(s, s)
+    return LEGACY_PIPELINE_COLLAPSE_MAP.get(s, s)
 
 
 def _validate_status_value(raw: Any, is_csv: bool = False) -> Optional[str]:

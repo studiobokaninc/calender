@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { format, differenceInDays, isValid, startOfDay, parseISO, isBefore } from 'date-fns'; // date-fnsをインポート
+import { getTaskStatusCategory } from '../utils/taskStatus';
 
 // 遅延タスク情報の型定義
 interface DelayedTaskInfo {
@@ -31,12 +32,11 @@ type Order = 'asc' | 'desc';
 type OrderBy = keyof DelayedTaskInfo; // ソート対象の列キー
 
 // 遅延タスクデータを計算・加工する関数
-// 表示条件 (task_status_redesign_plan.md §3.1 派生フラグ isOverdue に整合):
+// 表示条件 (task_status_redesign_v2 §2 派生フラグ isOverdue に整合):
 //   1) 親プロジェクトが display_status === 'online' である
-//   2) タスクの status が 'deliver' (納品完了、新体系の唯一の完了) ではない
-//   3) タスクの status が 'omit' (作業対象外) ではない
+//   2) タスクの status が完了カテゴリ (ap/client_ap/deliver) ではない
+//   3) タスクの status が待機・対象外 (wt/omit) ではない
 //   4) 期限日が有効かつ今日より前 (期日超過)
-// 旧値 'completed' も互換で完了扱い。
 const calculateDelayedTaskData = (
     tasks: Task[],
     users: User[],
@@ -62,10 +62,9 @@ const calculateDelayedTaskData = (
         // 3. 親プロジェクトがオンラインか
         if (task.project_id == null || !onlineProjectIdSet.has(task.project_id)) return false;
 
-        // 4. ステータスが完了 (deliver) または対象外 (omit) でないか
-        //    旧値 'completed' も互換で完了扱いにして除外する
-        const status = (task.status || '').toLowerCase();
-        if (status === 'deliver' || status === 'completed' || status === 'omit') return false;
+        // 4. ステータスが完了カテゴリ (ap/client_ap/deliver) または待機・対象外 (wt/omit) でないか
+        const cat = getTaskStatusCategory(task.status);
+        if (cat === 'completed' || cat === 'held') return false;
 
         return true;
     });

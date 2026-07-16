@@ -17,6 +17,22 @@ import {
     isBefore,
     isEqual
 } from 'date-fns';
+import { getTaskStatusCategory } from '../utils/taskStatus';
+
+// task_status_redesign_v2: ステータスを burndown 用バケットへ正規化する。
+// 旧19/旧7体系の値も getTaskStatusCategory 内で新9値へ畳み込まれる。
+//   completed(ap/client_ap/deliver) → 'done'
+//   in_progress(wip) / review(qc/qc_fb) → 'inProgress'
+//   todo(mk) → 'todo' / held(wt/omit) → 'held'
+type ProgressBucket = 'done' | 'inProgress' | 'todo' | 'held';
+const toProgressBucket = (status?: string | null): ProgressBucket | undefined => {
+    const cat = getTaskStatusCategory(status);
+    if (cat === 'completed') return 'done';
+    if (cat === 'in_progress' || cat === 'review') return 'inProgress';
+    if (cat === 'todo') return 'todo';
+    if (cat === 'held') return 'held';
+    return undefined;
+};
 
 // Propsの型定義
 interface UserProgressChartProps {
@@ -153,8 +169,9 @@ const calculateUserProgressData = (
                 statusOnDate = task.status || undefined;
             }
 
-            if (statusOnDate === 'completed') doneCount++;
-            else if (statusOnDate === 'in-progress') inProgressCount++;
+            const bucket = toProgressBucket(statusOnDate);
+            if (bucket === 'done') doneCount++;
+            else if (bucket === 'inProgress') inProgressCount++;
         });
 
         let actualValue: number | null = null;
@@ -257,15 +274,15 @@ const calculateAllUsersProgressData = (
                             if (latestHistoryDateTime === null || isBefore(latestHistoryDateTime, historyDate)) {
                                 latestHistoryDateTime = historyDate;
                                 statusOnDate = history.status;
-                            } else if (isEqual(latestHistoryDateTime, historyDate) && history.status === 'completed') {
+                            } else if (isEqual(latestHistoryDateTime, historyDate) && getTaskStatusCategory(history.status) === 'completed') {
                                 statusOnDate = history.status;
                             }
                         }
                     });
-                    // 正規化: 履歴は 'completed' を返すため 'done' 相当として扱う
-                    const normalizedStatus = statusOnDate === 'completed' ? 'done' : statusOnDate;
-                    if (normalizedStatus === 'done') doneCount++;
-                    else if (normalizedStatus === 'in-progress') inProgressCount++;
+                    // 正規化: 完了カテゴリ(ap/client_ap/deliver)→done, 進行/レビュー→inProgress
+                    const bucket = toProgressBucket(statusOnDate);
+                    if (bucket === 'done') doneCount++;
+                    else if (bucket === 'inProgress') inProgressCount++;
                 });
                 const actualValue = ((doneCount * 1.0) + (inProgressCount * 0.5)) / totalUserTasksCount * 100;
                 dataPoint[userId] = Math.max(0, Math.min(100, Math.round(actualValue)));
@@ -326,19 +343,18 @@ const getStatusCountsOnDate = (
                     if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
                         latestHistoryDate = historyDate;
                         statusOnDate = history.status;
-                    } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'completed') {
+                    } else if (isEqual(latestHistoryDate, historyDate) && getTaskStatusCategory(history.status) === 'completed') {
                         statusOnDate = history.status;
                     }
                 }
             });
         }
 
-        let finalStatus: string | undefined = statusOnDate;
-        if (finalStatus === 'completed') finalStatus = 'done';
-        if (finalStatus === 'in-progress') finalStatus = 'inProgress';
-        if (task.due_date) {
+        let finalStatus: string | undefined = toProgressBucket(statusOnDate);
+        // 待機・対象外 (wt/omit=held) は集計対象外
+        if (task.due_date && finalStatus !== 'done' && finalStatus !== 'held') {
             const dueDate = startOfDay(parseISO(task.due_date));
-            if (isValid(dueDate) && isBefore(dueDate, targetDate) && finalStatus !== 'done') {
+            if (isValid(dueDate) && isBefore(dueDate, targetDate)) {
                 finalStatus = 'delayed';
             }
         }
@@ -405,7 +421,7 @@ const getTasksByStatusOnDate = (
                     if (latestHistoryDate === null || isBefore(latestHistoryDate, historyDate)) {
                         latestHistoryDate = historyDate;
                         statusOnDate = history.status;
-                    } else if (isEqual(latestHistoryDate, historyDate) && history.status === 'completed') {
+                    } else if (isEqual(latestHistoryDate, historyDate) && getTaskStatusCategory(history.status) === 'completed') {
                         statusOnDate = history.status;
                     }
                 }
@@ -422,14 +438,12 @@ const getTasksByStatusOnDate = (
 
         if (!statusOnDate) return;
 
-        let finalStatus: string | undefined = statusOnDate;
-        if (finalStatus === 'completed') finalStatus = 'done';
-        if (finalStatus === 'in-progress') finalStatus = 'inProgress';
+        let finalStatus: string | undefined = statusOnDate === 'todo' ? 'todo' : toProgressBucket(statusOnDate);
 
         // ★★★ types.ts に合わせて taskDueDate ★★★
-        if (task.due_date) {
+        if (task.due_date && finalStatus !== 'done' && finalStatus !== 'held') {
             const dueDate = startOfDay(parseISO(task.due_date));
-            if (isValid(dueDate) && isBefore(dueDate, targetDate) && finalStatus !== 'done') {
+            if (isValid(dueDate) && isBefore(dueDate, targetDate)) {
                 finalStatus = 'delayed';
             }
         }

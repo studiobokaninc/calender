@@ -5,6 +5,7 @@ import { Box, Typography, Tooltip as MuiTooltip, IconButton, Modal, useTheme, us
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import { parseISO, format, eachDayOfInterval, isBefore, isEqual, startOfDay, startOfToday, addDays, isAfter, isValid } from 'date-fns';
+import { getTaskStatusCategory, getStatusProgressWeight } from '../utils/taskStatus';
 
 interface ProjectProgressChartProps {
     projects: Project[];
@@ -71,7 +72,7 @@ const calculateProgressData = (projects: Project[], tasks: Task[], today: Date):
 
     targetProjects.forEach(project => {
         const projectTasks = tasks.filter(t => String(t.project_id) === String(project.id));
-        const allCompleted = projectTasks.length > 0 && projectTasks.every(t => t.status === 'completed');
+        const allCompleted = projectTasks.length > 0 && projectTasks.every(t => getTaskStatusCategory(t.status) === 'completed');
 
         if (allCompleted) {
             let latestCompletionDate: Date | null = null;
@@ -80,7 +81,7 @@ const calculateProgressData = (projects: Project[], tasks: Task[], today: Date):
                 let taskCompletionDate: Date | null = null;
 
                 if (t.status_history && t.status_history.length > 0) {
-                    const completedEntries = t.status_history.filter(h => h.status === 'completed');
+                    const completedEntries = t.status_history.filter(h => getTaskStatusCategory(h.status) === 'completed');
 
                     if (completedEntries.length > 0) {
                         const lastCompleted = completedEntries[completedEntries.length - 1];
@@ -89,7 +90,7 @@ const calculateProgressData = (projects: Project[], tasks: Task[], today: Date):
                 }
 
                 // フォールバック: status_historyがない場合はupdated_atを使用
-                if (!taskCompletionDate && t.status === 'completed' && t.updated_at) {
+                if (!taskCompletionDate && getTaskStatusCategory(t.status) === 'completed' && t.updated_at) {
                     taskCompletionDate = startOfDay(parseISO(t.updated_at));
                 }
 
@@ -163,62 +164,11 @@ const calculateProgressData = (projects: Project[], tasks: Task[], today: Date):
                             currentStatusEntry = lastValidEntry;
 
                             if (currentStatusEntry) {
-                                // task_status_redesign_plan.md §3.4 の進捗ウェイトを適用。
-                                // 旧値 (completed/in-progress/review/delayed 等) も互換で処理する。
-                                const raw = (currentStatusEntry.status || '').toLowerCase();
-                                switch (raw) {
-                                    // 完了 (唯一)
-                                    case 'deliver':
-                                    case 'completed':
-                                        taskContribution = 1.0;
-                                        break;
-                                    // 監督承認 / クライアント OK (納品前)
-                                    case 'fix':
-                                    case 'dir_ap':
-                                        taskContribution = 0.95;
-                                        break;
-                                    // 社内承認済
-                                    case 'ap':
-                                    case 'approved':
-                                        taskContribution = 0.85;
-                                        break;
-                                    // チェック待ち・確認中
-                                    case 'qc':
-                                    case 'v1qc':
-                                    case 'dir_wt':
-                                    case 'review':
-                                        taskContribution = 0.7;
-                                        break;
-                                    // 進行中 (共通 + 工程別) + FB 対応中
-                                    case 'wip':
-                                    case 'modeling':
-                                    case 'lookdev':
-                                    case 'caching':
-                                    case 'rig':
-                                    case 'facial':
-                                    case 'qc_fb':
-                                    case 'ap_fb':
-                                    case 'dir_fb':
-                                    case 'in-progress':
-                                    case 'in_progress':
-                                    case 'retake':
-                                    case 'delayed':
-                                        taskContribution = 0.4;
-                                        break;
-                                    // 一時停止
-                                    case 'wt':
-                                        taskContribution = 0.2;
-                                        break;
-                                    // 除外 (集計対象外 = ここでは 0 扱いで加算しない)
-                                    case 'omit':
-                                        taskContribution = 0;
-                                        break;
-                                    // 未着手
-                                    case 'mk':
-                                    case 'todo':
-                                    default:
-                                        taskContribution = 0;
-                                }
+                                // task_status_redesign_v2 §4 の進捗ウェイトを適用（共有ユーティリティ）。
+                                // 旧19/旧7体系の値も canonicalize されて畳み込まれる。
+                                // omit は null(除外) → ここでは 0 加算扱い。
+                                const w = getStatusProgressWeight(currentStatusEntry.status);
+                                taskContribution = w ?? 0;
                             }
                         }
                         actualWeightedSum += taskContribution;

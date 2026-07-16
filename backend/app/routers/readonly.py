@@ -372,6 +372,7 @@ def get_onschedule_stats(
         group_keys = [k.strip() for k in group_by.split(",") if k.strip()]
 
     # 集計処理
+    from app.status_meta import COMPLETED_STATUSES
     groups = {}
     for task in tasks:
         gk = []
@@ -394,7 +395,7 @@ def get_onschedule_stats(
             }
         
         status_str = task.status.value if hasattr(task.status, 'value') else str(task.status or '')
-        if status_str.lower() == "deliver":
+        if status_str.lower() in COMPLETED_STATUSES:
             groups[gk_tuple]["completed"] += 1
             # 期日内完了の判定
             is_on_time_task = True

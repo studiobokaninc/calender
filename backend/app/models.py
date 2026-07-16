@@ -40,11 +40,18 @@ class TaskStatus(str, enum.Enum):
     DIR_AP = "dir_ap"
     DIR_FB = "dir_fb"
     FIX = "fix"
-    # 状態カテゴリ「完了」
+    # 状態カテゴリ「完了」(V2: ap/client_ap/deliver を完了扱い)
+    CLIENT_AP = "client_ap"  # V2 新設: クライアント承認 (完了カテゴリ)
     DELIVER = "deliver"
-    # 状態カテゴリ「対象外・ストップ」
+    # 状態カテゴリ「対象外・待機」
     OMIT = "omit"
     WT = "wt"
+    # NOTE (task_status_redesign_v2): 有効ステータスは9種
+    #   wt / mk / wip / qc / qc_fb / ap / client_ap / deliver / omit
+    # それ以外 (modeling/lookdev/caching/rig/facial/v1qc/ap_fb/dir_wt/dir_ap/dir_fb/fix)
+    # は旧19体系のレガシー値。移行マイグレーション後は新規書き込みされないが、
+    # 未移行レコードの ORM 読み込み互換のため Enum メンバーとしては残置する。
+    # ステータス集合の判定は status_meta.py の COMPLETED_STATUSES 等を参照すること。
 
 class TaskPriority(str, enum.Enum):
     HIGH = "HIGH"

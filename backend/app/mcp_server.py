@@ -287,7 +287,8 @@ def get_messages(
                     "body": m.body,
                     "context_json": m.context_json,
                     "created_at": m.created_at.isoformat() if m.created_at else None,
-                    "is_read": getattr(m, "is_read", False)
+                    "is_read": (m.read_at is not None),
+                    "read_at": m.read_at.isoformat() if m.read_at else None
                 })
             return {"messages": items}
         

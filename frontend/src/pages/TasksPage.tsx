@@ -29,6 +29,7 @@ import {
     getTaskStatusLabel,
     getTaskStatusChipStyle,
     TASK_STATUS_OPTIONS,
+    getStatusOptionsFor,
 } from '../utils/taskStatus';
 
 
@@ -226,7 +227,7 @@ const TasksPage: React.FC = () => {
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
 
     // ステータス選択ポップオーバー用の状態
-    const [statusPopover, setStatusPopover] = useState<{ anchor: HTMLElement; taskId: number } | null>(null);
+    const [statusPopover, setStatusPopover] = useState<{ anchor: HTMLElement; taskId: number; currentStatus?: string | null } | null>(null);
 
     // 一括編集（選択された行IDの配列）
     const [selectionModel, setSelectionModel] = useState<number[]>([]);
@@ -803,7 +804,7 @@ const TasksPage: React.FC = () => {
                         size="small"
                         onClick={(e) => {
                             e.stopPropagation();
-                            setStatusPopover({ anchor: e.currentTarget as HTMLElement, taskId: row.id });
+                            setStatusPopover({ anchor: e.currentTarget as HTMLElement, taskId: row.id, currentStatus: row.status });
                         }}
                         sx={{
                             backgroundColor: getTaskStatusColor(row.status),
@@ -1878,8 +1879,8 @@ const TasksPage: React.FC = () => {
                                 label="ステータス"
                                 onChange={handleSelectChange}
                             >
-                                {TASK_STATUS_OPTIONS.map(opt => (
-                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                                {getStatusOptionsFor(currentTask.status).map(opt => (
+                                    <MenuItem key={opt.value} value={opt.value}>{opt.recommended ? `★ ${opt.label}` : opt.label}</MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
@@ -2309,7 +2310,7 @@ const TasksPage: React.FC = () => {
                 slotProps={{ paper: { sx: { borderRadius: 2, minWidth: 140, boxShadow: 4, overflow: 'hidden' } } }}
             >
                 <List dense disablePadding>
-                    {TASK_STATUS_OPTIONS.map((opt) => (
+                    {getStatusOptionsFor(statusPopover?.currentStatus).map((opt) => (
                         <ListItemButton
                             key={opt.value}
                             onClick={async () => {
@@ -2318,6 +2319,7 @@ const TasksPage: React.FC = () => {
                                     setStatusPopover(null);
                                 }
                             }}
+                            title={opt.recommended ? '推奨される次の遷移先' : undefined}
                             sx={{
                                 py: 1,
                                 px: 1.5,
@@ -2335,8 +2337,8 @@ const TasksPage: React.FC = () => {
                                 }}
                             />
                             <ListItemText
-                                primary={opt.label}
-                                primaryTypographyProps={{ sx: { fontSize: '0.875rem', fontWeight: 500 } }}
+                                primary={opt.recommended ? `★ ${opt.label}` : opt.label}
+                                primaryTypographyProps={{ sx: { fontSize: '0.875rem', fontWeight: opt.recommended ? 700 : 500 } }}
                             />
                         </ListItemButton>
                     ))}

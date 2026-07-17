@@ -467,24 +467,17 @@ const calculateMetrics = (tasks: Task[], projects: Project[] = []) => {
     );
     const today = new Date(new Date().setHours(0, 0, 0, 0));
 
-    const isDone = (s: string) => s === 'deliver' || s === 'completed';
-    const inProgressSet = new Set([
-        'wip', 'modeling', 'lookdev', 'caching', 'rig', 'facial',
-        'v1qc', 'qc', 'qc_fb', 'ap', 'ap_fb', 'dir_wt', 'dir_ap', 'dir_fb', 'fix',
-        'wt',
-        'in-progress', 'in_progress', 'review', 'approved', 'retake',
-    ]);
-
+    // task_status_redesign_v2: 完了カテゴリ = ap/client_ap/deliver、進行/レビュー = wip/qc/qc_fb
     let completedTasks = 0;
     let inProgressTasks = 0;
     let delayedTasks = 0;
     for (const task of tasks) {
-        const status = (task.status || '').toLowerCase();
-        if (isDone(status)) completedTasks++;
-        else if (inProgressSet.has(status)) inProgressTasks++;
+        const cat = getTaskStatusCategory(task.status);
+        if (cat === 'completed') completedTasks++;
+        else if (cat === 'in_progress' || cat === 'review') inProgressTasks++;
 
-        // 遅延 (派生フラグ): projects があればオンラインに限定、なければ status のみで判定
-        if (task.due_date && !isDone(status) && status !== 'omit') {
+        // 遅延 (派生フラグ): 完了カテゴリ・待機/対象外(held) は除外。projects があればオンラインに限定
+        if (task.due_date && cat !== 'completed' && cat !== 'held') {
             const dueDate = task.due_date ? new Date(task.due_date) : null;
             if (dueDate && !isNaN(dueDate.getTime()) && dueDate < today) {
                 const onlineOk = projects.length === 0

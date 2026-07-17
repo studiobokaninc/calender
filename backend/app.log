@@ -19986,3 +19986,14 @@ LookupError: 'deliver' is not among the defined enum values. Enum name: taskstat
 2026-07-16 17:03:07,009 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-07-16 17:03:07,009 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-07-16 17:03:07,017 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-07-17 12:27:15,277 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-17 12:27:15,278 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-07-17 12:27:16,761 - app.schemas - WARNING - Deprecated or alias task status received: 'completed' -> automatically mapped to 'deliver'.
+2026-07-17 12:27:16,765 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-07-17 12:27:19,309 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-07-17 12:27:19,315 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-07-17 12:27:19,316 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-07-17 12:27:19,316 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-07-17 12:27:19,317 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-07-17 12:27:19,317 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-07-17 12:27:19,324 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

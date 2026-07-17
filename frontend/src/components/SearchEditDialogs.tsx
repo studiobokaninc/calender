@@ -431,7 +431,7 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
               <InputLabel>ステータス</InputLabel>
               <Select name="status" value={form.status} label="ステータス" onChange={handleChange}>
                 {getStatusOptionsFor(form.status).map(opt => (
-                  <MenuItem key={opt.value} value={opt.value}>{opt.recommended ? `★ ${opt.label}` : opt.label}</MenuItem>
+                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
                 ))}
               </Select>
             </FormControl>

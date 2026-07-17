@@ -35,6 +35,7 @@ import { ja } from 'date-fns/locale'
 import api, { shotsApi } from '../services/api'
 import { DashboardMetrics, BackendEvent, Task, Retake, Trouble } from '../types'
 import { usePageState } from '../contexts/PageStateContext'
+import { getTaskStatusCategory } from '../utils/taskStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { TaskEditDialog, EventEditDialog } from '../components/SearchEditDialogs'
 import { TaskQuickDetail } from '../components/TaskQuickDetail'
@@ -491,7 +492,6 @@ const Dashboard: React.FC = () => {
 
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
-    const completed = ['completed', 'COMPLETED', 'deliver', 'DELIVER']
     const expandedTasks: any[] = []
 
     tasks.forEach((t: any) => {
@@ -499,8 +499,9 @@ const Dashboard: React.FC = () => {
       const isOnline = proj ? (proj.display_status ?? 'online') === 'online' : false
       if (!isOnline) return
 
-      const isTaskCompleted = completed.includes(String(t.status ?? ''))
-      if (isTaskCompleted) return
+      // task_status_redesign_v2: 完了カテゴリ(ap/client_ap/deliver)・待機/対象外(wt/omit)は遅延から除外
+      const cat = getTaskStatusCategory(t.status)
+      if (cat === 'completed' || cat === 'held') return
       let isTaskDelayed = false
       if (String(t.status ?? '').toLowerCase() === 'delayed') {
         isTaskDelayed = true

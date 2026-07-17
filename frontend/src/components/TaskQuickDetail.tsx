@@ -29,6 +29,7 @@ import {
     getTaskStatusColor,
     getTaskStatusLabel,
     getStatusOptionsFor,
+    getTaskStatusCategory,
 } from '../utils/taskStatus';
 
 interface TaskQuickDetailProps {
@@ -453,7 +454,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                 return (
                                     <Chip
                                         key={s}
-                                        label={opt.recommended ? `★ ${opt.label}` : opt.label}
+                                        label={opt.label}
                                         size="small"
                                         title={opt.recommended ? '推奨される次の遷移先' : undefined}
                                         onClick={() => onUpdate(task.id, { status: s })}
@@ -782,7 +783,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                                         期日
                                     </Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }} color={task.due_date && new Date(task.due_date) < new Date() && task.status !== 'deliver' && task.status !== 'completed' && task.status !== 'omit' ? 'error.main' : 'inherit'}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }} color={task.due_date && new Date(task.due_date) < new Date() && getTaskStatusCategory(task.status) !== 'completed' && getTaskStatusCategory(task.status) !== 'held' ? 'error.main' : 'inherit'}>
                                         {formatDate(task.due_date)}
                                     </Typography>
                                 </Box>

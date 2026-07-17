@@ -42,6 +42,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { usePageState, useDashboardPageState } from '../contexts/PageStateContext'
 import { format, startOfDay, parseISO, isBefore, addDays, isSameDay, isValid } from 'date-fns'
 import { Task } from '../types'
+import { getTaskStatusCategory } from '../utils/taskStatus'
 
 
 
@@ -51,6 +52,9 @@ type TaskDisplayCategory = 'today' | 'delayed' | 'dueSoon' | 'other'
 const DUE_SOON_DAYS = 7
 
 const getTaskCategory = (task: Task): TaskDisplayCategory => {
+  // task_status_redesign_v2: 完了カテゴリ(ap/client_ap/deliver)・待機/対象外(wt/omit)は遅延等に含めない
+  const cat = getTaskStatusCategory(task.status)
+  if (cat === 'completed' || cat === 'held') return 'other'
   if (!task.due_date) return 'other'
   const due = parseISO(task.due_date)
   if (!isValid(due)) return 'other'
@@ -117,8 +121,8 @@ const ChatPage: React.FC = () => {
     if (!currentUser || !globalData?.tasks) return { today: [], delayed: [], dueSoon: [], other: [] }
 
     const isTaskCompleted = (task: Task): boolean => {
-      const status = (task.status || '').toLowerCase()
-      return status === 'completed' || status === '完了'
+      // task_status_redesign_v2: 完了カテゴリ(ap/client_ap/deliver)を完了扱いで除外
+      return getTaskStatusCategory(task.status) === 'completed'
     }
 
     const relevantTasks: Task[] = []

@@ -51,6 +51,7 @@ export interface Task {
   status_history?: StatusHistoryEntry[]; // ★★★ 追加: ステータス履歴の配列 (Optional) ★★★
   created_at?: string | null;
   updated_at?: string | null;
+  completed_at?: string | null; // 完了カテゴリ(ap/client_ap/deliver)へ最初に遷移した日時
   has_validation_errors?: boolean; // ★★★ 追加: 無効なデータがあることを示すフラグ ★★★
   type?: string | null; // タスクタイプ
   priority?: 'low' | 'medium' | 'high' | 'LOW' | 'MEDIUM' | 'HIGH' | string | null;

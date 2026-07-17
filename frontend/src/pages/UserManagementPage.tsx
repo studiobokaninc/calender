@@ -27,6 +27,7 @@ import PhaseEditModal from '../components/PhaseEditModal';
 import { SelectChangeEvent } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid } from 'date-fns';
+import { getTaskStatusCategory } from '../utils/taskStatus';
 import { formatTaskLabel } from '../utils/taskLabel';
 
 /** タスクの表示カテゴリ（今日 / 遅延 / 期限間近 / その他）。1タスク1カテゴリで重複表示しない */
@@ -41,6 +42,9 @@ const taskTooltipSlotProps = {
 
 /** タスクがどのカテゴリに属するか（優先度: 今日 > 遅延 > 期限間近 > その他） */
 function getTaskCategory(task: Task): TaskDisplayCategory {
+  // task_status_redesign_v2: 完了カテゴリ(ap/client_ap/deliver)・待機/対象外(wt/omit)は遅延等に含めない
+  const cat = getTaskStatusCategory(task.status);
+  if (cat === 'completed' || cat === 'held') return 'other';
   if (!task.due_date) return 'other';
   const due = parseISO(task.due_date);
   if (!isValid(due)) return 'other';

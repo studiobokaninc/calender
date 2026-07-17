@@ -1880,7 +1880,7 @@ const TasksPage: React.FC = () => {
                                 onChange={handleSelectChange}
                             >
                                 {getStatusOptionsFor(currentTask.status).map(opt => (
-                                    <MenuItem key={opt.value} value={opt.value}>{opt.recommended ? `★ ${opt.label}` : opt.label}</MenuItem>
+                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
@@ -2337,7 +2337,7 @@ const TasksPage: React.FC = () => {
                                 }}
                             />
                             <ListItemText
-                                primary={opt.recommended ? `★ ${opt.label}` : opt.label}
+                                primary={opt.label}
                                 primaryTypographyProps={{ sx: { fontSize: '0.875rem', fontWeight: opt.recommended ? 700 : 500 } }}
                             />
                         </ListItemButton>

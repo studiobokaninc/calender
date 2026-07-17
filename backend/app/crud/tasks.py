@@ -165,6 +165,7 @@ def _task_row_to_dict(row: Any, history_map: Dict[int, List[Dict[str, Any]]]) ->
         'created_at': safe_isoformat(getattr(row, 'created_at', None)),
         'display_status': getattr(row, 'display_status', 'offline'),
         'updated_at': safe_isoformat(getattr(row, 'updated_at', None)),
+        'completed_at': safe_isoformat(getattr(row, 'completed_at', None)),
         'phases': phases,
         'check_items': check_items,
         'deliverables': getattr(row, 'deliverables', ""),

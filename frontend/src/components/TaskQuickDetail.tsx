@@ -28,9 +28,11 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
     getTaskStatusColor,
     getTaskStatusLabel,
-    getStatusOptionsFor,
+    getGatedStatusOptions,
     getTaskStatusCategory,
 } from '../utils/taskStatus';
+import { useAllowedTransitions } from '../hooks/useAllowedTransitions';
+import Tooltip from '@mui/material/Tooltip';
 
 interface TaskQuickDetailProps {
     task: Task;
@@ -59,6 +61,8 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
 
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
+
+    const { data: allowedTransitions } = useAllowedTransitions(task.id, true);
 
     // Form states
     const [editName, setEditName] = React.useState(task.name);
@@ -445,34 +449,41 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                             <TaskAltIcon fontSize="small" color="primary" /> ステータス
                         </Typography>
-                        {/* task_status_redesign_v2 §1.3: 推奨遷移(★)を先頭に。全9値を選択可能。 */}
+                        {/* task_status_redesign_v2 §1.3: 推奨遷移(★)を先頭に。BEの合法遷移・役職ルールに反する
+                            選択肢はグレーアウトし、理由をツールチップで示す(殿要求(b)/F-9)。 */}
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                            {getStatusOptionsFor(task.status).map((opt) => {
+                            {getGatedStatusOptions(task.status, allowedTransitions?.allowedNext, allowedTransitions?.actorRole).map((opt) => {
                                 const s = opt.value;
                                 const selected = task.status === s;
                                 const color = getTaskStatusColor(s);
+                                const tooltipTitle = opt.disabled
+                                    ? opt.disabledReason || '選択できません'
+                                    : (opt.recommended ? '推奨される次の遷移先' : '');
                                 return (
-                                    <Chip
-                                        key={s}
-                                        label={opt.label}
-                                        size="small"
-                                        title={opt.recommended ? '推奨される次の遷移先' : undefined}
-                                        onClick={() => onUpdate(task.id, { status: s })}
-                                        variant={selected ? "filled" : "outlined"}
-                                        sx={{
-                                            transition: 'all 0.2s',
-                                            px: 0.5,
-                                            backgroundColor: selected ? color : 'transparent',
-                                            color: selected ? 'white' : 'text.primary',
-                                            borderColor: color,
-                                            borderWidth: opt.recommended && !selected ? 2 : 1,
-                                            fontWeight: selected ? 700 : (opt.recommended ? 700 : 500),
-                                            '&:hover': {
-                                                backgroundColor: color,
-                                                color: 'white',
-                                            }
-                                        }}
-                                    />
+                                    <Tooltip key={s} title={tooltipTitle} disableHoverListener={!tooltipTitle}>
+                                        <span>
+                                            <Chip
+                                                label={opt.label}
+                                                size="small"
+                                                disabled={opt.disabled}
+                                                onClick={opt.disabled ? undefined : () => onUpdate(task.id, { status: s })}
+                                                variant={selected ? "filled" : "outlined"}
+                                                sx={{
+                                                    transition: 'all 0.2s',
+                                                    px: 0.5,
+                                                    backgroundColor: selected ? color : 'transparent',
+                                                    color: selected ? 'white' : 'text.primary',
+                                                    borderColor: color,
+                                                    borderWidth: opt.recommended && !selected ? 2 : 1,
+                                                    fontWeight: selected ? 700 : (opt.recommended ? 700 : 500),
+                                                    '&:hover': opt.disabled ? undefined : {
+                                                        backgroundColor: color,
+                                                        color: 'white',
+                                                    }
+                                                }}
+                                            />
+                                        </span>
+                                    </Tooltip>
                                 );
                             })}
                         </Box>

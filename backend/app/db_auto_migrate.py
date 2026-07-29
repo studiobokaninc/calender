@@ -232,7 +232,7 @@ def check_and_migrate_db():
         _v2_collapse = {
             'modeling': 'WIP', 'lookdev': 'WIP', 'caching': 'WIP', 'rig': 'WIP', 'facial': 'WIP',
             'v1qc': 'QC', 'dir_wt': 'QC',
-            'ap_fb': 'QC_FB', 'dir_fb': 'QC_FB', 'fix': 'QC_FB',
+            'ap_fb': 'QC_FB', 'dir_fb': 'QC_FB', 'fix': 'CLIENT_AP',
             'dir_ap': 'AP',
         }
         _case = ("CASE " + " ".join(f"WHEN LOWER(status)='{k}' THEN '{v}'" for k, v in _v2_collapse.items())

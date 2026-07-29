@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Header, status, Form, Upl
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, and_, func, text
 from typing import List, Optional
-from .. import models, schemas, database, security
-from ..crud.tasks import _resolve_dm_thread_id, _recalc_shot_status
+from .. import models, schemas, database, security, status_transitions
+from ..crud.tasks import _resolve_dm_thread_id, _recalc_shot_status, _enforce_status_transition
 from ..database import get_db
 from ..security import get_current_user
 from datetime import datetime
@@ -139,16 +139,28 @@ def approve_shot(
         raise HTTPException(status_code=404, detail="Shot not found")
 
     tasks = db.query(models.Task).filter(models.Task.shot_id == id).all()
-    for t in tasks:
-        if t.status == models.TaskStatus.DELIVER:
-            continue  # 完了済みタスクはAPPROVEDへ降格させない
-        t.status = models.TaskStatus.AP
-        db.add(models.TaskStatusHistory(
-            task_id=t.id,
-            status=t.status,
-            changed_at=now_jst_naive(),
-            changed_by=actor_id
-        ))
+    try:
+        for t in tasks:
+            if t.status == models.TaskStatus.DELIVER:
+                continue  # 完了済みタスクはAPPROVEDへ降格させない
+            # CON-3/BC-1: crud非経由の直代入経路にも遷移検証を通す(Score書込ゲートの抜け穴防止)。
+            # on: 違反時は TransitionError を送出(下のexceptで409/403へ変換)。
+            # warn(既定): 拒否せず logger.warning のみ(_enforce_status_transition内で実施済み)。
+            raw_status = t.status.value if hasattr(t.status, "value") else t.status
+            canonical_from = schemas.canonicalize_task_status(raw_status)
+            _enforce_status_transition(db, actor_id, db_shot.project_id, canonical_from, "ap", task_id=t.id)
+            t.status = models.TaskStatus.AP
+            db.add(models.TaskStatusHistory(
+                task_id=t.id,
+                status=t.status,
+                changed_at=now_jst_naive(),
+                changed_by=actor_id
+            ))
+    except status_transitions.TransitionError as exc:
+        db.rollback()
+        body = dict(exc.body)
+        http_status_code = body.pop("http_status", 409)
+        raise HTTPException(status_code=http_status_code, detail=body)
     _recalc_shot_status(db, id)
     db_shot.updated_at = now_jst_naive()
     db.commit()
@@ -165,6 +177,17 @@ def approve_task(
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
+
+    # CON-3/BC-1: crud非経由の直代入経路にも遷移検証を通す(Score書込ゲートの抜け穴防止)。
+    raw_status = db_task.status.value if hasattr(db_task.status, "value") else db_task.status
+    canonical_from = schemas.canonicalize_task_status(raw_status)
+    try:
+        warning = _enforce_status_transition(db, actor_id, db_task.project_id, canonical_from, "ap", task_id=db_task.id)
+    except status_transitions.TransitionError as exc:
+        body = dict(exc.body)
+        http_status_code = body.pop("http_status", 409)
+        raise HTTPException(status_code=http_status_code, detail=body)
+
     db_task.status = models.TaskStatus.AP
     db.add(models.TaskStatusHistory(
         task_id=db_task.id,
@@ -175,7 +198,10 @@ def approve_task(
     if db_task.shot_id:
         _recalc_shot_status(db, db_task.shot_id)
     db.commit()
-    return {"message": "approved", "task_id": task_id}
+    result = {"message": "approved", "task_id": task_id}
+    if warning:
+        result["warning"] = warning
+    return result
 
 @router.post("/look_distributions", response_model=schemas.LookDistribution, status_code=status.HTTP_201_CREATED)
 def create_look_distribution(
@@ -1683,7 +1709,16 @@ def create_score_user_role(
     409 を返すケース:
       - 同一 (user_id, project_id) が既存 (1 user は 1 project につき 1 role)
       - 同一 (project_id, role) が既存 (1 project は 1 role につき 1 user、director/PM の重複割当防止)
+    role は normalize_role() で正規化して保存する(表記ゆれによる UNIQUE 制約すり抜け・
+    role.in_(['pm','director']) リテラル比較でのプロジェクト可視性喪失を根治するため)。
+    未知の役職表記は 422 で親切に拒否する。
     """
+    normalized_role = status_transitions.normalize_role(payload.role)
+    if normalized_role is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"role='{payload.role}' は認識できません。認識可能な役職: {sorted(status_transitions.ROLE_RANK.keys())}",
+        )
     existing_user = db.query(models.ScoreUserRole).filter(
         models.ScoreUserRole.user_id == payload.user_id,
         models.ScoreUserRole.project_id == payload.project_id
@@ -1692,17 +1727,17 @@ def create_score_user_role(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="この user_id + project_id の組み合わせは既に登録されています")
     existing_role = db.query(models.ScoreUserRole).filter(
         models.ScoreUserRole.project_id == payload.project_id,
-        models.ScoreUserRole.role == payload.role
+        models.ScoreUserRole.role == normalized_role
     ).first()
     if existing_role:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"project_id={payload.project_id} には既に role='{payload.role}' の担当者 (user_id={existing_role.user_id}) が割り当てられています。先に既存割当を削除・変更してください。",
+            detail=f"project_id={payload.project_id} には既に role='{normalized_role}' の担当者 (user_id={existing_role.user_id}) が割り当てられています。先に既存割当を削除・変更してください。",
         )
     new_role = models.ScoreUserRole(
         user_id=payload.user_id,
         project_id=payload.project_id,
-        role=payload.role
+        role=normalized_role
     )
     db.add(new_role)
     db.commit()
@@ -1718,23 +1753,30 @@ def update_score_user_role(
     current_user: models.User = Depends(get_current_user)
 ):
     """Score制作ロールのroleフィールドを変更。
+    role は normalize_role() で正規化して保存する。未知の役職表記は 422。
     変更後の (project_id, role) が別レコードと衝突する場合は 409。
     """
     target = db.query(models.ScoreUserRole).filter(models.ScoreUserRole.id == role_id).first()
     if not target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="指定されたロール割当が見つかりません")
-    if payload.role != target.role:
+    normalized_role = status_transitions.normalize_role(payload.role)
+    if normalized_role is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"role='{payload.role}' は認識できません。認識可能な役職: {sorted(status_transitions.ROLE_RANK.keys())}",
+        )
+    if normalized_role != target.role:
         conflict = db.query(models.ScoreUserRole).filter(
             models.ScoreUserRole.project_id == target.project_id,
-            models.ScoreUserRole.role == payload.role,
+            models.ScoreUserRole.role == normalized_role,
             models.ScoreUserRole.id != role_id,
         ).first()
         if conflict:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"project_id={target.project_id} には既に role='{payload.role}' の担当者 (user_id={conflict.user_id}) が割り当てられています",
+                detail=f"project_id={target.project_id} には既に role='{normalized_role}' の担当者 (user_id={conflict.user_id}) が割り当てられています",
             )
-    target.role = payload.role
+    target.role = normalized_role
     db.commit()
     db.refresh(target)
     return target

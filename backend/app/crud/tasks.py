@@ -15,11 +15,114 @@ from .base import _parse_datetime, _parse_int_safe, _safe_json_load
 logger = logging.getLogger(__name__)
 
 from ..status_meta import COMPLETED_STATUSES
+from .. import status_transitions
 
 # task_status_redesign_v2 のカテゴリ集合（status_meta を単一の真実として参照）
 _COMPLETED_STATUSES = set(COMPLETED_STATUSES)   # {ap, client_ap, deliver}
 _HELD_STATUSES = {"omit"}  # Shot 集約から除外する状態（wt は集約では未着手扱い）
 _TODO_STATUSES = {"wt", "mk"}  # Shot 集約で「計画中」とみなす未着手系
+
+
+# --- 遷移検証(subtask_681b / gunshi_report.yaml CON-1〜5) 共通ヘルパー ---
+# routers/score.py の approve_shot/approve_task (CON-3) からも import して使う。
+
+def _actor_is_admin(db: Session, actor_id: Optional[int]) -> bool:
+    """F-8: admin は常にバイパス可(既存 mcp_server.py:1034 の思想を踏襲)。"""
+    if not actor_id:
+        return False
+    user = db.query(models.User).filter(models.User.id == actor_id).first()
+    return bool(user and user.role == "admin")
+
+
+def _actor_project_role(db: Session, actor_id: Optional[int], project_id: Optional[int]) -> Optional[str]:
+    """プロジェクト単位の制作役職(score_user_roles)を引く。未割当は None(=role_not_permitted扱い/F-7)。"""
+    if not actor_id or not project_id:
+        return None
+    row = db.query(models.ScoreUserRole).filter(
+        models.ScoreUserRole.user_id == actor_id,
+        models.ScoreUserRole.project_id == project_id,
+    ).first()
+    return row.role if row else None
+
+
+def _who_can_do_this(db: Session, project_id: Optional[int], required_role: Optional[str]) -> list:
+    """role_not_permitted エラーの who_can_do_this を ScoreUserRole から充填する。
+    連絡先等は含めず user_id/username/role の3項目のみ返す(個人情報最小化)。"""
+    roles = status_transitions.roles_meeting_requirement(required_role)
+    if not project_id or not roles:
+        return []
+    rows = db.query(models.ScoreUserRole, models.User).join(
+        models.User, models.User.id == models.ScoreUserRole.user_id
+    ).filter(
+        models.ScoreUserRole.project_id == project_id,
+        models.ScoreUserRole.role.in_(roles),
+    ).all()
+    return [{"user_id": u.id, "username": u.username, "role": sur.role} for sur, u in rows]
+
+
+def _validate_status_transition(
+    db: Session, actor_id: Optional[int], project_id: Optional[int],
+    from_status: Optional[str], to_status: Optional[str],
+) -> Optional[dict]:
+    """CON-3/CON-4/CON-5: 検証本体。合法(またはadminバイパス)なら None。
+    違反時は explain_transition の body(dict)を返す(who_can_do_this を実データで充填済み)。
+    from/to は canonicalize_task_status 通過後の値で呼ぶこと(CON-5)。"""
+    if _actor_is_admin(db, actor_id):
+        return None
+    actor_role = _actor_project_role(db, actor_id, project_id)
+    violation = status_transitions.validate_transition(from_status, to_status, actor_role)
+    if violation and violation.get("error") == "role_not_permitted":
+        violation["who_can_do_this"] = _who_can_do_this(db, project_id, violation.get("required_role"))
+    return violation
+
+
+def _enforce_status_transition(
+    db: Session, actor_id: Optional[int], project_id: Optional[int],
+    from_status: Optional[str], to_status: Optional[str], *, task_id: Optional[int] = None,
+) -> Optional[dict]:
+    """TASK_TRANSITION_ENFORCE(off/warn/on, 既定warn)を適用する(CON-2)。
+    on: 違反時に TransitionError を送出(呼び出し側で拒否・副作用ゼロを保証すること)。
+    warn: 拒否せず warning dict を返す(呼び出し側が logger.warning + レスポンス同梱に使う)。
+    off: 何もしない(検証自体を評価しない)。"""
+    mode = status_transitions.get_enforce_mode()
+    if mode == "off":
+        return None
+    violation = _validate_status_transition(db, actor_id, project_id, from_status, to_status)
+    if not violation:
+        return None
+    if mode == "on":
+        raise status_transitions.TransitionError(violation)
+    logger.warning(
+        "TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=%s %s→%s error=%s",
+        task_id, from_status, to_status, violation.get("error"),
+    )
+    return violation
+
+
+def _enforce_assignee_change(
+    db: Session, actor_id: Optional[int], project_id: Optional[int], *, task_id: Optional[int] = None,
+) -> Optional[dict]:
+    """F681-3: assigned_to(担当者)変更の独立ゲート(status遷移検証とは別・混同しない)。
+    Casper依頼書§02「アサイン wt/mk→担当設定 Lead以上」の実装。
+    TASK_TRANSITION_ENFORCE(off/warn/on、既定warn)に従う点は _enforce_status_transition と同じ。
+    LORD-4(本番DBの実role値)未確認のうちはwarnのまま(hard blockで業務停止を招かないための予防線)。"""
+    mode = status_transitions.get_enforce_mode()
+    if mode == "off":
+        return None
+    if _actor_is_admin(db, actor_id):
+        return None  # F-8: adminは常にバイパス
+    actor_role = _actor_project_role(db, actor_id, project_id)
+    violation = status_transitions.explain_assignee_change(actor_role)
+    if not violation:
+        return None
+    violation["who_can_do_this"] = _who_can_do_this(db, project_id, violation.get("required_role"))
+    if mode == "on":
+        raise status_transitions.TransitionError(violation)
+    logger.warning(
+        "TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=%s actor_id=%s error=%s",
+        task_id, actor_id, violation.get("error"),
+    )
+    return violation
 
 # shots.py SHOT_CODE_REGEX と同一パターン（routers→crud の逆依存回避のため inline 定義）。
 # ★案B緩和（cmd_496 / 2026-06-12）で両所を同時更新。shots.py:SHOT_CODE_REGEX と必ず一致させること。
@@ -602,6 +705,30 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, 
     )
     original_progress = db_task.progress
 
+    # --- CON-3/CON-4/CON-5: 検証は全setattrより前・canonicalize後の値で行う ---
+    transition_warning = None
+    raw_new_status = update_data.get("status", update_data.get("taskStatus"))
+    if raw_new_status is not None:
+        raw_new_status_str = raw_new_status.value if hasattr(raw_new_status, "value") else raw_new_status
+        canonical_from = schemas.canonicalize_task_status(original_status)
+        canonical_to = schemas.canonicalize_task_status(raw_new_status_str)
+        if canonical_from != canonical_to:
+            transition_warning = _enforce_status_transition(
+                db, actor_id, db_task.project_id, canonical_from, canonical_to, task_id=db_task.id,
+            )
+
+    # --- F681-3: assigned_to(担当者)変更ゲート。status遷移検証(上のブロック)とは
+    # 独立した別ゲート(混同禁止)。こちらも全setattrより前・canonicalize不要の生値で判定する。
+    assignee_warning = None
+    if "assigned_to" in update_data:
+        new_assignee_id = (
+            _parse_int_safe(update_data["assigned_to"]) if update_data["assigned_to"] is not None else None
+        )
+        if new_assignee_id != db_task.assigned_to:
+            assignee_warning = _enforce_assignee_change(
+                db, actor_id, db_task.project_id, task_id=db_task.id,
+            )
+
     # フィールド名のマッピング定義
     field_map = {
         "title": ("name", None),
@@ -687,11 +814,41 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, 
 
     db.commit()
     db.refresh(db_task)
+    combined_warnings = [w for w in (transition_warning, assignee_warning) if w]
+    db_task.warnings = combined_warnings or None
     return db_task
 
 def bulk_update_tasks(db: Session, task_ids: List[int], updates: dict, actor_id: Optional[int] = None) -> int:
-    """複数タスクに同じ更新を適用。更新したタスク数を返す。"""
+    """複数タスクに同じ更新を適用。更新したタスク数を返す。
+
+    BC-2: status変更を含む場合は all-or-nothing とする。全件を先に検証し、
+    1件でも(on モードで)違反があれば何も変更せず TransitionError(違反明細配列込み)を送出する。
+    (warn/off モードでは検証しても拒否しないため、通常どおり全件適用する。)
+    """
     tasks = db.query(models.Task).filter(models.Task.id.in_(task_ids)).all()
+
+    new_status_raw = updates.get("status")
+    if new_status_raw is not None and status_transitions.get_enforce_mode() == "on":
+        canonical_to = schemas.canonicalize_task_status(
+            new_status_raw.value if hasattr(new_status_raw, "value") else new_status_raw
+        )
+        violations = []
+        for task in tasks:
+            original_status = task.status.value if hasattr(task.status, "value") else task.status
+            canonical_from = schemas.canonicalize_task_status(original_status)
+            if canonical_from == canonical_to:
+                continue
+            violation = _validate_status_transition(db, actor_id, task.project_id, canonical_from, canonical_to)
+            if violation:
+                violations.append({"task_id": task.id, **violation})
+        if violations:
+            raise status_transitions.TransitionError({
+                "http_status": 409,
+                "error": "bulk_illegal_transition",
+                "detail": f"{len(violations)}件のタスクが違法な遷移を含むため、一括更新を中断しました(all-or-nothing)。",
+                "violations": violations,
+            })
+
     count = 0
     for task in tasks:
         # updates が dict なので、schemas.TaskUpdate に変換して共通ロジックを通す

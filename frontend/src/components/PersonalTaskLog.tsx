@@ -2,12 +2,17 @@ import React, { useMemo, useState } from 'react';
 import {
     Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
     FormControl, InputLabel, Select, MenuItem, Chip, Card, CardContent, Grid, Divider,
-    FormControlLabel, Checkbox, useTheme, useMediaQuery, TableSortLabel,
+    FormControlLabel, Checkbox, useTheme, useMediaQuery, TableSortLabel, Tooltip,
 } from '@mui/material';
 import { Task, User, Project } from '../types';
 import { format, parseISO, isValid, differenceInCalendarDays } from 'date-fns';
 import { getTaskStatusCategory, getTaskStatusLabel, getTaskStatusColor } from '../utils/taskStatus';
 import { useAuth } from '../contexts/AuthContext';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import AssignmentLateIcon from '@mui/icons-material/AssignmentLate';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 
 interface PersonalTaskLogProps {
     tasks: Task[];
@@ -28,6 +33,9 @@ interface LogRow {
     delayDays: number | null;
     onTime: boolean | null; // 完了かつ期日ありのみ true/false。それ以外 null
     cost: number;
+    description: string;
+    taskType: string;
+    priority: string;
 }
 
 type Order = 'asc' | 'desc';
@@ -61,6 +69,7 @@ const completionDateFromHistory = (t: Task): string | null => {
 
 const PersonalTaskLog: React.FC<PersonalTaskLogProps> = ({ tasks, users, projects }) => {
     const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const { user: authUser } = useAuth();
 
@@ -83,6 +92,8 @@ const PersonalTaskLog: React.FC<PersonalTaskLogProps> = ({ tasks, users, project
         if (pid == null) return '（プロジェクトなし）';
         return projects.find(p => p.id === pid)?.name ?? `ID:${pid}`;
     };
+
+
 
     const rows: LogRow[] = useMemo(() => {
         if (selectedUserId === '') return [];
@@ -119,6 +130,9 @@ const PersonalTaskLog: React.FC<PersonalTaskLogProps> = ({ tasks, users, project
                 delayDays,
                 onTime,
                 cost: typeof t.cost === 'number' ? t.cost : 0,
+                description: t.description || '',
+                taskType: t.type || '',
+                priority: t.priority || '',
             };
         });
         const filtered = completedOnly ? built.filter(r => r.isCompleted) : built;
@@ -144,9 +158,15 @@ const PersonalTaskLog: React.FC<PersonalTaskLogProps> = ({ tasks, users, project
         const onTimeCount = completedWithDue.filter(r => r.onTime === true).length;
         const totalCost = rows.reduce((s, r) => s + r.cost, 0);
         const completedCost = completed.reduce((s, r) => s + r.cost, 0);
+        
+        // 最新合意予定基準オンスケジュール率（件数ベース）
         const onScheduleRate = completedWithDue.length > 0
             ? (onTimeCount / completedWithDue.length) * 100
             : null;
+
+        // 現在の期限超過タスク数 (未完了かつ超過)
+        const overdueCount = rows.filter(r => !r.isCompleted && r.delayDays !== null && r.delayDays > 0).length;
+
         return {
             total: rows.length,
             completedCount: completed.length,
@@ -155,6 +175,7 @@ const PersonalTaskLog: React.FC<PersonalTaskLogProps> = ({ tasks, users, project
             onTimeCount,
             completedWithDueCount: completedWithDue.length,
             onScheduleRate,
+            overdueCount,
         };
     }, [rows]);
 
@@ -169,22 +190,22 @@ const PersonalTaskLog: React.FC<PersonalTaskLogProps> = ({ tasks, users, project
         }
         if (r.isCompleted) {
             if (r.delayDays === 0) {
-                // 期日ちょうどに完了
-                return <Chip size="small" label="ピッタリ (±0日)"
-                    sx={{ bgcolor: '#E3F2FD', color: '#1565C0', fontWeight: 700 }} />;
+                // 期日ちょうどに完了 (±0日 ピッタリ -> 緑)
+                return <Chip size="small" label="±0日 (ピッタリ)"
+                    sx={{ bgcolor: isDark ? 'rgba(76, 175, 80, 0.15)' : '#E8F5E9', color: isDark ? '#a5d6a7' : '#2E7D32', fontWeight: 700 }} />;
             }
             if (r.delayDays < 0) {
-                // 期日より早い（前倒し）
+                // 期日より早い（前倒し -> 青）
                 return <Chip size="small" label={`${r.delayDays}日 (前倒し)`}
-                    sx={{ bgcolor: '#E8F5E9', color: '#2E7D32', fontWeight: 700 }} />;
+                    sx={{ bgcolor: isDark ? 'rgba(33, 150, 243, 0.15)' : '#E3F2FD', color: isDark ? '#90caf9' : '#1565C0', fontWeight: 700 }} />;
             }
-            // 期日より遅い（遅れ）
+            // 期日より遅い（遅れ -> 赤）
             return <Chip size="small" label={`+${r.delayDays}日 (遅れ)`}
-                sx={{ bgcolor: '#FFEBEE', color: '#C62828', fontWeight: 700 }} />;
+                sx={{ bgcolor: isDark ? 'rgba(244, 67, 54, 0.15)' : '#FFEBEE', color: isDark ? '#ef9a9a' : '#C62828', fontWeight: 700 }} />;
         }
-        // 未完了で超過
+        // 未完了で超過 (超過 -> 赤)
         return <Chip size="small" label={`+${r.delayDays}日 (未完了・超過)`}
-            sx={{ bgcolor: '#FFF3E0', color: '#E65100', fontWeight: 700 }} />;
+            sx={{ bgcolor: isDark ? 'rgba(244, 67, 54, 0.15)' : '#FFEBEE', color: isDark ? '#ef9a9a' : '#C62828', fontWeight: 700 }} />;
     };
 
     return (
@@ -212,41 +233,118 @@ const PersonalTaskLog: React.FC<PersonalTaskLogProps> = ({ tasks, users, project
                 />
             </Box>
 
-            {/* サマリカード */}
+            {/* 個人評価メトリクス */}
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDark ? '#9fa8da' : '#3F51B5', mb: 1.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <ShowChartIcon fontSize="small" /> 個人評価メトリクス
+            </Typography>
+
+            {/* 実績サマリー */}
             <Grid container spacing={1.5} sx={{ mb: 2 }}>
-                <Grid item xs={6} sm={3}>
-                    <Card variant="outlined"><CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Typography variant="caption" color="text.secondary">完了 / 総数</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                            {summary.completedCount} <Typography component="span" variant="body2" color="text.secondary">/ {summary.total}</Typography>
-                        </Typography>
-                    </CardContent></Card>
+                {/* 完了/総数 */}
+                <Grid item xs={12} sm={4} md={4}>
+                    <Card variant="outlined" sx={{ height: '100%', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'divider', transition: 'all 0.2s', '&:hover': { boxShadow: 1, borderColor: isDark ? '#9fa8da' : '#3F51B5' } }}>
+                        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>完了件数 / 総タスク数</Typography>
+                                <Tooltip title="集計期間中の担当完了タスク数と、総登録タスク数（OMITを除く）の割合です。" arrow>
+                                    <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
+                                </Tooltip>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                <CheckCircleIcon sx={{ color: '#4CAF50', fontSize: 20 }} />
+                                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                    {summary.completedCount} <Typography component="span" variant="body2" color="text.secondary">/ {summary.total}</Typography>
+                                </Typography>
+                            </Box>
+                        </CardContent>
+                    </Card>
                 </Grid>
-                <Grid item xs={6} sm={3}>
-                    <Card variant="outlined"><CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Typography variant="caption" color="text.secondary">合計コスト（完了分）</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                            {summary.totalCost.toLocaleString()} <Typography component="span" variant="body2" color="text.secondary">（{summary.completedCost.toLocaleString()}）</Typography>
-                        </Typography>
-                    </CardContent></Card>
+
+                {/* 合計予定工数 */}
+                <Grid item xs={12} sm={4} md={4}>
+                    <Card variant="outlined" sx={{ height: '100%', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'divider', transition: 'all 0.2s', '&:hover': { boxShadow: 1, borderColor: isDark ? '#9fa8da' : '#3F51B5' } }}>
+                        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>予定工数合計 (完了分)</Typography>
+                                <Tooltip title="担当タスクの予定工数（コスト）の総和と、完了済みタスクが占める割合です。" arrow>
+                                    <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
+                                </Tooltip>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                <AccessTimeIcon sx={{ color: '#00BCD4', fontSize: 20 }} />
+                                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                    {summary.totalCost.toLocaleString()} <Typography component="span" variant="body2" color="text.secondary">H （{summary.completedCost.toLocaleString()}H）</Typography>
+                                </Typography>
+                            </Box>
+                        </CardContent>
+                    </Card>
                 </Grid>
-                <Grid item xs={6} sm={3}>
-                    <Card variant="outlined"><CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Typography variant="caption" color="text.secondary">オンスケジュール率</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: summary.onScheduleRate == null ? 'text.secondary' : (summary.onScheduleRate >= 80 ? '#2E7D32' : summary.onScheduleRate >= 50 ? '#E65100' : '#C62828') }}>
-                            {summary.onScheduleRate == null ? '—' : `${summary.onScheduleRate.toFixed(1)}%`}
-                        </Typography>
-                    </CardContent></Card>
-                </Grid>
-                <Grid item xs={6} sm={3}>
-                    <Card variant="outlined"><CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Typography variant="caption" color="text.secondary">期日内完了 / 完了(期日あり)</Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                            {summary.onTimeCount} <Typography component="span" variant="body2" color="text.secondary">/ {summary.completedWithDueCount}</Typography>
-                        </Typography>
-                    </CardContent></Card>
+
+                {/* 現在の期限超越タスク数 */}
+                <Grid item xs={12} sm={4} md={4}>
+                    <Card 
+                        variant="outlined" 
+                        sx={{ 
+                            height: '100%', 
+                            borderColor: summary.overdueCount > 0 ? (isDark ? '#e53935' : '#ffcdd2') : (isDark ? 'rgba(255, 255, 255, 0.12)' : 'divider'),
+                            bgcolor: summary.overdueCount > 0 ? (isDark ? 'rgba(229, 57, 53, 0.15)' : 'rgba(255, 235, 235, 0.15)') : 'transparent',
+                            transition: 'all 0.2s', 
+                            '&:hover': { boxShadow: 1, borderColor: isDark ? '#ef5350' : '#f44336' } 
+                        }}
+                    >
+                        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>現在の期限超過タスク数</Typography>
+                                <Tooltip title="現在完了していないタスクのうち、期日を過ぎているタスクの件数です。" arrow>
+                                    <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary', cursor: 'help' }} />
+                                </Tooltip>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                <AssignmentLateIcon sx={{ color: summary.overdueCount > 0 ? '#f44336' : 'text.secondary', fontSize: 20 }} />
+                                <Typography variant="h6" sx={{ fontWeight: 700, color: summary.overdueCount > 0 ? (isDark ? '#ef5350' : '#f44336') : 'text.primary' }}>
+                                    {summary.overdueCount} <Typography component="span" variant="body2" color="text.secondary">件</Typography>
+                                </Typography>
+                            </Box>
+                        </CardContent>
+                    </Card>
                 </Grid>
             </Grid>
+
+            {/* オンスケジュール率分析 */}
+            <Grid container spacing={2} sx={{ mb: 2 }}>
+                {/* 件数ベースのオンスケ率 */}
+                <Grid item xs={12}>
+                    <Card variant="outlined" sx={{ height: '100%', borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'divider' }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: isDark ? '#9fa8da' : '#3F51B5' }}>
+                                    オンスケジュール率 (件数ベース)
+                                </Typography>
+                                <Tooltip title="期限内に完了した件数 ÷ 期日が設定されていた全完了件数 × 100" arrow>
+                                    <HelpOutlineIcon sx={{ fontSize: 18, color: 'text.secondary', cursor: 'help' }} />
+                                </Tooltip>
+                            </Box>
+                            <Box sx={{ p: 1.5, bgcolor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#f5f5f5', borderRadius: 1 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>最新合意予定基準</Typography>
+                                <Typography 
+                                    variant="h5" 
+                                    sx={{ 
+                                        fontWeight: 800, 
+                                        color: summary.onScheduleRate == null ? 'text.secondary' : (summary.onScheduleRate >= 80 ? (isDark ? '#81c784' : '#2E7D32') : summary.onScheduleRate >= 50 ? (isDark ? '#ffb74d' : '#E65100') : (isDark ? '#e57373' : '#C62828')) 
+                                    }}
+                                >
+                                    {summary.onScheduleRate == null ? '—' : `${summary.onScheduleRate.toFixed(1)}%`}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                    （{summary.onTimeCount} / {summary.completedWithDueCount}件）
+                                </Typography>
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+
+
 
             <Divider sx={{ mb: 1 }} />
 

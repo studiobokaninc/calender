@@ -5,6 +5,19 @@
 import { parseISO, addDays, isSameDay, setHours, setMinutes } from 'date-fns';
 import { CalendarEvent, Task, Project, Group, BackendEvent, User } from '../types';
 import { getTaskColor, getProjectColor, getEventColor, normalizeEventType } from './calendarEventColors';
+import { canonicalizeStatus } from './taskStatus';
+
+const STATUS_ORDER: Record<string, number> = {
+    'wt':        1,
+    'mk':        2,
+    'wip':       3,
+    'qc':        4,
+    'qc_fb':     5,
+    'ap':        6,
+    'client_ap': 7,
+    'deliver':   8,
+    'omit':      9,
+};
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sort
@@ -56,7 +69,19 @@ export const sortEventsForDisplay = (eventsToSort: CalendarEvent[]): CalendarEve
         if (typeLower === 'task' || a.extendedProps?.isPhase) {
             const aDueDate = a.extendedProps.taskDueDate ? new Date(a.extendedProps.taskDueDate).getTime() : 0;
             const bDueDate = b.extendedProps.taskDueDate ? new Date(b.extendedProps.taskDueDate).getTime() : 0;
-            return aDueDate - bDueDate || (a.title || '').localeCompare(b.title || '');
+            if (aDueDate !== bDueDate) return aDueDate - bDueDate;
+
+            const isTaskA = typeLower === 'task' && !a.extendedProps?.isPhase;
+            const isTaskB = (b.extendedProps?.type || '').toLowerCase() === 'task' && !b.extendedProps?.isPhase;
+            if (isTaskA && isTaskB) {
+                const orderA = STATUS_ORDER[canonicalizeStatus(a.extendedProps?.taskStatus) ?? ''] ?? 99;
+                const orderB = STATUS_ORDER[canonicalizeStatus(b.extendedProps?.taskStatus) ?? ''] ?? 99;
+                if (orderA !== orderB) {
+                    return orderA - orderB;
+                }
+            }
+
+            return (a.title || '').localeCompare(b.title || '');
         }
 
         const aStart = a.start ? new Date(a.start).getTime() : 0;

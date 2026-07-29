@@ -177,6 +177,118 @@ export const getStatusOptionsFor = (current?: string | null): StatusOption[] => 
 };
 
 // ---------------------------------------------------------------------------
+// 選択肢のグレーアウト (殿要求(b)/F-9「そもそも選ばせない」)
+// バックエンド backend/app/status_transitions.py が単一の真実源。
+// GET /tasks/{task_id}/allowed-transitions (または TaskResponse.allowed_next) の
+// レスポンスを渡すと、合法遷移グラフ・役職ルールに基づき選択不可の選択肢を判定する。
+// ---------------------------------------------------------------------------
+export interface AllowedTransitionEntry {
+  status: string;
+  label: string;
+  color: string;
+  category: string | null;
+  role_required: string | null;
+  role_source: string;
+  hint: string;
+  // /tasks/{id}/allowed-transitions のみに含まれる (TaskResponse.allowed_next には無い=N+1回避)。
+  permitted_for_actor?: boolean;
+  // BE status_transitions.py TRANSITION_OWNER/OWNER_LABEL と同期。「誰の作業か」の表示用。
+  owner?: string;
+  owner_label?: string;
+  // BE status_transitions.py role_not_permitted body(改訂2)と同期。
+  // normalize_role が actor の生役職値を認識できなかった場合に false。
+  actor_role_recognized?: boolean;
+  recognized_roles?: string[];
+}
+
+// backend/app/status_transitions.py _ROLE_REQUIRED_JP と同期。
+const ROLE_REQUIRED_LABEL_JP: Record<string, string> = {
+  lead_or_above: 'Lead以上',
+  pm_or_above: 'PM以上',
+  director_or_above: 'Director以上',
+};
+
+// backend/app/status_transitions.py UNCONFIRMED_TRANSITIONS と同期
+// (§03「逆行・復帰」制作部確定待ち。illegal_transitionとは別扱いのため理由文言を変える)。
+const PENDING_CONFIRMATION_TRANSITIONS: Record<string, string[]> = {
+  ap: ['qc_fb', 'qc'],
+  client_ap: ['ap'],
+  deliver: ['wt', 'mk', 'wip', 'qc', 'qc_fb', 'ap', 'client_ap'],
+  omit: ['wt', 'mk', 'wip', 'qc', 'qc_fb', 'ap', 'client_ap', 'deliver'],
+};
+
+export interface GatedStatusOption extends StatusOption {
+  disabled: boolean;
+  disabledReason: string | null;
+}
+
+// allowedNext が未取得(null/undefined)の場合は何もグレーアウトしない
+// (取得失敗時に既存の「全選択可」動作へ安全にフォールバックする)。
+export const getGatedStatusOptions = (
+  current: string | null | undefined,
+  allowedNext: AllowedTransitionEntry[] | null | undefined,
+  actorRole?: string | null,
+): GatedStatusOption[] => {
+  const base = getStatusOptionsFor(current);
+  if (!allowedNext) {
+    return base.map(o => ({ ...o, disabled: false, disabledReason: null }));
+  }
+  const canonicalCurrent = canonicalizeStatus(current);
+  const byStatus = new Map(allowedNext.map(e => [e.status, e]));
+
+  return base.map(o => {
+    // 現在値自体は常に選択可 (no-op、BE is_transition_allowed の same→same 許可に合わせる)
+    if (o.value === canonicalCurrent) {
+      return { ...o, disabled: false, disabledReason: null };
+    }
+    const entry = byStatus.get(o.value);
+    if (!entry) {
+      const pending = canonicalCurrent
+        ? (PENDING_CONFIRMATION_TRANSITIONS[canonicalCurrent] || []).includes(o.value)
+        : false;
+      return {
+        ...o,
+        disabled: true,
+        disabledReason: pending
+          ? '制作部にて確定待ちです(逆行・復帰は現在未確定のため選択できません)'
+          : '現在のステータスから直接進めません',
+      };
+    }
+    // permitted_for_actor が無い(=一覧APIのTaskResponse.allowed_next)場合は役職チェック未実施のため
+    // 楽観的に選択可とする(実更新時にBE側でrole_not_permittedとして最終検証される)。
+    if (entry.permitted_for_actor === false) {
+      if (entry.actor_role_recognized === false) {
+        const recognized = entry.recognized_roles?.length
+          ? entry.recognized_roles.join(' / ')
+          : 'Director / PM / Lead / Compositor / アーティスト';
+        // F682b-3: 「未登録」(raw値がnull/空)と「未知値」(何か入っているが認識不可)は
+        // 実態が異なるため文言を分ける。未登録多数派に「認識できません」(誤入力を疑わせる)
+        // 文言を出すと誤誘導になる。
+        const isUnset = !actorRole || actorRole.trim() === '';
+        return {
+          ...o,
+          disabled: true,
+          disabledReason: isUnset
+            ? 'あなたには役職が設定されていません。管理者に役職登録を依頼してください。'
+            : `あなたの役職(${actorRole})は認識できません。認識可能な役職: ${recognized}。`,
+        };
+      }
+      const roleLabel = entry.role_required
+        ? ROLE_REQUIRED_LABEL_JP[entry.role_required] || entry.role_required
+        : null;
+      return {
+        ...o,
+        disabled: true,
+        disabledReason: roleLabel
+          ? `${roleLabel}の役職が必要です(現在の役職: ${actorRole || '未設定'})`
+          : '権限が不足しています',
+      };
+    }
+    return { ...o, disabled: false, disabledReason: null };
+  });
+};
+
+// ---------------------------------------------------------------------------
 // プロジェクト全体進捗のウェイト (§4)
 // omit は null = 分母分子ともに除外扱い
 // ---------------------------------------------------------------------------
@@ -293,7 +405,7 @@ const LEGACY_STATUS_MAP: Record<string, TaskStatus> = {
   dir_wt: 'qc',
   ap_fb: 'qc_fb',
   dir_fb: 'qc_fb',
-  fix: 'qc_fb',
+  fix: 'client_ap',
   dir_ap: 'ap',
 };
 

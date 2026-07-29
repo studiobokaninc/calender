@@ -223,6 +223,10 @@ class Task(Base):
     project: Mapped[Optional["Project"]] = relationship("Project")
     shot: Mapped[Optional["Shot"]] = relationship("Shot")
 
+    @property
+    def shot_code(self) -> Optional[str]:
+        return self.shot.shot_code if self.shot else None
+
     status_history: Mapped[List["TaskStatusHistory"]] = relationship(
         back_populates="task",
         order_by="TaskStatusHistory.changed_at",

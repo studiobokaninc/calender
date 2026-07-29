@@ -185,6 +185,18 @@ def get_task(
     return schemas.ReadonlyTask.from_orm(row)
 
 
+@router.get("/tasks/{task_id}/thread", response_model=schemas.ReadonlyTaskThread)
+def get_task_thread(
+    task_id: int,
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    row = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return schemas.ReadonlyTaskThread(task_id=task_id, thread_id=row.thread_id)
+
+
 # ---- Events ----
 
 @router.get("/events", response_model=schemas.ReadonlyListResponse)
@@ -333,6 +345,47 @@ def get_task_statuses(
     """ステータスメタデータ一覧 (凡例・フィルタ・ピッカー用)"""
     from app.status_meta import STATUS_META_LIST
     return STATUS_META_LIST
+
+
+@router.get("/task-status-transitions", response_model=list[dict])
+def get_task_status_transitions(
+    _: None = Depends(verify_readonly_token),
+):
+    """遷移グラフ全体(凡例・UIピッカー・Casperの静的理解用)。
+    confirmed=true は合法遷移グラフ(status_transitions.TRANSITIONS、Casper依頼書§02またはSTATUS_PROGRESS_WEIGHT
+    工程順に根拠あり)。confirmed=false は§03「逆行・復帰」制作部確定待ち(UNCONFIRMED_TRANSITIONS)。
+    出典: queue/reports/gunshi_report.yaml (subtask_681a)。"""
+    from app import status_transitions as st
+    from app.status_meta import ACTIVE_STATUSES, STATUS_CATEGORY, STATUS_COLOR, STATUS_LABEL
+
+    rows = []
+    for from_status in sorted(ACTIVE_STATUSES):
+        for to_status in sorted(st.TRANSITIONS.get(from_status, frozenset())):
+            role_required = st.ROLE_RULES.get((from_status, to_status))
+            rows.append({
+                "from": from_status,
+                "to": to_status,
+                "label": STATUS_LABEL.get(to_status, to_status),
+                "color": STATUS_COLOR.get(to_status, "#BDBDBD"),
+                "category": STATUS_CATEGORY.get(to_status),
+                "role_required": role_required,
+                "role_source": st.ROLE_RULE_SOURCE if role_required else "unconfirmed",
+                "confirmed": True,
+                "reason": None,
+            })
+        for to_status in sorted(st.UNCONFIRMED_TRANSITIONS.get(from_status, frozenset())):
+            rows.append({
+                "from": from_status,
+                "to": to_status,
+                "label": STATUS_LABEL.get(to_status, to_status),
+                "color": STATUS_COLOR.get(to_status, "#BDBDBD"),
+                "category": STATUS_CATEGORY.get(to_status),
+                "role_required": None,
+                "role_source": "unconfirmed",
+                "confirmed": False,
+                "reason": "Casper依頼書§03「逆行・復帰」制作部確定待ち",
+            })
+    return rows
 
 
 @router.get("/onschedule")

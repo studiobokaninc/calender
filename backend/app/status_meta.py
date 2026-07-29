@@ -37,7 +37,7 @@ LEGACY_STATUS_MAP: dict[str, str] = {
     "dir_wt": "qc",
     "ap_fb": "qc_fb",
     "dir_fb": "qc_fb",
-    "fix": "qc_fb",
+    "fix": "client_ap",
     "dir_ap": "ap",
 }
 

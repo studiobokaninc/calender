@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select, MenuItem, FormControl, InputLabel,
   Stack, CircularProgress, Alert, SelectChangeEvent, Box, Chip, Divider, Typography, Checkbox, FormControlLabel, IconButton,
+  Tooltip,
 } from '@mui/material';
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import api, { mockDataApi, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
 import { usePageState } from '../contexts/PageStateContext';
 import { Project, Task, User, BackendEvent, CalendarEvent } from '../types';
-import { getStatusOptionsFor } from '../utils/taskStatus';
+import { getGatedStatusOptions } from '../utils/taskStatus';
+import { useAllowedTransitions } from '../hooks/useAllowedTransitions';
 import EventAddModal from './EventAddModal';
 import { Group } from '../types';
 import { TaskLabel } from '@/components/common/TaskLabel';
@@ -224,6 +226,8 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
   const [error, setError] = useState<string | null>(null);
   const [shots, setShots] = useState<{ id: number; shotID: string; seqID: string }[]>([]);
   const [dependencySelectOpen, setDependencySelectOpen] = useState(false);
+  // 新規作成(taskId=null)時は遷移元ステータスが存在しないためグレーアウトしない
+  const { data: allowedTransitions } = useAllowedTransitions(taskId, open && Boolean(taskId));
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -430,8 +434,15 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
             <FormControl fullWidth size="small">
               <InputLabel>ステータス</InputLabel>
               <Select name="status" value={form.status} label="ステータス" onChange={handleChange}>
-                {getStatusOptionsFor(form.status).map(opt => (
-                  <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                {getGatedStatusOptions(form.status, allowedTransitions?.allowedNext, allowedTransitions?.actorRole).map(opt => (
+                  <MenuItem key={opt.value} value={opt.value} disabled={opt.disabled} sx={{ '&.Mui-disabled': { pointerEvents: 'auto' } }}>
+                    <Tooltip
+                      title={opt.disabled ? (opt.disabledReason || '選択できません') : ''}
+                      disableHoverListener={!opt.disabled}
+                    >
+                      <Box component="span" sx={{ width: '100%' }}>{opt.label}</Box>
+                    </Tooltip>
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>

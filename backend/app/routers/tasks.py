@@ -4,9 +4,15 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks, Response
 from sqlalchemy.orm import Session
 
-from .. import crud, models, schemas, security
+from .. import crud, models, schemas, security, status_transitions
 from ..database import get_db
 from ..services.audit_service import record_event
+
+
+def _raise_transition_error(exc: status_transitions.TransitionError):
+    body = dict(exc.body)
+    http_status_code = body.pop("http_status", 409)
+    raise HTTPException(status_code=http_status_code, detail=body)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
@@ -37,6 +43,47 @@ def get_task_status_history_endpoint(
     
     history = crud.get_task_status_history(db=db, task_id=task_id)
     return history
+
+
+@router.get("/{task_id}/allowed-transitions")
+def get_task_allowed_transitions_endpoint(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    """実タスク文脈での許可次状態。current_user の役職を反映し permitted_for_actor を返す。
+    UIのボタン活性/非活性がこれ1本で決まる想定(殿要求(b)の本命の一つ)。"""
+    db_task = crud.get_task(db=db, task_id=task_id)
+    if db_task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="タスクが見つかりません")
+
+    raw_status = db_task.status.value if hasattr(db_task.status, "value") else db_task.status
+    canonical_status = schemas.canonicalize_task_status(raw_status)
+
+    if current_user.role == "admin":
+        actor_role = None
+        is_admin = True
+    else:
+        is_admin = False
+        role_row = db.query(models.ScoreUserRole).filter(
+            models.ScoreUserRole.user_id == current_user.id,
+            models.ScoreUserRole.project_id == db_task.project_id,
+        ).first()
+        actor_role = role_row.role if role_row else None
+
+    allowed = status_transitions.get_allowed_transitions(canonical_status, actor_role=actor_role)
+    if is_admin:
+        for entry in allowed:
+            entry["permitted_for_actor"] = True  # F-8: admin常時バイパス
+
+    return {
+        "task_id": task_id,
+        "status": canonical_status,
+        "actor_role": actor_role,
+        "actor_role_canonical": status_transitions.normalize_role(actor_role),
+        "is_admin": is_admin,
+        "allowed_next": allowed,
+    }
 
 
 @router.get("", response_model=List[schemas.TaskResponse])
@@ -146,7 +193,10 @@ async def update_task_endpoint(
         if current_user.role != 'admin':
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="タスクの表示ステータスを変更する権限がありません")
 
-    updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data, actor_id=current_user.id)
+    try:
+        updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_data, actor_id=current_user.id)
+    except status_transitions.TransitionError as exc:
+        _raise_transition_error(exc)
     record_event(db, "task.update", actor_uid=current_user.id,
                  target_type="task", target_id=task_id)
 
@@ -176,7 +226,10 @@ async def bulk_update_tasks_endpoint(
     if not updates:
         return {"updated": 0, "message": "更新項目が指定されていません"}
         
-    updated = crud.bulk_update_tasks(db=db, task_ids=payload.task_ids, updates=updates, actor_id=current_user.id)
+    try:
+        updated = crud.bulk_update_tasks(db=db, task_ids=payload.task_ids, updates=updates, actor_id=current_user.id)
+    except status_transitions.TransitionError as exc:
+        _raise_transition_error(exc)
     
     from app.services.google_sync import auto_sync_task_bg
     for tid in payload.task_ids:

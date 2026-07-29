@@ -69,6 +69,20 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
         }
     };
 
+    // 失敗/中断した議事録を、サーバに残っている録音データ（結合済み音声 or 録音チャンク）から再生成する
+    const handleReanalyze = async (meetingId: number) => {
+        if (!window.confirm('サーバに残っている録音データから議事録を再生成しますか？')) return;
+        try {
+            await api.post(`/projects/${projectId}/meetings/${meetingId}/reanalyze`);
+            setSnackbar({ open: true, message: '再生成を開始しました。完了までしばらくお待ちください。', severity: 'success' });
+            fetchMeetings(false);
+        } catch (err: any) {
+            console.error('Reanalyze failed:', err);
+            const detail = err?.response?.data?.detail;
+            setSnackbar({ open: true, message: detail || '再生成に失敗しました', severity: 'error' });
+        }
+    };
+
     const handleDelete = async (meetingId: number) => {
         if (!window.confirm('この会議データを削除してもよろしいですか？')) return;
         try {
@@ -216,7 +230,18 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                         </Box>
                                     </Box>
                                     {meeting.status === 'failed' ? (
-                                        <Chip size="small" label="解析失敗" color="error" variant="outlined" sx={{ mr: 2 }} />
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+                                            <Chip size="small" label="解析失敗" color="error" variant="outlined" />
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                                onClick={(e) => { e.stopPropagation(); handleReanalyze(meeting.id); }}
+                                                sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
+                                            >
+                                                再生成
+                                            </Button>
+                                        </Box>
                                     ) : (!meeting.transcript && (meeting.status === 'processing' || meeting.status === 'pending')) && (
                                         <Chip
                                             size="small"

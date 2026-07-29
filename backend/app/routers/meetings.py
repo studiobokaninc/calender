@@ -604,11 +604,17 @@ async def process_concat_and_analyze(
                     db_meeting.transcript = warning_header + db_meeting.transcript
                     db.commit()
 
+        # 成功時のみ一時チャンクを削除する（結合済み音声が復旧元として残る）。
+        # 失敗時・途中再起動時はチャンクを保持し、後から再解析(復旧)できるようにする。
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
     except Exception as e:
         logger.exception(f"Failed to process and analyze meeting {meeting_id}")
         # ----------------------------------------------------
         # PHASE 6: エラー時のステータス更新 (DBセッション4)
         # ----------------------------------------------------
+        # 注意: 失敗時は temp_dir を削除しない。録音チャンクを保持することで、
+        # サーバ再起動やffmpeg/解析エラーが起きても /reanalyze で復旧できるようにする。
         with SessionLocal() as db:
             try:
                 db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
@@ -617,8 +623,85 @@ async def process_concat_and_analyze(
                     db.commit()
             except Exception as db_err:
                 logger.error(f"Failed to update meeting status to failed: {db_err}")
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        
+
     return db_meeting
+
+
+async def _reanalyze_existing_audio(meeting_id: int, audio_path: str):
+    """結合済み音声から解析のみ再実行する（復旧用）。失敗時は status=failed に戻す。"""
+    try:
+        from ..services.meeting_analyzer import MeetingAnalyzer
+        client = get_llm_client()
+        analyzer = MeetingAnalyzer(api_key=client.api_key)
+        await analyzer.analyze_meeting(meeting_id, audio_path)
+    except Exception:
+        logger.exception(f"reanalyze existing audio failed (meeting {meeting_id})")
+        with SessionLocal() as db:
+            m = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+            if m and m.status != "failed":
+                m.status = "failed"
+                db.commit()
+
+
+@router.post("/{meeting_id}/reanalyze")
+async def reanalyze_meeting(
+    meeting_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """失敗・中断した議事録を、サーバに残っている録音データから再解析(復旧)する。
+    - 結合済み音声(data/audio/{uuid}.* 等)があれば解析のみ再実行。
+    - 無ければ temp_audio の録音チャンクから結合＋解析。
+    ブラウザ不要でサーバ側ディスクのデータから復旧できる（再起動で解析が失敗しても救済可能）。"""
+    db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="会議が見つかりません")
+
+    uuid_str = db_meeting.uuid
+
+    # 1) 結合済み音声を探す
+    audio_path = None
+    candidates = []
+    if uuid_str:
+        for ext in (".webm", ".m4a", ".mp3", ".wav", ".ogg", ".mp4", ".opus"):
+            candidates.append(AUDIO_DIR / f"{uuid_str}{ext}")
+    if db_meeting.audio_url:
+        fn = os.path.basename(db_meeting.audio_url)
+        if "." in fn:
+            candidates.append(AUDIO_DIR / fn)
+            candidates.append(BASE_DIR / "static" / "audio" / fn)
+    for c in candidates:
+        try:
+            if c.exists():
+                audio_path = str(c)
+                break
+        except Exception:
+            pass
+
+    if audio_path:
+        db_meeting.status = "processing"
+        db.commit()
+        background_tasks.add_task(_reanalyze_existing_audio, meeting_id, audio_path)
+        return {"status": "processing", "source": "audio", "message": "既存の録音音声から再解析(復旧)を開始しました。"}
+
+    # 2) 結合済みが無ければ録音チャンクから結合＋解析
+    if uuid_str:
+        temp_dir = BASE_DIR / "temp_audio" / f"temp_{uuid_str}"
+        if temp_dir.exists():
+            chunks = list(temp_dir.glob("chunk_*"))
+            if chunks:
+                total = max(int(p.stem.split("_")[1]) for p in chunks) + 1
+                db_meeting.status = "processing"
+                db.commit()
+                background_tasks.add_task(
+                    process_concat_and_analyze,
+                    meeting_id=meeting_id,
+                    temp_dir_path=str(temp_dir),
+                    total_chunks=total,
+                    force=True,
+                )
+                return {"status": "processing", "source": "chunks", "message": "サーバに残っている録音チャンクから結合・再解析(復旧)を開始しました。"}
+
+    raise HTTPException(status_code=400, detail="復旧できる録音データ（結合済み音声・録音チャンク）がサーバに見つかりません。")
 

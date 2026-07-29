@@ -4,7 +4,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Select,
   MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Box, Grid,
   FormHelperText, RadioGroup, Radio, Divider, Typography, Stack,
-  Autocomplete, Chip, IconButton
+  Autocomplete, Chip, IconButton, Tooltip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add'; // Added AddIcon
 import CloseIcon from '@mui/icons-material/Close';
@@ -16,7 +16,8 @@ import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import ja from 'date-fns/locale/ja';
 import { Project, User, Group, CalendarEvent, Task } from '../types';
 import { formatTaskLabel } from '../utils/taskLabel';
-import { TASK_STATUS_OPTIONS } from '../utils/taskStatus';
+import { getGatedStatusOptions } from '../utils/taskStatus';
+import { useAllowedTransitions } from '../hooks/useAllowedTransitions';
 
 import { DateClickArg } from '@fullcalendar/interaction';
 
@@ -90,6 +91,9 @@ interface EventAddModalProps {
 // --- Component ---
 const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, initialDate, eventToEdit, dateClickArg, projects: projectsFromProps, users: usersFromProps, tasks: tasksFromProps, groups: groupsFromProps, eventTypesOnly = false, canCreateProject = true }) => {
   console.log("tasksFromProps on modal open (checking for ID 10 or name 'タスク 10'):", JSON.stringify(tasksFromProps.filter(t => String(t.id) === "10" || t.name === "タスク 10"), null, 2));
+  // 新規作成時(タスクIDなし)は遷移元ステータスが存在しないためグレーアウトしない
+  const editingTaskIdNum = eventToEdit?.id?.startsWith('task-') ? Number(eventToEdit.id.replace('task-', '')) : null;
+  const { data: eventModalAllowedTransitions } = useAllowedTransitions(editingTaskIdNum, open && Boolean(editingTaskIdNum));
   const getInitialState = (): EventFormData => {
     let initialStartDateTime = new Date();
     let initialEndDateTime = addHours(initialStartDateTime, 2);
@@ -1263,8 +1267,19 @@ const EventAddModal: React.FC<EventAddModalProps> = ({ open, onClose, onSave, in
                       label="ステータス"
                       onChange={handleChange}
                     >
-                      {TASK_STATUS_OPTIONS.map(opt => (
-                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      {getGatedStatusOptions(
+                        formData.taskStatus,
+                        eventModalAllowedTransitions?.allowedNext,
+                        eventModalAllowedTransitions?.actorRole,
+                      ).map(opt => (
+                        <MenuItem key={opt.value} value={opt.value} disabled={opt.disabled} sx={{ '&.Mui-disabled': { pointerEvents: 'auto' } }}>
+                          <Tooltip
+                            title={opt.disabled ? (opt.disabledReason || '選択できません') : ''}
+                            disableHoverListener={!opt.disabled}
+                          >
+                            <Box component="span" sx={{ width: '100%' }}>{opt.label}</Box>
+                          </Tooltip>
+                        </MenuItem>
                       ))}
                     </Select>
                   </FormControl>

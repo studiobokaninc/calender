@@ -52,7 +52,7 @@ class TestCanonicalizeTaskStatus:
         assert canonicalize_task_status("dir_wt") == "qc"
         assert canonicalize_task_status("ap_fb") == "qc_fb"
         assert canonicalize_task_status("dir_fb") == "qc_fb"
-        assert canonicalize_task_status("fix") == "qc_fb"
+        assert canonicalize_task_status("fix") == "client_ap"
         assert canonicalize_task_status("dir_ap") == "ap"
         # client_ap の表記揺れ
         assert canonicalize_task_status("client-ap") == "client_ap"

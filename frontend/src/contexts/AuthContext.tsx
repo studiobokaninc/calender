@@ -1,5 +1,5 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import api from '../services/api';
+import React, { createContext, useState, useContext, useEffect, useCallback, ReactNode } from 'react';
+import api, { setAuthErrorCallback } from '../services/api';
 
 interface User {
   id: string | number;
@@ -29,6 +29,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
   const [isLoading, setIsLoading] = useState<boolean>(true); // Check initial auth status
+
+  const logout = useCallback(() => {
+    console.log("Logging out...");
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    // Optionally redirect to login page
+    window.location.href = '/login';
+  }, []);
 
   // 初期認証状態のチェック - 画面表示時にトークンがあれば自動ログイン
   useEffect(() => {
@@ -95,6 +104,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuthStatus();
   }, []);
 
+  useEffect(() => {
+    setAuthErrorCallback(() => {
+      console.warn("Auth error (401) detected by API interceptor. Logging out user...");
+      logout();
+    });
+    return () => {
+      setAuthErrorCallback(() => {});
+    };
+  }, [logout]);
+
   const login = async (username: string, password: string) => {
     try {
       console.log(`Attempting login for user: ${username}`);
@@ -157,15 +176,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Rethrow for UI error handling
       throw new Error(error.response?.data?.detail || 'ログインに失敗しました。ユーザー名またはパスワードを確認してください。');
     }
-  };
-
-  const logout = () => {
-    console.log("Logging out...");
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
-    // Optionally redirect to login page
-    window.location.href = '/login';
   };
 
   // トークンとユーザー情報の両方があれば認証済みとみなす

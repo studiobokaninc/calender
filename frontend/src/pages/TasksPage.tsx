@@ -29,8 +29,10 @@ import {
     getTaskStatusLabel,
     getTaskStatusChipStyle,
     TASK_STATUS_OPTIONS,
-    getStatusOptionsFor,
+    getGatedStatusOptions,
+    canonicalizeStatus,
 } from '../utils/taskStatus';
+import { useAllowedTransitions } from '../hooks/useAllowedTransitions';
 
 
 
@@ -99,8 +101,17 @@ interface StatusHistory {
     changed_by: number;
 }
 
-
-
+const STATUS_ORDER: Record<string, number> = {
+    'wt':        1,
+    'mk':        2,
+    'wip':       3,
+    'qc':        4,
+    'qc_fb':     5,
+    'ap':        6,
+    'client_ap': 7,
+    'deliver':   8,
+    'omit':      9,
+};
 
 const TasksPage: React.FC = () => {
     const navigate = useNavigate();
@@ -182,6 +193,8 @@ const TasksPage: React.FC = () => {
         shot_id: null
     });
     const [shots, setShots] = useState<{ id: number; shotID: string; seqID: string }[]>([]);
+    // 新規作成時(id=null)は遷移元ステータスが存在しないためグレーアウトしない
+    const { data: currentTaskAllowedTransitions } = useAllowedTransitions(currentTask.id, Boolean(currentTask.id));
 
     useEffect(() => {
         if (!currentTask.project_id) {
@@ -228,16 +241,51 @@ const TasksPage: React.FC = () => {
 
     // ステータス選択ポップオーバー用の状態
     const [statusPopover, setStatusPopover] = useState<{ anchor: HTMLElement; taskId: number; currentStatus?: string | null } | null>(null);
+    const { data: statusPopoverAllowedTransitions } = useAllowedTransitions(statusPopover?.taskId, Boolean(statusPopover));
 
     // 一括編集（選択された行IDの配列）
     const [selectionModel, setSelectionModel] = useState<number[]>([]);
     const [bulkEditOpen, setBulkEditOpen] = useState(false);
+    // 一括編集: 選択中の全タスクで許可される遷移先のみ選択可にする(殿要求(b)/F-9)。
+    // null = 未計算/取得不可 = 既存の「全選択可」動作へフォールバック(選択数上限超過時もこちら)。
+    const [bulkAllowedStatuses, setBulkAllowedStatuses] = useState<Set<string> | null>(null);
+    const BULK_GATING_MAX_SELECTION = 50;
     const [bulkEditSaving, setBulkEditSaving] = useState(false);
     const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
     const [bulkConfirmCount, setBulkConfirmCount] = useState(0);
     const [bulkEditForm, setBulkEditForm] = useState<{ status: string; assigned_to: number | ''; due_date: string; priority: string }>({
         status: '', assigned_to: '', due_date: '', priority: ''
     });
+
+    useEffect(() => {
+        if (!bulkEditOpen || selectionModel.length === 0 || selectionModel.length > BULK_GATING_MAX_SELECTION) {
+            setBulkAllowedStatuses(null);
+            return;
+        }
+        let cancelled = false;
+        Promise.all(
+            selectionModel.map(id => api.get(`/tasks/${id}/allowed-transitions`).then(r => r.data).catch(() => null))
+        ).then(results => {
+            if (cancelled) return;
+            const valid = results.filter(Boolean);
+            if (valid.length !== selectionModel.length) {
+                // 一部取得失敗 = 正しく交差判定できないため、誤ってグレーアウトしないよう全選択可にフォールバック
+                setBulkAllowedStatuses(null);
+                return;
+            }
+            const allowedSet = new Set<string>();
+            TASK_STATUS_OPTIONS.forEach(({ value: status }) => {
+                const permittedForAll = valid.every((r: any) => {
+                    if (r.status === status) return true; // 現在値と同じタスクはno-opで常に可
+                    const entry = (r.allowed_next || []).find((e: any) => e.status === status);
+                    return !!entry && entry.permitted_for_actor !== false;
+                });
+                if (permittedForAll) allowedSet.add(status);
+            });
+            setBulkAllowedStatuses(allowedSet);
+        });
+        return () => { cancelled = true; };
+    }, [bulkEditOpen, selectionModel]);
 
     const handleBulkEditApply = () => {
         if (selectionModel.length === 0) return;
@@ -739,17 +787,7 @@ const TasksPage: React.FC = () => {
             } catch { return 0; }
         };
 
-        // ステータス表示優先度（小さいほど上に表示。優先順：遅延、リテイク、確認中、進行中、未着手、承認済み、完了）
-        // デフォルトのソートキーとして適用されます。
-        const STATUS_ORDER: Record<string, number> = {
-            'delayed':     1,  // 遅延
-            'retake':      2,  // リテイク
-            'review':      3,  // 確認中 (レビュー中)
-            'in-progress': 4,  // 進行中
-            'todo':        5,  // 未着手
-            'approved':    6,  // 承認済み
-            'completed':   7,  // 完了
-        };
+
 
         return (filteredTasks ?? []).map(t => ({
             ...t,
@@ -758,7 +796,7 @@ const TasksPage: React.FC = () => {
             _dueTs: toTs(t.due_date),
             _dependsText: dependsText(t),
             _actionsSortKey: t.id ?? 0,
-            _statusOrder: STATUS_ORDER[t.status?.toLowerCase() ?? ''] ?? 5,
+            _statusOrder: STATUS_ORDER[canonicalizeStatus(t.status) ?? ''] ?? 99,
         }));
     }, [filteredTasks, projects, tasks]);
 
@@ -774,16 +812,22 @@ const TasksPage: React.FC = () => {
             hideable: true,
             sortable: true,
             renderCell: () => null,
-            sortComparator: (a, b) => Number(a ?? 5) - Number(b ?? 5),
+            sortComparator: (a, b) => Number(a ?? 99) - Number(b ?? 99),
         },
         {
-            field: 'name', headerName: 'タスク名', minWidth: 220, width: 280, flex: 1.5, hideable: false, renderCell: (params: GridRenderCellParams) => {
+            field: 'name', headerName: 'タスク名', minWidth: 220, width: 280, flex: 1.5, hideable: false,
+            sortable: true,
+            sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return <TaskLabel shotId={row.shotID} title={row.name || '-'} />;
             }
         },
         {
-            field: 'description', headerName: '説明', minWidth: 120, width: 180, renderCell: (params: GridRenderCellParams) => {
+            field: 'description', headerName: '説明', minWidth: 120, width: 180,
+            sortable: true,
+            sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const text = row.description || '-';
                 return (
@@ -796,7 +840,14 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'status', headerName: 'ステータス', minWidth: 120, width: 130, renderCell: (params: GridRenderCellParams) => {
+            field: 'status', headerName: 'ステータス', minWidth: 120, width: 130,
+            sortable: true,
+            sortComparator: (a, b) => {
+                const orderA = STATUS_ORDER[canonicalizeStatus(a) ?? ''] ?? 99;
+                const orderB = STATUS_ORDER[canonicalizeStatus(b) ?? ''] ?? 99;
+                return orderA - orderB;
+            },
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return (
                     <Chip
@@ -827,7 +878,19 @@ const TasksPage: React.FC = () => {
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
         {
-            field: 'priority', headerName: '優先度', minWidth: 90, width: 100, renderCell: (params: GridRenderCellParams) => {
+            field: 'priority', headerName: '優先度', minWidth: 90, width: 100,
+            sortable: true,
+            sortComparator: (a, b) => {
+                const PRIORITY_ORDER: Record<string, number> = {
+                    'high': 1,
+                    'medium': 2,
+                    'low': 3
+                };
+                const valA = PRIORITY_ORDER[String(a).toLowerCase()] ?? 4;
+                const valB = PRIORITY_ORDER[String(b).toLowerCase()] ?? 4;
+                return valA - valB;
+            },
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const priorityColors = {
                     'high': '#f44336',
@@ -875,7 +938,11 @@ const TasksPage: React.FC = () => {
             width: 110,
             sortable: true,
             renderCell: (params) => formatDate((params.row as any).start_date),
-            sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+            sortComparator: (a, b) => {
+                const tsA = a === 0 ? Infinity : a;
+                const tsB = b === 0 ? Infinity : b;
+                return tsA - tsB;
+            },
         },
         {
             field: '_dueTs',
@@ -884,16 +951,26 @@ const TasksPage: React.FC = () => {
             width: 110,
             sortable: true,
             renderCell: (params) => formatDate((params.row as any).due_date),
-            sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+            sortComparator: (a, b) => {
+                const tsA = a === 0 ? Infinity : a;
+                const tsB = b === 0 ? Infinity : b;
+                return tsA - tsB;
+            },
         },
         {
-            field: 'seqID', headerName: 'seq', minWidth: 70, width: 80, renderCell: (params: GridRenderCellParams) => {
+            field: 'seqID', headerName: 'seq', minWidth: 70, width: 80,
+            sortable: true,
+            sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return row.seqID || '-';
             }
         },
         {
-            field: 'shotID', headerName: 'shot', minWidth: 80, width: 80, renderCell: (params: GridRenderCellParams) => {
+            field: 'shotID', headerName: 'shot', minWidth: 80, width: 80,
+            sortable: true,
+            sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 const text = row.shotID || '-';
                 return (
@@ -904,7 +981,10 @@ const TasksPage: React.FC = () => {
             }
         },
         {
-            field: 'type', headerName: 'type', minWidth: 90, width: 100, renderCell: (params: GridRenderCellParams) => {
+            field: 'type', headerName: 'type', minWidth: 90, width: 100,
+            sortable: true,
+            sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 // データベースに保存されているタスクタイプを小文字化して表示
                 return row.type ? row.type.toLowerCase() : '-';
@@ -929,7 +1009,10 @@ const TasksPage: React.FC = () => {
             sortComparator: (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ja'),
         },
         {
-            field: 'cost', headerName: 'コスト', minWidth: 85, width: 90, renderCell: (params: GridRenderCellParams) => {
+            field: 'cost', headerName: 'コスト', minWidth: 85, width: 90,
+            sortable: true,
+            sortComparator: (a, b) => Number(a ?? 0) - Number(b ?? 0),
+            renderCell: (params: GridRenderCellParams) => {
                 const row = params.row;
                 return row.cost ?? '-';
             }
@@ -1737,9 +1820,19 @@ const TasksPage: React.FC = () => {
                                 onChange={(e) => setBulkEditForm(f => ({ ...f, status: e.target.value }))}
                             >
                                 <MenuItem value="">変更しない</MenuItem>
-                                {TASK_STATUS_OPTIONS.map(opt => (
-                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                                ))}
+                                {TASK_STATUS_OPTIONS.map(opt => {
+                                    const disabled = bulkAllowedStatuses ? !bulkAllowedStatuses.has(opt.value) : false;
+                                    return (
+                                        <MenuItem key={opt.value} value={opt.value} disabled={disabled} sx={{ '&.Mui-disabled': { pointerEvents: 'auto' } }}>
+                                            <Tooltip
+                                                title={disabled ? '選択されたタスクの一部でこの遷移が許可されていません' : ''}
+                                                disableHoverListener={!disabled}
+                                            >
+                                                <Box component="span" sx={{ width: '100%' }}>{opt.label}</Box>
+                                            </Tooltip>
+                                        </MenuItem>
+                                    );
+                                })}
                             </Select>
                         </FormControl>
                         <FormControl fullWidth size="small">
@@ -1879,8 +1972,19 @@ const TasksPage: React.FC = () => {
                                 label="ステータス"
                                 onChange={handleSelectChange}
                             >
-                                {getStatusOptionsFor(currentTask.status).map(opt => (
-                                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                                {getGatedStatusOptions(
+                                    currentTask.status,
+                                    currentTaskAllowedTransitions?.allowedNext,
+                                    currentTaskAllowedTransitions?.actorRole,
+                                ).map(opt => (
+                                    <MenuItem key={opt.value} value={opt.value} disabled={opt.disabled} sx={{ '&.Mui-disabled': { pointerEvents: 'auto' } }}>
+                                        <Tooltip
+                                            title={opt.disabled ? (opt.disabledReason || '選択できません') : ''}
+                                            disableHoverListener={!opt.disabled}
+                                        >
+                                            <Box component="span" sx={{ width: '100%' }}>{opt.label}</Box>
+                                        </Tooltip>
+                                    </MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
@@ -2310,37 +2414,49 @@ const TasksPage: React.FC = () => {
                 slotProps={{ paper: { sx: { borderRadius: 2, minWidth: 140, boxShadow: 4, overflow: 'hidden' } } }}
             >
                 <List dense disablePadding>
-                    {getStatusOptionsFor(statusPopover?.currentStatus).map((opt) => (
-                        <ListItemButton
+                    {getGatedStatusOptions(
+                        statusPopover?.currentStatus,
+                        statusPopoverAllowedTransitions?.allowedNext,
+                        statusPopoverAllowedTransitions?.actorRole,
+                    ).map((opt) => (
+                        <Tooltip
                             key={opt.value}
-                            onClick={async () => {
-                                if (statusPopover) {
-                                    await handleUpdateTaskQuick(statusPopover.taskId, { status: opt.value });
-                                    setStatusPopover(null);
-                                }
-                            }}
-                            title={opt.recommended ? '推奨される次の遷移先' : undefined}
-                            sx={{
-                                py: 1,
-                                px: 1.5,
-                                '&:hover': { bgcolor: `${getTaskStatusColor(opt.value)}22` }
-                            }}
+                            title={opt.disabled ? (opt.disabledReason || '選択できません') : ''}
+                            disableHoverListener={!opt.disabled}
                         >
-                            <Box
-                                sx={{
-                                    width: 10,
-                                    height: 10,
-                                    borderRadius: '50%',
-                                    bgcolor: getTaskStatusColor(opt.value),
-                                    mr: 1.5,
-                                    flexShrink: 0,
-                                }}
-                            />
-                            <ListItemText
-                                primary={opt.label}
-                                primaryTypographyProps={{ sx: { fontSize: '0.875rem', fontWeight: opt.recommended ? 700 : 500 } }}
-                            />
-                        </ListItemButton>
+                            <span>
+                                <ListItemButton
+                                    disabled={opt.disabled}
+                                    onClick={async () => {
+                                        if (statusPopover && !opt.disabled) {
+                                            await handleUpdateTaskQuick(statusPopover.taskId, { status: opt.value });
+                                            setStatusPopover(null);
+                                        }
+                                    }}
+                                    title={!opt.disabled && opt.recommended ? '推奨される次の遷移先' : undefined}
+                                    sx={{
+                                        py: 1,
+                                        px: 1.5,
+                                        '&:hover': opt.disabled ? undefined : { bgcolor: `${getTaskStatusColor(opt.value)}22` }
+                                    }}
+                                >
+                                    <Box
+                                        sx={{
+                                            width: 10,
+                                            height: 10,
+                                            borderRadius: '50%',
+                                            bgcolor: getTaskStatusColor(opt.value),
+                                            mr: 1.5,
+                                            flexShrink: 0,
+                                        }}
+                                    />
+                                    <ListItemText
+                                        primary={opt.label}
+                                        primaryTypographyProps={{ sx: { fontSize: '0.875rem', fontWeight: opt.recommended ? 700 : 500 } }}
+                                    />
+                                </ListItemButton>
+                            </span>
+                        </Tooltip>
                     ))}
                 </List>
             </Popover>

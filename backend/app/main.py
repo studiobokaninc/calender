@@ -66,6 +66,18 @@ mimetypes.add_type('audio/mp4', '.mp4')
 mimetypes.add_type('audio/mpeg', '.mp3')
 mimetypes.add_type('video/mp4', '.mp4')
 
+class IgnoreClientDisconnectFilter(logging.Filter):
+    """Filter out ClientDisconnect exception tracebacks to avoid polluting uvicorn logs."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info:
+            exc_type, exc_val, exc_tb = record.exc_info
+            if exc_type is not None and exc_type.__name__ == "ClientDisconnect":
+                return False
+        msg = record.getMessage()
+        if "ClientDisconnect" in msg:
+            return False
+        return True
+
 # ログの設定
 logging.basicConfig(
     level=logging.WARNING,
@@ -75,6 +87,11 @@ logging.basicConfig(
         logging.FileHandler('app.log')
     ]
 )
+
+client_disconnect_filter = IgnoreClientDisconnectFilter()
+for handler in logging.getLogger().handlers:
+    handler.addFilter(client_disconnect_filter)
+
 logging.getLogger("google_genai").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)

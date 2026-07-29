@@ -59,7 +59,19 @@ import { useCalendarActions } from '../hooks/useCalendarActions';
 // utils
 import { getEventColor, getTaskColor } from '../utils/calendarEventColors';
 import { getEventRank } from '../utils/calendarEventMapper';
-import { getTaskStatusCategory } from '../utils/taskStatus';
+import { getTaskStatusCategory, canonicalizeStatus } from '../utils/taskStatus';
+
+const STATUS_ORDER: Record<string, number> = {
+    'wt':        1,
+    'mk':        2,
+    'wip':       3,
+    'qc':        4,
+    'qc_fb':     5,
+    'ap':        6,
+    'client_ap': 7,
+    'deliver':   8,
+    'omit':      9,
+};
 
 const DOUBLE_CLICK_THRESHOLD = 400;
 
@@ -1559,6 +1571,18 @@ const CalendarPage: React.FC = () => {
                             const aStart = a.start ? new Date(a.start).getTime() : 0;
                             const bStart = b.start ? new Date(b.start).getTime() : 0;
                             if (aStart !== bStart) return aStart - bStart;
+
+                            const typeA = (a.extendedProps?.type || '').toLowerCase();
+                            const typeB = (b.extendedProps?.type || '').toLowerCase();
+                            if (typeA === 'task' && typeB === 'task') {
+                                const statusA = a.extendedProps?.taskStatus;
+                                const statusB = b.extendedProps?.taskStatus;
+                                const orderA = STATUS_ORDER[canonicalizeStatus(statusA) ?? ''] ?? 99;
+                                const orderB = STATUS_ORDER[canonicalizeStatus(statusB) ?? ''] ?? 99;
+                                if (orderA !== orderB) {
+                                    return orderA - orderB;
+                                }
+                            }
 
                             return (a.title || '').localeCompare(b.title || '');
                         }}

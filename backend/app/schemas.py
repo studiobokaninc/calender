@@ -49,7 +49,7 @@ LEGACY_PIPELINE_COLLAPSE_MAP = {
     'dir_wt': 'qc',
     'ap_fb': 'qc_fb',
     'dir_fb': 'qc_fb',
-    'fix': 'qc_fb',
+    'fix': 'client_ap',
     'dir_ap': 'ap',
 }
 
@@ -446,16 +446,25 @@ class TaskResponse(TaskBase):
     status_color: Optional[str] = None
     status_label: Optional[str] = None
     status_category: Optional[str] = None
+    allowed_next: List[Dict[str, Any]] = []  # 殿要求(b): 許可された次状態(role_requiredのみ。
+    # permitted_for_actorはN+1回避のため一覧APIでは返さない。単票は /tasks/{id}/allowed-transitions 参照)
+    warnings: Optional[List[Dict[str, Any]]] = None  # TASK_TRANSITION_ENFORCE=warn時の遷移警告(あれば)
 
     @root_validator(pre=False, skip_on_failure=True)
     def fill_task_response_status_meta(cls, values):
         from app.status_meta import get_status_color, get_status_label, get_status_category
+        from app.status_transitions import get_allowed_transitions
         s = values.get('status')
         if s is not None and hasattr(s, 'value'):
             s = s.value
+        canonical = canonicalize_task_status(s)
         values['status_color'] = get_status_color(s)
         values['status_label'] = get_status_label(s)
         values['status_category'] = get_status_category(s)
+        values['allowed_next'] = [
+            {k: v for k, v in entry.items() if k != 'permitted_for_actor'}
+            for entry in get_allowed_transitions(canonical)
+        ]
         return values
 
     # Pydantic V1 の場合
@@ -1293,6 +1302,8 @@ class ReadonlyTask(BaseModel):
     status_color: Optional[str] = None
     status_label: Optional[str] = None
     status_category: Optional[str] = None
+    thread_id: Optional[int] = None
+    shot_code: Optional[str] = None
 
     @root_validator(pre=False, skip_on_failure=True)
     def fill_readonly_status_meta(cls, values):
@@ -1304,6 +1315,14 @@ class ReadonlyTask(BaseModel):
         values['status_label'] = get_status_label(s)
         values['status_category'] = get_status_category(s)
         return values
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyTaskThread(BaseModel):
+    task_id: int
+    thread_id: Optional[int] = None
 
     class Config:
         from_attributes = True

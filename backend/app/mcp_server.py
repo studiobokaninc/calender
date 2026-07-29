@@ -10,7 +10,8 @@ from fastmcp import FastMCP
 from sqlalchemy import func
 
 from .database import SessionLocal
-from . import models, schemas, crud
+from . import models, schemas, crud, status_transitions
+from .status_meta import ACTIVE_STATUSES
 from .timezone import now_jst_naive
 from .services.audit_service import record_event
 import httpx
@@ -106,6 +107,68 @@ def get_today_tasks(
         rows = q.limit(500).all()
         items = [schemas.ReadonlyTask.from_orm(r).model_dump(mode="json") for r in rows]
         return {"total": len(items), "items": items}
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_task_thread(
+    task_id: int,
+    actor_id: Optional[int] = None,
+) -> dict:
+    """Get the thread_id associated with a specific task_id.
+    Returns {"task_id": task_id, "thread_id": thread_id} or {"error": "Task not found"} if task_id does not exist.
+    """
+    db = SessionLocal()
+    try:
+        db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+        if not db_task:
+            return {"error": "Task not found", "status_code": 404}
+        return {"task_id": task_id, "thread_id": db_task.thread_id}
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_shot_tasks(
+    shot_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    actor_id: Optional[int] = None,
+) -> dict:
+    """Get all tasks for a specific shot.
+    Returns {"total": count, "limit": limit, "offset": offset, "items": [...]}.
+    """
+    from sqlalchemy.orm import selectinload
+    db = SessionLocal()
+    try:
+        q = db.query(models.Task).filter(models.Task.shot_id == shot_id).options(selectinload(models.Task.shot))
+        total = q.count()
+        rows = q.offset(offset).limit(min(limit, 500)).all()
+        items = [schemas.ReadonlyTask.from_orm(r).model_dump(mode="json") for r in rows]
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_project_tasks(
+    project_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    actor_id: Optional[int] = None,
+) -> dict:
+    """Get all tasks for a specific project.
+    Returns {"total": count, "limit": limit, "offset": offset, "items": [...]}.
+    """
+    from sqlalchemy.orm import selectinload
+    db = SessionLocal()
+    try:
+        q = db.query(models.Task).filter(models.Task.project_id == project_id).options(selectinload(models.Task.shot))
+        total = q.count()
+        rows = q.offset(offset).limit(min(limit, 500)).all()
+        items = [schemas.ReadonlyTask.from_orm(r).model_dump(mode="json") for r in rows]
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
     finally:
         db.close()
 
@@ -393,28 +456,49 @@ def send_message(
     to_user_id: Annotated[int, Field(description="送信先のユーザーID (必須)")],
     body: Annotated[str, Field(description="DM 本文 (必須)。DM 本文をログ・レポートに残すな (プライバシー保護)。")],
     context_json: Annotated[Optional[dict], Field(description="追加コンテキスト情報 (任意) 例: {\"task_id\": 42, \"shot_code\": \"CUT_001\"}")] = None,
+    thread_id: Annotated[Optional[int], Field(description="投稿先スレッドID (任意)。指定時: そのスレッド(SHOTスレッド等)へ直接投稿する。未開設のスレッドIDを指定した場合は投稿せず「スレッド未開設」エラーを返す (推測でのスレッド新設は行わない)。未指定時: actor_id/to_user_id の1対1ペアスレッドへ投稿する (従来通り・後方互換)。")] = None,
 ) -> dict:
     """actor_id ユーザーとして to_user_id へ DM を送信する。
     必ずユーザー承認後に呼び出すこと (確認ゲートは Casper 側で担保)。
-    DM 本文・個人情報をログ・レポートに残すな。"""
+    DM 本文・個人情報をログ・レポートに残すな。
+    thread_id 指定時は既存スレッドへの直接投稿となり、未開設なら「スレッド未開設」を返す。"""
     err = _require_write_scope()
     if err:
         return err
-    
+
     db = SessionLocal()
     try:
         recipient_id = to_user_id
         participants = [actor_id, recipient_id]
-        thread_id = min(actor_id, recipient_id) * 10000 + max(actor_id, recipient_id)
+
+        if thread_id is not None:
+            if thread_id >= 10000000:
+                thread_exists = db.query(models.DmThreadParticipant).filter(
+                    models.DmThreadParticipant.thread_id == thread_id
+                ).first() is not None
+            else:
+                thread_exists = db.query(models.DirectMessage).filter(
+                    models.DirectMessage.thread_id == thread_id
+                ).first() is not None
+
+            if not thread_exists:
+                return {
+                    "error": "スレッド未開設です",
+                    "status_code": 404,
+                    "thread_id": thread_id,
+                }
+            tid = thread_id
+        else:
+            tid = min(actor_id, recipient_id) * 10000 + max(actor_id, recipient_id)
 
         other_participants = [p for p in set(participants) if p != actor_id]
         if not other_participants:
             return {"error": "有効な受信者が存在しません", "status_code": 400}
-            
+
         representative_id = other_participants[0]
 
         db_dm = models.DirectMessage(
-            thread_id=thread_id,
+            thread_id=tid,
             sender_id=actor_id,
             recipient_id=representative_id,
             body=body,
@@ -881,7 +965,8 @@ def update_task(
     actor_id 本人が当該 task の担当者か admin でなければ 403 エラー。
     assignee は username で指定 (内部で uid に解決)。
     type は animation/layout/comp/fx/lighting/asset/programming/design/testing/shoot/gs/report/other のいずれか。
-    status は todo/in-progress/review/approved/completed/delayed/retake のいずれか。
+    status は wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/omit(新9値)、または
+    todo/in-progress/review/approved/completed/delayed/retake 等の旧値エイリアス(自動変換)。
     指定した項目のみ更新 (未指定は変更しない)。
     """
     err = _require_write_scope()
@@ -896,11 +981,24 @@ def update_task(
         }
 
     # ---- status enum 検証 ----
-    _VALID_STATUSES = {"todo", "in-progress", "review", "approved", "completed", "delayed", "retake"}
-    if status and status not in _VALID_STATUSES:
+    # schemas.canonicalize_task_status で旧7値/旧19値/新9値の表記揺れを一括吸収し、
+    # 畳み込み後の値が新9値(status_meta.ACTIVE_STATUSES)に含まれるかで妥当性を判定する。
+    # 注意: canonicalize_task_status は未知の値を素通しする(Noneを返さない)ため、
+    # 「is not None」ではなく ACTIVE_STATUSES への包含チェックが必要。
+    if status and schemas.canonicalize_task_status(status) not in ACTIVE_STATUSES:
+        current_status = None
+        db_probe = SessionLocal()
+        try:
+            probe_task = db_probe.query(models.Task).filter(models.Task.id == task_id).first()
+            if probe_task:
+                raw = probe_task.status.value if hasattr(probe_task.status, "value") else probe_task.status
+                current_status = schemas.canonicalize_task_status(raw)
+        finally:
+            db_probe.close()
         return {
             "error": "invalid_status",
-            "detail": f"status='{status}' は無効。有効値: {sorted(_VALID_STATUSES)}",
+            "detail": f"status='{status}' は無効。有効値: {sorted(ACTIVE_STATUSES)}",
+            "allowed_next": status_transitions.get_allowed_transitions(current_status),
         }
 
     # ---- assignee 解決 (username → uid) ----
@@ -952,7 +1050,12 @@ def update_task(
             }
 
         task_in = schemas.TaskUpdate(**payload)
-        updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_in)
+        try:
+            updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_in, actor_id=actor_id)
+        except status_transitions.TransitionError as exc:
+            body = dict(exc.body)
+            body.pop("http_status", None)
+            return body
 
         record_event(db, "task.update", actor_uid=actor_id,
                      target_type="task", target_id=task_id)
@@ -961,7 +1064,7 @@ def update_task(
         import threading
         threading.Thread(target=auto_sync_task_bg, args=(updated_task.id,)).start()
 
-        return {
+        result = {
             "ok": True,
             "task_id": task_id,
             "updated_fields": list(payload.keys()),
@@ -970,8 +1073,52 @@ def update_task(
             "type": updated_task.type,
             "due_date": str(updated_task.due_date or ""),
         }
+        if getattr(updated_task, "warnings", None):
+            result["warnings"] = updated_task.warnings
+        return result
     finally:
         db.close()
+
+
+@mcp.tool()
+def get_allowed_transitions(status: str, actor_username: str = "") -> dict:
+    """指定ステータスから遷移可能な次状態一覧を返す(読取専用)。
+    status は wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/omit(新9値)、または旧値エイリアス。
+    actor_username を指定すると、そのユーザーの役職(admin判定はグローバル、それ以外は全プロジェクト
+    共通のscore_user_roles最上位役職を簡易参照)を踏まえた permitted_for_actor も返す。
+    読取専用ツールのため書込スコープは要求しない(SCORE_READONLY_TOKENのみの利用者も呼べる)。
+    """
+    canonical = schemas.canonicalize_task_status(status)
+    if canonical not in ACTIVE_STATUSES:
+        return {
+            "error": "invalid_status",
+            "detail": f"status='{status}' は無効。有効値: {sorted(ACTIVE_STATUSES)}",
+        }
+
+    actor_role = None
+    if actor_username:
+        db = SessionLocal()
+        try:
+            user = db.query(models.User).filter(
+                (models.User.username == actor_username) | (models.User.name == actor_username),
+                models.User.is_active == True,
+            ).first()
+            if user and user.role == "admin":
+                actor_role = "director"  # F-8: admin相当。UI表示上の便宜(実バイパスはcrud層で別途行う)
+            elif user:
+                role_row = db.query(models.ScoreUserRole).filter(
+                    models.ScoreUserRole.user_id == user.id
+                ).order_by(models.ScoreUserRole.id.asc()).first()
+                actor_role = role_row.role if role_row else None
+        finally:
+            db.close()
+
+    return {
+        "status": canonical,
+        "actor_role": actor_role,
+        "actor_role_canonical": status_transitions.normalize_role(actor_role),
+        "allowed_next": status_transitions.get_allowed_transitions(canonical, actor_role=actor_role),
+    }
 
 
 mcp_http = mcp.http_app(path="/")

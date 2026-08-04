@@ -16,7 +16,7 @@ const STATUS_ORDER: Record<string, number> = {
     'ap':        6,
     'client_ap': 7,
     'deliver':   8,
-    'omit':      9,
+    'completed': 9,
 };
 
 // ────────────────────────────────────────────────────────────────────────────

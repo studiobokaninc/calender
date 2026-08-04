@@ -11,7 +11,11 @@ def _parse_datetime(date_val: str | datetime | date | None) -> Optional[datetime
     if date_val is None or date_val == '':
         return None
     
+    from ..timezone import JST
+    
     if isinstance(date_val, datetime):
+        if date_val.tzinfo is not None:
+            return date_val.astimezone(JST).replace(tzinfo=None)
         return date_val
         
     if isinstance(date_val, date):
@@ -24,9 +28,13 @@ def _parse_datetime(date_val: str | datetime | date | None) -> Optional[datetime
         
     try:
         # ISO形式をパース
-        return datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+        if dt.tzinfo is not None:
+            return dt.astimezone(JST).replace(tzinfo=None)
+        return dt
     except (ValueError, TypeError):
         return None
+
 
 def _parse_int_safe(value: Any) -> Optional[int]:
     """値を安全に整数に変換"""

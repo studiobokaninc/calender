@@ -15,7 +15,7 @@ LEGACY_STATUS_MAP: dict[str, str] = {
     "in_progress": "wip",
     "review": "qc",
     "approved": "ap",
-    "completed": "deliver",
+    "completed": "completed",
     "delayed": "wip",
     "retake": "qc_fb",
     "cashing": "caching",
@@ -26,6 +26,7 @@ LEGACY_STATUS_MAP: dict[str, str] = {
     "dir-ap": "ap",
     "dir-fb": "qc_fb",
     "client-ap": "client_ap",
+    "omit": "completed",
     # 旧19体系の工程別 → wip
     "modeling": "wip",
     "lookdev": "wip",
@@ -51,7 +52,7 @@ STATUS_COLOR: dict[str, str] = {
     "ap": "#4CAF50",         # グリーン (社内承認済)
     "client_ap": "#2E7D32",  # 濃グリーン (クライアント承認済)
     "deliver": "#757575",    # ダークグレー (納品完了)
-    "omit": "#E0E0E0",       # 薄グレー / 取消線 (対象外)
+    "completed": "#1B5E20",  # 深緑 (納品完了時)
 }
 
 STATUS_LABEL: dict[str, str] = {
@@ -63,7 +64,7 @@ STATUS_LABEL: dict[str, str] = {
     "ap": "AP",
     "client_ap": "CLIENT_AP",
     "deliver": "DELIVER",
-    "omit": "OMIT",
+    "completed": "COMPLETED",
 }
 
 # --- ロジック用カテゴリ (§2 の5分類) ---
@@ -76,28 +77,28 @@ STATUS_CATEGORY: dict[str, str] = {
     "ap": "completed",
     "client_ap": "completed",
     "deliver": "completed",
-    "omit": "held",
+    "completed": "completed",
 }
 
 # --- カテゴリ集合（集計・判定ロジックの単一の真実） ---
-COMPLETED_STATUSES = frozenset({"ap", "client_ap", "deliver"})
+COMPLETED_STATUSES = frozenset({"ap", "client_ap", "deliver", "completed"})
 REVIEW_STATUSES = frozenset({"qc", "qc_fb"})
 IN_PROGRESS_STATUSES = frozenset({"wip"})
 TODO_STATUSES = frozenset({"mk"})
-HELD_STATUSES = frozenset({"wt", "omit"})  # 遅延・オンスケ統計から除外
+HELD_STATUSES = frozenset({"wt"})  # 遅延・オンスケ統計から除外
 ACTIVE_STATUSES = frozenset(STATUS_COLOR.keys())  # 有効9ステータス
 
-# --- プロジェクト全体進捗のウェイト (§4) / omit は除外(None) ---
+# --- プロジェクト全体進捗のウェイト (§4) ---
 STATUS_PROGRESS_WEIGHT: dict[str, Optional[float]] = {
     "ap": 1.0,
     "client_ap": 1.0,
     "deliver": 1.0,
+    "completed": 1.0,
     "qc": 0.7,
     "wip": 0.4,
     "qc_fb": 0.4,
     "mk": 0.0,
     "wt": 0.0,
-    "omit": None,
 }
 
 

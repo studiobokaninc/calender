@@ -62,7 +62,7 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
 
-    const { data: allowedTransitions } = useAllowedTransitions(task.id, true);
+    const { data: allowedTransitions } = useAllowedTransitions(task.id, true, task.status);
 
     // Form states
     const [editName, setEditName] = React.useState(task.name);

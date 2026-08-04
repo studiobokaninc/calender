@@ -980,25 +980,10 @@ def update_task(
             "detail": f"type='{type}' は無効。有効値: {sorted(_VALID_TASK_TYPES)}",
         }
 
-    # ---- status enum 検証 ----
-    # schemas.canonicalize_task_status で旧7値/旧19値/新9値の表記揺れを一括吸収し、
-    # 畳み込み後の値が新9値(status_meta.ACTIVE_STATUSES)に含まれるかで妥当性を判定する。
-    # 注意: canonicalize_task_status は未知の値を素通しする(Noneを返さない)ため、
-    # 「is not None」ではなく ACTIVE_STATUSES への包含チェックが必要。
     if status and schemas.canonicalize_task_status(status) not in ACTIVE_STATUSES:
-        current_status = None
-        db_probe = SessionLocal()
-        try:
-            probe_task = db_probe.query(models.Task).filter(models.Task.id == task_id).first()
-            if probe_task:
-                raw = probe_task.status.value if hasattr(probe_task.status, "value") else probe_task.status
-                current_status = schemas.canonicalize_task_status(raw)
-        finally:
-            db_probe.close()
         return {
             "error": "invalid_status",
             "detail": f"status='{status}' は無効。有効値: {sorted(ACTIVE_STATUSES)}",
-            "allowed_next": status_transitions.get_allowed_transitions(current_status),
         }
 
     # ---- assignee 解決 (username → uid) ----
@@ -1051,7 +1036,13 @@ def update_task(
 
         task_in = schemas.TaskUpdate(**payload)
         try:
-            updated_task = crud.update_task(db=db, db_task=db_task, task_in=task_in, actor_id=actor_id)
+            updated_task = crud.update_task(
+                db=db, 
+                db_task=db_task, 
+                task_in=task_in, 
+                actor_id=actor_id,
+                change_source=models.TaskChangeSource.MCP
+            )
         except status_transitions.TransitionError as exc:
             body = dict(exc.body)
             body.pop("http_status", None)
@@ -1080,45 +1071,51 @@ def update_task(
         db.close()
 
 
+
+
 @mcp.tool()
-def get_allowed_transitions(status: str, actor_username: str = "") -> dict:
-    """指定ステータスから遷移可能な次状態一覧を返す(読取専用)。
-    status は wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/omit(新9値)、または旧値エイリアス。
-    actor_username を指定すると、そのユーザーの役職(admin判定はグローバル、それ以外は全プロジェクト
-    共通のscore_user_roles最上位役職を簡易参照)を踏まえた permitted_for_actor も返す。
-    読取専用ツールのため書込スコープは要求しない(SCORE_READONLY_TOKENのみの利用者も呼べる)。
+def get_task_due_date_history(
+    task_id: int,
+    actor_id: int,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    """特定のタスクの期日変更履歴を取得する。
+    操作主体である actor_id ユーザーの閲覧権限を検証した上で履歴を返却する。
     """
-    canonical = schemas.canonicalize_task_status(status)
-    if canonical not in ACTIVE_STATUSES:
-        return {
-            "error": "invalid_status",
-            "detail": f"status='{status}' は無効。有効値: {sorted(ACTIVE_STATUSES)}",
-        }
-
-    actor_role = None
-    if actor_username:
-        db = SessionLocal()
-        try:
-            user = db.query(models.User).filter(
-                (models.User.username == actor_username) | (models.User.name == actor_username),
-                models.User.is_active == True,
-            ).first()
-            if user and user.role == "admin":
-                actor_role = "director"  # F-8: admin相当。UI表示上の便宜(実バイパスはcrud層で別途行う)
-            elif user:
-                role_row = db.query(models.ScoreUserRole).filter(
-                    models.ScoreUserRole.user_id == user.id
-                ).order_by(models.ScoreUserRole.id.asc()).first()
-                actor_role = role_row.role if role_row else None
-        finally:
-            db.close()
-
-    return {
-        "status": canonical,
-        "actor_role": actor_role,
-        "actor_role_canonical": status_transitions.normalize_role(actor_role),
-        "allowed_next": status_transitions.get_allowed_transitions(canonical, actor_role=actor_role),
-    }
+    db = SessionLocal()
+    try:
+        db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+        if not db_task:
+            return {"error": "Task not found", "status_code": 404}
+        
+        # 操作主体の存在・アクティブチェック
+        user = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not user:
+            return {"error": f"actor_id={actor_id} が無効またはアクティブではありません", "status_code": 403}
+            
+        # 閲覧認可チェック (REST API と共通ロジックを使用)
+        if not crud.check_task_view_permission(db, db_task, user):
+            return {"error": f"ユーザー(ID={actor_id})はこのタスクの閲覧権限がありません", "status_code": 403}
+        
+        history = db.query(models.TaskDueDateHistory)\
+            .filter(models.TaskDueDateHistory.task_id == task_id)\
+            .order_by(models.TaskDueDateHistory.changed_at.asc(), models.TaskDueDateHistory.id.asc())\
+            .offset(offset).limit(limit).all()
+            
+        items = []
+        for h in history:
+            items.append({
+                "id": h.id,
+                "old_due_date": h.old_due_date.isoformat() if h.old_due_date else None,
+                "new_due_date": h.new_due_date.isoformat() if h.new_due_date else None,
+                "changed_at": h.changed_at.isoformat(),
+                "changed_by": h.changed_by,
+                "change_source": h.change_source.value if hasattr(h.change_source, "value") else str(h.change_source)
+            })
+        return {"task_id": task_id, "task_name": db_task.name, "due_date_history": items}
+    finally:
+        db.close()
 
 
 mcp_http = mcp.http_app(path="/")

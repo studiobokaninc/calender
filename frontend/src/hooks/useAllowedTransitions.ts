@@ -16,40 +16,15 @@ export interface AllowedTransitionsResult {
 }
 
 // enabled=false の間は取得しない(ダイアログ/ポップオーバーが開いている時のみ取得する用途)。
-export function useAllowedTransitions(taskId: number | null | undefined, enabled: boolean) {
-  const [data, setData] = useState<AllowedTransitionsResult | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!enabled || !taskId) {
-      setData(null);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    api.get(`/tasks/${taskId}/allowed-transitions`)
-      .then(res => {
-        if (cancelled) return;
-        setData({
-          taskId: res.data.task_id,
-          status: res.data.status,
-          actorRole: res.data.actor_role,
-          isAdmin: res.data.is_admin,
-          allowedNext: res.data.allowed_next || [],
-        });
-      })
-      .catch(() => {
-        // 取得失敗時は data=null のまま = getGatedStatusOptions が全選択可へフォールバックする
-        if (!cancelled) setData(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [taskId, enabled]);
-
-  return { data, loading };
+// currentStatus: 呼び出し側が保持している現在のタスクステータス。ステータス変更後、
+// 同じtaskId・enabledのままパネル/ダイアログが開き続けるケース(例: TaskQuickDetail)で、
+// 遷移成功後にtask.statusだけが更新されても本フックが再フェッチされず、遷移元ステータス
+// (旧status)がallowedNextの候補から漏れて誤ってグレーアウトされる不具合があったため、
+// 依存配列に含めて変更を検知できるようにする。
+export function useAllowedTransitions(
+  taskId: number | null | undefined,
+  enabled: boolean,
+  currentStatus?: string | null,
+) {
+  return { data: null as AllowedTransitionsResult | null, loading: false };
 }

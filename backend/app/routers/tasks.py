@@ -45,45 +45,31 @@ def get_task_status_history_endpoint(
     return history
 
 
-@router.get("/{task_id}/allowed-transitions")
-def get_task_allowed_transitions_endpoint(
+@router.get("/{task_id}/due-date-history", response_model=List[schemas.TaskDueDateHistoryResponse])
+def get_task_due_date_history_endpoint(
     task_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(security.get_current_user),
 ):
-    """実タスク文脈での許可次状態。current_user の役職を反映し permitted_for_actor を返す。
-    UIのボタン活性/非活性がこれ1本で決まる想定(殿要求(b)の本命の一つ)。"""
+    """特定のタスクの期日変更履歴を取得（閲覧権限必須、件数制限付き）"""
     db_task = crud.get_task(db=db, task_id=task_id)
     if db_task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="タスクが見つかりません")
+    
+    # 閲覧認可のチェック
+    if not crud.check_task_view_permission(db, db_task, current_user):
+         raise HTTPException(
+             status_code=status.HTTP_403_FORBIDDEN, 
+             detail="このタスクの情報を閲覧する権限がありません。"
+         )
 
-    raw_status = db_task.status.value if hasattr(db_task.status, "value") else db_task.status
-    canonical_status = schemas.canonicalize_task_status(raw_status)
+    history = crud.get_task_due_date_history(db=db, task_id=task_id, limit=limit, offset=offset)
+    return history
 
-    if current_user.role == "admin":
-        actor_role = None
-        is_admin = True
-    else:
-        is_admin = False
-        role_row = db.query(models.ScoreUserRole).filter(
-            models.ScoreUserRole.user_id == current_user.id,
-            models.ScoreUserRole.project_id == db_task.project_id,
-        ).first()
-        actor_role = role_row.role if role_row else None
 
-    allowed = status_transitions.get_allowed_transitions(canonical_status, actor_role=actor_role)
-    if is_admin:
-        for entry in allowed:
-            entry["permitted_for_actor"] = True  # F-8: admin常時バイパス
 
-    return {
-        "task_id": task_id,
-        "status": canonical_status,
-        "actor_role": actor_role,
-        "actor_role_canonical": status_transitions.normalize_role(actor_role),
-        "is_admin": is_admin,
-        "allowed_next": allowed,
-    }
 
 
 @router.get("", response_model=List[schemas.TaskResponse])

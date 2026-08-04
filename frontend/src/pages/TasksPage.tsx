@@ -5,7 +5,8 @@ import {
     Box, Typography, CircularProgress, Paper, Chip, Select, MenuItem, FormControl, InputLabel, Grid,
     Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Stack,
     Snackbar, Alert, SelectChangeEvent, Tooltip, Divider, useTheme, Drawer, useMediaQuery,
-    Card, CardContent, CardActionArea, Avatar, Breadcrumbs, Link, Popover, List, ListItemButton, ListItemText
+    Card, CardContent, CardActionArea, Avatar, Breadcrumbs, Link, Popover, List, ListItemButton, ListItemText,
+    Tabs, Tab
 } from '@mui/material';
 import {
     Edit as EditIcon, Delete as DeleteIcon, History as HistoryIcon, EditNote as BulkEditIcon,
@@ -101,6 +102,16 @@ interface StatusHistory {
     changed_by: number;
 }
 
+interface DueDateHistory {
+    id: number;
+    task_id: number;
+    old_due_date?: string | null;
+    new_due_date?: string | null;
+    changed_at: string;
+    changed_by?: number | null;
+    change_source: string;
+}
+
 const STATUS_ORDER: Record<string, number> = {
     'wt':        1,
     'mk':        2,
@@ -110,7 +121,7 @@ const STATUS_ORDER: Record<string, number> = {
     'ap':        6,
     'client_ap': 7,
     'deliver':   8,
-    'omit':      9,
+    'completed': 9,
 };
 
 const TasksPage: React.FC = () => {
@@ -194,7 +205,7 @@ const TasksPage: React.FC = () => {
     });
     const [shots, setShots] = useState<{ id: number; shotID: string; seqID: string }[]>([]);
     // 新規作成時(id=null)は遷移元ステータスが存在しないためグレーアウトしない
-    const { data: currentTaskAllowedTransitions } = useAllowedTransitions(currentTask.id, Boolean(currentTask.id));
+    const { data: currentTaskAllowedTransitions } = useAllowedTransitions(currentTask.id, Boolean(currentTask.id), currentTask.status);
 
     useEffect(() => {
         if (!currentTask.project_id) {
@@ -235,13 +246,15 @@ const TasksPage: React.FC = () => {
 
 
 
-    // ステータス履歴表示用の状態
+    // ステータス・期日変更履歴表示用の状態
     const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
+    const [dueDateHistory, setDueDateHistory] = useState<DueDateHistory[]>([]);
     const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+    const [historyTabValue, setHistoryTabValue] = useState(0);
 
     // ステータス選択ポップオーバー用の状態
     const [statusPopover, setStatusPopover] = useState<{ anchor: HTMLElement; taskId: number; currentStatus?: string | null } | null>(null);
-    const { data: statusPopoverAllowedTransitions } = useAllowedTransitions(statusPopover?.taskId, Boolean(statusPopover));
+    const { data: statusPopoverAllowedTransitions } = useAllowedTransitions(statusPopover?.taskId, Boolean(statusPopover), statusPopover?.currentStatus);
 
     // 一括編集（選択された行IDの配列）
     const [selectionModel, setSelectionModel] = useState<number[]>([]);
@@ -258,33 +271,7 @@ const TasksPage: React.FC = () => {
     });
 
     useEffect(() => {
-        if (!bulkEditOpen || selectionModel.length === 0 || selectionModel.length > BULK_GATING_MAX_SELECTION) {
-            setBulkAllowedStatuses(null);
-            return;
-        }
-        let cancelled = false;
-        Promise.all(
-            selectionModel.map(id => api.get(`/tasks/${id}/allowed-transitions`).then(r => r.data).catch(() => null))
-        ).then(results => {
-            if (cancelled) return;
-            const valid = results.filter(Boolean);
-            if (valid.length !== selectionModel.length) {
-                // 一部取得失敗 = 正しく交差判定できないため、誤ってグレーアウトしないよう全選択可にフォールバック
-                setBulkAllowedStatuses(null);
-                return;
-            }
-            const allowedSet = new Set<string>();
-            TASK_STATUS_OPTIONS.forEach(({ value: status }) => {
-                const permittedForAll = valid.every((r: any) => {
-                    if (r.status === status) return true; // 現在値と同じタスクはno-opで常に可
-                    const entry = (r.allowed_next || []).find((e: any) => e.status === status);
-                    return !!entry && entry.permitted_for_actor !== false;
-                });
-                if (permittedForAll) allowedSet.add(status);
-            });
-            setBulkAllowedStatuses(allowedSet);
-        });
-        return () => { cancelled = true; };
+        setBulkAllowedStatuses(null);
     }, [bulkEditOpen, selectionModel]);
 
     const handleBulkEditApply = () => {
@@ -732,12 +719,15 @@ const TasksPage: React.FC = () => {
             let errorMessage = 'タスクの保存に失敗しました';
 
             if (err.response?.data?.detail) {
-                if (Array.isArray(err.response.data.detail)) {
-                    errorMessage = err.response.data.detail
+                const detail = err.response.data.detail;
+                if (typeof detail === 'object' && detail.detail) {
+                    errorMessage = String(detail.detail);
+                } else if (Array.isArray(detail)) {
+                    errorMessage = detail
                         .map((error: any) => `${error.loc.join('.')}: ${error.msg}`)
                         .join('\n');
                 } else {
-                    errorMessage = err.response.data.detail;
+                    errorMessage = String(detail);
                 }
             } else if (err.message) {
                 errorMessage = err.message;
@@ -1121,31 +1111,39 @@ const TasksPage: React.FC = () => {
 
 
 
-    // ステータス履歴を表示する関数
+    // 履歴を表示する関数
     const handleViewHistory = async (task: Task) => {
         try {
-            const response = await api.get<StatusHistory[]>(`/tasks/${task.id}/status-history`);
-            // IDでソート
-            const sortedHistory = response.data.sort((a, b) => a.id - b.id);
-            setStatusHistory(sortedHistory);
+            // ステータス履歴と期日履歴を並行で取得
+            const [statusRes, dueRes] = await Promise.all([
+                api.get<StatusHistory[]>(`/tasks/${task.id}/status-history`),
+                api.get<DueDateHistory[]>(`/tasks/${task.id}/due-date-history`)
+            ]);
+            
+            // ステータス履歴をID昇順でソート
+            const sortedStatus = statusRes.data.sort((a, b) => a.id - b.id);
+            // 期日履歴は降順（最新の変更が上）
+            const sortedDue = (dueRes.data || []).sort((a, b) => b.id - a.id);
+            
+            setStatusHistory(sortedStatus);
+            setDueDateHistory(sortedDue);
             setSelectedTask(task);
+            setHistoryTabValue(0); // ダイアログを開いた時は最初のタブ（ステータス履歴）を表示
             setHistoryDialogOpen(true);
         } catch (err) {
             setSnackbar({
                 open: true,
-                message: 'ステータス履歴の取得に失敗しました',
+                message: '履歴の取得に失敗しました',
                 severity: 'error'
             });
         }
     };
 
-
-
-
-    // ステータス履歴ダイアログを閉じる関数
+    // 履歴ダイアログを閉じる関数
     const handleCloseHistoryDialog = () => {
         setHistoryDialogOpen(false);
         setStatusHistory([]);
+        setDueDateHistory([]);
         setSelectedTask(null);
     };
 
@@ -2194,34 +2192,79 @@ const TasksPage: React.FC = () => {
 
 
 
-            {/* ステータス履歴ダイアログ */}
+            {/* 変更履歴ダイアログ */}
             <Dialog
                 open={historyDialogOpen}
                 onClose={handleCloseHistoryDialog}
                 maxWidth="sm"
                 fullWidth
             >
-                <DialogTitle>
-                    ステータス履歴 - {selectedTask?.name}
+                <DialogTitle sx={{ pb: 1 }}>
+                    変更履歴 - {selectedTask?.name}
                 </DialogTitle>
-                <DialogContent>
-                    <Box sx={{ mt: 2 }}>
-                        {statusHistory.map((history) => (
-                            <Box key={history.id} sx={{ mb: 2, p: 1, border: '1px solid #eee', borderRadius: 1 }}>
-                                <Typography variant="body2">
-                                    ステータス: {history.status}
+                <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}>
+                    <Tabs value={historyTabValue} onChange={(e, val) => setHistoryTabValue(val)}>
+                        <Tab label="ステータス履歴" sx={{ textTransform: 'none', fontWeight: 600 }} />
+                        <Tab label="期日履歴" sx={{ textTransform: 'none', fontWeight: 600 }} />
+                    </Tabs>
+                </Box>
+                <DialogContent sx={{ minHeight: 250, maxHeight: 400, overflowY: 'auto' }}>
+                    {historyTabValue === 0 && (
+                        <Box sx={{ mt: 2 }}>
+                            {statusHistory.map((history) => (
+                                <Box key={history.id} sx={{ mb: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            ステータス: {getTaskStatusLabel(history.status)}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            変更者: {history.changed_by ? (users.find(u => u.id === history.changed_by)?.username || `ユーザーID: ${history.changed_by}`) : 'システム / 未指定'}
+                                        </Typography>
+                                    </Box>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                        変更日時: {format(new Date(history.changed_at), 'yyyy/MM/dd HH:mm', { locale: ja })}
+                                    </Typography>
+                                </Box>
+                            ))}
+                            {statusHistory.length === 0 && (
+                                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                                    ステータス履歴はありません
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                    変更日時: {format(new Date(history.changed_at), 'yyyy/MM/dd HH:mm', { locale: ja })}
+                            )}
+                        </Box>
+                    )}
+                    {historyTabValue === 1 && (
+                        <Box sx={{ mt: 2 }}>
+                            {dueDateHistory.map((history) => (
+                                <Box key={history.id} sx={{ mb: 1.5, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                            {formatDate(history.old_due_date)} → {formatDate(history.new_due_date)}
+                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary">
+                                            変更者: {history.changed_by ? (users.find(u => u.id === history.changed_by)?.username || `ユーザーID: ${history.changed_by}`) : 'システム / 未指定'}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            変更日時: {format(new Date(history.changed_at), 'yyyy/MM/dd HH:mm', { locale: ja })}
+                                        </Typography>
+                                        <Chip 
+                                            label={history.change_source === 'mcp' ? 'MCP' : history.change_source === 'system' ? 'システム' : '画面入力'} 
+                                            size="small" 
+                                            variant="outlined"
+                                            sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600 }} 
+                                        />
+                                    </Box>
+                                </Box>
+                            ))}
+                            {dueDateHistory.length === 0 && (
+                                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+                                    期日変更履歴はありません
                                 </Typography>
-                            </Box>
-                        ))}
-                        {statusHistory.length === 0 && (
-                            <Typography variant="body2" color="text.secondary">
-                                履歴がありません
-                            </Typography>
-                        )}
-                    </Box>
+                            )}
+                        </Box>
+                    )}
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseHistoryDialog}>閉じる</Button>

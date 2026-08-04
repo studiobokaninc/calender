@@ -26,7 +26,7 @@ const CATEGORY_MAP: Record<string, TaskStatusCategory> = {
   ap: 'completed',
   client_ap: 'completed',
   deliver: 'completed',
-  omit: 'held',
+  completed: 'completed',
 };
 
 export const getTaskStatusCategory = (status?: string | null): TaskStatusCategory | null => {
@@ -47,7 +47,7 @@ const LABEL_MAP: Record<string, string> = {
   ap: 'AP',
   client_ap: 'CLIENT_AP',
   deliver: 'DELIVER',
-  omit: 'OMIT',
+  completed: 'COMPLETED',
 };
 
 export const getTaskStatusLabel = (status?: string | null): string => {
@@ -68,7 +68,7 @@ const COLOR_MAP: Record<string, string> = {
   ap: '#4CAF50',        // グリーン (社内承認済)
   client_ap: '#2E7D32', // 濃グリーン (クライアント承認済)
   deliver: '#757575',   // ダークグレー (納品完了)
-  omit: '#E0E0E0',      // 薄グレー / 取消線 (対象外)
+  completed: '#1B5E20', // 深緑 (納品完了時)
 };
 
 export const getTaskStatusColor = (status?: string | null): string => {
@@ -122,25 +122,23 @@ export const TASK_STATUS_OPTIONS: Array<{ value: TaskStatus; label: string }> = 
   { value: 'ap', label: 'AP' },
   { value: 'client_ap', label: 'CLIENT_AP' },
   { value: 'deliver', label: 'DELIVER' },
-  { value: 'omit', label: 'OMIT' },
+  { value: 'completed', label: 'COMPLETED' },
 ];
 
 // ---------------------------------------------------------------------------
 // 推奨遷移マトリクス (§1.3) — UIガイド用。
 // API は任意遷移を許容するため、ここでは「推奨」を示すのみで選択自体は制限しない。
-// current(正規化後) → 推奨される遷移先(表示順)。omit へは全ステータスから遷移可。
-// ※ 印付き遷移(差戻し)も含む。
 // ---------------------------------------------------------------------------
 const RECOMMENDED_NEXT: Record<string, string[]> = {
-  wt: ['mk', 'omit'],
-  mk: ['wip', 'omit'],
-  wip: ['qc', 'omit'],
-  qc: ['ap', 'qc_fb', 'wip', 'omit'],
-  qc_fb: ['wip', 'qc', 'omit'],
-  ap: ['client_ap', 'deliver', 'qc_fb', 'omit'],
-  client_ap: ['deliver', 'qc_fb', 'omit'],
-  deliver: ['qc_fb', 'wip', 'qc', 'omit'],
-  omit: ['wt', 'mk'],
+  wt: ['mk'],
+  mk: ['wip'],
+  wip: ['qc'],
+  qc: ['ap', 'qc_fb', 'wip'],
+  qc_fb: ['wip', 'qc'],
+  ap: ['client_ap', 'deliver', 'qc_fb'],
+  client_ap: ['deliver', 'qc_fb'],
+  deliver: ['completed', 'qc_fb', 'wip'],
+  completed: ['wt', 'mk'],
 };
 
 // current から推奨される遷移先ステータス(有効9値)の配列を返す。
@@ -290,18 +288,17 @@ export const getGatedStatusOptions = (
 
 // ---------------------------------------------------------------------------
 // プロジェクト全体進捗のウェイト (§4)
-// omit は null = 分母分子ともに除外扱い
 // ---------------------------------------------------------------------------
 export const STATUS_PROGRESS_WEIGHT: Record<string, number | null> = {
   ap: 1.0,
   client_ap: 1.0,
   deliver: 1.0,
+  completed: 1.0,
   qc: 0.7,
   wip: 0.4,
   qc_fb: 0.4,
   mk: 0,
   wt: 0,
-  omit: null,
 };
 
 export const getStatusProgressWeight = (status?: string | null): number | null => {
@@ -350,9 +347,9 @@ export const todayStrJST = (base: Date = new Date()): string => {
 };
 
 // 遅延はステータスではなく派生フラグ (§2)。
-// 完了カテゴリ (ap/client_ap/deliver) と 待機・対象外 (wt/omit) は遅延から除外。
+// 完了カテゴリ (ap/client_ap/deliver/completed) と 待機 (wt) は遅延から除外。
 // options.projectDisplayStatus を渡すとオンラインプロジェクトのみに絞れる:
-//   'online' 以外 (offline / archived) のプロジェクトのタスクは isOverdue=false を返す。
+//   'online' 以外 (offline / archived) のプロジェクト of タスクは isOverdue=false を返す。
 export const isOverdue = (
   task: { due_date?: string | null; status?: string | null },
   today: string = todayStrJST(),
@@ -366,7 +363,7 @@ export const isOverdue = (
   const due = normalizeDateOnly(task.due_date);
   if (!due) return false;
   const canonical = canonicalizeStatus(task.status) ?? task.status?.toLowerCase();
-  // 完了カテゴリ・待機・対象外は遅延から除外
+  // 完了カテゴリ・待機は遅延から除外
   const cat = canonical ? CATEGORY_MAP[canonical] : null;
   if (cat === 'completed' || cat === 'held') return false;
   return due < today;
@@ -383,7 +380,7 @@ const LEGACY_STATUS_MAP: Record<string, TaskStatus> = {
   in_progress: 'wip',
   review: 'qc',
   approved: 'ap',
-  completed: 'deliver',
+  completed: 'completed',
   delayed: 'wip',
   retake: 'qc_fb',
   cashing: 'wip',
@@ -394,6 +391,7 @@ const LEGACY_STATUS_MAP: Record<string, TaskStatus> = {
   'dir-ap': 'ap',
   'dir-fb': 'qc_fb',
   'client-ap': 'client_ap',
+  omit: 'completed',
   // 旧19体系の工程別 → wip
   modeling: 'wip',
   lookdev: 'wip',

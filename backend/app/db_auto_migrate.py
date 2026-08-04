@@ -226,6 +226,25 @@ def check_and_migrate_db():
         conn.commit()
         print("completed_atのバックフィルを完了しました。")
 
+        # task_due_date_historyテーブルの作成
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS task_due_date_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                old_due_date DATETIME,
+                new_due_date DATETIME,
+                changed_at DATETIME NOT NULL,
+                changed_by INTEGER,
+                change_source VARCHAR(50) NOT NULL DEFAULT 'manual',
+                FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+                FOREIGN KEY(changed_by) REFERENCES users(id) ON DELETE SET NULL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_task_due_date_history_task_id ON task_due_date_history(task_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_task_due_date_history_changed_at ON task_due_date_history(changed_at)")
+        conn.commit()
+        print("task_due_date_historyテーブルを確認・作成しました。")
+
         # === task_status_redesign_v2: 旧19体系 → 新9体系への集約（冪等） ===
         # 有効9値: wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/omit
         # SQLAlchemy Enum は NAME(大文字)で保存するため LOWER 照合し大文字 NAME を書き込む。
@@ -258,6 +277,15 @@ def check_and_migrate_db():
             print("task_status_redesign_v2: 旧19→新9集約・shots.approved廃止・completed_at拡張を完了しました。")
         except sqlite3.Error as _v2err:
             print(f"警告: task_status_redesign_v2 集約中にエラー（続行します）: {_v2err}")
+
+        # === task_status_redesign_v2: OMIT -> COMPLETED 移行 ===
+        try:
+            cursor.execute("UPDATE tasks SET status = 'COMPLETED' WHERE LOWER(status) = 'omit'")
+            cursor.execute("UPDATE task_status_history SET status = 'COMPLETED' WHERE LOWER(status) = 'omit'")
+            conn.commit()
+            print("db_auto_migrate: OMIT -> COMPLETED 移行を完了しました。")
+        except sqlite3.Error as omit_err:
+            print(f"警告: OMIT -> COMPLETED 移行中にエラー（続行します）: {omit_err}")
 
         # eventsテーブルにuser_idsカラムが存在するか確認して追加
         cursor.execute("PRAGMA table_info(events)")

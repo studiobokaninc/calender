@@ -43,6 +43,7 @@ class TaskStatus(str, enum.Enum):
     # 状態カテゴリ「完了」(V2: ap/client_ap/deliver を完了扱い)
     CLIENT_AP = "client_ap"  # V2 新設: クライアント承認 (完了カテゴリ)
     DELIVER = "deliver"
+    COMPLETED = "completed"
     # 状態カテゴリ「対象外・待機」
     OMIT = "omit"
     WT = "wt"
@@ -136,6 +137,12 @@ class Project(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column()
     client_ref: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
 
+class TaskChangeSource(str, enum.Enum):
+    MANUAL = "manual"
+    BULK_UPDATE = "bulk_update"
+    MCP = "mcp"
+    SYSTEM = "system"
+
 class TaskStatusHistory(Base):
     __tablename__ = "task_status_history"
 
@@ -147,6 +154,20 @@ class TaskStatusHistory(Base):
     change_source: Mapped[Optional[str]] = mapped_column(String, nullable=True, default='manual')
 
     task: Mapped["Task"] = relationship(back_populates="status_history")
+
+
+class TaskDueDateHistory(Base):
+    __tablename__ = "task_due_date_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    old_due_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    new_due_date: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
+    changed_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    change_source: Mapped[TaskChangeSource] = mapped_column(String, default=TaskChangeSource.MANUAL, nullable=False)
+
+    task: Mapped["Task"] = relationship(back_populates="due_date_history")
 
 
 class Shot(Base):
@@ -230,6 +251,12 @@ class Task(Base):
     status_history: Mapped[List["TaskStatusHistory"]] = relationship(
         back_populates="task",
         order_by="TaskStatusHistory.changed_at",
+        cascade="all, delete-orphan"
+    )
+
+    due_date_history: Mapped[List["TaskDueDateHistory"]] = relationship(
+        back_populates="task",
+        order_by="TaskDueDateHistory.changed_at.asc(), TaskDueDateHistory.id.asc()",
         cascade="all, delete-orphan"
     )
 

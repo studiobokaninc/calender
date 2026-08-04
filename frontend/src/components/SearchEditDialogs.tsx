@@ -386,10 +386,13 @@ export const TaskEditDialog: React.FC<TaskEditDialogProps> = ({ open, taskId, on
       onSaved();
       onClose();
     } catch (err: any) {
-      const msg = err.response?.data?.detail
-        ? (Array.isArray(err.response.data.detail)
-          ? err.response.data.detail.map((e: any) => `${e.loc?.join?.('.')}: ${e.msg}`).join('\n')
-          : err.response.data.detail)
+      const detail = err.response?.data?.detail;
+      const msg = detail
+        ? (typeof detail === 'object' && detail.detail
+          ? String(detail.detail)
+          : (Array.isArray(detail)
+            ? detail.map((e: any) => `${e.loc?.join?.('.')}: ${e.msg}`).join('\n')
+            : String(detail)))
         : '保存に失敗しました';
       setError(msg);
     } finally {

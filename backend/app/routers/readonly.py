@@ -347,45 +347,7 @@ def get_task_statuses(
     return STATUS_META_LIST
 
 
-@router.get("/task-status-transitions", response_model=list[dict])
-def get_task_status_transitions(
-    _: None = Depends(verify_readonly_token),
-):
-    """遷移グラフ全体(凡例・UIピッカー・Casperの静的理解用)。
-    confirmed=true は合法遷移グラフ(status_transitions.TRANSITIONS、Casper依頼書§02またはSTATUS_PROGRESS_WEIGHT
-    工程順に根拠あり)。confirmed=false は§03「逆行・復帰」制作部確定待ち(UNCONFIRMED_TRANSITIONS)。
-    出典: queue/reports/gunshi_report.yaml (subtask_681a)。"""
-    from app import status_transitions as st
-    from app.status_meta import ACTIVE_STATUSES, STATUS_CATEGORY, STATUS_COLOR, STATUS_LABEL
 
-    rows = []
-    for from_status in sorted(ACTIVE_STATUSES):
-        for to_status in sorted(st.TRANSITIONS.get(from_status, frozenset())):
-            role_required = st.ROLE_RULES.get((from_status, to_status))
-            rows.append({
-                "from": from_status,
-                "to": to_status,
-                "label": STATUS_LABEL.get(to_status, to_status),
-                "color": STATUS_COLOR.get(to_status, "#BDBDBD"),
-                "category": STATUS_CATEGORY.get(to_status),
-                "role_required": role_required,
-                "role_source": st.ROLE_RULE_SOURCE if role_required else "unconfirmed",
-                "confirmed": True,
-                "reason": None,
-            })
-        for to_status in sorted(st.UNCONFIRMED_TRANSITIONS.get(from_status, frozenset())):
-            rows.append({
-                "from": from_status,
-                "to": to_status,
-                "label": STATUS_LABEL.get(to_status, to_status),
-                "color": STATUS_COLOR.get(to_status, "#BDBDBD"),
-                "category": STATUS_CATEGORY.get(to_status),
-                "role_required": None,
-                "role_source": "unconfirmed",
-                "confirmed": False,
-                "reason": "Casper依頼書§03「逆行・復帰」制作部確定待ち",
-            })
-    return rows
 
 
 @router.get("/onschedule")
@@ -401,10 +363,10 @@ def get_onschedule_stats(
     from sqlalchemy import func
     import math
 
-    # 1. オンラインプロジェクトに紐づき、かつ omit/wt 以外のタスクを対象にする
+    # 1. オンラインプロジェクトに紐づき、かつ wt 以外のタスクを対象にする
     q = db.query(models.Task).join(models.Project, models.Task.project_id == models.Project.id)
     q = q.filter(models.Project.display_status == 'online')
-    q = q.filter(~func.lower(models.Task.status).in_(['omit', 'wt']))
+    q = q.filter(~func.lower(models.Task.status).in_(['wt']))
 
     # フィルタ
     if project_id is not None:

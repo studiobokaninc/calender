@@ -10,6 +10,18 @@ from datetime import datetime, timedelta
 from app import crud, models, schemas
 from app.schemas import canonicalize_task_status
 from app.timezone import now_jst_naive
+import os
+
+
+@pytest.fixture(autouse=True)
+def disable_transition_enforcement():
+    old = os.environ.get("TASK_TRANSITION_ENFORCE")
+    os.environ["TASK_TRANSITION_ENFORCE"] = "warn"
+    yield
+    if old is not None:
+        os.environ["TASK_TRANSITION_ENFORCE"] = old
+    else:
+        os.environ.pop("TASK_TRANSITION_ENFORCE", None)
 
 
 # ---------------------------------------------------------------------------
@@ -22,7 +34,7 @@ class TestCanonicalizeTaskStatus:
         assert canonicalize_task_status("in-progress") == "wip"
         assert canonicalize_task_status("in_progress") == "wip"
         assert canonicalize_task_status("delayed") == "wip"
-        assert canonicalize_task_status("completed") == "deliver"
+        assert canonicalize_task_status("completed") == "completed"
         assert canonicalize_task_status("review") == "qc"
         assert canonicalize_task_status("approved") == "ap"
         assert canonicalize_task_status("retake") == "qc_fb"
@@ -38,7 +50,7 @@ class TestCanonicalizeTaskStatus:
 
     def test_new9_status_passthrough(self):
         # V2 の有効9ステータスは素通し
-        for s in ("wt", "mk", "wip", "qc", "qc_fb", "ap", "client_ap", "deliver", "omit"):
+        for s in ("wt", "mk", "wip", "qc", "qc_fb", "ap", "client_ap", "deliver", "completed"):
             assert canonicalize_task_status(s) == s
 
     def test_legacy19_collapse_to_new9(self):
@@ -56,21 +68,22 @@ class TestCanonicalizeTaskStatus:
         assert canonicalize_task_status("dir_ap") == "ap"
         # client_ap の表記揺れ
         assert canonicalize_task_status("client-ap") == "client_ap"
+        assert canonicalize_task_status("omit") == "completed"
 
     def test_case_and_whitespace_normalization(self):
         assert canonicalize_task_status(" TODO ") == "mk"
         assert canonicalize_task_status("Deliver") == "deliver"
         # 日本語ラベルは is_csv=True の経路でのみ救済される。全角空白も除去対象。
-        assert canonicalize_task_status("　完了　", is_csv=True) == "deliver"
-        assert canonicalize_task_status("完了", is_csv=True) == "deliver"
+        assert canonicalize_task_status("　完了　", is_csv=True) == "completed"
+        assert canonicalize_task_status("完了", is_csv=True) == "completed"
 
     def test_csv_japanese_labels(self):
         assert canonicalize_task_status("未着手", is_csv=True) == "mk"
         assert canonicalize_task_status("進行中", is_csv=True) == "wip"
         assert canonicalize_task_status("確認中", is_csv=True) == "qc"
         assert canonicalize_task_status("承認済み", is_csv=True) == "ap"
-        assert canonicalize_task_status("完了", is_csv=True) == "deliver"
-        assert canonicalize_task_status("完了済み", is_csv=True) == "deliver"
+        assert canonicalize_task_status("完了", is_csv=True) == "completed"
+        assert canonicalize_task_status("完了済み", is_csv=True) == "completed"
         assert canonicalize_task_status("遅延", is_csv=True) == "wip"
         assert canonicalize_task_status("リテイク", is_csv=True) == "qc_fb"
 
@@ -94,7 +107,11 @@ class TestCanonicalizeTaskStatus:
 class TestSchemaValidator:
     def test_task_update_status_migration(self):
         u = schemas.TaskUpdate(status="completed")
-        assert u.status == models.TaskStatus.DELIVER
+        assert u.status == models.TaskStatus.COMPLETED
+
+    def test_task_update_status_omit_migration(self):
+        u = schemas.TaskUpdate(status="omit")
+        assert u.status == models.TaskStatus.COMPLETED
 
     def test_task_update_status_hyphen_alias(self):
         u = schemas.TaskUpdate(status="qc-fb")
@@ -249,14 +266,14 @@ class TestRecalcShotStatus:
         return shot
 
     def test_all_completed_category_becomes_completed(self, db):
-        # V2: ap/client_ap/deliver は全て完了カテゴリ → completed
-        shot = self._make_shot_with_tasks(db, ["ap", "client_ap", "deliver"])
+        # ap/client_ap/deliver/completed は全て完了カテゴリ → completed
+        shot = self._make_shot_with_tasks(db, ["ap", "client_ap", "deliver", "completed"])
         crud.tasks._recalc_shot_status(db, shot.id)
         db.commit(); db.refresh(shot)
         assert shot.status == "completed"
 
     def test_partial_completed_becomes_in_progress(self, db):
-        # 一部のみ完了（qc が残る）→ in_progress ('approved' は廃止)
+        # 一部のみ完了（qc が残る）→ in_progress
         shot = self._make_shot_with_tasks(db, ["deliver", "ap", "qc"])
         crud.tasks._recalc_shot_status(db, shot.id)
         db.commit(); db.refresh(shot)
@@ -268,12 +285,12 @@ class TestRecalcShotStatus:
         db.commit(); db.refresh(shot)
         assert shot.status == "in_progress"
 
-    def test_omit_is_excluded_from_aggregation(self, db):
-        # omit のタスクは集約対象外。残りが全て mk なら planning
-        shot = self._make_shot_with_tasks(db, ["mk", "mk", "omit"])
+    def test_partial_completed_with_planning_becomes_in_progress(self, db):
+        # completed のタスクがあり、残りが mk の場合は in_progress となる（omit 集約は廃止され、completed は完了カテゴリ扱いのため）
+        shot = self._make_shot_with_tasks(db, ["mk", "mk", "completed"])
         crud.tasks._recalc_shot_status(db, shot.id)
         db.commit(); db.refresh(shot)
-        assert shot.status == "planning"
+        assert shot.status == "in_progress"
 
     def test_all_wt_or_mk_becomes_planning(self, db):
         # V2: wt/mk はともに未着手系 → planning

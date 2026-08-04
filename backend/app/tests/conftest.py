@@ -27,7 +27,6 @@ def db():
         yield session
     finally:
         session.close()
-        # テーブルを削除（クリーンな状態を保つ）
         Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")

@@ -339,6 +339,26 @@ async def update_my_profile(
     return profile_data
 
 
+@me_router.post("/change-password", response_model=dict)
+async def change_my_password(
+    password_data: schemas.UserPasswordChange,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user)
+):
+    """自身のパスワードを更新"""
+    if not security.verify_password(password_data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="現在のパスワードが正しくありません。"
+        )
+    
+    current_user.hashed_password = security.get_password_hash(password_data.new_password)
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {"status": "ok", "message": "パスワードを更新しました。"}
+
+
 @me_router.post("/avatar", response_model=dict)
 async def upload_my_avatar(
     file: UploadFile = File(...),

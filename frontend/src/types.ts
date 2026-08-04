@@ -1,12 +1,12 @@
 // Base types based on previous context
 
 // task_status_redesign_v2_plan.md §1 準拠の新9ステータス体系。
-// 有効値: wt / mk / wip / qc / qc_fb / ap / client_ap / deliver / omit
+// 有効値: wt / mk / wip / qc / qc_fb / ap / client_ap / deliver / completed
 // 旧19体系 (modeling/lookdev/.../fix) および旧7体系 (todo/in-progress/...) は
 // API 側および migrateLegacyStatus で新9値へ自動畳み込みされる（互換のため型には残置）。
 export type TaskStatus =
   // 待機・対象外
-  | 'wt' | 'omit'
+  | 'wt' | 'completed'
   // 未着手
   | 'mk'
   // 進行中
@@ -49,6 +49,7 @@ export interface Task {
   cost?: number | null;
   dependsOn?: string[] | null;
   status_history?: StatusHistoryEntry[]; // ★★★ 追加: ステータス履歴の配列 (Optional) ★★★
+  due_date_history?: TaskDueDateHistoryEntry[]; // ★★★ 追加: 期日変更履歴の配列 (Optional) ★★★
   created_at?: string | null;
   updated_at?: string | null;
   completed_at?: string | null; // 完了カテゴリ(ap/client_ap/deliver)へ最初に遷移した日時
@@ -104,6 +105,17 @@ export interface StatusHistoryEntry {
   timestamp: string; // 変更日時の ISO 文字列（後方互換性のため残す）
   changed_at: string; // 変更日時の ISO 文字列（新しい形式）
   changed_by: number; // 変更を行ったユーザーの ID
+}
+
+// ★★★ 期日変更履歴のエントリ ★★★
+export interface TaskDueDateHistoryEntry {
+  id: number;
+  task_id: number;
+  old_due_date?: string | null;
+  new_due_date?: string | null;
+  changed_at: string;
+  changed_by?: number | null;
+  change_source: string;
 }
 
 // Define participant structure

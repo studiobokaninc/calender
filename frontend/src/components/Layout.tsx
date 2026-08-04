@@ -52,6 +52,7 @@ import {
   LibraryBooks as KnowledgeIcon,
   ViewModule as TrackerIcon,
   SmartToy as AIRecommendedIcon,
+  VpnKey as VpnKeyIcon,
 } from '@mui/icons-material'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import BugReportIcon from '@mui/icons-material/BugReport'
@@ -62,6 +63,7 @@ import api, { userActivityApi } from '../services/api'
 
 import { debounce } from 'lodash'
 import { ProjectEditDialog, TaskEditDialog, EventEditDialog } from './SearchEditDialogs'
+import PasswordChangeDialog from './PasswordChangeDialog'
 
 interface LayoutProps {
   children?: ReactNode;
@@ -92,6 +94,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [searchResults, setSearchResults] = useState<{ projects: Array<{ id: number; name: string; description?: string }>; tasks: Array<{ id: number; name: string; project_id: number | null; project_name?: string | null }>; events: Array<{ id: number; title: string; start_time: string | null }> }>({ projects: [], tasks: [], events: [] })
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchEditTarget, setSearchEditTarget] = useState<{ type: 'project' | 'task' | 'event'; id: number } | null>(null)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const fetchSearch = useCallback(
     debounce(async (q: string) => {
       if (!q.trim()) {
@@ -526,6 +529,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         onSaved={handleSearchEditSaved}
       />
 
+      <PasswordChangeDialog
+        open={passwordDialogOpen}
+        onClose={() => setPasswordDialogOpen(false)}
+      />
+
       <AppBar
         position="fixed"
         sx={{
@@ -555,6 +563,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 sx={{ minWidth: { xs: 48, sm: 40 }, minHeight: { xs: 48, sm: 40 } }}
               >
                 {mode === 'light' ? <DarkModeIcon fontSize={isMobile ? "medium" : "small"} /> : <LightModeIcon fontSize={isMobile ? "medium" : "small"} />}
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="パスワード変更">
+              <IconButton
+                color="inherit"
+                onClick={() => setPasswordDialogOpen(true)}
+                size={isMobile ? "medium" : "small"}
+                aria-label="change password"
+                sx={{ minWidth: { xs: 48, sm: 40 }, minHeight: { xs: 48, sm: 40 } }}
+              >
+                <VpnKeyIcon fontSize={isMobile ? "medium" : "small"} />
               </IconButton>
             </Tooltip>
             {user?.role === 'admin' && (

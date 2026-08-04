@@ -18,20 +18,13 @@ from ..status_meta import COMPLETED_STATUSES
 from .. import status_transitions
 
 # task_status_redesign_v2 のカテゴリ集合（status_meta を単一の真実として参照）
-_COMPLETED_STATUSES = set(COMPLETED_STATUSES)   # {ap, client_ap, deliver}
-_HELD_STATUSES = {"omit"}  # Shot 集約から除外する状態（wt は集約では未着手扱い）
+_COMPLETED_STATUSES = set(COMPLETED_STATUSES)
+_HELD_STATUSES = set()  # OMIT は COMPLETED に移行されたため除外なし
 _TODO_STATUSES = {"wt", "mk"}  # Shot 集約で「計画中」とみなす未着手系
 
 
 # --- 遷移検証(subtask_681b / gunshi_report.yaml CON-1〜5) 共通ヘルパー ---
 # routers/score.py の approve_shot/approve_task (CON-3) からも import して使う。
-
-def _actor_is_admin(db: Session, actor_id: Optional[int]) -> bool:
-    """F-8: admin は常にバイパス可(既存 mcp_server.py:1034 の思想を踏襲)。"""
-    if not actor_id:
-        return False
-    user = db.query(models.User).filter(models.User.id == actor_id).first()
-    return bool(user and user.role == "admin")
 
 
 def _actor_project_role(db: Session, actor_id: Optional[int], project_id: Optional[int]) -> Optional[str]:
@@ -60,15 +53,23 @@ def _who_can_do_this(db: Session, project_id: Optional[int], required_role: Opti
     return [{"user_id": u.id, "username": u.username, "role": sur.role} for sur, u in rows]
 
 
+def _actor_is_admin(db: Session, actor_id: Optional[int]) -> bool:
+    """システム管理者(User.role == 'admin')であるかどうかを判定。"""
+    if not actor_id:
+        return False
+    user = db.query(models.User).filter(models.User.id == actor_id).first()
+    return user is not None and user.role == "admin"
+
+
 def _validate_status_transition(
     db: Session, actor_id: Optional[int], project_id: Optional[int],
     from_status: Optional[str], to_status: Optional[str],
 ) -> Optional[dict]:
-    """CON-3/CON-4/CON-5: 検証本体。合法(またはadminバイパス)なら None。
+    """CON-3/CON-4/CON-5: 検証本体。合法なら None。
     違反時は explain_transition の body(dict)を返す(who_can_do_this を実データで充填済み)。
     from/to は canonicalize_task_status 通過後の値で呼ぶこと(CON-5)。"""
     if _actor_is_admin(db, actor_id):
-        return None
+        return None  # システム管理者は制限をバイパス
     actor_role = _actor_project_role(db, actor_id, project_id)
     violation = status_transitions.validate_transition(from_status, to_status, actor_role)
     if violation and violation.get("error") == "role_not_permitted":
@@ -80,7 +81,7 @@ def _enforce_status_transition(
     db: Session, actor_id: Optional[int], project_id: Optional[int],
     from_status: Optional[str], to_status: Optional[str], *, task_id: Optional[int] = None,
 ) -> Optional[dict]:
-    """TASK_TRANSITION_ENFORCE(off/warn/on, 既定warn)を適用する(CON-2)。
+    """TASK_TRANSITION_ENFORCE(off/warn/on, 既定on)を適用する(CON-2)。
     on: 違反時に TransitionError を送出(呼び出し側で拒否・副作用ゼロを保証すること)。
     warn: 拒否せず warning dict を返す(呼び出し側が logger.warning + レスポンス同梱に使う)。
     off: 何もしない(検証自体を評価しない)。"""
@@ -104,13 +105,12 @@ def _enforce_assignee_change(
 ) -> Optional[dict]:
     """F681-3: assigned_to(担当者)変更の独立ゲート(status遷移検証とは別・混同しない)。
     Casper依頼書§02「アサイン wt/mk→担当設定 Lead以上」の実装。
-    TASK_TRANSITION_ENFORCE(off/warn/on、既定warn)に従う点は _enforce_status_transition と同じ。
-    LORD-4(本番DBの実role値)未確認のうちはwarnのまま(hard blockで業務停止を招かないための予防線)。"""
+    TASK_TRANSITION_ENFORCE(off/warn/on、既定on)に従う点は _enforce_status_transition と同じ。"""
     mode = status_transitions.get_enforce_mode()
     if mode == "off":
         return None
     if _actor_is_admin(db, actor_id):
-        return None  # F-8: adminは常にバイパス
+        return None  # システム管理者は制限をバイパス
     actor_role = _actor_project_role(db, actor_id, project_id)
     violation = status_transitions.explain_assignee_change(actor_role)
     if not violation:
@@ -593,7 +593,12 @@ def _notify_status_change(
             db, assignee, task, "task_status_changed",
             f"納品/引渡し: {name}", to_status, actor_id,
         )
-    # wt/mk/wip/omit への遷移は通知なし
+    elif to_status == "completed":
+        _create_status_notification(
+            db, assignee, task, "task_status_changed",
+            f"納品完了(COMPLETED): {name}", to_status, actor_id,
+        )
+    # wt/mk/wip への遷移は通知なし
 
 
 def _resolve_and_sync_shot_id(db: Session, project_id: Optional[int], shot_id: Optional[int], shot_id_str: Optional[str]) -> Optional[int]:
@@ -691,7 +696,13 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
 
     return db_task
 
-def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, actor_id: Optional[int] = None) -> models.Task:
+def update_task(
+    db: Session, 
+    db_task: models.Task, 
+    task_in: schemas.TaskUpdate, 
+    actor_id: Optional[int] = None,
+    change_source: models.TaskChangeSource = models.TaskChangeSource.MANUAL
+) -> models.Task:
     """タスク情報を更新。
     task_status_redesign_plan.md §3.1 に従い、auto_started/auto_delayed の書き換えと
     締切超過による自動遷移は廃止。auto_delayed カラムは互換のため残すが本メソッドから触れない。
@@ -699,6 +710,8 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, 
     actor_id: 操作者ユーザーID。ステータス履歴の changed_by と通知の自己抑制/actor_id に使用。
     未指定時は担当者(assigned_to)を changed_by に用いる（後方互換）。
     """
+    change_time = now_jst_naive()
+    original_due_date = db_task.due_date
     update_data = task_in.dict(exclude_unset=True)
     original_status = (
         db_task.status.value if hasattr(db_task.status, "value") else db_task.status
@@ -738,6 +751,8 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, 
         "taskAssigneeId": ("assigned_to", _parse_int_safe),
         "taskStartDate": ("start_date", _parse_datetime),
         "taskDueDate": ("due_date", _parse_datetime),
+        "start_date": ("start_date", _parse_datetime),
+        "due_date": ("due_date", _parse_datetime),
         "type": ("type", normalize_task_type),
     }
 
@@ -780,7 +795,23 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, 
     if not db_task.shotID and not db_task.shot_id:
         db_task.seqID = "SEQ_PM"
 
-    db_task.updated_at = now_jst_naive()
+    db_task.updated_at = change_time
+
+    # 期日変更の検知と履歴記録
+    new_due_date = db_task.due_date
+    if new_due_date != original_due_date:
+        # NOTE: 既存の TaskStatusHistory（ステータス履歴）では後方互換性のため
+        # changed_by が未指定（None）の場合に db_task.assigned_to にフォールバックする
+        # 仕様としていますが、期日変更（TaskDueDateHistory）では変更者の誤認防止のため、
+        # フォールバックを行わず厳密に actor_id (Noneを含む) のみを登録します。
+        db.add(models.TaskDueDateHistory(
+            task_id=db_task.id,
+            old_due_date=original_due_date,
+            new_due_date=new_due_date,
+            changed_at=change_time,
+            changed_by=actor_id,
+            change_source=change_source
+        ))
 
     new_status = db_task.status
     if new_status and new_status != original_status:
@@ -798,7 +829,7 @@ def update_task(db: Session, db_task: models.Task, task_in: schemas.TaskUpdate, 
         db.add(models.TaskStatusHistory(
             task_id=db_task.id,
             status=new_status,
-            changed_at=db_task.updated_at,
+            changed_at=change_time,
             changed_by=actor_id if actor_id is not None else db_task.assigned_to,
             change_source='manual'
         ))
@@ -853,7 +884,7 @@ def bulk_update_tasks(db: Session, task_ids: List[int], updates: dict, actor_id:
     for task in tasks:
         # updates が dict なので、schemas.TaskUpdate に変換して共通ロジックを通す
         task_update = schemas.TaskUpdate(**updates)
-        update_task(db, task, task_update, actor_id=actor_id)
+        update_task(db, task, task_update, actor_id=actor_id, change_source=models.TaskChangeSource.BULK_UPDATE)
         count += 1
     return count
 
@@ -875,4 +906,45 @@ def get_task_by_name(db: Session, name: str) -> Optional[models.Task]:
 def get_task_status_history(db: Session, task_id: int) -> List[models.TaskStatusHistory]:
     """特定のタスクのステータス変更履歴を取得"""
     return db.query(models.TaskStatusHistory).filter(models.TaskStatusHistory.task_id == task_id).order_by(models.TaskStatusHistory.changed_at.asc()).all()
+
+
+def check_task_view_permission(db: Session, task: models.Task, user: models.User) -> bool:
+    """ユーザーが対象タスクを閲覧可能か判断する認可ロジック"""
+    # 1. 管理者は常に許可
+    if user.role == "admin":
+        return True
+    
+    # 2. タスク単体の表示ステータスチェック
+    # タスク自体が offline/archived かつ、ユーザーが担当者ではない場合は閲覧不可
+    if task.display_status in ("offline", "archived") and task.assigned_to != user.id:
+        # プロジェクト内のロールを持っていないか確認
+        role_exists = db.query(models.ScoreUserRole).filter(
+            models.ScoreUserRole.user_id == user.id,
+            models.ScoreUserRole.project_id == task.project_id
+        ).first() is not None
+        if not role_exists:
+            return False
+            
+    # 3. 関連プロジェクトの表示ステータスチェック
+    # プロジェクトが offline/archived の場合、プロジェクトメンバーか担当者のみ許可
+    if task.project_id:
+        project = task.project
+        if project and project.display_status in ("offline", "archived"):
+            if task.assigned_to == user.id:
+                return True
+            role_exists = db.query(models.ScoreUserRole).filter(
+                models.ScoreUserRole.user_id == user.id,
+                models.ScoreUserRole.project_id == task.project_id
+            ).first() is not None
+            return role_exists
+            
+    return True
+
+
+def get_task_due_date_history(db: Session, task_id: int, limit: int = 50, offset: int = 0) -> List[models.TaskDueDateHistory]:
+    """特定のタスクの期日変更履歴を取得（閲覧権限必須、件数制限付き）"""
+    return db.query(models.TaskDueDateHistory)\
+             .filter(models.TaskDueDateHistory.task_id == task_id)\
+             .order_by(models.TaskDueDateHistory.changed_at.asc(), models.TaskDueDateHistory.id.asc())\
+             .offset(offset).limit(limit).all()
 

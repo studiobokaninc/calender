@@ -20,10 +20,10 @@ API_STATUS_DEPRECATION_MAP = {
     'in_progress': 'wip',
     'review': 'qc',
     'approved': 'ap',
-    'completed': 'deliver',
     'delayed': 'wip',      # 遅延はステータスから廃止、UI 派生フラグへ移行
     'retake': 'qc_fb',
     'cashing': 'caching',  # スペル修正
+    'omit': 'completed',
 }
 
 # 新ステータスのハイフン⇄アンダースコア表記揺れ救済
@@ -38,7 +38,7 @@ NEW_STATUS_ALIAS_MAP = {
 
 # task_status_redesign_v2: 旧19体系 → 新9体系への畳み込み。
 # 移行マイグレーション後は不要だが、未移行の入力/レガシー値を実行時にも正規化する
-# （防御的措置）。有効9値: wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/omit。
+# （防御的措置）。有効9値: wt/mk/wip/qc/qc_fb/ap/client_ap/deliver/completed。
 LEGACY_PIPELINE_COLLAPSE_MAP = {
     'modeling': 'wip',
     'lookdev': 'wip',
@@ -59,8 +59,8 @@ CSV_STATUS_LABEL_MAP = {
     '進行中': 'wip',
     '確認中': 'qc',
     '承認済み': 'ap',
-    '完了': 'deliver',
-    '完了済み': 'deliver',
+    '完了': 'completed',
+    '完了済み': 'completed',
     '遅延': 'wip',
     'リテイク': 'qc_fb',
 }
@@ -123,6 +123,10 @@ class UserCreate(UserBase):
 class UserUpdate(UserBase):
     email: Optional[EmailStr] = None
     password: Optional[str] = None
+
+class UserPasswordChange(BaseModel):
+    current_password: str = Field(..., description="現在のパスワード")
+    new_password: str = Field(..., min_length=4, description="新しいパスワード")
 
 class AvatarUpdate(BaseModel):
     avatar_url: str
@@ -317,6 +321,18 @@ class StatusHistoryResponse(StatusHistoryBase):
         # Pydantic V2 の場合: model_config = ConfigDict(from_attributes=True) 
         from_attributes = True # orm_mode から変更 
 
+class TaskDueDateHistoryResponse(BaseModel):
+    id: int
+    task_id: int
+    old_due_date: Optional[datetime] = None
+    new_due_date: Optional[datetime] = None
+    changed_at: datetime
+    changed_by: Optional[int] = None
+    change_source: str
+
+    class Config:
+        from_attributes = True
+
 # --- Task Schemas ---
 
 class TaskBase(BaseModel):
@@ -446,25 +462,17 @@ class TaskResponse(TaskBase):
     status_color: Optional[str] = None
     status_label: Optional[str] = None
     status_category: Optional[str] = None
-    allowed_next: List[Dict[str, Any]] = []  # 殿要求(b): 許可された次状態(role_requiredのみ。
-    # permitted_for_actorはN+1回避のため一覧APIでは返さない。単票は /tasks/{id}/allowed-transitions 参照)
     warnings: Optional[List[Dict[str, Any]]] = None  # TASK_TRANSITION_ENFORCE=warn時の遷移警告(あれば)
 
     @root_validator(pre=False, skip_on_failure=True)
     def fill_task_response_status_meta(cls, values):
         from app.status_meta import get_status_color, get_status_label, get_status_category
-        from app.status_transitions import get_allowed_transitions
         s = values.get('status')
         if s is not None and hasattr(s, 'value'):
             s = s.value
-        canonical = canonicalize_task_status(s)
         values['status_color'] = get_status_color(s)
         values['status_label'] = get_status_label(s)
         values['status_category'] = get_status_category(s)
-        values['allowed_next'] = [
-            {k: v for k, v in entry.items() if k != 'permitted_for_actor'}
-            for entry in get_allowed_transitions(canonical)
-        ]
         return values
 
     # Pydantic V1 の場合

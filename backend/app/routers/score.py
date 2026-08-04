@@ -1841,3 +1841,28 @@ def get_my_reference_materials(
         query = query.filter(models.ReferenceMaterial.task_id == task_id)
     return query.all()
 
+
+@router.post("/score/change-password", response_model=dict)
+def change_password_from_score(
+    password_data: schemas.UserPasswordChange,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    """将来的にScoreからログインユーザーのパスワード変更を受け付けるための受け口API"""
+    user = db.query(models.User).filter(models.User.id == actor_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="ユーザーが見つかりません")
+        
+    if not security.verify_password(password_data.current_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="現在のパスワードが正しくありません。"
+        )
+        
+    user.hashed_password = security.get_password_hash(password_data.new_password)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"status": "ok", "message": "パスワードを更新しました。"}
+
+

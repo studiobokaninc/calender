@@ -52,7 +52,7 @@ def test_data(db):
     )
     t3 = models.Task(
         name="Task 3", project_id=p_online.id, assigned_to=u1.id, due_date=base_due,
-        status="OMIT", type="comp"
+        status="WT", type="comp"
     )
 
     # u2: 1 completed (on time), 1 in progress (wip)

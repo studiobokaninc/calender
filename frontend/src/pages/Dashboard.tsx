@@ -152,7 +152,7 @@ const Dashboard: React.FC = () => {
   const [selectedEventDetail, setSelectedEventDetail] = useState<BackendEvent | null>(null);
   const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
 
-  const { refreshGlobalData, globalData } = usePageState();
+  const { refreshGlobalData, globalData, updateGlobalData } = usePageState();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = (direction: 'left' | 'right') => {
@@ -166,11 +166,24 @@ const Dashboard: React.FC = () => {
   };
 
   const handleUpdateTaskQuick = async (taskId: number, updates: any) => {
+    // 楽観的アップデート: グローバルデータを即時更新
+    if (globalData && updateGlobalData) {
+      const updatedTasks = globalData.tasks.map(t => 
+        t.id === taskId ? { ...t, ...updates } : t
+      );
+      updateGlobalData({ tasks: updatedTasks });
+    }
     try {
       await api.put(`/tasks/${taskId}`, updates);
       setSelectedTaskDetail((prev: any) => prev && prev.id === taskId ? { ...prev, ...updates } : prev);
+      if (refreshGlobalData) {
+        await refreshGlobalData({ force: true });
+      }
     } catch (err) {
       console.error('Failed to update task:', err);
+      if (refreshGlobalData) {
+        await refreshGlobalData({ force: true });
+      }
     }
   };
 

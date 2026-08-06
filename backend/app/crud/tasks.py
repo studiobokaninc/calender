@@ -646,7 +646,22 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
     # task_status_redesign_v2 §1.2: 作成時の初期ステータスはシステム自動の WT。
     init_status = task.status or models.TaskStatus.WT
     init_status_val = init_status.value if hasattr(init_status, 'value') else str(init_status)
-    resolved_shot_id = _resolve_and_sync_shot_id(db, task.project_id, task.shot_id, task.shotID)
+    resolved_shot_id = task.shot_id
+    resolved_shot_id_str = task.shotID
+    if resolved_shot_id is not None:
+        shot = db.query(models.Shot).filter(models.Shot.id == resolved_shot_id).first()
+        if shot:
+            resolved_shot_id_str = shot.shot_code
+    elif resolved_shot_id_str:
+        resolved_shot_id = _resolve_and_sync_shot_id(db, task.project_id, resolved_shot_id, resolved_shot_id_str)
+
+    seq_id_val = task.seq_id if getattr(task, 'seq_id', None) is not None else task.seqID
+    if (seq_id_val is None or seq_id_val == "SEQ_PM") and resolved_shot_id is not None:
+        shot = db.query(models.Shot).filter(models.Shot.id == resolved_shot_id).first()
+        if shot:
+            seq_id_val = shot.seq_code
+
+
     db_task = models.Task(
         name=task.name if hasattr(task, 'name') and task.name else getattr(task, 'title', '新しいたタスク'),
         description=task.description,
@@ -661,8 +676,8 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         progress=task.progress or 0,
         cost=task.cost or 0.0,
         dependsOn=task.dependsOn or [],
-        shotID=task.shotID,
-        seqID=task.seqID if (task.shotID or resolved_shot_id) else "SEQ_PM",
+        shotID=resolved_shot_id_str,
+        seqID=seq_id_val if (resolved_shot_id_str or resolved_shot_id) else "SEQ_PM",
         shot_id=resolved_shot_id,
         phases=task.phases or [],
         deliverables=task.deliverables or "",
@@ -670,6 +685,11 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         completed_at=now_jst_naive() if init_status_val.lower() in _COMPLETED_STATUSES else None
     )
     db.add(db_task)
+    if db_task.due_date and db_task.project_id:
+        project = db.query(models.Project).filter(models.Project.id == db_task.project_id).first()
+        if project and project.end_date and db_task.due_date > project.end_date:
+            project.end_date = db_task.due_date
+            project.updated_at = now_jst_naive()
     db.commit()
     db.refresh(db_task)
     
@@ -754,6 +774,7 @@ def update_task(
         "start_date": ("start_date", _parse_datetime),
         "due_date": ("due_date", _parse_datetime),
         "type": ("type", normalize_task_type),
+        "seq_id": ("seqID", None),
     }
 
     for key, value in update_data.items():
@@ -790,8 +811,35 @@ def update_task(
             # 前段の setattr で入ったかもしれない値を上書きしない (progress が update_data 未含なので実質NO-OP)
             db_task.progress = original_progress
 
+    # Sync shot_id and shotID depending on what was provided in update_data
+    if "shot_id" in update_data:
+        if db_task.shot_id is None:
+            db_task.shotID = None
+        else:
+            shot = db.query(models.Shot).filter(models.Shot.id == db_task.shot_id).first()
+            if shot:
+                db_task.shotID = shot.shot_code
+                if not db_task.seqID or db_task.seqID == "SEQ_PM":
+                    db_task.seqID = shot.seq_code
+            else:
+                db_task.shot_id = None
+                db_task.shotID = None
+    elif "shotID" in update_data:
+        if not db_task.shotID:
+            db_task.shot_id = None
+            db_task.shotID = None
+        else:
+            db_task.shot_id = _resolve_and_sync_shot_id(db, db_task.project_id, db_task.shot_id, db_task.shotID)
+    else:
+        # Fallback sync if needed
+        if db_task.shot_id is not None:
+            shot = db.query(models.Shot).filter(models.Shot.id == db_task.shot_id).first()
+            if shot:
+                db_task.shotID = shot.shot_code
+        elif db_task.shotID:
+            db_task.shot_id = _resolve_and_sync_shot_id(db, db_task.project_id, db_task.shot_id, db_task.shotID)
+
     # 規則: 特定のSHOTに紐づかないタスク (shotID / shot_id が空) の場合、seqID を "SEQ_PM" で統一する
-    db_task.shot_id = _resolve_and_sync_shot_id(db, db_task.project_id, db_task.shot_id, db_task.shotID)
     if not db_task.shotID and not db_task.shot_id:
         db_task.seqID = "SEQ_PM"
 
@@ -812,6 +860,11 @@ def update_task(
             changed_by=actor_id,
             change_source=change_source
         ))
+        if new_due_date and db_task.project_id:
+            project = db.query(models.Project).filter(models.Project.id == db_task.project_id).first()
+            if project and project.end_date and new_due_date > project.end_date:
+                project.end_date = new_due_date
+                project.updated_at = change_time
 
     new_status = db_task.status
     if new_status and new_status != original_status:

@@ -350,6 +350,7 @@ class TaskBase(BaseModel):
     dependsOn: Optional[List[str]] = Field(default_factory=list)
     shotID: Optional[str] = None
     seqID: Optional[str] = None
+    seq_id: Optional[str] = None
     shot_id: Optional[int] = None
     thread_id: Optional[int] = None
     phases: Optional[List[Dict[str, Any]]] = None
@@ -407,6 +408,7 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     dependsOn: Optional[List[str]] = None
     shotID: Optional[str] = None
     seqID: Optional[str] = None
+    seq_id: Optional[str] = None
     shot_id: Optional[int] = None
     thread_id: Optional[int] = None
     phases: Optional[List[Dict[str, Any]]] = None
@@ -473,6 +475,7 @@ class TaskResponse(TaskBase):
         values['status_color'] = get_status_color(s)
         values['status_label'] = get_status_label(s)
         values['status_category'] = get_status_category(s)
+        values['seq_id'] = values.get('seqID')
         return values
 
     # Pydantic V1 の場合
@@ -1299,6 +1302,7 @@ class ReadonlyTask(BaseModel):
     dependsOn: Optional[List[Any]] = None
     shotID: Optional[str] = None
     seqID: Optional[str] = None
+    seq_id: Optional[str] = None
     shot_id: Optional[int] = None
     phases: Optional[List[Any]] = None
     deliverables: Optional[str] = None
@@ -1322,6 +1326,7 @@ class ReadonlyTask(BaseModel):
         values['status_color'] = get_status_color(s)
         values['status_label'] = get_status_label(s)
         values['status_category'] = get_status_category(s)
+        values['seq_id'] = values.get('seqID')
         return values
 
     class Config:

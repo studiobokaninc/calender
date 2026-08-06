@@ -128,3 +128,142 @@ def test_create_and_update_event_direct_time(db: Session):
     assert updated_event.end_time.month == 6
     assert updated_event.end_time.hour == 16
 
+
+def test_project_end_date_updated_when_task_due_date_exceeds(db: Session):
+    from datetime import datetime
+    # 1. Create project with an end date
+    project = models.Project(
+        name="Test End Date Project",
+        start_date=datetime(2026, 4, 1),
+        end_date=datetime(2026, 4, 30),
+        status=models.ProjectStatus.PLANNING
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    # 2. Create task with due date within project range -> project end date should not change
+    task_in_1 = schemas.TaskCreate(
+        name="Task Within Range",
+        project_id=project.id,
+        due_date="2026-04-15"
+    )
+    task1 = crud.create_task(db, task_in_1)
+    db.refresh(project)
+    assert project.end_date == datetime(2026, 4, 30)
+
+    # 3. Create task with due date exceeding project end date -> project end date should update
+    task_in_2 = schemas.TaskCreate(
+        name="Task Exceeding Range",
+        project_id=project.id,
+        due_date="2026-05-05"
+    )
+    task2 = crud.create_task(db, task_in_2)
+    db.refresh(project)
+    assert project.end_date == datetime(2026, 5, 5)
+
+    # 4. Update task1 to exceed new project end date -> project end date should update
+    task_update = schemas.TaskUpdate(
+        due_date="2026-05-10"
+    )
+    crud.update_task(db, task1, task_update)
+    db.refresh(project)
+    assert project.end_date == datetime(2026, 5, 10)
+
+    # 5. Update task2 to a date earlier than project end date -> project end date should not change
+    task_update_earlier = schemas.TaskUpdate(
+        due_date="2026-04-20"
+    )
+    crud.update_task(db, task2, task_update_earlier)
+    db.refresh(project)
+    assert project.end_date == datetime(2026, 5, 10)
+
+
+def test_task_seq_id_editing_and_creation(db: Session):
+    # 1. Create a project and a user
+    user = models.User(username="seq_user", email="seq@example.com", hashed_password="pw", role="user")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    project = models.Project(name="Seq Project", status=models.ProjectStatus.PLANNING)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    # 2. Create task using seq_id (snake_case) with a shotID so it's a shot-level task and not reset to SEQ_PM
+    task_in = schemas.TaskCreate(
+        name="Task with seq_id",
+        project_id=project.id,
+        assigned_to=user.id,
+        shotID="shot01",
+        seq_id="SEQ999"
+    )
+    task = crud.create_task(db, task_in)
+    assert task.seqID == "SEQ999"
+
+    # 3. Update task using seq_id (snake_case)
+    task_update = schemas.TaskUpdate(
+        seq_id="SEQ888"
+    )
+    updated = crud.update_task(db, task, task_update)
+    assert updated.seqID == "SEQ888"
+
+    # 4. Update task using seqID (camelCase)
+    task_update_camel = schemas.TaskUpdate(
+        seqID="SEQ777"
+    )
+    updated_camel = crud.update_task(db, task, task_update_camel)
+    assert updated_camel.seqID == "SEQ777"
+
+
+def test_task_shot_id_synchronization(db: Session):
+    # 1. Create project, shot and task
+    project = models.Project(name="Shot Sync Project", status=models.ProjectStatus.PLANNING)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    shot = models.Shot(
+        project_id=project.id,
+        seq_code="sq_test",
+        shot_code="shot_test",
+        display_order=0,
+        status="planning"
+    )
+    db.add(shot)
+    db.commit()
+    db.refresh(shot)
+
+    # 2. Create task using only shot_id (integer ID of the Shot)
+    task_in = schemas.TaskCreate(
+        name="Task with shot_id",
+        project_id=project.id,
+        shot_id=shot.id
+    )
+    task = crud.create_task(db, task_in)
+    assert task.shot_id == shot.id
+    assert task.shotID == "shot_test"
+    assert task.seqID == "sq_test"
+
+    # 3. Update task to unlink from the shot (setting shot_id to None)
+    task_update = schemas.TaskUpdate(
+        shot_id=None
+    )
+    updated = crud.update_task(db, task, task_update)
+    assert updated.shot_id is None
+    assert updated.shotID is None
+    assert updated.seqID == "SEQ_PM"
+
+    # 4. Update task back to link to the shot (setting shot_id back to shot.id)
+    task_update_back = schemas.TaskUpdate(
+        shot_id=shot.id
+    )
+    updated_back = crud.update_task(db, task, task_update_back)
+    assert updated_back.shot_id == shot.id
+    assert updated_back.shotID == "shot_test"
+    assert updated_back.seqID == "sq_test"
+
+
+
+

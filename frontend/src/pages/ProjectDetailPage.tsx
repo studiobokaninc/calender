@@ -87,7 +87,7 @@ const ProjectDetailPage: React.FC = () => {
   const isDark = theme.palette.mode === 'dark';
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { refreshGlobalData } = usePageState();
+  const { refreshGlobalData, globalData, updateGlobalData } = usePageState();
 
   // Data States
   const [project, setProject] = useState<Project | null>(null);
@@ -231,14 +231,22 @@ const ProjectDetailPage: React.FC = () => {
 
   // Handlers
   const handleUpdateTaskQuick = async (taskId: number, updates: any) => {
+    // 楽観的アップデート: グローバルデータを即時更新
+    if (globalData && updateGlobalData) {
+      const updatedTasks = globalData.tasks.map(t => 
+        t.id === taskId ? { ...t, ...updates } : t
+      );
+      updateGlobalData({ tasks: updatedTasks });
+    }
     try {
       await api.put(`/tasks/${taskId}`, updates);
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
       setSelectedTaskDetail(prev => prev && prev.id === taskId ? { ...prev, ...updates } : prev);
-      if (refreshGlobalData) refreshGlobalData();
+      if (refreshGlobalData) await refreshGlobalData({ force: true });
     } catch (err) {
       console.error('Failed to update task:', err);
       setSnackbar({ open: true, message: 'タスクの更新に失敗しました', severity: 'error' });
+      if (refreshGlobalData) await refreshGlobalData({ force: true });
     }
   };
 
@@ -247,7 +255,7 @@ const ProjectDetailPage: React.FC = () => {
     try {
       const tasksRes = await api.get<Task[]>(`/tasks?project_id=${projectId}`);
       setTasks(tasksRes.data);
-      if (refreshGlobalData) refreshGlobalData();
+      if (refreshGlobalData) await refreshGlobalData({ force: true });
       setSnackbar({ open: true, message: 'タスクを更新しました', severity: 'success' });
     } catch (err) {
       console.error('Failed to reload tasks:', err);

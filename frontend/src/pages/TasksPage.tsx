@@ -507,6 +507,13 @@ const TasksPage: React.FC = () => {
 
     const handleUpdateTaskQuick = async (taskId: number, updates: Partial<Task>) => {
         console.log(`[TasksPage] Updating task ${taskId}:`, updates);
+        // 楽観的アップデート: グローバルデータを即時更新して他ページと同期
+        if (globalData && updateGlobalData) {
+            const updatedTasks = globalData.tasks.map(t => 
+                t.id === taskId ? { ...t, ...updates } : t
+            );
+            updateGlobalData({ tasks: updatedTasks });
+        }
         try {
             await api.put(`/tasks/${taskId}`, updates);
             setHasUnsavedChanges(false);
@@ -517,9 +524,16 @@ const TasksPage: React.FC = () => {
                 setSelectedTask(updatedTask);
                 console.log(`[TasksPage] Updated selectedTask:`, updatedTask);
             }
+            if (refreshGlobalData) {
+                await refreshGlobalData({ force: true });
+            }
         } catch (error) {
             console.error("Failed to update task:", error);
             setSnackbar({ open: true, message: 'タスクの更新に失敗しました', severity: 'error' });
+            // 失敗時はロールバックするために再取得
+            if (refreshGlobalData) {
+                await refreshGlobalData({ force: true });
+            }
         }
     };
 

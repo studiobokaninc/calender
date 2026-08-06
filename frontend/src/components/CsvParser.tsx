@@ -84,7 +84,7 @@ const CsvParser: React.FC<CsvParserProps> = ({ onImportComplete }) => {
 
       // グローバルデータを更新
       console.log('[CsvParser] Refreshing global data after CSV import...');
-      await refreshGlobalData();
+      await refreshGlobalData({ force: true });
       console.log('[CsvParser] Global data refresh completed');
 
       // CSVインポート完了を通知するカスタムイベントを発火

@@ -325,7 +325,7 @@ const ProjectsPage: React.FC = () => {
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
                 console.log('[ProjectsPage] Refreshing global data after project deletion...');
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
                 console.log('[ProjectsPage] Global data refresh completed for project deletion');
                 // プロジェクト削除完了を通知するカスタムイベントを発火
                 console.log('[ProjectsPage] Dispatching projectDeleted event...');
@@ -449,7 +449,7 @@ const ProjectsPage: React.FC = () => {
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {
                 console.log('[ProjectsPage] Refreshing global data after project save/update...');
-                await refreshGlobalData();
+                await refreshGlobalData({ force: true });
                 console.log('[ProjectsPage] Global data refresh completed for project save/update');
                 // プロジェクト更新完了を通知するカスタムイベントを発火
                 console.log('[ProjectsPage] Dispatching projectUpdated event...');
@@ -649,7 +649,7 @@ const ProjectsPage: React.FC = () => {
                                                                             setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, status: newStatus } : p));
                                                                             setSnackbar({ open: true, message: 'プロジェクトステータスを更新しました', severity: 'success' });
                                                                             if (refreshGlobalData) {
-                                                                                await refreshGlobalData();
+                                                                                await refreshGlobalData({ force: true });
                                                                             }
                                                                         } catch {
                                                                             setSnackbar({ open: true, message: 'プロジェクトステータスの更新に失敗しました', severity: 'error' });
@@ -687,7 +687,7 @@ const ProjectsPage: React.FC = () => {
                                                                             setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, display_status: newStatus } : p));
                                                                             setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
                                                                             if (refreshGlobalData) {
-                                                                                await refreshGlobalData();
+                                                                                await refreshGlobalData({ force: true });
                                                                                 window.dispatchEvent(new CustomEvent('projectStatusUpdated', { detail: { projectId: project.id, newStatus } }));
                                                                             }
                                                                         } catch {
@@ -949,7 +949,7 @@ const ProjectsPage: React.FC = () => {
                                                                     setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, status: newStatus } : p));
                                                                     setSnackbar({ open: true, message: 'プロジェクトステータスを更新しました', severity: 'success' });
                                                                     if (refreshGlobalData) {
-                                                                        await refreshGlobalData();
+                                                                        await refreshGlobalData({ force: true });
                                                                     }
                                                                 } catch {
                                                                     setSnackbar({ open: true, message: 'プロジェクトステータスの更新に失敗しました', severity: 'error' });
@@ -1010,7 +1010,7 @@ const ProjectsPage: React.FC = () => {
                                                                 setProjects((prev) => prev.map(p => p.id === project.id ? { ...p, display_status: newStatus } : p));
                                                                 setSnackbar({ open: true, message: '表示ステータスを更新しました', severity: 'success' });
                                                                 if (refreshGlobalData) {
-                                                                    await refreshGlobalData();
+                                                                    await refreshGlobalData({ force: true });
                                                                 }
                                                             } catch {
                                                                 setSnackbar({ open: true, message: '表示ステータスの更新に失敗しました', severity: 'error' });

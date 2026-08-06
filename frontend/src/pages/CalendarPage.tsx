@@ -1784,7 +1784,7 @@ const CalendarPage: React.FC = () => {
             <AIImportModal
                 open={isAIImportModalOpen}
                 onClose={() => setIsAIImportModalOpen(false)}
-                onSaved={() => { refetch(); refreshGlobalData(); }}
+                onSaved={() => { refetch(); refreshGlobalData({ force: true }); }}
             />
 
             <Popover

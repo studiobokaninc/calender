@@ -753,7 +753,7 @@ const ChatPage: React.FC = () => {
               if (data?.results && Array.isArray(data.results)) {
                 const success = data.results.some((r: any) => r.success)
                 if (success && refreshGlobalData) {
-                  refreshGlobalData()
+                  refreshGlobalData({ force: true })
                 }
                 hasReceivedTaskActionRef.current = true // 自動実行されたのでフロント側での検知を抑止
                 console.log('Actions executed automatically:', data.results)
@@ -902,7 +902,7 @@ const ChatPage: React.FC = () => {
       }
     }
     setMessages(prev => [...prev, { role: 'assistant', content: results.join('\n') }])
-    if (results.some(r => r.startsWith('✅')) && refreshGlobalData) await refreshGlobalData()
+    if (results.some(r => r.startsWith('✅')) && refreshGlobalData) await refreshGlobalData({ force: true })
     setIsExecutingAction(false)
     setPendingActions(null)
     setSelectedProjectIdForAction('')

@@ -48,6 +48,7 @@ import { getTaskStatusColor, getTaskStatusLabel } from '../utils/taskStatus';
 import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { useAuth } from '../contexts/AuthContext';
+import { usePageState } from '../contexts/PageStateContext';
 import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 
 // Import sub-components
@@ -101,6 +102,7 @@ interface SequenceData {
 const ProductionTrackerPage: React.FC = () => {
     const theme = useTheme();
     const { user } = useAuth();
+    const { refreshGlobalData } = usePageState();
     const [searchParams] = useSearchParams();
     const queryProjectId = searchParams.get('project');
     const [projects, setProjects] = useState<Project[]>([]);
@@ -731,6 +733,7 @@ const ProductionTrackerPage: React.FC = () => {
                             onUpdate={async (taskId, updates) => {
                                 await api.put(`/tasks/${taskId}`, updates);
                                 if (selectedProjectId) loadTabData(selectedProjectId as number, activeTab);
+                                if (refreshGlobalData) refreshGlobalData({ force: true }).catch(() => {});
                             }}
                             onEditFull={(task) => {
                                 setEditTaskId(task.id);
@@ -801,6 +804,7 @@ const ProductionTrackerPage: React.FC = () => {
                 onSaved={() => {
                     setEditTaskId(null);
                     if (selectedProjectId) loadTabData(selectedProjectId as number, activeTab);
+                    if (refreshGlobalData) refreshGlobalData({ force: true }).catch(() => {});
                 }}
             />
 

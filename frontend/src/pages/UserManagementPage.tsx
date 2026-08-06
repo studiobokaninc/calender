@@ -26,6 +26,7 @@ import { TaskQuickDetail } from '../components/TaskQuickDetail';
 import PhaseEditModal from '../components/PhaseEditModal';
 import { SelectChangeEvent } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { usePageState } from '../contexts/PageStateContext';
 import { startOfDay, parseISO, isBefore, addDays, isSameDay, isValid } from 'date-fns';
 import { getTaskStatusCategory } from '../utils/taskStatus';
 import { formatTaskLabel } from '../utils/taskLabel';
@@ -92,6 +93,7 @@ const UserManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'admin';
+  const { refreshGlobalData } = usePageState();
 
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -188,6 +190,9 @@ const UserManagementPage: React.FC = () => {
         }
       } else {
         setUserGroups([]);
+      }
+      if (refreshGlobalData) {
+        refreshGlobalData({ force: true }).catch(() => {});
       }
     } catch (err: any) {
       console.error("Error fetching data:", err);

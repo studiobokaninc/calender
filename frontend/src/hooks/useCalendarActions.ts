@@ -222,7 +222,7 @@ export const useCalendarActions = ({
             console.log("Save success:", response?.data);
             setIsAddModalOpen(false);
             setSelectedEventId(null);
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             refetch();
         } catch (err: any) {
             console.error("Failed to save event:", err);
@@ -286,7 +286,7 @@ export const useCalendarActions = ({
             }
 
             setSelectedEventId(null);
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             refetch();
         } catch (err) {
             setError("イベントの削除に失敗しました。");
@@ -357,9 +357,11 @@ export const useCalendarActions = ({
 
         try {
             await api.put(`/tasks/${taskId}`, updates);
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
+            refetch();
         } catch (error) {
             alert("タスクの更新に失敗しました。");
-            if (refreshGlobalData) await refreshGlobalData(); // 失敗時のみ正しい状態に戻す
+            if (refreshGlobalData) await refreshGlobalData({ force: true }); // 失敗時のみ正しい状態に戻す
         }
     }, [globalData, updateGlobalData, refreshGlobalData, refetch]);
 
@@ -485,7 +487,7 @@ export const useCalendarActions = ({
                 });
             }
 
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             refetch();
         } catch (err) {
             console.error('Event drop update failed:', err);
@@ -535,7 +537,7 @@ export const useCalendarActions = ({
                     end_time: allDay ? `${endTime}T00:00:00+09:00` : endTime,
                 });
             }
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             refetch();
         } catch (err) {
             console.error('Event resize update failed:', err);
@@ -578,7 +580,7 @@ export const useCalendarActions = ({
             const response = await api.post('/tasks', duplicatedTaskData);
             console.log("Duplicate success:", response.data);
 
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             refetch();
         } catch (err: any) {
             console.error("Failed to duplicate task:", err);
@@ -619,7 +621,7 @@ export const useCalendarActions = ({
             const response = await api.post('/calendar/events', duplicatedEventData);
             console.log("Duplicate event success:", response.data);
 
-            if (refreshGlobalData) await refreshGlobalData();
+            if (refreshGlobalData) await refreshGlobalData({ force: true });
             refetch();
         } catch (err: any) {
             console.error("Failed to duplicate event:", err);

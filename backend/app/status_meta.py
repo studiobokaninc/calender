@@ -26,7 +26,6 @@ LEGACY_STATUS_MAP: dict[str, str] = {
     "dir-ap": "ap",
     "dir-fb": "qc_fb",
     "client-ap": "client_ap",
-    "omit": "completed",
     # 旧19体系の工程別 → wip
     "modeling": "wip",
     "lookdev": "wip",
@@ -53,6 +52,7 @@ STATUS_COLOR: dict[str, str] = {
     "client_ap": "#2E7D32",  # 濃グリーン (クライアント承認済)
     "deliver": "#757575",    # ダークグレー (納品完了)
     "completed": "#1B5E20",  # 深緑 (納品完了時)
+    "omit": "#E0E0E0",       # 薄グレー (対象外)
 }
 
 STATUS_LABEL: dict[str, str] = {
@@ -65,6 +65,7 @@ STATUS_LABEL: dict[str, str] = {
     "client_ap": "CLIENT_AP",
     "deliver": "DELIVER",
     "completed": "COMPLETED",
+    "omit": "OMIT",
 }
 
 # --- ロジック用カテゴリ (§2 の5分類) ---
@@ -78,6 +79,7 @@ STATUS_CATEGORY: dict[str, str] = {
     "client_ap": "completed",
     "deliver": "completed",
     "completed": "completed",
+    "omit": "held",
 }
 
 # --- カテゴリ集合（集計・判定ロジックの単一の真実） ---
@@ -85,8 +87,8 @@ COMPLETED_STATUSES = frozenset({"ap", "client_ap", "deliver", "completed"})
 REVIEW_STATUSES = frozenset({"qc", "qc_fb"})
 IN_PROGRESS_STATUSES = frozenset({"wip"})
 TODO_STATUSES = frozenset({"mk"})
-HELD_STATUSES = frozenset({"wt"})  # 遅延・オンスケ統計から除外
-ACTIVE_STATUSES = frozenset(STATUS_COLOR.keys())  # 有効9ステータス
+HELD_STATUSES = frozenset({"wt", "omit"})  # 遅延・オンスケ統計から除外
+ACTIVE_STATUSES = frozenset(STATUS_COLOR.keys())  # 有効10ステータス
 
 # --- プロジェクト全体進捗のウェイト (§4) ---
 STATUS_PROGRESS_WEIGHT: dict[str, Optional[float]] = {

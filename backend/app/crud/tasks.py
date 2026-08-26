@@ -19,7 +19,7 @@ from .. import status_transitions
 
 # task_status_redesign_v2 のカテゴリ集合（status_meta を単一の真実として参照）
 _COMPLETED_STATUSES = set(COMPLETED_STATUSES)
-_HELD_STATUSES = set()  # OMIT は COMPLETED に移行されたため除外なし
+_HELD_STATUSES = {"omit"}  # OMIT を HELD に再分類
 _TODO_STATUSES = {"wt", "mk"}  # Shot 集約で「計画中」とみなす未着手系
 
 

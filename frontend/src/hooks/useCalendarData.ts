@@ -48,22 +48,60 @@ export const useCalendarData = (
 
     const isAdmin = user?.role === 'admin';
 
+    const [userRoles, setUserRoles] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (!user) return;
+        api.get('/api/score_user_roles')
+            .then(res => {
+                setUserRoles(res.data || []);
+            })
+            .catch(err => {
+                console.error("Failed to fetch score user roles:", err);
+            });
+    }, [user]);
+
     // fetchData直後のglobalData useEffectで /calendar/events が再フェッチされるのを防ぐフラグ
     const didFetchRef = useRef(false);
 
     // ────────────────────────────────────────────────────────────────────────
     // 一般ユーザー向けフィルタリング
     // ────────────────────────────────────────────────────────────────────────
-    const filterForNonAdmin = useCallback((rawTasks: Task[], rawProjects: Project[]) => {
+    const filterForNonAdmin = useCallback((rawTasks: Task[], rawProjects: Project[], rolesToUse: any[] = userRoles) => {
         if (isAdmin) return { tasks: rawTasks, projects: rawProjects };
         if (!user) return { tasks: [], projects: [] };
+        
+        // 自分が担当しているタスク
         const myTasks = rawTasks.filter(t => String(t.assigned_to) === String(user.id));
         const myProjectIds = new Set(myTasks.map(t => t.project_id).filter(Boolean));
+
+        // 自分がヘルプメンバーとして登録されているプロジェクトID
+        const helpProjectIds = new Set(
+            rolesToUse
+                .filter(r => String(r.user_id) === String(user.id) && r.role === 'help')
+                .map(r => r.project_id)
+        );
+
+        // ヘルププロジェクトのすべてのタスク
+        const helpProjectTasks = rawTasks.filter(t => t.project_id != null && helpProjectIds.has(t.project_id));
+
+        // タスクの合成 (重複を除く)
+        const combinedTasks = [
+            ...myTasks,
+            ...helpProjectTasks.filter(ht => !myTasks.some(mt => mt.id === ht.id))
+        ];
+
+        // プロジェクトの合成
+        const combinedProjectIds = new Set([
+            ...myProjectIds,
+            ...helpProjectIds
+        ]);
+
         return {
-            tasks: myTasks,
-            projects: rawProjects.filter(p => myProjectIds.has(p.id)),
+            tasks: combinedTasks,
+            projects: rawProjects.filter(p => combinedProjectIds.has(p.id)),
         };
-    }, [isAdmin, user]);
+    }, [isAdmin, user, userRoles]);
 
     // ────────────────────────────────────────────────────────────────────────
     // バックエンドイベント取得（カレンダーイベント専用）
@@ -97,7 +135,7 @@ export const useCalendarData = (
                 eventParams.start_date = viewRange.start.toISOString();
                 eventParams.end_date = viewRange.end.toISOString();
             }
-            const [projRes, taskRes, eventsRes, userRes, groupRes, scoreRes] = await Promise.all([
+            const [projRes, taskRes, eventsRes, userRes, groupRes, scoreRes, rolesRes] = await Promise.all([
                 api.get<Project[]>('/projects'),
                 api.get<Task[]>('/tasks', { params: { include_history: false } }),
                 api.get<BackendEvent[]>('/calendar/events', { params: eventParams }),
@@ -106,12 +144,15 @@ export const useCalendarData = (
                 eventStatusFilter !== 'all'
                     ? api.get(`/api/projects/${eventStatusFilter}/production-tracker`).catch(() => ({ data: { sequences: [] } }))
                     : Promise.resolve({ data: null }),
+                api.get('/api/score_user_roles').catch(() => ({ data: [] })),
             ]);
 
             let projectsData = projRes.data;
             let tasksData = taskRes.data;
             const usersData = userRes.data;
             const groupsData = groupRes.data;
+            const rolesData = rolesRes.data || [];
+            setUserRoles(rolesData);
 
             // Score サマリー計算
             if (eventStatusFilter !== 'all' && (scoreRes as any).data) {
@@ -126,7 +167,7 @@ export const useCalendarData = (
             }
 
             // 一般ユーザーフィルタリング
-            const { tasks: filteredTasks, projects: filteredProjects } = filterForNonAdmin(tasksData, projectsData);
+            const { tasks: filteredTasks, projects: filteredProjects } = filterForNonAdmin(tasksData, projectsData, rolesData);
             projectsData = filteredProjects;
             tasksData = filteredTasks;
 

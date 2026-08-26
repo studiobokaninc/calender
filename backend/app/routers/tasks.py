@@ -204,7 +204,7 @@ async def bulk_update_tasks_endpoint(
         return {"updated": 0, "message": "対象タスクが指定されていません"}
     
     updates = {}
-    for attr in ["status", "assigned_to", "due_date", "priority"]:
+    for attr in ["status", "assigned_to", "due_date", "priority", "description", "start_date", "cost", "type", "deliverables", "check_items"]:
         val = getattr(payload, attr, None)
         if val is not None:
             updates[attr] = val

@@ -40,6 +40,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
   });
   const [directorId, setDirectorId] = useState<number | ''>('');
   const [pmId, setPmId] = useState<number | ''>('');
+  const [helpMemberIds, setHelpMemberIds] = useState<number[]>([]);
   const [existingRoles, setExistingRoles] = useState<any[]>([]);
 
   useEffect(() => {
@@ -66,8 +67,10 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
         setExistingRoles(roles as any[]);
         const director = (roles as any[]).find((r: any) => r.role === 'director');
         const pm = (roles as any[]).find((r: any) => r.role === 'pm');
+        const helpers = (roles as any[]).filter((r: any) => r.role === 'help').map((r: any) => r.user_id);
         setDirectorId(director ? director.user_id : '');
         setPmId(pm ? pm.user_id : '');
+        setHelpMemberIds(helpers);
       })
       .catch(() => setError('プロジェクトの取得に失敗しました'))
       .finally(() => setLoading(false));
@@ -109,22 +112,19 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
     }
     // ロール保存: 失敗しても保存自体は成功
     try {
-      const toDelete = existingRoles.filter(r => r.role === 'director' || r.role === 'pm');
-      const toKeep = existingRoles.filter(r => r.role !== 'director' && r.role !== 'pm');
+      const toDelete = existingRoles.filter(r => r.role === 'director' || r.role === 'pm' || r.role === 'help');
       for (const r of toDelete) {
         await deleteScoreUserRole(r.id);
       }
-      // upsert: 他ロールが残存している場合はPATCH、なければPOST
-      const upsertRole = async (userId: number, role: string) => {
-        const existing = toKeep.find(r => r.user_id === userId);
-        if (existing) {
-          await updateScoreUserRole(existing.id, { role });
-        } else {
-          await createScoreUserRole({ user_id: userId, project_id: projectId!, role });
-        }
-      };
-      if (directorId) await upsertRole(directorId as number, 'director');
-      if (pmId) await upsertRole(pmId as number, 'pm');
+      if (directorId) {
+        await createScoreUserRole({ user_id: directorId as number, project_id: projectId!, role: 'director' });
+      }
+      if (pmId) {
+        await createScoreUserRole({ user_id: pmId as number, project_id: projectId!, role: 'pm' });
+      }
+      for (const hId of helpMemberIds) {
+        await createScoreUserRole({ user_id: hId, project_id: projectId!, role: 'help' });
+      }
     } catch (roleErr) {
       console.error('Director/PMロール保存失敗:', roleErr);
       setError('プロジェクトは保存されましたがDirector/PMロールの設定に失敗しました');
@@ -163,6 +163,29 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
               <InputLabel>PM</InputLabel>
               <Select value={pmId} label="PM" onChange={(e) => setPmId(e.target.value as number)}>
                 {users.map(u => (
+                  <MenuItem key={u.id} value={u.id}>
+                    {u.full_name || u.username || u.name || u.email}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>ヘルプメンバー</InputLabel>
+              <Select
+                multiple
+                value={helpMemberIds}
+                onChange={(e) => setHelpMemberIds(typeof e.target.value === 'string' ? e.target.value.split(',').map(Number) : e.target.value as number[])}
+                label="ヘルプメンバー"
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => {
+                      const userObj = users.find(u => u.id === value);
+                      return <Chip key={value} label={userObj ? (userObj.full_name || userObj.username || userObj.name || userObj.email) : value} size="small" />;
+                    })}
+                  </Box>
+                )}
+              >
+                {users.filter(u => u.id !== directorId && u.id !== pmId).map((u) => (
                   <MenuItem key={u.id} value={u.id}>
                     {u.full_name || u.username || u.name || u.email}
                   </MenuItem>

@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 # from sqlalchemy.ext.declarative import declarative_base # 古いスタイル
 from sqlalchemy.orm import sessionmaker, DeclarativeBase # 新しいスタイルをインポート
 import os
@@ -21,7 +22,8 @@ print(f"Database URL: {SQLALCHEMY_DATABASE_URL}") # パスを確認するため�
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 
-    connect_args={"check_same_thread": False, "timeout": 30.0}
+    connect_args={"check_same_thread": False, "timeout": 30.0},
+    poolclass=NullPool
 )
 
 # Enable WAL mode for SQLite to handle concurrent background tasks

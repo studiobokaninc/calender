@@ -40,7 +40,7 @@ class TestPureTransitionLogic:
         body = st.explain_transition("qc", "client_ap", actor_role="intern")
         assert body["error"] == "role_not_permitted"
         assert body["actor_role_recognized"] is False
-        assert set(body["recognized_roles"]) == {"artist", "compositor", "director", "lead", "pm"}
+        assert set(body["recognized_roles"]) == {"artist", "compositor", "director", "lead", "pm", "help"}
 
     def test_invalid_status_value(self):
         body = st.explain_transition("qc", "not_a_status")

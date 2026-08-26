@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, CircularProgress, Paper, LinearProgress, Chip, Select, MenuItem, FormControl, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Stack, Snackbar, Alert, InputLabel, SelectChangeEvent, Tooltip, useTheme, Card, CardContent, useMediaQuery, Breadcrumbs, Link, Grid, Divider, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon, FormatListBulleted as ShotListIcon, Person as PersonIcon, CalendarToday as CalendarIcon, Movie as MovieIcon, Replay as ReplayIcon, Warning as WarningIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Folder as FolderIcon, FormatListBulleted as ShotListIcon, Person as PersonIcon, CalendarToday as CalendarIcon, Movie as MovieIcon, Replay as ReplayIcon, Warning as WarningIcon, People as PeopleIcon } from '@mui/icons-material';
 import api, { fetchUsers, fetchProjectRoles, createScoreUserRole, updateScoreUserRole, deleteScoreUserRole } from '../services/api';
 import { Project, Task, User } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,6 +70,7 @@ interface ProjectWithProgress extends Project {
     troubles?: number;
     directorName?: string;
     pmName?: string;
+    helpNames?: string[];
     todoCount: number;
     inProgressCount: number;
     delayedCount: number;
@@ -128,6 +129,7 @@ const ProjectsPage: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [directorId, setDirectorId] = useState<number | ''>('');
     const [pmId, setPmId] = useState<number | ''>('');
+    const [helpMemberIds, setHelpMemberIds] = useState<number[]>([]);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -204,6 +206,10 @@ const ProjectsPage: React.FC = () => {
                     troubles: summary.troubles,
                     directorName: projRoles['director'] ? userNameById[projRoles['director']] : undefined,
                     pmName: projRoles['pm'] ? userNameById[projRoles['pm']] : undefined,
+                    helpNames: allRoles
+                        .filter(r => r.project_id === project.id && r.role === 'help')
+                        .map(r => userNameById[r.user_id])
+                        .filter(Boolean),
                     todoCount,
                     inProgressCount,
                     delayedCount,
@@ -235,12 +241,15 @@ const ProjectsPage: React.FC = () => {
             fetchProjectRoles(currentProject.id as number).then((roles: any[]) => {
                 const director = roles.find((r: any) => r.role === 'director');
                 const pm = roles.find((r: any) => r.role === 'pm');
+                const helpers = roles.filter((r: any) => r.role === 'help').map((r: any) => r.user_id);
                 setDirectorId(director ? director.user_id : '');
                 setPmId(pm ? pm.user_id : '');
+                setHelpMemberIds(helpers);
             }).catch(() => { });
         } else {
             setDirectorId('');
             setPmId('');
+            setHelpMemberIds([]);
         }
     }, [openDialog, isEditMode, currentProject.id]);
 
@@ -391,22 +400,19 @@ const ProjectsPage: React.FC = () => {
 
             const saveRoles = async (projectId: number) => {
                 const roles = await fetchProjectRoles(projectId);
-                const toDelete = roles.filter((r: any) => r.role === 'director' || r.role === 'pm');
-                const toKeep = roles.filter((r: any) => r.role !== 'director' && r.role !== 'pm');
+                const toDelete = roles.filter((r: any) => r.role === 'director' || r.role === 'pm' || r.role === 'help');
                 for (const r of toDelete) {
                     await deleteScoreUserRole(r.id);
                 }
-                // upsert: 他ロールが残存している場合はPATCH、なければPOST
-                const upsertRole = async (userId: number, role: string) => {
-                    const existing = toKeep.find((r: any) => r.user_id === userId);
-                    if (existing) {
-                        await updateScoreUserRole(existing.id, { role });
-                    } else {
-                        await createScoreUserRole({ user_id: userId, project_id: projectId, role });
-                    }
-                };
-                if (directorId) await upsertRole(directorId as number, 'director');
-                if (pmId) await upsertRole(pmId as number, 'pm');
+                if (directorId) {
+                    await createScoreUserRole({ user_id: directorId as number, project_id: projectId, role: 'director' });
+                }
+                if (pmId) {
+                    await createScoreUserRole({ user_id: pmId as number, project_id: projectId, role: 'pm' });
+                }
+                for (const hId of helpMemberIds) {
+                    await createScoreUserRole({ user_id: hId, project_id: projectId, role: 'help' });
+                }
             };
 
             if (isEditMode && currentProject.id !== null) {
@@ -758,6 +764,16 @@ const ProjectsPage: React.FC = () => {
                                                             </Box>
                                                         </Box>
 
+                                                        {project.helpNames && project.helpNames.length > 0 && (
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                                <PeopleIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                                                                <Box>
+                                                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>ヘルプメンバー</Typography>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.helpNames.join(', ')}</Typography>
+                                                                </Box>
+                                                            </Box>
+                                                        )}
+
                                                         <Divider />
                                                         {/* 期間 */}
                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -1046,6 +1062,11 @@ const ProjectsPage: React.FC = () => {
                                                     <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.primary' }}>
                                                         <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>PM:</span> <strong>{project.pmName || '-'}</strong>
                                                     </Typography>
+                                                    {project.helpNames && project.helpNames.length > 0 && (
+                                                        <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.primary' }}>
+                                                            <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>ヘルプ:</span> <strong>{project.helpNames.join(', ')}</strong>
+                                                        </Typography>
+                                                    )}
                                                 </Box>
                                             </TableCell>
 
@@ -1201,19 +1222,42 @@ const ProjectsPage: React.FC = () => {
                             </Select>
                         </FormControl>
                         <FormControl fullWidth required>
-                            <InputLabel>PM *</InputLabel>
-                            <Select
-                                value={pmId}
-                                label="PM *"
-                                onChange={(e) => setPmId(e.target.value as number)}
-                            >
-                                {users.map(u => (
-                                    <MenuItem key={u.id} value={u.id}>
-                                        {u.full_name || u.username || u.name || u.email}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                                                            <InputLabel>PM *</InputLabel>
+                                                            <Select
+                                                                value={pmId}
+                                                                label="PM *"
+                                                                onChange={(e) => setPmId(e.target.value as number)}
+                                                            >
+                                                                {users.map(u => (
+                                                                    <MenuItem key={u.id} value={u.id}>
+                                                                        {u.full_name || u.username || u.name || u.email}
+                                                                    </MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        </FormControl>
+                                                        <FormControl fullWidth>
+                                                            <InputLabel>ヘルプメンバー</InputLabel>
+                                                            <Select
+                                                                multiple
+                                                                value={helpMemberIds}
+                                                                onChange={(e) => setHelpMemberIds(typeof e.target.value === 'string' ? e.target.value.split(',').map(Number) : e.target.value as number[])}
+                                                                label="ヘルプメンバー"
+                                                                renderValue={(selected) => (
+                                                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                                                        {selected.map((value) => {
+                                                                            const userObj = users.find(u => u.id === value);
+                                                                            return <Chip key={value} label={userObj ? (userObj.full_name || userObj.username || userObj.name || userObj.email) : value} size="small" />;
+                                                                        })}
+                                                                    </Box>
+                                                                )}
+                                                            >
+                                                                {users.filter(u => u.id !== directorId && u.id !== pmId).map((u) => (
+                                                                    <MenuItem key={u.id} value={u.id}>
+                                                                        {u.full_name || u.username || u.name || u.email}
+                                                                    </MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        </FormControl>
                         <TextField
                             name="description"
                             label="説明"

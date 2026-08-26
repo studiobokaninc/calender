@@ -29,7 +29,7 @@ class TransitionError(Exception):
 # ============================================================
 # 1. 役職ルール (to_status 単独キー)
 # ============================================================
-ROLE_RANK: dict[str, int] = {"director": 40, "pm": 30, "lead": 20, "compositor": 10, "artist": 10}
+ROLE_RANK: dict[str, int] = {"director": 40, "pm": 30, "lead": 20, "compositor": 10, "artist": 10, "help": 10}
 
 ROLE_RULES: dict[str, str] = {
     "wt": "pm_or_above",
@@ -75,6 +75,9 @@ ROLE_ALIASES: dict[str, str] = {
     "compositor": "compositor",
     "artist": "artist",
     "アーティスト": "artist",
+    "help": "help",
+    "helper": "help",
+    "ヘルプ": "help",
 }
 
 

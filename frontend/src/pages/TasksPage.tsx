@@ -60,6 +60,12 @@ const isDatePast = (dateStr: string | null | undefined): boolean => {
     return isBefore(startOfDay(date), startOfDay(new Date()));
 };
 
+const BULK_TASK_TYPE_OPTIONS = [
+  "animation", "layout", "comp", "fx", "lighting", "asset", 
+  "programming", "design", "testing", "documentation", 
+  "shoot", "gs", "report", "other"
+];
+
 
 
 
@@ -266,8 +272,28 @@ const TasksPage: React.FC = () => {
     const [bulkEditSaving, setBulkEditSaving] = useState(false);
     const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
     const [bulkConfirmCount, setBulkConfirmCount] = useState(0);
-    const [bulkEditForm, setBulkEditForm] = useState<{ status: string; assigned_to: number | ''; due_date: string; priority: string }>({
-        status: '', assigned_to: '', due_date: '', priority: ''
+    const [bulkEditForm, setBulkEditForm] = useState<{
+        status: string;
+        assigned_to: number | '';
+        due_date: string;
+        priority: string;
+        description: string;
+        start_date: string;
+        cost: number | '';
+        type: string;
+        deliverables: string;
+        check_items: { label: string; checked: boolean }[];
+    }>({
+        status: '',
+        assigned_to: '',
+        due_date: '',
+        priority: '',
+        description: '',
+        start_date: '',
+        cost: '',
+        type: '',
+        deliverables: '',
+        check_items: []
     });
 
     useEffect(() => {
@@ -284,11 +310,18 @@ const TasksPage: React.FC = () => {
         setBulkConfirmOpen(false);
         const taskIds = selectionModel;
         if (taskIds.length === 0) return;
-        const payload: { task_ids: number[]; status?: string; assigned_to?: number; due_date?: string; priority?: string } = { task_ids: taskIds };
+        const payload: any = { task_ids: taskIds };
         if (bulkEditForm.status) payload.status = bulkEditForm.status;
         if (bulkEditForm.assigned_to !== '') payload.assigned_to = bulkEditForm.assigned_to as number;
         if (bulkEditForm.due_date) payload.due_date = bulkEditForm.due_date + 'T00:00:00+09:00';
         if (bulkEditForm.priority) payload.priority = bulkEditForm.priority;
+        if (bulkEditForm.start_date) payload.start_date = bulkEditForm.start_date + 'T00:00:00+09:00';
+        if (bulkEditForm.description) payload.description = bulkEditForm.description;
+        if (bulkEditForm.cost !== '') payload.cost = Number(bulkEditForm.cost);
+        if (bulkEditForm.type) payload.type = bulkEditForm.type;
+        if (bulkEditForm.deliverables) payload.deliverables = bulkEditForm.deliverables;
+        if (bulkEditForm.check_items.length > 0) payload.check_items = bulkEditForm.check_items;
+
         if (Object.keys(payload).length <= 1) {
             setSnackbar({ open: true, message: '更新する項目を1つ以上選択してください', severity: 'warning' });
             return;
@@ -299,7 +332,18 @@ const TasksPage: React.FC = () => {
             setSnackbar({ open: true, message: res.data.message, severity: 'success' });
             setBulkEditOpen(false);
             setSelectionModel([] as number[]);
-            setBulkEditForm({ status: '', assigned_to: '', due_date: '', priority: '' });
+            setBulkEditForm({
+                status: '',
+                assigned_to: '',
+                due_date: '',
+                priority: '',
+                description: '',
+                start_date: '',
+                cost: '',
+                type: '',
+                deliverables: '',
+                check_items: []
+            });
             if (refreshGlobalData) await refreshGlobalData({ force: true });
             fetchData();
         } catch (err: any) {
@@ -1820,7 +1864,7 @@ const TasksPage: React.FC = () => {
             </Drawer>
 
             {/* 一括編集ダイアログ */}
-            <Dialog open={bulkEditOpen} onClose={() => setBulkEditOpen(false)} maxWidth="xs" fullWidth>
+            <Dialog open={bulkEditOpen} onClose={() => setBulkEditOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle>一括編集（{selectionModel.length}件）</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ mt: 1 }}>
@@ -1869,6 +1913,15 @@ const TasksPage: React.FC = () => {
                             size="small"
                             InputLabelProps={{ shrink: true }}
                         />
+                        <TextField
+                            label="開始日"
+                            type="date"
+                            value={bulkEditForm.start_date}
+                            onChange={(e) => setBulkEditForm(f => ({ ...f, start_date: e.target.value }))}
+                            fullWidth
+                            size="small"
+                            InputLabelProps={{ shrink: true }}
+                        />
                         <FormControl fullWidth size="small">
                             <InputLabel>優先度</InputLabel>
                             <Select
@@ -1882,6 +1935,96 @@ const TasksPage: React.FC = () => {
                                 <MenuItem value="high">high</MenuItem>
                             </Select>
                         </FormControl>
+                        <TextField
+                            label="コスト"
+                            type="number"
+                            value={bulkEditForm.cost}
+                            onChange={(e) => setBulkEditForm(f => ({ ...f, cost: e.target.value === '' ? '' : Number(e.target.value) || 0 }))}
+                            fullWidth
+                            size="small"
+                            inputProps={{ min: 0, step: 0.1 }}
+                            placeholder="変更しない"
+                            InputLabelProps={{ shrink: bulkEditForm.cost !== '' }}
+                        />
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Type</InputLabel>
+                            <Select
+                                value={bulkEditForm.type}
+                                label="Type"
+                                onChange={(e) => setBulkEditForm(f => ({ ...f, type: e.target.value }))}
+                            >
+                                <MenuItem value="">変更しない</MenuItem>
+                                {BULK_TASK_TYPE_OPTIONS.map((opt) => (
+                                    <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            label="説明"
+                            value={bulkEditForm.description}
+                            onChange={(e) => setBulkEditForm(f => ({ ...f, description: e.target.value }))}
+                            fullWidth
+                            multiline
+                            rows={3}
+                            size="small"
+                            placeholder="変更しない"
+                        />
+                        <TextField
+                            label="成果物"
+                            value={bulkEditForm.deliverables}
+                            onChange={(e) => setBulkEditForm(f => ({ ...f, deliverables: e.target.value }))}
+                            fullWidth
+                            multiline
+                            rows={2}
+                            size="small"
+                            placeholder="変更しない"
+                        />
+                        <Divider />
+                        <Typography variant="subtitle2" sx={{ mt: 1, fontSize: '0.85rem', color: 'text.secondary' }}>
+                            チェックリスト（※追加すると、対象タスクのチェックリストがすべて上書きされます。空のままだと変更されません）
+                        </Typography>
+                        {bulkEditForm.check_items.map((item, index) => (
+                            <Stack direction="row" spacing={1} key={index} alignItems="center">
+                                <Checkbox
+                                    checked={item.checked}
+                                    size="small"
+                                    onChange={(e) => {
+                                        const next = [...bulkEditForm.check_items];
+                                        next[index].checked = e.target.checked;
+                                        setBulkEditForm(f => ({ ...f, check_items: next }));
+                                    }}
+                                />
+                                <TextField
+                                    label={`項目 ${index + 1}`}
+                                    value={item.label}
+                                    onChange={(e) => {
+                                        const next = [...bulkEditForm.check_items];
+                                        next[index].label = e.target.value;
+                                        setBulkEditForm(f => ({ ...f, check_items: next }));
+                                    }}
+                                    size="small"
+                                    sx={{ flex: 1 }}
+                                />
+                                <IconButton
+                                    size="small"
+                                    color="error"
+                                    onClick={() => {
+                                        setBulkEditForm(f => ({ ...f, check_items: f.check_items.filter((_, i) => i !== index) }));
+                                    }}
+                                >
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Stack>
+                        ))}
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<AddIcon />}
+                            onClick={() => setBulkEditForm(f => ({ ...f, check_items: [...f.check_items, { label: '', checked: false }] }))}
+                            sx={{ alignSelf: 'flex-start' }}
+                        >
+                            チェック項目を追加
+                        </Button>
                     </Stack>
                 </DialogContent>
                 <DialogActions>

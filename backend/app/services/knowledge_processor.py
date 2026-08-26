@@ -44,13 +44,9 @@ class KnowledgeProcessor:
             elif not os.path.isabs(file_path):
                 file_path = str(BACKEND_ROOT / file_path)
 
-            content_text = ""
-            summary = ""
-            metadata = {}
-
-            # Determine processor based on extension
-            ext = os.path.splitext(db_item.file_name)[1].lower().lstrip(".")
+            file_name = db_item.file_name
             file_type = db_item.file_type 
+            ext = os.path.splitext(file_name)[1].lower().lstrip(".")
             if ext in ["pdf"]: file_type = "pdf"
             elif ext in ["xlsx", "xls"]: file_type = "excel"
             elif ext in ["pptx", "ppt"]: file_type = "ppt"
@@ -58,27 +54,30 @@ class KnowledgeProcessor:
             elif ext in ["mp3", "m4a", "wav"]: file_type = "audio"
             elif ext in ["txt", "md", "json", "csv"]: file_type = "text"
 
-            logger.info(f"Processing type: {file_type} (Ext: {ext})")
-
-            # Prepare metadata for RAG
-            # Use created_at as the reference date for knowledge items
             ref_date = db_item.created_at or now_jst_naive()
             rag_metadata = {
                 "item_id": item_id, 
                 "title": db_item.title, 
-                "file_name": db_item.file_name,
+                "file_name": file_name,
                 "project_id": db_item.project_id,
                 "type": "knowledge",
                 "date": ref_date.isoformat()
             }
+        finally:
+            db.close()
 
+        content_text = ""
+        summary = ""
+
+        try:
+            logger.info(f"Processing type: {file_type} (Ext: {ext})")
             is_local = os.getenv("LLM_PROVIDER", "").lower() == "local"
 
             if file_type == "pdf":
                 if is_local:
                     # ローカル(無料): PyMuPDF でテキスト層を抽出 → ローカルLLMで要約。
                     # 画像スキャンPDF(テキスト層なし)はローカルOCR未対応のため空になる。
-                    print(f"KnowledgeProcessor: [{db_item.file_name}] PyMuPDF テキスト抽出を開始 (local)...")
+                    print(f"KnowledgeProcessor: [{file_name}] PyMuPDF テキスト抽出を開始 (local)...")
                     content_text = await asyncio.to_thread(self._extract_pdf_text_local, file_path)
                     if content_text.strip():
                         summary = await self._generate_summary_from_text(content_text[:30000])
@@ -86,13 +85,13 @@ class KnowledgeProcessor:
                         summary = "（このPDFはテキスト層が無く、ローカル環境では画像OCR未対応のため本文を抽出できませんでした。ビジョンモデル導入で対応予定。）"
                 else:
                     # Use Gemini for OCR - much better than simple local read
-                    print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini OCR 解読を開始...")
+                    print(f"KnowledgeProcessor: [{file_name}] Gemini OCR 解読を開始...")
                     content_text = await self._ocr_pdf_via_gemini(file_path, is_summary=False)
-                    print(f"KnowledgeProcessor: [{db_item.file_name}] Gemini 要約作成を開始...")
+                    print(f"KnowledgeProcessor: [{file_name}] Gemini 要約作成を開始...")
                     summary = await self._ocr_pdf_via_gemini(file_path, is_summary=True)
 
                 if content_text.strip():
-                    print(f"KnowledgeProcessor: [{db_item.file_name}] RAG に PDF 内容を追加中...")
+                    print(f"KnowledgeProcessor: [{file_name}] RAG に PDF 内容を追加中...")
                     await rag_service.add_text(content_text, metadata=rag_metadata)
 
             elif file_type in ["excel", "ppt"]:
@@ -103,7 +102,7 @@ class KnowledgeProcessor:
                 
                 # Add to RAG (Summary + Content)
                 full_kb_text = f"SUMMARY: {summary}\n\n--- FULL CONTENT ---\n{content_text}"
-                print(f"KnowledgeProcessor: RAG に内容を追加中... ({db_item.file_name})")
+                print(f"KnowledgeProcessor: RAG に内容を追加中... ({file_name})")
                 await rag_service.add_text(full_kb_text, metadata=rag_metadata)
 
             elif file_type == "image":
@@ -115,7 +114,7 @@ class KnowledgeProcessor:
 
                 if content_text.strip():
                     summary = await self._generate_summary_from_text(content_text)
-                    print(f"KnowledgeProcessor: RAG に画像テキストを追加中... ({db_item.file_name})")
+                    print(f"KnowledgeProcessor: RAG に画像テキストを追加中... ({file_name})")
                     await rag_service.add_text(content_text, metadata=rag_metadata)
                 else:
                     summary = "（画像のOCRに失敗、またはローカル環境では画像OCR未対応です。ビジョンモデル/Tesseract 導入で対応可能。）"
@@ -126,7 +125,7 @@ class KnowledgeProcessor:
                     content_text = res.get("transcript", "")
                     summary = f"Summary: {res.get('summary', 'N/A')}\nDecisions: {res.get('decisions')}\nTasks: {res.get('tasks')}"
                     
-                    print(f"KnowledgeProcessor: RAG にオーディオ文字起こしを追加中... ({db_item.file_name})")
+                    print(f"KnowledgeProcessor: RAG にオーディオ文字起こしを追加中... ({file_name})")
                     await rag_service.add_text(content_text, metadata=rag_metadata)
             
             elif file_type == "text":
@@ -139,31 +138,40 @@ class KnowledgeProcessor:
 
             # Auto-tagging
             tags = await self._generate_tags(content_text or summary)
-            for tag_name in tags:
-                crud.add_knowledge_tag(db, item_id, tag_name)
 
-            crud.update_knowledge_item(db, db_item, {
-                "status": "completed",
-                "content_text": content_text,
-                "summary": summary,
-                "updated_at": now_jst_naive()
-            })
-            db.commit()
-            logger.info(f"KnowledgeItem {item_id} processed successfully.")
+            db = SessionLocal()
+            try:
+                # Refresh db_item since it is in a new session
+                db_item = crud.get_knowledge_item(db, item_id=item_id)
+                if db_item:
+                    for tag_name in tags:
+                        crud.add_knowledge_tag(db, item_id, tag_name)
+
+                    crud.update_knowledge_item(db, db_item, {
+                        "status": "completed",
+                        "content_text": content_text,
+                        "summary": summary,
+                        "updated_at": now_jst_naive()
+                    })
+                    db.commit()
+                logger.info(f"KnowledgeItem {item_id} processed successfully.")
+            finally:
+                db.close()
 
         except Exception as e:
             logger.error(f"Failed to process KnowledgeItem {item_id}: {e}")
             import traceback
             logger.error(traceback.format_exc())
+            db = SessionLocal()
             try:
-                # Refresh db_item since it might be detached if error was DB-related
-                db_item = crud.get_knowledge_item(db, item_id)
+                db_item = crud.get_knowledge_item(db, item_id=item_id)
                 if db_item:
                     crud.update_knowledge_item(db, db_item, {"status": "failed"})
-            except:
-                pass
-        finally:
-            db.close()
+                    db.commit()
+            except Exception as inner_e:
+                logger.error(f"Failed to set status to failed: {inner_e}")
+            finally:
+                db.close()
 
     async def _process_complex_doc(self, file_path: str, file_type: str) -> dict:
         """Local text extraction for Excel and PPTX to avoid Gemini MIME type 400 errors."""

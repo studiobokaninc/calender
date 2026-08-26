@@ -23,7 +23,6 @@ API_STATUS_DEPRECATION_MAP = {
     'delayed': 'wip',      # 遅延はステータスから廃止、UI 派生フラグへ移行
     'retake': 'qc_fb',
     'cashing': 'caching',  # スペル修正
-    'omit': 'completed',
 }
 
 # 新ステータスのハイフン⇄アンダースコア表記揺れ救済
@@ -63,6 +62,7 @@ CSV_STATUS_LABEL_MAP = {
     '完了済み': 'completed',
     '遅延': 'wip',
     'リテイク': 'qc_fb',
+    '対象外': 'omit',
 }
 
 
@@ -453,6 +453,25 @@ class TaskBulkUpdateRequest(BaseModel):
     assigned_to: Optional[int] = None
     due_date: Optional[datetime] = None
     priority: Optional[str] = None
+    description: Optional[str] = None
+    start_date: Optional[datetime] = None
+    cost: Optional[float] = None
+    type: Optional[str] = None
+    deliverables: Optional[str] = None
+    check_items: Optional[List[Dict[str, Any]]] = None
+
+    @validator('type', pre=True)
+    def validate_task_type_bulk(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip().lower()
+        if s == "aseet":
+            s = "asset"
+        elif s == "anim":
+            s = "animation"
+        if s not in VALID_TASK_TYPES:
+            s = "other"
+        return s
 
 
 class TaskResponse(TaskBase):

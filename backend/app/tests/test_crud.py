@@ -265,5 +265,43 @@ def test_task_shot_id_synchronization(db: Session):
     assert updated_back.seqID == "sq_test"
 
 
+def test_bulk_update_extended_fields(db: Session):
+    # Setup project and tasks
+    proj = models.Project(name="Bulk Update Proj", status=models.ProjectStatus.PLANNING)
+    db.add(proj)
+    db.commit()
+
+    task1 = models.Task(name="Task 1", project_id=proj.id, status=models.TaskStatus.MK, description="old desc", cost=2.0)
+    task2 = models.Task(name="Task 2", project_id=proj.id, status=models.TaskStatus.MK, description="old desc", cost=4.0)
+    db.add_all([task1, task2])
+    db.commit()
+
+    updates = {
+        "description": "new common desc",
+        "start_date": "2025-05-01T00:00:00",
+        "cost": 5.5,
+        "type": "animation",
+        "deliverables": "deliverables text",
+        "check_items": [{"label": "Item 1", "checked": True}]
+    }
+
+    count = crud.bulk_update_tasks(db, [task1.id, task2.id], updates)
+    assert count == 2
+
+    db.refresh(task1)
+    db.refresh(task2)
+
+    for task in [task1, task2]:
+        assert task.description == "new common desc"
+        assert task.start_date.isoformat() == "2025-05-01T00:00:00"
+        assert task.cost == 5.5
+        assert task.type == models.TaskType.ANIMATION
+        assert task.deliverables == "deliverables text"
+        assert len(task.check_items) == 1
+        assert task.check_items[0]["label"] == "Item 1"
+        assert task.check_items[0]["checked"] is True
+
+
+
 
 

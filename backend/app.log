@@ -20861,3 +20861,277 @@ LookupError: 'deliver' is not among the defined enum values. Enum name: taskstat
 2026-08-04 12:43:15,871 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-08-04 12:43:15,871 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-08-04 12:43:15,881 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-08-06 15:45:09,118 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-06 15:45:09,125 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-06 15:45:14,074 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-06 15:45:14,864 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-08-06 15:45:15,392 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-06 15:45:15,697 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:45:15,730 - app.schemas - WARNING - Deprecated or alias task status received: 'omit' -> automatically mapped to 'completed'.
+2026-08-06 15:45:15,732 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-08-06 15:45:15,837 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:45:15,895 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-06 15:45:15,951 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:45:15,953 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-06 15:45:16,015 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-06 15:45:16,078 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-08-06 15:45:16,136 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-08-06 15:45:16,191 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-08-06 15:45:16,248 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-08-06 15:45:16,304 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:45:16,363 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:45:16,422 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:45:16,426 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-06 15:45:17,559 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-08-06 15:45:17,566 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-08-06 15:45:17,567 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-08-06 15:45:17,567 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-08-06 15:45:17,567 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-08-06 15:45:17,567 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-08-06 15:45:17,574 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-08-06 15:49:51,826 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-06 15:49:52,409 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-06 15:49:56,479 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-06 15:49:57,180 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-08-06 15:49:57,611 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-06 15:49:57,920 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:49:57,956 - app.schemas - WARNING - Deprecated or alias task status received: 'omit' -> automatically mapped to 'completed'.
+2026-08-06 15:49:57,959 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-08-06 15:49:58,061 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:49:58,118 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-06 15:49:58,179 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:49:58,181 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-06 15:49:58,241 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-06 15:49:58,299 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-08-06 15:49:58,355 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-08-06 15:49:58,412 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-08-06 15:49:58,477 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-08-06 15:49:58,539 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:49:58,604 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:49:58,668 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-06 15:49:58,671 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-06 15:49:59,852 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-08-06 15:49:59,862 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-08-06 15:49:59,863 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-08-06 15:49:59,863 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-08-06 15:49:59,864 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-08-06 15:49:59,864 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-08-06 15:49:59,873 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-08-06 16:00:59,892 - app.main - WARNING - Cleaned up orphaned meeting 51 (status reset from 'failed' to 'failed' on startup)
+2026-08-06 16:02:48,070 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:48,070 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:48,074 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:48,499 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:48,500 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:48,502 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:48,841 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:48,843 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:48,848 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:49,085 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:49,085 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:49,087 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:49,505 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:49,510 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:49,527 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:49,883 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:49,884 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:49,885 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:50,195 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:50,195 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:50,196 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:50,547 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:50,547 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:50,685 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:51,048 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:51,050 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:51,056 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:51,382 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:51,382 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:51,386 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:51,734 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:51,735 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:51,737 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:02:52,049 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:02:52,050 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:02:52,052 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:03:48,356 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:03:48,357 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:03:48,358 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:04:07,613 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:04:07,613 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:04:07,617 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:04:08,726 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:04:08,726 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:04:08,730 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:04:10,331 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:04:10,332 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:04:10,334 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:04:10,630 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:04:10,630 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:04:10,633 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:04:14,351 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:04:14,351 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:04:14,353 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:04:14,836 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:04:14,837 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:04:14,839 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:10:52,096 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:10:52,097 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:10:52,099 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:10:52,498 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:10:52,498 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:10:52,500 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:10:52,872 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:10:52,872 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:10:52,878 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:10:53,238 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:10:53,238 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:10:53,240 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:10:53,557 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:10:53,558 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:10:53,561 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:10:53,880 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:10:53,880 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:10:53,882 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:22:06,644 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:22:06,644 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:22:06,647 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-06 16:22:06,989 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
+2026-08-06 16:22:06,990 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
+2026-08-06 16:22:06,992 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-08-25 20:08:44,334 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:08:44,335 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:08:49,252 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:08:50,133 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-08-25 20:08:50,699 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:08:51,071 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:08:51,104 - app.schemas - WARNING - Deprecated or alias task status received: 'omit' -> automatically mapped to 'completed'.
+2026-08-25 20:08:51,106 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-08-25 20:08:51,215 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:08:51,273 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:08:51,335 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:08:51,337 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:08:51,403 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:08:51,463 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-08-25 20:08:51,520 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-08-25 20:08:51,588 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-08-25 20:08:51,649 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-08-25 20:08:51,749 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:08:51,813 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:08:51,871 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:08:51,874 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:08:53,123 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-08-25 20:08:53,131 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-08-25 20:08:53,131 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-08-25 20:08:53,132 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-08-25 20:08:53,132 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-08-25 20:08:53,132 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-08-25 20:08:53,139 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-08-25 20:10:26,268 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:10:26,881 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:10:33,453 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:10:34,627 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-08-25 20:10:35,383 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:10:35,997 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:36,590 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-08-25 20:10:36,727 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:36,810 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:10:36,891 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:36,894 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:10:36,975 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:10:37,065 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-08-25 20:10:37,144 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-08-25 20:10:37,220 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-08-25 20:10:37,309 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-08-25 20:10:37,456 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:37,564 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:37,638 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:37,642 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:10:39,129 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-08-25 20:10:39,142 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-08-25 20:10:39,142 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-08-25 20:10:39,143 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-08-25 20:10:39,144 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-08-25 20:10:39,144 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-08-25 20:10:39,156 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-08-25 20:10:49,230 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:10:49,778 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:10:54,854 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:10:55,782 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-08-25 20:10:56,274 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:10:56,638 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:56,683 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-08-25 20:10:56,816 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:56,890 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:10:56,961 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:56,964 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:10:57,037 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:10:57,107 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-08-25 20:10:57,177 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-08-25 20:10:57,253 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-08-25 20:10:57,326 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-08-25 20:10:57,422 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:57,497 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:57,569 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:10:57,575 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:10:58,865 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-08-25 20:10:58,876 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-08-25 20:10:58,876 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-08-25 20:10:58,877 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-08-25 20:10:58,877 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-08-25 20:10:58,877 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-08-25 20:10:58,885 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-08-25 20:16:05,502 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:16:05,921 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:16:10,104 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:16:10,957 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-08-25 20:16:11,453 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:16:11,784 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:16:11,826 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-08-25 20:16:11,934 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:16:11,997 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:16:12,069 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:16:12,072 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:16:12,146 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:16:12,216 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-08-25 20:16:12,276 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-08-25 20:16:12,369 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-08-25 20:16:12,426 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-08-25 20:16:12,493 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:16:12,557 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:16:12,618 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:16:12,621 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:16:13,867 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-08-25 20:16:13,875 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-08-25 20:16:13,876 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-08-25 20:16:13,876 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-08-25 20:16:13,876 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-08-25 20:16:13,877 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-08-25 20:16:13,883 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-08-25 20:17:06,643 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:17:07,083 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-08-25 20:17:11,607 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:17:12,301 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-08-25 20:17:12,797 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-08-25 20:17:13,103 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:17:13,139 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-08-25 20:17:13,241 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:17:13,299 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:17:13,358 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:17:13,360 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-08-25 20:17:13,420 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:17:13,481 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-08-25 20:17:13,536 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-08-25 20:17:13,597 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-08-25 20:17:13,651 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-08-25 20:17:13,717 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:17:13,777 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:17:13,836 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-08-25 20:17:13,840 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-08-25 20:17:14,971 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-08-25 20:17:14,979 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-08-25 20:17:14,979 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-08-25 20:17:14,979 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-08-25 20:17:14,979 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-08-25 20:17:14,979 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-08-25 20:17:14,987 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

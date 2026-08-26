@@ -278,14 +278,14 @@ def check_and_migrate_db():
         except sqlite3.Error as _v2err:
             print(f"警告: task_status_redesign_v2 集約中にエラー（続行します）: {_v2err}")
 
-        # === task_status_redesign_v2: OMIT -> COMPLETED 移行 ===
-        try:
-            cursor.execute("UPDATE tasks SET status = 'COMPLETED' WHERE LOWER(status) = 'omit'")
-            cursor.execute("UPDATE task_status_history SET status = 'COMPLETED' WHERE LOWER(status) = 'omit'")
-            conn.commit()
-            print("db_auto_migrate: OMIT -> COMPLETED 移行を完了しました。")
-        except sqlite3.Error as omit_err:
-            print(f"警告: OMIT -> COMPLETED 移行中にエラー（続行します）: {omit_err}")
+        # === task_status_redesign_v2: OMIT -> COMPLETED 移行 (Omit復活に伴いコメントアウト) ===
+        # try:
+        #     cursor.execute("UPDATE tasks SET status = 'COMPLETED' WHERE LOWER(status) = 'omit'")
+        #     cursor.execute("UPDATE task_status_history SET status = 'COMPLETED' WHERE LOWER(status) = 'omit'")
+        #     conn.commit()
+        #     print("db_auto_migrate: OMIT -> COMPLETED 移行を完了しました。")
+        # except sqlite3.Error as omit_err:
+        #     print(f"警告: OMIT -> COMPLETED 移行中にエラー（続行します）: {omit_err}")
 
         # eventsテーブルにuser_idsカラムが存在するか確認して追加
         cursor.execute("PRAGMA table_info(events)")

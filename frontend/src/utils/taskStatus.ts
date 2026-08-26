@@ -27,6 +27,7 @@ const CATEGORY_MAP: Record<string, TaskStatusCategory> = {
   client_ap: 'completed',
   deliver: 'completed',
   completed: 'completed',
+  omit: 'held',
 };
 
 export const getTaskStatusCategory = (status?: string | null): TaskStatusCategory | null => {
@@ -48,6 +49,7 @@ const LABEL_MAP: Record<string, string> = {
   client_ap: 'CLIENT_AP',
   deliver: 'DELIVER',
   completed: 'COMPLETED',
+  omit: 'OMIT',
 };
 
 export const getTaskStatusLabel = (status?: string | null): string => {
@@ -69,6 +71,7 @@ const COLOR_MAP: Record<string, string> = {
   client_ap: '#2E7D32', // 濃グリーン (クライアント承認済)
   deliver: '#757575',   // ダークグレー (納品完了)
   completed: '#1B5E20', // 深緑 (納品完了時)
+  omit: '#E0E0E0',      // 薄グレー (対象外)
 };
 
 export const getTaskStatusColor = (status?: string | null): string => {
@@ -123,6 +126,7 @@ export const TASK_STATUS_OPTIONS: Array<{ value: TaskStatus; label: string }> = 
   { value: 'client_ap', label: 'CLIENT_AP' },
   { value: 'deliver', label: 'DELIVER' },
   { value: 'completed', label: 'COMPLETED' },
+  { value: 'omit', label: 'OMIT' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -139,6 +143,7 @@ const RECOMMENDED_NEXT: Record<string, string[]> = {
   client_ap: ['deliver', 'qc_fb'],
   deliver: ['completed', 'qc_fb', 'wip'],
   completed: ['wt', 'mk'],
+  omit: ['wt', 'mk'],
 };
 
 // current から推奨される遷移先ステータス(有効9値)の配列を返す。
@@ -391,7 +396,6 @@ const LEGACY_STATUS_MAP: Record<string, TaskStatus> = {
   'dir-ap': 'ap',
   'dir-fb': 'qc_fb',
   'client-ap': 'client_ap',
-  omit: 'completed',
   // 旧19体系の工程別 → wip
   modeling: 'wip',
   lookdev: 'wip',

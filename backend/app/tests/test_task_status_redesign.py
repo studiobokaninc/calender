@@ -49,8 +49,8 @@ class TestCanonicalizeTaskStatus:
         assert canonicalize_task_status("ap-fb") == "qc_fb"     # ap_fb → qc_fb
 
     def test_new9_status_passthrough(self):
-        # V2 の有効9ステータスは素通し
-        for s in ("wt", "mk", "wip", "qc", "qc_fb", "ap", "client_ap", "deliver", "completed"):
+        # 有効ステータスは素通し
+        for s in ("wt", "mk", "wip", "qc", "qc_fb", "ap", "client_ap", "deliver", "completed", "omit"):
             assert canonicalize_task_status(s) == s
 
     def test_legacy19_collapse_to_new9(self):
@@ -68,7 +68,7 @@ class TestCanonicalizeTaskStatus:
         assert canonicalize_task_status("dir_ap") == "ap"
         # client_ap の表記揺れ
         assert canonicalize_task_status("client-ap") == "client_ap"
-        assert canonicalize_task_status("omit") == "completed"
+        assert canonicalize_task_status("omit") == "omit"
 
     def test_case_and_whitespace_normalization(self):
         assert canonicalize_task_status(" TODO ") == "mk"
@@ -109,9 +109,9 @@ class TestSchemaValidator:
         u = schemas.TaskUpdate(status="completed")
         assert u.status == models.TaskStatus.COMPLETED
 
-    def test_task_update_status_omit_migration(self):
+    def test_task_update_status_omit_passthrough(self):
         u = schemas.TaskUpdate(status="omit")
-        assert u.status == models.TaskStatus.COMPLETED
+        assert u.status == models.TaskStatus.OMIT
 
     def test_task_update_status_hyphen_alias(self):
         u = schemas.TaskUpdate(status="qc-fb")

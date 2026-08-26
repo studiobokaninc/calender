@@ -6,15 +6,15 @@
 // API 側および migrateLegacyStatus で新9値へ自動畳み込みされる（互換のため型には残置）。
 export type TaskStatus =
   // 待機・対象外
-  | 'wt' | 'completed'
+  | 'wt' | 'omit'
   // 未着手
   | 'mk'
   // 進行中
   | 'wip'
   // レビュー中
   | 'qc' | 'qc_fb'
-  // 完了 (社内承認 / クライアント承認 / 納品)
-  | 'ap' | 'client_ap' | 'deliver'
+  // 完了 (社内承認 / クライアント承認 / 納品 / 完了)
+  | 'ap' | 'client_ap' | 'deliver' | 'completed'
   // --- 以下は旧19体系のレガシー値（互換用・新規使用非推奨） ---
   | 'modeling' | 'lookdev' | 'caching' | 'rig' | 'facial'
   | 'v1qc' | 'ap_fb' | 'dir_wt' | 'dir_ap' | 'dir_fb' | 'fix';

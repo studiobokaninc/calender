@@ -1725,15 +1725,16 @@ def create_score_user_role(
     ).first()
     if existing_user:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="この user_id + project_id の組み合わせは既に登録されています")
-    existing_role = db.query(models.ScoreUserRole).filter(
-        models.ScoreUserRole.project_id == payload.project_id,
-        models.ScoreUserRole.role == normalized_role
-    ).first()
-    if existing_role:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"project_id={payload.project_id} には既に role='{normalized_role}' の担当者 (user_id={existing_role.user_id}) が割り当てられています。先に既存割当を削除・変更してください。",
-        )
+    if normalized_role in ('director', 'pm', 'lead'):
+        existing_role = db.query(models.ScoreUserRole).filter(
+            models.ScoreUserRole.project_id == payload.project_id,
+            models.ScoreUserRole.role == normalized_role
+        ).first()
+        if existing_role:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"project_id={payload.project_id} には既に role='{normalized_role}' の担当者 (user_id={existing_role.user_id}) が割り当てられています。先に既存割当を削除・変更してください。",
+            )
     new_role = models.ScoreUserRole(
         user_id=payload.user_id,
         project_id=payload.project_id,
@@ -1765,7 +1766,7 @@ def update_score_user_role(
             status_code=422,
             detail=f"role='{payload.role}' は認識できません。認識可能な役職: {sorted(status_transitions.ROLE_RANK.keys())}",
         )
-    if normalized_role != target.role:
+    if normalized_role != target.role and normalized_role in ('director', 'pm', 'lead'):
         conflict = db.query(models.ScoreUserRole).filter(
             models.ScoreUserRole.project_id == target.project_id,
             models.ScoreUserRole.role == normalized_role,

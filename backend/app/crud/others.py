@@ -64,6 +64,22 @@ def get_user_activities(db: Session, user_id: Optional[int] = None, cycle_date: 
         query = query.filter(func.date(models.UserActivity.cycle_date) == cycle_date_only)
     return query.order_by(models.UserActivity.active_at.desc()).offset(skip).limit(limit).all()
 
+def get_user_activity_counts(db: Session, cycle_date: datetime) -> List[Any]:
+    """指定cycle_date(日付部分一致、5時起点の周期日)のuser_activitiesをuser_id別に
+    件数・最初の刻・最後の刻で集計。"""
+    cycle_date_only = cycle_date.date()
+    return (
+        db.query(
+            models.UserActivity.user_id,
+            func.count(models.UserActivity.id),
+            func.min(models.UserActivity.active_at),
+            func.max(models.UserActivity.active_at),
+        )
+        .filter(func.date(models.UserActivity.cycle_date) == cycle_date_only)
+        .group_by(models.UserActivity.user_id)
+        .all()
+    )
+
 def get_user_activities_by_cycle(db: Session, cycle_date: Optional[datetime] = None, skip: int = 0, limit: int = 10000) -> List[models.UserActivity]:
     if cycle_date is None:
         cycle_date = get_cycle_date(now_jst_naive())

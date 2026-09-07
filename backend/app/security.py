@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from jose.exceptions import ExpiredSignatureError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
@@ -42,6 +43,23 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440)
 # docs 用の tokenUrl。実際の通信は Vite proxy の設定に依存する。
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 
+# 期限切れ（ExpiredSignatureError）と、それ以外（署名不正・改竄・形式違い・
+# payloadにusername無し・該当ユーザー無し）を呼び手が区別できるよう文言を分ける。
+# ★通過条件（誰が認証を通過できるか）は変更しない。変えるのは文言・エラー種別のみ。
+# モジュールレベルで定義し、verify_token() 以外の自前JWT検証箇所（例:
+# routers/users.py の GET /api/users）からも import して再利用する
+# （二重定義を避け、文言の一貫性を保つため。cmd_712b）。
+expired_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="認証の有効期限が切れました。再度ログインしてください。",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+invalid_token_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="認証に失敗しました。トークンが無効です。再度ログインし直してください。",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+
 
 async def verify_token(
     token: str,
@@ -49,12 +67,6 @@ async def verify_token(
     x_actor_user_id: Optional[int] = None,
 ) -> models.User:
     """JWTトークン（またはCLIバイパストークン）を検証し、対応するユーザーを DB から取得"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="認証の有効期限が切れました。再度ログインしてください。",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
     # CLIバイパストークンの検証
     # bypass + X-Actor-User-Id → actor_user を直接返す (admin既定解決なし)
     # bypass 単独 → 401 (どのadminにも化けない)
@@ -83,14 +95,16 @@ async def verify_token(
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: Optional[str] = payload.get("sub")  # email を想定
         if not username:
-            raise credentials_exception
+            raise invalid_token_exception
+    except ExpiredSignatureError:
+        raise expired_exception
     except JWTError:
-        raise credentials_exception
+        raise invalid_token_exception
 
     from . import crud
     user = crud.get_user_by_email(db, email=username)
     if user is None:
-        raise credentials_exception
+        raise invalid_token_exception
 
     if not getattr(user, "is_active", True):
         raise HTTPException(

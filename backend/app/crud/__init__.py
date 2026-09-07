@@ -18,7 +18,7 @@ from .events import (
     get_event, get_events, create_event, update_event, delete_event
 )
 from .audit import (
-    get_audit_events
+    get_audit_events, get_audit_action_counts
 )
 from .batch import (
     update_task_statuses, auto_update_task_statuses, get_user_google_token
@@ -52,6 +52,7 @@ from .chat import (
 from .others import (
     create_status_history, get_task_status_history, get_status_change_metrics,
     get_cycle_date, create_user_activity, get_user_activities, get_user_activities_by_cycle,
+    get_user_activity_counts,
     get_user_google_token, upsert_user_google_token, delete_user_google_token,
     get_task_google_sync, set_task_google_sync, delete_task_google_sync, get_synced_task_ids_for_user,
     get_event_google_sync, set_event_google_sync, delete_event_google_sync, get_synced_event_ids_for_user

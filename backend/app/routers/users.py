@@ -73,42 +73,38 @@ async def get_users_endpoint(
             _auth_via = "bypass+X-Actor"
         else:
             # JWT 検証
+            # 期限切れ・その他のトークン不正を呼び手が区別できるよう、
+            # security.py の expired_exception / invalid_token_exception を再利用する
+            # （cmd_712b: security.verify_token() 以外の自前JWT検証箇所の是正）。
             from jose import JWTError, jwt as jose_jwt
-            from ..security import SECRET_KEY, ALGORITHM
+            from jose.exceptions import ExpiredSignatureError
+            from ..security import SECRET_KEY, ALGORITHM, expired_exception, invalid_token_exception
             try:
                 payload = jose_jwt.decode(bearer, SECRET_KEY, algorithms=[ALGORITHM])
                 email = payload.get("sub")
                 if not email:
                     logger.warning("GET /api/users: JWT path REJECTED (no sub claim)")
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="無効なトークンです。",
-                        headers={"WWW-Authenticate": "Bearer"},
-                    )
-                db_user = crud.get_user_by_email(db, email=email)
-                if not db_user:
-                    logger.warning("GET /api/users: JWT path REJECTED (user not found)")
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="ユーザーが見つかりません。",
-                        headers={"WWW-Authenticate": "Bearer"},
-                    )
-                # F1: is_active チェック (失効前JWT保持の無効化ユーザーを排除)
-                if not getattr(db_user, "is_active", True):
-                    logger.warning("GET /api/users: JWT path REJECTED (account inactive)")
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="このアカウントは無効化されています。管理者にお問い合わせください。",
-                        headers={"WWW-Authenticate": "Bearer"},
-                    )
-                _auth_via = "JWT"
+                    raise invalid_token_exception
+            except ExpiredSignatureError:
+                logger.warning("GET /api/users: JWT path REJECTED (ExpiredSignatureError)")
+                raise expired_exception
             except JWTError:
-                logger.warning("GET /api/users: JWT path REJECTED (JWTError - invalid/expired token)")
+                logger.warning("GET /api/users: JWT path REJECTED (JWTError - invalid token)")
+                raise invalid_token_exception
+
+            db_user = crud.get_user_by_email(db, email=email)
+            if not db_user:
+                logger.warning("GET /api/users: JWT path REJECTED (user not found)")
+                raise invalid_token_exception
+            # F1: is_active チェック (失効前JWT保持の無効化ユーザーを排除)
+            if not getattr(db_user, "is_active", True):
+                logger.warning("GET /api/users: JWT path REJECTED (account inactive)")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="認証の有効期限が切れました。再度ログインしてください。",
+                    detail="このアカウントは無効化されています。管理者にお問い合わせください。",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
+            _auth_via = "JWT"
 
     logger.warning("GET /api/users: auth PASSED via %s", _auth_via)
     try:

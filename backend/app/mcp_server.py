@@ -722,6 +722,58 @@ def update_project(
 
 
 @mcp.tool()
+def complete_project(
+    actor_id: int,
+    project_id: int,
+    note: str = "",
+) -> dict:
+    """プロジェクトの知識結晶化(/knowledge へのアップロード等でナレッジベース化)が完了した時点で
+    呼び出す専用ツール。プロジェクトを status=completed に更新する。
+    update_project は status を変更できないため、プロジェクト完了時は必ずこちらを使うこと。
+    呼出により: ①project.status=completed に更新 ②未完了タスクは自動で deliver 相当に完了化
+    ③audit_logs に project.complete として記録(note があれば detail に保存)。
+    管理者権限が必要。"""
+    err = _require_write_scope()
+    if err:
+        return err
+
+    db = SessionLocal()
+    try:
+        actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
+        if not actor:
+            return {"error": f"actor_id={actor_id} not found or inactive"}
+        if actor.role != "admin":
+            return {"error": "管理者権限が必要です"}
+
+        db_project = crud.get_project(db=db, project_id=project_id)
+        if db_project is None:
+            return {"error": f"project_id={project_id} not found"}
+
+        project_data = schemas.ProjectUpdate(status=models.ProjectStatus.COMPLETED)
+        updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
+
+        tasks_completed = crud.complete_tasks_for_project(db=db, project_id=project_id)
+
+        record_event(db, "project.complete", actor_uid=actor_id,
+                     target_type="project", target_id=project_id,
+                     detail={"note": note} if note else None)
+
+        from app.services.google_sync import auto_sync_project_bg
+        import threading
+        threading.Thread(target=auto_sync_project_bg, args=(updated_project.id,)).start()
+
+        return {"ok": True, "project": {
+            "id": updated_project.id,
+            "name": updated_project.name,
+            "status": updated_project.status,
+            "display_status": updated_project.display_status,
+            "client_ref": updated_project.client_ref,
+        }, "tasks_completed": tasks_completed}
+    finally:
+        db.close()
+
+
+@mcp.tool()
 def import_shots(
     actor_id: int,
     project_id: int,

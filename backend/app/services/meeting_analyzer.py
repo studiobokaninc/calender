@@ -253,6 +253,7 @@ class MeetingAnalyzer:
 - 出力は必ず日本語。中国語・英語の混在は禁止。
 - **下記の文字起こしに実際に含まれる情報だけを抽出**してください。推測・一般論・創作の追加は固く禁止します。該当が無ければそのセクションには「なし」とだけ書いてください。
 - 文字起こし本文は出力しないでください（抽出結果のみ）。挨拶・前置き・「改善します」等の締め文句も一切書かないでください。
+- 各項目は「それ」「この件」等の曖昧な指示語のまま書かず、文字起こし中で実際に使われている具体的な名称（人名・作品名・機能名など）に置き換えてください（新しい情報を作るのではなく、同じ文字起こし内の語で言い換えるだけです）。
 
 【対象の文字起こし】
 {raw}
@@ -283,18 +284,36 @@ class MeetingAnalyzer:
                     elif chunk.get("event") == "error":
                         raise Exception(chunk.get("message", "Unknown LLM error"))
 
-                if response_text.strip():
+                stripped = response_text.strip()
+                # 応答が非空でも、期待するセクション見出しが1つも無ければ壊れた応答（例: モデルが
+                # "@@@@@@..." のような無意味な文字列を返す退化バグ）とみなし、成功扱いにせずリトライする。
+                # 見出しが無いまま受理すると _parse_output が静かに空リストを返し、
+                # エラーも警告も無いまま decisions/tasks/discussion_points/deadlines が消える。
+                has_expected_section = any(
+                    marker in stripped
+                    for marker in ("===DECISIONS===", "===TASKS===", "===DISCUSSION_POINTS===", "===DEADLINES===")
+                )
+                if stripped and has_expected_section:
                     parsed = self._parse_output(response_text)
                     result["decisions"] = parsed.get("decisions", [])
                     result["tasks"] = parsed.get("tasks", [])
                     result["discussion_points"] = parsed.get("discussion_points", [])
                     result["deadlines"] = parsed.get("deadlines", [])
                     return result
-                logger.warning(f"chunk {index}/{total}: 抽出応答が空 (attempt {attempt})")
+                elif stripped:
+                    logger.warning(f"chunk {index}/{total}: 抽出応答が壊れている（期待する見出し無し） (attempt {attempt}): {stripped[:80]!r}")
+                else:
+                    logger.warning(f"chunk {index}/{total}: 抽出応答が空 (attempt {attempt})")
             except Exception as e:
                 logger.error(f"chunk {index}/{total} 抽出エラー (attempt {attempt}): {e}")
 
-        # 抽出に失敗しても、逐語文字起こしは確保できているので返す（transcriptは失わない）
+        # 抽出に失敗しても、逐語文字起こしは確保できているので返す（transcriptは失わない）。
+        # ただし何も警告を残さないと、会議全体が status=completed のまま decisions/tasks 等が
+        # 無言で空になり「議事録が消えた」ように見えるため、目に見える警告を残す。
+        logger.warning(f"chunk {index}/{total}: 抽出リトライ全滅、transcriptのみ保存（decisions/tasks/discussion_points/deadlinesは空）")
+        result["discussion_points"] = [
+            f"⚠️ セグメント{index}/{total}: AI抽出に失敗しました（文字起こしは保存されています。内容を確認するか「再生成」をお試しください）"
+        ]
         return result
 
     def _parse_output(self, text: str) -> Dict[str, Any]:
@@ -346,17 +365,21 @@ class MeetingAnalyzer:
         return result
 
     # 構造化セクション(決定事項/タスク/論点/期限)に紛れ込むモデルの前置き・後置き・メタ発話を除外する。
+    # 注意: ここは部分一致(substring)で判定するため、実務の決定事項/タスクに自然に出てくる
+    # 一般的すぎる語（例:「フィードバック」「以下の」）を入れると、正当な抽出結果まで
+    # 誤って握りつぶしてしまう（実測で確認済み。例:「クライアントからのフィードバックを待つ」
+    # 「以下の作業をBスタジオに依頼する」が誤除外されていた）。追加する際は、AIアシスタントの
+    # 締め文句以外では出現しにくい、ある程度具体的な言い回しに限定すること。
     _META_MARKERS = (
         "セグメント", "以上が", "以上で", "分析結果", "文字起こし", "抽出結果",
-        "承知しました", "了解しました", "申し訳", "以下の", "以下に", "出力します",
+        "承知しました", "了解しました", "申し訳", "出力します",
         "処理を続け", "続けて", "フォーマット", "については以上", "特にありません",
-        "情報はありません", "該当なし", "該当する", "見当たりません",
+        "情報はありません", "該当なし", "見当たりません",
         # モデルが末尾に付けがちな「お手伝い/改善の申し出」系の締め文句。
         # 構造化フィールド（特に期限・日程候補）への混入を防ぐ。
-        "フィードバック", "追加情報", "提供いただ", "いただければ", "いただけましたら",
-        "改善させ", "改善いたし", "お気軽に", "お知らせください", "ご連絡ください",
-        "ご確認ください", "よろしくお願い", "お手伝いし", "サポートさせ",
-        "ご質問が", "ご要望が", "遠慮なく", "お申し付け",
+        "提供いただければ", "いただけましたら", "改善させ", "改善いたし", "お気軽に",
+        "お知らせください", "ご連絡ください", "ご確認ください", "よろしくお願い",
+        "お手伝いし", "サポートさせ", "ご質問が", "ご要望が", "遠慮なく", "お申し付け",
     )
 
     def _is_meta_line(self, item: str) -> bool:

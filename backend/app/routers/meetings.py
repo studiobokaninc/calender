@@ -427,7 +427,9 @@ async def upload_audio_chunk(
     db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
     if not db_meeting:
         raise HTTPException(status_code=404, detail="会議が見つかりません")
-    if db_meeting.status != "recording":
+    # 'failed' も許容する: バックエンド再起動時のクリーンアップ等で recording→failed になった後でも、
+    # temp_audio に残っているチャンクへ復旧アップロードできるようにするため。
+    if db_meeting.status not in ("recording", "failed"):
         raise HTTPException(status_code=400, detail="この会議は録音中ではありません")
 
     # 一時保存先ディレクトリ: temp_audio/temp_{uuid}/chunk_{chunk_index}
@@ -458,7 +460,9 @@ async def complete_recording(
     db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
     if not db_meeting:
         raise HTTPException(status_code=404, detail="会議が見つかりません")
-    if db_meeting.status != "recording":
+    # 'failed' も許容する: バックエンド再起動時のクリーンアップ等で recording→failed になった後でも、
+    # temp_audio に残っているチャンクから復旧・完了できるようにするため。
+    if db_meeting.status not in ("recording", "failed"):
         raise HTTPException(status_code=400, detail="この会議は録音完了処理を行えません")
 
     temp_dir = BASE_DIR / "temp_audio" / f"temp_{db_meeting.uuid}"

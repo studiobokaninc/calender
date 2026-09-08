@@ -204,7 +204,9 @@ export interface User {
   email: string;
   username?: string;
   full_name?: string;
+  furigana?: string | null; // 氏名のフリガナ
   name?: string;
+  language?: string | null; // 使用言語
   role?: string;
   base_load_hours_per_week?: number; // 週あたりの定常業務時間（ベースロード）
   is_active?: boolean; // ★★★ 追加: 退職者制御カラム ★★★

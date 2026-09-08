@@ -31,6 +31,8 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
         email=user.email.lower().strip() if user.email else user.email,
         username=user.username,
         full_name=user.full_name,
+        furigana=user.furigana,
+        language=user.language,
         hashed_password=hashed_password,
         role=user.role or "user"
     )

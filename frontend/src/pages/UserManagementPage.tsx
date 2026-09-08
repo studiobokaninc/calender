@@ -6,7 +6,7 @@ import {
   TextField, FormControl, InputLabel, Select, MenuItem, Snackbar, Alert, Card,
   CardContent, Chip, Grid, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, useMediaQuery, useTheme,
-  Breadcrumbs, Link, Drawer
+  Breadcrumbs, Link, Drawer, Divider, FormHelperText
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { User, Task, Project, UserGroup, Group, CalendarEvent } from '../types';
@@ -76,9 +76,20 @@ function partitionTasksByCategory(tasks: Task[]): Record<TaskDisplayCategory, Ta
 interface EditUserData {
   id: string;
   username: string;
+  full_name: string;
+  furigana: string;
   email: string;
   role: string;
+  language: string;
 }
+
+const LANGUAGE_OPTIONS = [
+  { value: 'ja', label: '日本語' },
+  { value: 'en', label: 'English' },
+  { value: 'zh', label: '中文' },
+  { value: 'ko', label: '한국어' },
+  { value: 'other', label: 'その他' },
+];
 
 interface UserTaskInfo {
   userId: number;
@@ -365,8 +376,11 @@ const UserManagementPage: React.FC = () => {
     setCurrentEditUser({
       id: String(user.id),
       username: user.username || '',
+      full_name: user.full_name || '',
+      furigana: user.furigana || '',
       email: user.email || '',
-      role: user.role || 'user'
+      role: user.role || 'user',
+      language: user.language || 'ja'
     });
     setEditPassword('');
     setEditConfirmPassword('');
@@ -410,8 +424,11 @@ const UserManagementPage: React.FC = () => {
     try {
       const payload: Record<string, string> = {
         username: currentEditUser.username,
+        full_name: currentEditUser.full_name,
+        furigana: currentEditUser.furigana,
         email: currentEditUser.email,
-        role: currentEditUser.role
+        role: currentEditUser.role,
+        language: currentEditUser.language
       };
       if (editPassword) {
         payload.password = editPassword;
@@ -1304,55 +1321,110 @@ const UserManagementPage: React.FC = () => {
           <DialogTitle>ユーザー情報の編集</DialogTitle>
           <DialogContent>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-              <TextField
-                label="ユーザー名"
-                name="username"
-                value={currentEditUser?.username || ''}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <TextField
-                label="メールアドレス"
-                name="email"
-                value={currentEditUser?.email || ''}
-                onChange={handleEditChange}
-                fullWidth
-              />
-              <FormControl fullWidth>
-                <InputLabel>役割</InputLabel>
-                <Select
-                  name="role"
-                  value={currentEditUser?.role || 'user'}
-                  onChange={handleEditChange}
-                  label="役割"
-                >
-                  <MenuItem value="user">一般ユーザー</MenuItem>
-                  <MenuItem value="admin">管理者</MenuItem>
-                </Select>
-              </FormControl>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                パスワードを変更する場合のみ入力してください（空欄の場合は変更されません）
-              </Typography>
-              <TextField
-                label="新しいパスワード"
-                type="password"
-                value={editPassword}
-                onChange={(e) => setEditPassword(e.target.value)}
-                fullWidth
-                error={!!editPasswordError}
-                helperText={editPasswordError}
-                placeholder="8文字以上"
-                inputProps={{ autoComplete: 'new-password' }}
-              />
-              <TextField
-                label="新しいパスワード（確認）"
-                type="password"
-                value={editConfirmPassword}
-                onChange={(e) => setEditConfirmPassword(e.target.value)}
-                fullWidth
-                error={!!editPasswordError}
-                inputProps={{ autoComplete: 'new-password' }}
-              />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>基本情報</Typography>
+                <Divider sx={{ mb: 1.5 }} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    label="氏名"
+                    name="full_name"
+                    placeholder="例: 山田 太郎"
+                    value={currentEditUser?.full_name || ''}
+                    onChange={handleEditChange}
+                    fullWidth
+                    helperText="ユーザー一覧やアイコン表示に使われる正式なお名前です。"
+                  />
+                  <TextField
+                    label="フリガナ"
+                    name="furigana"
+                    placeholder="例: ヤマダ タロウ"
+                    value={currentEditUser?.furigana || ''}
+                    onChange={handleEditChange}
+                    fullWidth
+                    helperText="五十音順の並び替えなどに使用します。任意項目です。"
+                  />
+                </Box>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>ログイン情報</Typography>
+                <Divider sx={{ mb: 1.5 }} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <TextField
+                    label="ユーザー名"
+                    name="username"
+                    value={currentEditUser?.username || ''}
+                    onChange={handleEditChange}
+                    fullWidth
+                    helperText="ログインやメンションで使うIDです。"
+                  />
+                  <TextField
+                    label="メールアドレス"
+                    name="email"
+                    value={currentEditUser?.email || ''}
+                    onChange={handleEditChange}
+                    fullWidth
+                    helperText="ログインおよび通知の送信先として使用します。"
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    パスワードを変更する場合のみ入力してください（空欄の場合は変更されません）
+                  </Typography>
+                  <TextField
+                    label="新しいパスワード"
+                    type="password"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    fullWidth
+                    error={!!editPasswordError}
+                    helperText={editPasswordError}
+                    placeholder="8文字以上"
+                    inputProps={{ autoComplete: 'new-password' }}
+                  />
+                  <TextField
+                    label="新しいパスワード（確認）"
+                    type="password"
+                    value={editConfirmPassword}
+                    onChange={(e) => setEditConfirmPassword(e.target.value)}
+                    fullWidth
+                    error={!!editPasswordError}
+                    inputProps={{ autoComplete: 'new-password' }}
+                  />
+                </Box>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>権限・言語設定</Typography>
+                <Divider sx={{ mb: 1.5 }} />
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>役割</InputLabel>
+                    <Select
+                      name="role"
+                      value={currentEditUser?.role || 'user'}
+                      onChange={handleEditChange}
+                      label="役割"
+                    >
+                      <MenuItem value="user">一般ユーザー</MenuItem>
+                      <MenuItem value="admin">管理者</MenuItem>
+                    </Select>
+                    <FormHelperText>管理者はユーザー管理や各種設定の変更が行えます。</FormHelperText>
+                  </FormControl>
+                  <FormControl fullWidth>
+                    <InputLabel>使用言語</InputLabel>
+                    <Select
+                      name="language"
+                      value={currentEditUser?.language || 'ja'}
+                      onChange={handleEditChange}
+                      label="使用言語"
+                    >
+                      {LANGUAGE_OPTIONS.map(opt => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>画面表示やAIとのやり取りで使用する言語です。</FormHelperText>
+                  </FormControl>
+                </Box>
+              </Box>
             </Box>
           </DialogContent>
           <DialogActions>

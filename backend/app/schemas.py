@@ -106,7 +106,9 @@ class UserBase(BaseModel):
     email: Optional[EmailStr] = None
     username: Optional[str] = None  # ユーザーID
     full_name: Optional[str] = None # 氏名
+    furigana: Optional[str] = None # フリガナ
     name: Optional[str] = None # 旧フィールド（後方互換用）
+    language: Optional[str] = None # 使用言語
     role: Optional[str] = 'user'
     iconUrl: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -1120,6 +1122,8 @@ class UserProfileResponse(BaseModel):
     id: int
     username: Optional[str] = None
     full_name: Optional[str] = None
+    furigana: Optional[str] = None
+    language: Optional[str] = None
     email: str
     role: Optional[str] = None
     is_active: bool
@@ -1140,6 +1144,8 @@ class UserProfileResponse(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
+    furigana: Optional[str] = None
+    language: Optional[str] = None
     birthday: Optional[datetime] = None
     bio: Optional[str] = None
     phone: Optional[str] = None

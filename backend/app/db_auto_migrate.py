@@ -80,6 +80,22 @@ def check_and_migrate_db():
             conn.commit()
             print("analysis_secondsカラムを追加しました。")
             
+        # usersテーブルの既存のカラムを確認
+        cursor.execute("PRAGMA table_info(users)")
+        user_columns = [row[1] for row in cursor.fetchall()]
+
+        if 'furigana' not in user_columns:
+            print("furiganaカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE users ADD COLUMN furigana VARCHAR(255)")
+            conn.commit()
+            print("furiganaカラムを追加しました。")
+
+        if 'language' not in user_columns:
+            print("languageカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE users ADD COLUMN language VARCHAR(50)")
+            conn.commit()
+            print("languageカラムを追加しました。")
+
         # user_google_tokensテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(user_google_tokens)")
         token_columns = [row[1] for row in cursor.fetchall()]

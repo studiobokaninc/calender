@@ -611,8 +611,9 @@ def delete_project(
     project_id: int,
 ) -> dict:
     """プロジェクトを削除する(関連タスク・ショット・イベント等も物理削除)。
-    認可: CASPER_WRITE_TOKEN による write スコープ呼出のみ(actor_id の role は問わない。
-    write スコープの保有自体をシステム操作の認可とする)。
+    管理者権限が必要(非admin actor_idでは403相当のエラーを返す)。物理削除は元に戻せない
+    破壊的操作のため、他の project 系ツールと異なり write スコープのみでは許可しない
+    (actor 本人が admin であることを要求する)。
     ★ 物理削除: shots/tasks/events/履歴も全てカスケード削除される。元に戻せない。"""
     err = _require_write_scope()
     if err:
@@ -623,6 +624,8 @@ def delete_project(
         actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
         if not actor:
             return {"error": f"actor_id={actor_id} not found or inactive"}
+        if actor.role != "admin":
+            return {"error": "管理者権限が必要です"}
 
         project = db.query(models.Project).filter(models.Project.id == project_id).first()
         if not project:

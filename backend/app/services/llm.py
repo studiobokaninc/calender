@@ -204,6 +204,7 @@ class LLMClient:
         
         # Check LLM_PROVIDER env var first — overrides api_key-based detection
         _llm_provider_env = os.getenv("LLM_PROVIDER", "").lower()
+        self.is_local_ollama = (_llm_provider_env == "local")
         if _llm_provider_env == "local":
             self.provider = "openai"  # Ollama is OpenAI-compatible
             # CALENDER_LLM_BASE_URL がこのプロジェクト専用のキー。LOCAL_LLM_BASE_URL は
@@ -723,9 +724,23 @@ class LLMClient:
 
         try:
             for iteration in range(5):
-                _kwargs = dict(messages=messages, stream=True, temperature=0.7)
+                # 議事録抽出(mode=utility)は創造性が不要な構造化タスクのため温度を下げる。
+                _temperature = 0.2 if inputs.get("mode") == "utility" else 0.7
+                _kwargs = dict(messages=messages, stream=True, temperature=_temperature)
                 if tools:
                     _kwargs["tools"] = tools
+                if self.is_local_ollama:
+                    # 重要: Ollama の OpenAI互換エンドポイント(/v1/chat/completions)は、
+                    # num_ctx を明示しないと既定のコンテキスト長（小さい）で動作し、
+                    # 長め（会議1チャンク分など）の入力で応答が "@@@@..." のような
+                    # 無意味な文字列に完全崩壊する現象を実測で確認した（ネイティブAPI
+                    # /api/chat に options.num_ctx を明示すると同じ入力で正常な応答に戻る）。
+                    # モデル自体は32768トークンまで対応しているが、num_ctxを上げるほど
+                    # VRAM(KV cache)を消費するため、BOX2の8GB GPUの安全マージンを見て
+                    # 既定8192とし、環境変数で調整できるようにする。
+                    _kwargs["extra_body"] = {
+                        "options": {"num_ctx": int(os.getenv("LLM_NUM_CTX", "8192"))}
+                    }
                 if self.provider == "anthropic":
                     import litellm
                     os.environ["ANTHROPIC_API_KEY"] = self.api_key

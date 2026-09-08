@@ -13,6 +13,7 @@ import {
   MenuItem,
   FormHelperText,
   Typography,
+  Divider,
 } from '@mui/material';
 
 // Define the shape of the data the modal will handle and pass back
@@ -21,7 +22,18 @@ export interface NewUserData {
   email: string;
   password?: string;
   role?: string;
+  full_name?: string;
+  furigana?: string;
+  language?: string;
 }
+
+const LANGUAGE_OPTIONS = [
+  { value: 'ja', label: '日本語' },
+  { value: 'en', label: 'English' },
+  { value: 'zh', label: '中文' },
+  { value: 'ko', label: '한국어' },
+  { value: 'other', label: 'その他' },
+];
 
 interface UserAddModalProps {
   open: boolean;
@@ -35,6 +47,9 @@ const UserAddModal: React.FC<UserAddModalProps> = ({ open, onClose, onSave }) =>
     email: '',
     password: '',
     role: 'user',
+    full_name: '',
+    furigana: '',
+    language: 'ja',
   };
   const [formData, setFormData] = useState<NewUserData>(initialFormData);
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -97,77 +112,137 @@ const UserAddModal: React.FC<UserAddModalProps> = ({ open, onClose, onSave }) =>
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle>新規ユーザー追加</DialogTitle>
       <DialogContent>
-        <Box component="form" noValidate sx={{ mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="username"
-            label="ユーザー名"
-            name="username"
-            autoComplete="username"
-            autoFocus
-            value={formData.username}
-            onChange={handleChange}
-            error={!!errors.username}
-            helperText={errors.username}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="メールアドレス"
-            name="email"
-            autoComplete="email"
-            value={formData.email}
-            onChange={handleChange}
-            error={!!errors.email}
-            helperText={errors.email}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="パスワード (8文字以上)"
-            type="password"
-            id="password"
-            autoComplete="new-password"
-            value={formData.password}
-            onChange={handleChange}
-            error={!!errors.password}
-            helperText={errors.password}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="confirmPassword"
-            label="パスワード (確認用)"
-            type="password"
-            id="confirmPassword"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={handleConfirmPasswordChange}
-            error={!!errors.confirmPassword}
-            helperText={errors.confirmPassword}
-          />
-          <FormControl fullWidth margin="normal" required error={!!errors.role}>
-            <InputLabel id="role-label">役割</InputLabel>
-            <Select
-              labelId="role-label"
-              id="role"
-              name="role"
-              value={formData.role || 'user'}
-              label="役割"
-              onChange={handleChange as any}
-            >
-              <MenuItem value="admin">管理者</MenuItem>
-              <MenuItem value="user">一般ユーザー</MenuItem>
-            </Select>
-            {errors.role && <FormHelperText>{errors.role}</FormHelperText>}
-          </FormControl>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          新しく追加するメンバーの情報を入力してください。<Box component="span" sx={{ color: 'error.main' }}>*</Box> は必須項目です。
+        </Typography>
+        <Box component="form" noValidate sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>基本情報</Typography>
+            <Divider sx={{ mb: 1.5 }} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                fullWidth
+                id="full_name"
+                label="氏名"
+                name="full_name"
+                autoComplete="name"
+                placeholder="例: 山田 太郎"
+                value={formData.full_name}
+                onChange={handleChange}
+                error={!!errors.full_name}
+                helperText={errors.full_name || 'ユーザー一覧やアイコン表示に使われる正式なお名前です。'}
+              />
+              <TextField
+                fullWidth
+                id="furigana"
+                label="フリガナ"
+                name="furigana"
+                placeholder="例: ヤマダ タロウ"
+                value={formData.furigana}
+                onChange={handleChange}
+                error={!!errors.furigana}
+                helperText={errors.furigana || '五十音順の並び替えなどに使用します。任意項目です。'}
+              />
+            </Box>
+          </Box>
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>ログイン情報</Typography>
+            <Divider sx={{ mb: 1.5 }} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                required
+                fullWidth
+                id="username"
+                label="ユーザー名"
+                name="username"
+                autoComplete="username"
+                autoFocus
+                placeholder="例: yamada_taro"
+                value={formData.username}
+                onChange={handleChange}
+                error={!!errors.username}
+                helperText={errors.username || 'ログインやメンションで使うIDです。半角英数字が使えます。'}
+              />
+              <TextField
+                required
+                fullWidth
+                id="email"
+                label="メールアドレス"
+                name="email"
+                autoComplete="email"
+                placeholder="例: taro.yamada@example.com"
+                value={formData.email}
+                onChange={handleChange}
+                error={!!errors.email}
+                helperText={errors.email || 'ログインおよび通知の送信先として使用します。'}
+              />
+              <TextField
+                required
+                fullWidth
+                name="password"
+                label="パスワード"
+                type="password"
+                id="password"
+                autoComplete="new-password"
+                value={formData.password}
+                onChange={handleChange}
+                error={!!errors.password}
+                helperText={errors.password || '8文字以上で設定してください。'}
+              />
+              <TextField
+                required
+                fullWidth
+                name="confirmPassword"
+                label="パスワード（確認用）"
+                type="password"
+                id="confirmPassword"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={handleConfirmPasswordChange}
+                error={!!errors.confirmPassword}
+                helperText={errors.confirmPassword || '確認のためもう一度同じパスワードを入力してください。'}
+              />
+            </Box>
+          </Box>
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>権限・言語設定</Typography>
+            <Divider sx={{ mb: 1.5 }} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <FormControl fullWidth required error={!!errors.role}>
+                <InputLabel id="role-label">役割</InputLabel>
+                <Select
+                  labelId="role-label"
+                  id="role"
+                  name="role"
+                  value={formData.role || 'user'}
+                  label="役割"
+                  onChange={handleChange as any}
+                >
+                  <MenuItem value="admin">管理者</MenuItem>
+                  <MenuItem value="user">一般ユーザー</MenuItem>
+                </Select>
+                <FormHelperText>{errors.role || '管理者はユーザー管理や各種設定の変更が行えます。'}</FormHelperText>
+              </FormControl>
+              <FormControl fullWidth>
+                <InputLabel id="language-label">使用言語</InputLabel>
+                <Select
+                  labelId="language-label"
+                  id="language"
+                  name="language"
+                  value={formData.language || 'ja'}
+                  label="使用言語"
+                  onChange={handleChange as any}
+                >
+                  {LANGUAGE_OPTIONS.map(opt => (
+                    <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>画面表示やAIとのやり取りで使用する言語です。</FormHelperText>
+              </FormControl>
+            </Box>
+          </Box>
 
           {errors.form && <Typography color="error" sx={{ mt: 1 }}>{errors.form}</Typography>}
         </Box>

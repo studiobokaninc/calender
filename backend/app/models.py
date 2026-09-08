@@ -101,6 +101,8 @@ class User(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column()
     username: Mapped[Optional[str]] = mapped_column(unique=True, index=True)
     full_name: Mapped[Optional[str]] = mapped_column(index=True)
+    furigana: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # 氏名のフリガナ
+    language: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # 使用言語 (例: ja, en)
     base_load_hours_per_week: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.0)
     avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

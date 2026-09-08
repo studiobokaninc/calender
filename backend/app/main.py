@@ -10,6 +10,7 @@ import mimetypes
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
@@ -113,22 +114,54 @@ from .mcp_server import mcp_http, _MCPAuthMiddleware, mcp
 
 
 def cleanup_orphaned_meetings():
-    """サーバー起動時に、前回の実行で中断された『解析中』『録音中』の会議ステータスを failed にクリーンアップする"""
+    """サーバー起動時に、前回の実行で中断された会議ステータスをクリーンアップする。
+
+    'processing' はバックグラウンド解析タスクがプロセスと共に確実に死んでいるため無条件で failed にする。
+    'recording' はブラウザ録音がDBの status=='recording' だけを見て継続・完了できる設計のため、
+    --reload等でバックエンドが再起動しただけの録音中の会議を巻き込んでfailed化しないよう、
+    temp_audio のチャンク最終更新時刻が新しい（=まだ録音中の可能性が高い）ものは触らずに残す。
+    """
     from .database import SessionLocal
     from . import models
-    
+
     logger = logging.getLogger(__name__)
+    temp_audio_dir = Path(__file__).resolve().parent.parent / "temp_audio"
+    stale_threshold_seconds = 2 * 60 * 60  # 2時間
+
+    def is_recording_stale(meeting_uuid: Optional[str]) -> bool:
+        if not meeting_uuid:
+            return True
+        chunk_dir = temp_audio_dir / f"temp_{meeting_uuid}"
+        if not chunk_dir.exists():
+            return True
+        try:
+            latest_mtime = max((p.stat().st_mtime for p in chunk_dir.glob("chunk_*")), default=None)
+        except OSError:
+            return True
+        if latest_mtime is None:
+            return True
+        return (time.time() - latest_mtime) > stale_threshold_seconds
+
     with SessionLocal() as db:
         try:
-            orphaned = db.query(models.Meeting).filter(
-                models.Meeting.status.in_(["processing", "recording"])
+            processing = db.query(models.Meeting).filter(
+                models.Meeting.status == "processing"
             ).all()
-            if orphaned:
-                for m in orphaned:
+            for m in processing:
+                m.status = "failed"
+                logger.warning(f"Cleaned up orphaned meeting {m.id} (status reset from 'processing' to 'failed' on startup)")
+
+            recording = db.query(models.Meeting).filter(
+                models.Meeting.status == "recording"
+            ).all()
+            for m in recording:
+                if is_recording_stale(m.uuid):
                     m.status = "failed"
-                    logger.warning(
-                        f"Cleaned up orphaned meeting {m.id} (status reset from '{m.status}' to 'failed' on startup)"
-                    )
+                    logger.warning(f"Cleaned up orphaned meeting {m.id} (status reset from 'recording' to 'failed' on startup: no recent chunk activity)")
+                else:
+                    logger.info(f"Meeting {m.id} left as 'recording' on startup (recent chunk activity, likely still in progress)")
+
+            if processing or recording:
                 db.commit()
         except Exception as e:
             logger.error(f"Failed to cleanup orphaned meetings on startup: {e}")

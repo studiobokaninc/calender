@@ -26,17 +26,19 @@ def test_readonly_task_thread_exposure(client, db, readonly_headers):
         name="Test Task with Thread",
         project_id=project.id,
         status="wip",
+        cost=12.5,
         thread_id=9876543
     )
     db.add(task)
     db.commit()
     db.refresh(task)
 
-    # 1. Verify Option A: GET /api/readonly/tasks/{task_id} contains thread_id
+    # 1. Verify Option A: GET /api/readonly/tasks/{task_id} contains thread_id and cost
     resp = client.get(f"/api/readonly/tasks/{task.id}", headers=readonly_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == task.id
+    assert data["cost"] == 12.5
     assert data["thread_id"] == 9876543
 
     # 2. Verify Option B: GET /api/readonly/tasks/{task_id}/thread
@@ -130,6 +132,7 @@ def test_mcp_get_tasks_by_shot_and_project(db, monkeypatch):
         project_id=project.id,
         shot_id=shot.id,
         status="wip",
+        cost=8.0,
         thread_id=556677
     )
     db.add(task)
@@ -148,6 +151,7 @@ def test_mcp_get_tasks_by_shot_and_project(db, monkeypatch):
     assert item["name"] == "Task in Shot"
     assert item["shot_code"] == "shot02"
     assert item["thread_id"] == 556677
+    assert item["cost"] == 8.0
 
     # 2. Test get_project_tasks
     res_project = get_project_tasks(project_id=project_id_val)
@@ -157,5 +161,6 @@ def test_mcp_get_tasks_by_shot_and_project(db, monkeypatch):
     assert item_p["name"] == "Task in Shot"
     assert item_p["shot_code"] == "shot02"
     assert item_p["thread_id"] == 556677
+    assert item_p["cost"] == 8.0
 
 

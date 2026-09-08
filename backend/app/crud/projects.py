@@ -121,13 +121,14 @@ def delete_project_with_cascade(db: Session, project_id: int) -> bool:
         logger.exception("Error deleting project %d", project_id)
         raise
 
-def complete_tasks_for_project(db: Session, project_id: int) -> int:
-    """プロジェクトに属する未完了タスクをすべて完了にする。完了にしたタスク数を返す。"""
+def complete_tasks_for_project(db: Session, project_id: int, changed_by: Optional[int] = None) -> int:
+    """プロジェクトに属する未完了タスクをすべて完了にする。完了にしたタスク数を返す。
+    changed_by: 履歴に残す操作者ユーザーID。未指定時は各タスクの assigned_to を用いる(既存挙動・後方互換)。"""
     tasks = db.query(models.Task).filter(
         models.Task.project_id == project_id,
         models.Task.status != models.TaskStatus.DELIVER
     ).all()
-    
+
     count = 0
     now = now_jst_naive()
     for task in tasks:
@@ -139,9 +140,9 @@ def complete_tasks_for_project(db: Session, project_id: int) -> int:
             task_id=task.id,
             status=models.TaskStatus.DELIVER,
             changed_at=now,
-            changed_by=task.assigned_to
+            changed_by=changed_by if changed_by is not None else task.assigned_to
         ))
         count += 1
-        
+
     db.commit()
     return count

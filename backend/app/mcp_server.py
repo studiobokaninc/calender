@@ -551,7 +551,8 @@ def create_project(
     """新規プロジェクトを作成する。
     client_ref が指定されかつ同一 client_ref の既存PJがあれば新規作成せず既存を返す(冪等)。
     client_ref 未指定かつ同名PJが既存の場合も既存を返す(重複抑止)。
-    管理者権限が必要。"""
+    認可: CASPER_WRITE_TOKEN による write スコープ呼出のみ(actor_id の role は問わない。
+    write スコープの保有自体をシステム操作の認可とする)。"""
     err = _require_write_scope()
     if err:
         return err
@@ -561,8 +562,6 @@ def create_project(
         actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
         if not actor:
             return {"error": f"actor_id={actor_id} not found or inactive"}
-        if actor.role != "admin":
-            return {"error": "管理者権限が必要です"}
 
         if client_ref:
             p = db.query(models.Project).filter(models.Project.client_ref == client_ref).first()
@@ -612,19 +611,18 @@ def delete_project(
     project_id: int,
 ) -> dict:
     """プロジェクトを削除する(関連タスク・ショット・イベント等も物理削除)。
-    管理者権限が必要(非admin actor_idでは403を返す)。
+    認可: CASPER_WRITE_TOKEN による write スコープ呼出のみ(actor_id の role は問わない。
+    write スコープの保有自体をシステム操作の認可とする)。
     ★ 物理削除: shots/tasks/events/履歴も全てカスケード削除される。元に戻せない。"""
     err = _require_write_scope()
     if err:
         return err
-    
+
     db = SessionLocal()
     try:
         actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
         if not actor:
             return {"error": f"actor_id={actor_id} not found or inactive"}
-        if actor.role != "admin":
-            return {"error": "管理者権限が必要です"}
 
         project = db.query(models.Project).filter(models.Project.id == project_id).first()
         if not project:
@@ -658,18 +656,18 @@ def update_project(
     display_status: str = "",
 ) -> dict:
     """プロジェクト情報を部分更新する。指定したフィールドのみ更新(未指定フィールドは不変)。
-    管理者権限が必要。display_status は online/offline/archived のみ有効。"""
+    認可: CASPER_WRITE_TOKEN による write スコープ呼出のみ(actor_id の role は問わない。
+    write スコープの保有自体をシステム操作の認可とする)。
+    display_status は online/offline/archived のみ有効。"""
     err = _require_write_scope()
     if err:
         return err
-    
+
     db = SessionLocal()
     try:
         actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
         if not actor:
             return {"error": f"actor_id={actor_id} not found or inactive"}
-        if actor.role != "admin":
-            return {"error": "管理者権限が必要です"}
 
         db_project = crud.get_project(db=db, project_id=project_id)
         if db_project is None:
@@ -705,7 +703,7 @@ def update_project(
                 pass
 
         if updated_project.status in [models.ProjectStatus.COMPLETED, models.ProjectStatus.CANCELLED]:
-            crud.complete_tasks_for_project(db=db, project_id=project_id)
+            crud.complete_tasks_for_project(db=db, project_id=project_id, changed_by=actor.id)
 
         from app.services.google_sync import auto_sync_project_bg
         import threading
@@ -726,13 +724,18 @@ def complete_project(
     actor_id: int,
     project_id: int,
     note: str = "",
+    close_open_tasks: bool = True,
 ) -> dict:
     """プロジェクトの知識結晶化(/knowledge へのアップロード等でナレッジベース化)が完了した時点で
     呼び出す専用ツール。プロジェクトを status=completed に更新する。
     update_project は status を変更できないため、プロジェクト完了時は必ずこちらを使うこと。
-    呼出により: ①project.status=completed に更新 ②未完了タスクは自動で deliver 相当に完了化
+    呼出により: ①project.status=completed に更新 ②close_open_tasks=True(既定)の場合、未完了タスクは
+    自動で deliver 相当に完了化。False にすると未完了タスクには一切触れぬ(tasks_completed=0を返す)。
     ③audit_logs に project.complete として記録(note があれば detail に保存)。
-    管理者権限が必要。"""
+    未完了タスクの一括完了化に伴う task_status_history の changed_by には、実際にこのツールを呼び出した
+    操作者(actor_id)が記録される。
+    認可: CASPER_WRITE_TOKEN による write スコープ呼出のみ(actor_id の role は問わない。
+    write スコープの保有自体をシステム操作の認可とする)。"""
     err = _require_write_scope()
     if err:
         return err
@@ -742,8 +745,6 @@ def complete_project(
         actor = db.query(models.User).filter(models.User.id == actor_id, models.User.is_active == True).first()
         if not actor:
             return {"error": f"actor_id={actor_id} not found or inactive"}
-        if actor.role != "admin":
-            return {"error": "管理者権限が必要です"}
 
         db_project = crud.get_project(db=db, project_id=project_id)
         if db_project is None:
@@ -752,7 +753,10 @@ def complete_project(
         project_data = schemas.ProjectUpdate(status=models.ProjectStatus.COMPLETED)
         updated_project = crud.update_project(db=db, db_project=db_project, project_in=project_data)
 
-        tasks_completed = crud.complete_tasks_for_project(db=db, project_id=project_id)
+        if close_open_tasks:
+            tasks_completed = crud.complete_tasks_for_project(db=db, project_id=project_id, changed_by=actor_id)
+        else:
+            tasks_completed = 0
 
         record_event(db, "project.complete", actor_uid=actor_id,
                      target_type="project", target_id=project_id,

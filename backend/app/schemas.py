@@ -1318,6 +1318,7 @@ class ReadonlyTask(BaseModel):
     priority: Optional[str] = None
     type: Optional[str] = None
     progress: Optional[int] = None
+    cost: Optional[float] = None
     dependsOn: Optional[List[Any]] = None
     shotID: Optional[str] = None
     seqID: Optional[str] = None

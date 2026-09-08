@@ -90,8 +90,8 @@ def update_project_endpoint(
         rename_project_folder(old_name, updated_project.name)
 
     if updated_project.status in [models.ProjectStatus.COMPLETED, models.ProjectStatus.CANCELLED]:
-        crud.complete_tasks_for_project(db=db, project_id=project_id)
-        
+        crud.complete_tasks_for_project(db=db, project_id=project_id, changed_by=current_user.id)
+
     from app.services.google_sync import auto_sync_project_bg
     background_tasks.add_task(auto_sync_project_bg, updated_project.id)
     

@@ -40,6 +40,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
   });
   const [directorId, setDirectorId] = useState<number | ''>('');
   const [pmId, setPmId] = useState<number | ''>('');
+  const [leaderId, setLeaderId] = useState<number | ''>('');
   const [helpMemberIds, setHelpMemberIds] = useState<number[]>([]);
   const [existingRoles, setExistingRoles] = useState<any[]>([]);
 
@@ -67,9 +68,11 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
         setExistingRoles(roles as any[]);
         const director = (roles as any[]).find((r: any) => r.role === 'director');
         const pm = (roles as any[]).find((r: any) => r.role === 'pm');
+        const leader = (roles as any[]).find((r: any) => r.role === 'lead');
         const helpers = (roles as any[]).filter((r: any) => r.role === 'help').map((r: any) => r.user_id);
         setDirectorId(director ? director.user_id : '');
         setPmId(pm ? pm.user_id : '');
+        setLeaderId(leader ? leader.user_id : '');
         setHelpMemberIds(helpers);
       })
       .catch(() => setError('プロジェクトの取得に失敗しました'))
@@ -112,7 +115,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
     }
     // ロール保存: 失敗しても保存自体は成功
     try {
-      const toDelete = existingRoles.filter(r => r.role === 'director' || r.role === 'pm' || r.role === 'help');
+      const toDelete = existingRoles.filter(r => r.role === 'director' || r.role === 'pm' || r.role === 'lead' || r.role === 'help');
       for (const r of toDelete) {
         await deleteScoreUserRole(r.id);
       }
@@ -121,6 +124,9 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
       }
       if (pmId) {
         await createScoreUserRole({ user_id: pmId as number, project_id: projectId!, role: 'pm' });
+      }
+      if (leaderId) {
+        await createScoreUserRole({ user_id: leaderId as number, project_id: projectId!, role: 'lead' });
       }
       for (const hId of helpMemberIds) {
         await createScoreUserRole({ user_id: hId, project_id: projectId!, role: 'help' });
@@ -170,6 +176,17 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
               </Select>
             </FormControl>
             <FormControl fullWidth size="small">
+              <InputLabel>リーダー</InputLabel>
+              <Select value={leaderId} label="リーダー" onChange={(e) => setLeaderId(e.target.value as number | '')}>
+                <MenuItem value="">未割り当て</MenuItem>
+                {users.map(u => (
+                  <MenuItem key={u.id} value={u.id}>
+                    {u.full_name || u.username || u.name || u.email}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
               <InputLabel>ヘルプメンバー</InputLabel>
               <Select
                 multiple
@@ -185,7 +202,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({ open, proj
                   </Box>
                 )}
               >
-                {users.filter(u => u.id !== directorId && u.id !== pmId).map((u) => (
+                {users.filter(u => u.id !== directorId && u.id !== pmId && u.id !== leaderId).map((u) => (
                   <MenuItem key={u.id} value={u.id}>
                     {u.full_name || u.username || u.name || u.email}
                   </MenuItem>

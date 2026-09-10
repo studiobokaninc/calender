@@ -174,6 +174,89 @@ def get_project_tasks(
 
 
 @mcp.tool()
+def get_meeting_minutes(
+    project_id: Annotated[Optional[int], Field(description="プロジェクトIDで絞り込み (任意)")] = None,
+    meeting_id: Annotated[Optional[int], Field(description="特定の議事録ID (任意)。指定時はその1件の詳細(文字起こし全文含む)を返す。")] = None,
+    limit: Annotated[int, Field(description="取得件数上限 (任意・デフォルト20・最大100)")] = 20,
+    offset: Annotated[int, Field(description="取得開始位置 (任意)")] = 0,
+) -> dict:
+    """議事録(決定事項・検出タスク・議論事項・期限を含む)を取得する。
+    meeting_id 指定時: その1件の詳細(transcript全文含む)を返す。
+    未指定時: project_id 等で絞り込んだ一覧を date 降順で返す(要約情報のみ、transcriptは含まない)。"""
+    db = SessionLocal()
+    try:
+        def _serialize(m: "models.Meeting", with_transcript: bool = False) -> dict:
+            d = {
+                "id": m.id,
+                "project_id": m.project_id,
+                "project_name": m.project.name if m.project else None,
+                "title": m.title,
+                "date": m.date.isoformat() if m.date else None,
+                "status": m.status,
+                "decisions": m.decisions or [],
+                "tasks": m.tasks or [],
+                "discussion_points": m.discussion_points or [],
+                "deadlines": m.deadlines or [],
+                "attendees": m.attendees or [],
+                "version_group": m.version_group,
+            }
+            if with_transcript:
+                d["transcript"] = m.transcript
+            return d
+
+        if meeting_id is not None:
+            db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+            if not db_meeting:
+                return {"error": "Meeting not found", "status_code": 404}
+            return {"meeting": _serialize(db_meeting, with_transcript=True)}
+
+        q = db.query(models.Meeting)
+        if project_id is not None:
+            q = q.filter(models.Meeting.project_id == project_id)
+        total = q.count()
+        rows = q.order_by(models.Meeting.date.desc()).offset(offset).limit(min(limit, 100)).all()
+        items = [_serialize(m) for m in rows]
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_delay_rates(
+    project_id: Annotated[Optional[int], Field(description="プロジェクトIDで絞り込み (任意)")] = None,
+    task_type: Annotated[Optional[str], Field(description="タスク種別で絞り込み (任意) 例: animation, comp")] = None,
+) -> dict:
+    """担当者別の遅延率(遅れ率)を集計して返す。
+    遅れ率(delay_rate) = 遅延タスク数 / 総担当タスク数 × 100 (%)。
+    遅延判定: 期日(due_date)超過 かつ 未完了(ap/client_ap/deliver以外) かつ 待機系(wt/omit)以外。
+    display_status=online の稼働中タスクのみが対象。delay_rate 降順で返す。"""
+    from .services.prediction_service import get_task_completion_stats
+    db = SessionLocal()
+    try:
+        stats = get_task_completion_stats(db, project_id=project_id, task_type=task_type)
+        items = []
+        for a in stats.get("by_assignee", []):
+            total = a.get("total", 0)
+            delayed = a.get("delayed", 0)
+            items.append({
+                "user_id": a["user_id"],
+                "name": a["name"],
+                "total": total,
+                "delayed": delayed,
+                "delay_rate": round(delayed / total * 100, 1) if total > 0 else 0.0,
+                "completion_rate": a.get("completion_rate", 0),
+            })
+        items.sort(key=lambda x: x["delay_rate"], reverse=True)
+        return {
+            "total_tasks": stats.get("total_tasks", 0),
+            "total_delayed": stats.get("total_delayed", 0),
+            "items": items,
+        }
+    finally:
+        db.close()
+
+
+@mcp.tool()
 def upload_asset(
     file_path: Annotated[str, Field(description="サーバローカルの絶対パス (例: /data/render/shot001.png)。呼出前に Casper 確認ゲートで承認済であること。")],
     actor_id: Annotated[int, Field(description="操作主体のユーザーID (必須)。CASPER_WRITE_TOKEN で認証中継される。")],

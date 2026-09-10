@@ -71,6 +71,7 @@ ROLE_ALIASES: dict[str, str] = {
     "pm": "pm",
     "制作": "pm",
     "lead": "lead",
+    "リーダー": "lead",
     "lightinglead": "lead",
     "compositor": "compositor",
     "artist": "artist",

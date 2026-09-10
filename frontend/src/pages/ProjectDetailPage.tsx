@@ -95,6 +95,7 @@ const ProjectDetailPage: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [director, setDirector] = useState<User | null>(null);
   const [pm, setPm] = useState<User | null>(null);
+  const [leader, setLeader] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -148,6 +149,7 @@ const ProjectDetailPage: React.FC = () => {
       const roles = rolesRes || [];
       const dirRole = roles.find((r: any) => r.role === 'director');
       const pmRole = roles.find((r: any) => r.role === 'pm');
+      const leaderRole = roles.find((r: any) => r.role === 'lead');
 
       if (dirRole) {
         const u = allUsersData.find((x: any) => x.id === dirRole.user_id);
@@ -160,6 +162,12 @@ const ProjectDetailPage: React.FC = () => {
         setPm(u || null);
       } else {
         setPm(null);
+      }
+      if (leaderRole) {
+        const u = allUsersData.find((x: any) => x.id === leaderRole.user_id);
+        setLeader(u || null);
+      } else {
+        setLeader(null);
       }
     } catch (err: any) {
       console.error(`Failed to fetch data for project ${projectId}: `, err);
@@ -428,6 +436,17 @@ const ProjectDetailPage: React.FC = () => {
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600, lineHeight: 1.1 }}>Project Manager (PM)</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         {pm ? (pm.full_name || pm.username) : '未割り当て'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Avatar src={leader ? (leader.avatar_url || `/api/users/${leader.id}/avatar`) : undefined} sx={{ width: 36, height: 36, bgcolor: 'info.light' }}>
+                      {!leader && <PersonIcon />}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600, lineHeight: 1.1 }}>リーダー</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {leader ? (leader.full_name || leader.username) : '未割り当て'}
                       </Typography>
                     </Box>
                   </Box>

@@ -129,6 +129,7 @@ const ProjectsPage: React.FC = () => {
     const [users, setUsers] = useState<User[]>([]);
     const [directorId, setDirectorId] = useState<number | ''>('');
     const [pmId, setPmId] = useState<number | ''>('');
+    const [leaderId, setLeaderId] = useState<number | ''>('');
     const [helpMemberIds, setHelpMemberIds] = useState<number[]>([]);
 
     const fetchData = useCallback(async () => {
@@ -241,14 +242,17 @@ const ProjectsPage: React.FC = () => {
             fetchProjectRoles(currentProject.id as number).then((roles: any[]) => {
                 const director = roles.find((r: any) => r.role === 'director');
                 const pm = roles.find((r: any) => r.role === 'pm');
+                const leader = roles.find((r: any) => r.role === 'lead');
                 const helpers = roles.filter((r: any) => r.role === 'help').map((r: any) => r.user_id);
                 setDirectorId(director ? director.user_id : '');
                 setPmId(pm ? pm.user_id : '');
+                setLeaderId(leader ? leader.user_id : '');
                 setHelpMemberIds(helpers);
             }).catch(() => { });
         } else {
             setDirectorId('');
             setPmId('');
+            setLeaderId('');
             setHelpMemberIds([]);
         }
     }, [openDialog, isEditMode, currentProject.id]);
@@ -400,7 +404,7 @@ const ProjectsPage: React.FC = () => {
 
             const saveRoles = async (projectId: number) => {
                 const roles = await fetchProjectRoles(projectId);
-                const toDelete = roles.filter((r: any) => r.role === 'director' || r.role === 'pm' || r.role === 'help');
+                const toDelete = roles.filter((r: any) => r.role === 'director' || r.role === 'pm' || r.role === 'lead' || r.role === 'help');
                 for (const r of toDelete) {
                     await deleteScoreUserRole(r.id);
                 }
@@ -409,6 +413,9 @@ const ProjectsPage: React.FC = () => {
                 }
                 if (pmId) {
                     await createScoreUserRole({ user_id: pmId as number, project_id: projectId, role: 'pm' });
+                }
+                if (leaderId) {
+                    await createScoreUserRole({ user_id: leaderId as number, project_id: projectId, role: 'lead' });
                 }
                 for (const hId of helpMemberIds) {
                     await createScoreUserRole({ user_id: hId, project_id: projectId, role: 'help' });
@@ -1236,6 +1243,21 @@ const ProjectsPage: React.FC = () => {
                                                             </Select>
                                                         </FormControl>
                                                         <FormControl fullWidth>
+                                                            <InputLabel>リーダー</InputLabel>
+                                                            <Select
+                                                                value={leaderId}
+                                                                label="リーダー"
+                                                                onChange={(e) => setLeaderId(e.target.value as number | '')}
+                                                            >
+                                                                <MenuItem value="">未割り当て</MenuItem>
+                                                                {users.map(u => (
+                                                                    <MenuItem key={u.id} value={u.id}>
+                                                                        {u.full_name || u.username || u.name || u.email}
+                                                                    </MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        </FormControl>
+                                                        <FormControl fullWidth>
                                                             <InputLabel>ヘルプメンバー</InputLabel>
                                                             <Select
                                                                 multiple
@@ -1251,7 +1273,7 @@ const ProjectsPage: React.FC = () => {
                                                                     </Box>
                                                                 )}
                                                             >
-                                                                {users.filter(u => u.id !== directorId && u.id !== pmId).map((u) => (
+                                                                {users.filter(u => u.id !== directorId && u.id !== pmId && u.id !== leaderId).map((u) => (
                                                                     <MenuItem key={u.id} value={u.id}>
                                                                         {u.full_name || u.username || u.name || u.email}
                                                                     </MenuItem>

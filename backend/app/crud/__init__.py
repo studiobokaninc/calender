@@ -55,5 +55,7 @@ from .others import (
     get_user_activity_counts,
     get_user_google_token, upsert_user_google_token, delete_user_google_token,
     get_task_google_sync, set_task_google_sync, delete_task_google_sync, get_synced_task_ids_for_user,
-    get_event_google_sync, set_event_google_sync, delete_event_google_sync, get_synced_event_ids_for_user
+    get_event_google_sync, set_event_google_sync, delete_event_google_sync, get_synced_event_ids_for_user,
+    get_google_shared_account, upsert_google_shared_account, mark_google_shared_account_error, delete_google_shared_account,
+    get_user_personal_calendar, upsert_user_personal_calendar, delete_user_personal_calendar, get_all_user_personal_calendars,
 )

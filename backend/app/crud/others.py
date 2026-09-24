@@ -169,3 +169,88 @@ def delete_event_google_sync(db: Session, user_id: int, event_id: int):
 
 def get_synced_event_ids_for_user(db: Session, user_id: int) -> List[int]:
     return [s.event_id for s in db.query(models.EventGoogleSync).filter(models.EventGoogleSync.user_id == user_id).all() if s.google_event_id]
+
+# --- Google Shared Account (singleton) ---
+def get_google_shared_account(db: Session) -> Optional[models.GoogleSharedAccount]:
+    return db.query(models.GoogleSharedAccount).first()
+
+def upsert_google_shared_account(
+    db: Session,
+    access_token: str,
+    refresh_token: Optional[str] = None,
+    expires_at: Optional[datetime] = None,
+    connected_by_user_id: Optional[int] = None,
+    google_account_email: Optional[str] = None,
+) -> models.GoogleSharedAccount:
+    account = db.query(models.GoogleSharedAccount).first()
+    if account:
+        account.access_token = access_token
+        if refresh_token:
+            account.refresh_token = refresh_token
+        if expires_at:
+            account.expires_at = expires_at
+        if connected_by_user_id:
+            account.connected_by_user_id = connected_by_user_id
+        if google_account_email:
+            account.google_account_email = google_account_email
+        account.status = "active"
+        account.last_refresh_error = None
+        account.updated_at = now_jst_naive()
+    else:
+        account = models.GoogleSharedAccount(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_at=expires_at,
+            connected_by_user_id=connected_by_user_id,
+            google_account_email=google_account_email,
+        )
+        db.add(account)
+    db.commit()
+    db.refresh(account)
+    return account
+
+def mark_google_shared_account_error(db: Session, error_message: str):
+    account = db.query(models.GoogleSharedAccount).first()
+    if account:
+        account.status = "error"
+        account.last_refresh_error = error_message
+        account.last_refresh_error_at = now_jst_naive()
+        db.commit()
+
+def delete_google_shared_account(db: Session):
+    db.query(models.GoogleSharedAccount).delete()
+    db.commit()
+
+# --- User Personal Calendar (共有アカウント内の社員ごとの個人カレンダー) ---
+def get_user_personal_calendar(db: Session, user_id: int) -> Optional[models.UserPersonalCalendar]:
+    return db.query(models.UserPersonalCalendar).filter(models.UserPersonalCalendar.user_id == user_id).first()
+
+def upsert_user_personal_calendar(
+    db: Session,
+    user_id: int,
+    calendar_id: str,
+    shared_email: str,
+    acl_rule_id: Optional[str] = None,
+) -> models.UserPersonalCalendar:
+    row = db.query(models.UserPersonalCalendar).filter(models.UserPersonalCalendar.user_id == user_id).first()
+    if row:
+        row.calendar_id = calendar_id
+        row.shared_email = shared_email
+        if acl_rule_id:
+            row.acl_rule_id = acl_rule_id
+        row.updated_at = now_jst_naive()
+    else:
+        row = models.UserPersonalCalendar(
+            user_id=user_id, calendar_id=calendar_id, shared_email=shared_email, acl_rule_id=acl_rule_id
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+def delete_user_personal_calendar(db: Session, user_id: int):
+    db.query(models.UserPersonalCalendar).filter(models.UserPersonalCalendar.user_id == user_id).delete()
+    db.commit()
+
+def get_all_user_personal_calendars(db: Session) -> List[models.UserPersonalCalendar]:
+    return db.query(models.UserPersonalCalendar).all()

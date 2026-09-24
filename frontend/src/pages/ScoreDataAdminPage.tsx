@@ -28,6 +28,10 @@ import {
   ListItemText,
   ListSubheader,
   Tooltip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   OpenInNew as OpenInNewIcon,
@@ -88,6 +92,16 @@ const FIELD_LABEL: Record<string, string> = {
   condition: 'コンディション', blockers: 'ブロッカー',
 };
 const fieldLabel = (col: string) => FIELD_LABEL[col] ?? col;
+
+// Score制作ロールの正準値 (backend/app/status_transitions.py の ROLE_RANK と一致させる)
+const SCORE_ROLE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'director', label: 'ディレクター (director)' },
+  { value: 'pm', label: '制作 (pm)' },
+  { value: 'lead', label: 'リーダー (lead)' },
+  { value: 'compositor', label: 'コンポジター (compositor)' },
+  { value: 'artist', label: 'アーティスト (artist)' },
+  { value: 'help', label: 'ヘルプ (help)' },
+];
 
 const DATE_FIELDS = new Set(['created_at', 'updated_at', 'read_at', 'submitted_at', 'clock_out_at', 'date']);
 const fmtDateTime = (v: unknown): string => {
@@ -210,7 +224,7 @@ function NotificationTable({
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{col}</TableCell>)}
+            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{fieldLabel(col)}</TableCell>)}
             <TableCell sx={headerSx}>操作</TableCell>
           </TableRow>
         </TableHead>
@@ -254,7 +268,7 @@ function TroubleTable({ rows, onAction }: { rows: Record<string, unknown>[]; onA
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{col}</TableCell>)}
+            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{fieldLabel(col)}</TableCell>)}
             <TableCell sx={headerSx}>操作</TableCell>
           </TableRow>
         </TableHead>
@@ -317,7 +331,7 @@ function ScoreUserRoleTable({
       <Table size="small" stickyHeader>
         <TableHead>
           <TableRow>
-            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{col}</TableCell>)}
+            {COLS.map((col) => <TableCell key={col} sx={headerSx}>{fieldLabel(col)}</TableCell>)}
             <TableCell sx={headerSx}>操作</TableCell>
           </TableRow>
         </TableHead>
@@ -388,7 +402,7 @@ const NAV: Array<{ category: string; items: Array<{ key: string; label: string; 
     category: '資料',
     items: [
       { key: 'materials_preview', label: '資料プレビュー', icon: <PhotoLibraryIcon fontSize="small" /> },
-      { key: 'reference_material', label: '参照素材', icon: <ImageIcon fontSize="small" /> },
+      { key: 'reference_material', label: '参照素材（一覧表）', icon: <ImageIcon fontSize="small" /> },
       { key: 'delivery', label: '納品', icon: <LocalShippingIcon fontSize="small" /> },
     ],
   },
@@ -526,7 +540,7 @@ export default function ScoreDataAdminPage() {
       return (
         <Alert severity="warning" sx={{ fontSize: '0.8rem' }}>
           {error}
-          {['delivery', 'reference_material', 'dm_thread'].includes(activeKey) && ' (BE未実装のEPは接続後に利用可能になります)'}
+          {['delivery', 'reference_material', 'dm_thread'].includes(activeKey) && ' (この機能は現在準備中です)'}
         </Alert>
       );
     }
@@ -661,15 +675,22 @@ export default function ScoreDataAdminPage() {
       <Dialog open={roleDialog.open} onClose={() => setRoleDialog((d) => ({ ...d, open: false }))}>
         <DialogTitle sx={{ fontSize: '0.95rem' }}>ロール編集</DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
-          <TextField
-            label="Role"
-            value={roleDialog.role}
-            onChange={(e) => setRoleDialog((d) => ({ ...d, role: e.target.value }))}
-            size="small"
-            fullWidth
-            sx={{ mt: 1, '& .MuiInputBase-input': { fontSize: '0.85rem' } }}
-            helperText="例: director, pm, member"
-          />
+          <FormControl size="small" fullWidth sx={{ mt: 1 }}>
+            <InputLabel id="role-dialog-select-label">役職</InputLabel>
+            <Select
+              labelId="role-dialog-select-label"
+              label="役職"
+              value={roleDialog.role}
+              onChange={(e) => setRoleDialog((d) => ({ ...d, role: e.target.value as string }))}
+              sx={{ fontSize: '0.85rem' }}
+            >
+              {SCORE_ROLE_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value} sx={{ fontSize: '0.85rem' }}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRoleDialog((d) => ({ ...d, open: false }))} sx={{ fontSize: '0.8rem' }}>

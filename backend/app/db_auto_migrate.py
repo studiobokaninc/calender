@@ -79,7 +79,27 @@ def check_and_migrate_db():
             cursor.execute("ALTER TABLE meetings ADD COLUMN analysis_seconds INTEGER")
             conn.commit()
             print("analysis_secondsカラムを追加しました。")
-            
+
+        # meetingsテーブル: 議事録AIエージェント連携用
+        if 'analysis_backend' not in meeting_columns:
+            print("analysis_backendカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE meetings ADD COLUMN analysis_backend VARCHAR(20)")
+            conn.commit()
+            print("analysis_backendカラムを追加しました。")
+
+        if 'agent_dispatched_at' not in meeting_columns:
+            print("agent_dispatched_atカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE meetings ADD COLUMN agent_dispatched_at DATETIME")
+            conn.commit()
+            print("agent_dispatched_atカラムを追加しました。")
+
+        if 'analysis_progress' not in meeting_columns:
+            print("analysis_progressカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE meetings ADD COLUMN analysis_progress INTEGER")
+            conn.commit()
+            print("analysis_progressカラムを追加しました。")
+
+
         # usersテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(users)")
         user_columns = [row[1] for row in cursor.fetchall()]

@@ -123,6 +123,7 @@ def cleanup_orphaned_meetings():
     """
     from .database import SessionLocal
     from . import models
+    from .timezone import now_jst_naive
 
     logger = logging.getLogger(__name__)
     temp_audio_dir = Path(__file__).resolve().parent.parent / "temp_audio"
@@ -144,10 +145,22 @@ def cleanup_orphaned_meetings():
 
     with SessionLocal() as db:
         try:
+            agent_ttl = int(os.getenv("MINUTES_AGENT_JOB_TIMEOUT_SEC", "21600"))
             processing = db.query(models.Meeting).filter(
                 models.Meeting.status == "processing"
             ).all()
             for m in processing:
+                # 議事録AIエージェント(別PC)へ委譲中のジョブは、こちらの再起動では死んでいない。
+                # TTL 内なら processing のまま残し、後から届く PATCH コールバックを待つ。
+                if (
+                    getattr(m, "analysis_backend", None) == "agent"
+                    and getattr(m, "agent_dispatched_at", None)
+                    and (now_jst_naive() - m.agent_dispatched_at).total_seconds() < agent_ttl
+                ):
+                    logger.info(
+                        f"Meeting {m.id} left as 'processing' on startup (minutes-agent job still within TTL)"
+                    )
+                    continue
                 m.status = "failed"
                 logger.warning(f"Cleaned up orphaned meeting {m.id} (status reset from 'processing' to 'failed' on startup)")
 
@@ -172,6 +185,12 @@ async def lifespan(app):
     async with mcp_http.lifespan(app):
         try:
             cleanup_orphaned_meetings()
+            # 議事録AIエージェントへ委譲したまま残っている会議に、タイムアウト監視を貼り直す
+            try:
+                from .services import minutes_agent
+                asyncio.create_task(minutes_agent.rearm_watchdogs())
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"minutes-agent watchdog の再設定をスキップしました: {e}")
             print("Main: RAGサービスの初期化(インデックス読み込み)を開始します。これには数分かかる場合があります...")
             from .services.rag import rag_service
             await rag_service._ensure_initialized()

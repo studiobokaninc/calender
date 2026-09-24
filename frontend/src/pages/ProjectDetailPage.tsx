@@ -69,6 +69,7 @@ import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { TaskLabel } from '../components/common/TaskLabel';
 import { getTaskColor } from '../utils/calendarEventColors';
 import { TASK_STATUS_OPTIONS, getStatusBreakdown } from '../utils/taskStatus';
+import { getProjectStatusLabel } from '../utils/projectStatus';
 
 const progressMap: { [key: string]: number } = {
   todo: 0,
@@ -390,7 +391,7 @@ const ProjectDetailPage: React.FC = () => {
                 <Typography variant="h4" sx={{ fontWeight: 800 }}>
                   {project.name}
                 </Typography>
-                <Chip label={project.status || 'planning'} color="primary" sx={{ fontWeight: 700, textTransform: 'uppercase' }} />
+                <Chip label={getProjectStatusLabel(project.status || 'planning')} color="primary" sx={{ fontWeight: 700 }} />
                 {project.priority && (
                   <Chip label={project.priority} variant="outlined" color={project.priority === 'high' ? 'error' : 'default'} sx={{ fontWeight: 700 }} />
                 )}

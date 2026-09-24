@@ -120,7 +120,7 @@ class MeetingScanner:
             
             # 解析中なのにタスクがない、または失敗した場合は再度解析を試みる（レジューム）
             logger.info(f"Restarting/Retrying incomplete meeting: {file_path}")
-            asyncio.create_task(self._safe_analyze(existing.id, file_path))
+            asyncio.create_task(self._safe_analyze(existing.id, file_path, project_id))
             return
 
         # 新規レコード作成
@@ -137,10 +137,14 @@ class MeetingScanner:
         db.refresh(new_mtg)
         
         # 解析開始
-        asyncio.create_task(self._safe_analyze(new_mtg.id, file_path))
+        asyncio.create_task(self._safe_analyze(new_mtg.id, file_path, project_id))
 
-    async def _safe_analyze(self, meeting_id: int, file_path: str):
-        """Semaphore で同時実行数を制限しながら解析を実行。"""
+    async def _safe_analyze(self, meeting_id: int, file_path: str, project_id: Optional[int] = None):
+        """Semaphore で同時実行数を制限しながら解析を実行。
+
+        議事録AIエージェントが有効な場合は minutes_agent.analyze() が委譲し、
+        無効・失敗時は従来どおりローカルの MeetingAnalyzer にフォールバックする。
+        """
         if meeting_id in active_tasks:
             return
             
@@ -149,11 +153,14 @@ class MeetingScanner:
             # 2件まで並列。それ以上はここで待機。
             async with processing_semaphore:
                 logger.info(f"[Task] Starting analysis for meeting {meeting_id} ({file_path})...")
-                await self.analyzer.analyze_meeting(meeting_id, file_path)
+                from .minutes_agent import analyze as dispatch_analyze
+                await dispatch_analyze(
+                    meeting_id, file_path, project_id=project_id, api_key=self.api_key
+                )
         except Exception as e:
             logger.error(f"Safe analysis failed for {meeting_id}: {e}")
         finally:
-            active_tasks.remove(meeting_id)
+            active_tasks.discard(meeting_id)
 
 # Export a simple trigger function
 async def run_batch_scan(api_key: str):

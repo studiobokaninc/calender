@@ -57,6 +57,7 @@ import {
 import DarkModeIcon from '@mui/icons-material/DarkMode'
 import BugReportIcon from '@mui/icons-material/BugReport'
 import LightModeIcon from '@mui/icons-material/LightMode'
+import GoogleIcon from '@mui/icons-material/Google'
 import { useAuth } from '../contexts/AuthContext'
 import { useThemeMode } from '../contexts/ThemeModeContext'
 import api, { userActivityApi } from '../services/api'
@@ -144,7 +145,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const allMenuItems: MenuItemType[] = [
     { text: 'ダッシュボード', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'チャット', icon: <ChatIcon />, path: '/chat' },
+    { text: 'AIアシスタント', icon: <ChatIcon />, path: '/chat' },
     { text: 'カレンダー', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
@@ -156,9 +157,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'ナレッジベース', icon: <KnowledgeIcon />, path: '/knowledge' },
     { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
-    { text: 'データ管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
+    { text: 'バックアップ・インポート管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
     { text: 'ユーザーアクティビティ管理', icon: <AccessTimeIcon />, path: '/admin/user-activities', isAdmin: true },
     { text: 'Score連携データ管理', icon: <StorageIcon />, path: '/admin/score-data', isAdmin: true },
+    { text: 'Google連携設定', icon: <GoogleIcon />, path: '/admin/google', isAdmin: true },
     { text: 'メトリクス', icon: <MetricsIcon />, path: '/metrics', isAdmin: true },
     { text: 'バグ報告', icon: <BugReportIcon />, path: '/bug_report' },
   ]

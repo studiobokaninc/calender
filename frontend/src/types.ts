@@ -59,7 +59,7 @@ export interface Task {
   seqID?: string | null;
   shotID?: string | null;
   shot_id?: number | null;
-  seq_id?: number | null;
+  seq_id?: string | number | null;
   phases?: { name: string; date: string; is_completed?: boolean }[] | null;
   deliverables?: string | null;
   check_items?: { label: string; checked: boolean }[] | null;

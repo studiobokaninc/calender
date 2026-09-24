@@ -540,16 +540,6 @@ const MockDataConsole: React.FC = () => {
           >
             マックデータ形式インポート
           </Button>
-          <Button
-            variant="contained"
-            color="warning"
-            startIcon={<FileUploadIcon />}
-            onClick={handleOpenRestoreDialog}
-            disabled={isLoading}
-            sx={{ minWidth: 200 }}
-          >
-            データベースを丸ごと復元 (.json)
-          </Button>
           <input
             type="file"
             ref={fileInputRef}
@@ -565,6 +555,33 @@ const MockDataConsole: React.FC = () => {
             style={{ display: 'none' }}
           />
         </Stack>
+
+        {/* 破壊的操作: 視覚的に区画を分離し、常時警告文を表示する */}
+        <Box
+          sx={{
+            mt: 3,
+            ml: 4.5,
+            p: 2,
+            border: '1px solid',
+            borderColor: 'error.main',
+            borderRadius: 1,
+            bgcolor: 'rgba(211, 47, 47, 0.06)',
+          }}
+        >
+          <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'bold', mb: 1.5 }}>
+            ⚠️ 実行すると現在のデータが全て削除され、元に戻せません
+          </Typography>
+          <Button
+            variant="contained"
+            color="warning"
+            startIcon={<FileUploadIcon />}
+            onClick={handleOpenRestoreDialog}
+            disabled={isLoading}
+            sx={{ minWidth: 200 }}
+          >
+            データベースを丸ごと復元 (.json)
+          </Button>
+        </Box>
       </Paper>
 
       {/* インポート結果表示 */}

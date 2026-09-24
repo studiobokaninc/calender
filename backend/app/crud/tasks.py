@@ -265,6 +265,7 @@ def _task_row_to_dict(row: Any, history_map: Dict[int, List[Dict[str, Any]]]) ->
         'dependsOn': depends_on,
         'shotID': getattr(row, 'shotID', None),
         'seqID': getattr(row, 'seqID', None),
+        'seq_id': getattr(row, 'seqID', None),
         'created_at': safe_isoformat(getattr(row, 'created_at', None)),
         'display_status': getattr(row, 'display_status', 'offline'),
         'updated_at': safe_isoformat(getattr(row, 'updated_at', None)),
@@ -662,6 +663,9 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
             seq_id_val = shot.seq_code
 
 
+    if not resolved_shot_id_str and not resolved_shot_id and (not seq_id_val or not str(seq_id_val).strip()):
+        seq_id_val = "SEQ_PM"
+
     db_task = models.Task(
         name=task.name if hasattr(task, 'name') and task.name else getattr(task, 'title', '新しいたタスク'),
         description=task.description,
@@ -677,7 +681,7 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         cost=task.cost or 0.0,
         dependsOn=task.dependsOn or [],
         shotID=resolved_shot_id_str,
-        seqID=seq_id_val if (resolved_shot_id_str or resolved_shot_id) else "SEQ_PM",
+        seqID=seq_id_val,
         shot_id=resolved_shot_id,
         phases=task.phases or [],
         deliverables=task.deliverables or "",
@@ -815,6 +819,8 @@ def update_task(
     if "shot_id" in update_data:
         if db_task.shot_id is None:
             db_task.shotID = None
+            if "seqID" not in update_data and "seq_id" not in update_data:
+                db_task.seqID = "SEQ_PM"
         else:
             shot = db.query(models.Shot).filter(models.Shot.id == db_task.shot_id).first()
             if shot:
@@ -824,10 +830,14 @@ def update_task(
             else:
                 db_task.shot_id = None
                 db_task.shotID = None
+                if "seqID" not in update_data and "seq_id" not in update_data:
+                    db_task.seqID = "SEQ_PM"
     elif "shotID" in update_data:
         if not db_task.shotID:
             db_task.shot_id = None
             db_task.shotID = None
+            if "seqID" not in update_data and "seq_id" not in update_data:
+                db_task.seqID = "SEQ_PM"
         else:
             db_task.shot_id = _resolve_and_sync_shot_id(db, db_task.project_id, db_task.shot_id, db_task.shotID)
     else:
@@ -839,9 +849,10 @@ def update_task(
         elif db_task.shotID:
             db_task.shot_id = _resolve_and_sync_shot_id(db, db_task.project_id, db_task.shot_id, db_task.shotID)
 
-    # 規則: 特定のSHOTに紐づかないタスク (shotID / shot_id が空) の場合、seqID を "SEQ_PM" で統一する
+    # 規則: 特定のSHOTに紐づかないタスク (shotID / shot_id が空) の場合、seqID が未指定または空なら "SEQ_PM" で補正する
     if not db_task.shotID and not db_task.shot_id:
-        db_task.seqID = "SEQ_PM"
+        if not db_task.seqID or not str(db_task.seqID).strip():
+            db_task.seqID = "SEQ_PM"
 
     db_task.updated_at = change_time
 

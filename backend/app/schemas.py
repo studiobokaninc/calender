@@ -461,6 +461,8 @@ class TaskBulkUpdateRequest(BaseModel):
     type: Optional[str] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
+    seqID: Optional[str] = None
+    seq_id: Optional[str] = None
 
     @validator('type', pre=True)
     def validate_task_type_bulk(cls, v):
@@ -712,6 +714,50 @@ class MeetingUpdateManual(BaseModel):
     version_group: Optional[str] = None
 
 
+class MeetingAgentResult(BaseModel):
+    """議事録生成AIエージェント(別PC)からのコールバック本文。
+
+    docs/calendar_integration_spec.md §3【ステップ3】および
+    docs/minutes_agent_response_to_calendar_2026-09-24.md の回答に対応する。
+
+    status は "completed" | "failed" | "processing"(進捗通知)。
+    - analysis_seconds は小数（秒・小数第2位）で送られてくるため float で受ける。
+      int で受けると小数付きの値が 422 で弾かれ、解析結果がまるごと失われる。
+    - 失敗理由はエージェント側の実装では `error_message`。`error` も後方互換で受ける。
+    """
+    status: str
+    transcript: Optional[str] = None
+    decisions: Optional[List[Any]] = None
+    tasks: Optional[List[Any]] = None
+    discussion_points: Optional[List[Any]] = None
+    deadlines: Optional[List[Any]] = None
+    analysis_seconds: Optional[float] = None
+    progress: Optional[int] = None
+    error: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @property
+    def failure_reason(self) -> Optional[str]:
+        return self.error_message or self.error
+
+
+class MeetingPatchBody(MeetingUpdateManual):
+    """PATCH /api/meetings/{id} の共用ボディ（人間の手動編集 / エージェントのコールバック）。
+
+    status・analysis_seconds・progress はエージェント経由のときだけ反映される。
+    手動編集では無視されるため、UI の挙動は従来どおり変わらない。
+    """
+    status: Optional[str] = None
+    analysis_seconds: Optional[float] = None
+    progress: Optional[int] = None
+    error: Optional[str] = None
+    error_message: Optional[str] = None
+
+    @property
+    def failure_reason(self) -> Optional[str]:
+        return self.error_message or self.error
+
+
 class MeetingTaskBase(BaseModel):
     content: str
     type: Optional[str] = None
@@ -758,6 +804,8 @@ class MeetingResponse(MeetingBase):
     uuid: Optional[str] = None
     detected_tasks: List[MeetingTaskResponse] = []
     analysis_seconds: Optional[int] = None
+    analysis_backend: Optional[str] = None  # 'local' | 'agent'（デバッグ・運用確認用）
+    analysis_progress: Optional[int] = None  # エージェントから届く進捗率 0-100
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

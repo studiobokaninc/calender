@@ -374,7 +374,8 @@ class UserActivity(Base):
 
 
 class UserGoogleToken(Base):
-    """ユーザーごとの Google OAuth トークン（カレンダー連携用）"""
+    """DEPRECATED: ユーザー個人ごとのOAuth連携方式の名残。共有アカウント方式(GoogleSharedAccount/
+    UserPersonalCalendar)に置き換え済みのため、コードからは参照されない。ロールバック用に残置。"""
     __tablename__ = "user_google_tokens"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
@@ -382,6 +383,37 @@ class UserGoogleToken(Base):
     refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     calendar_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+
+class GoogleSharedAccount(Base):
+    """Googleカレンダー連携用の共有アカウント(シングルトン、常に1行のみ)。
+    管理者が1度だけOAuth連携し、このトークンで全社員の個人カレンダーを作成・共有する。"""
+    __tablename__ = "google_shared_account"
+
+    id: Mapped[int] = mapped_column(primary_key=True)  # 常に 1 を使う
+    google_account_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    access_token: Mapped[str] = mapped_column(Text)
+    refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    connected_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active | error
+    last_refresh_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_refresh_error_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
+
+class UserPersonalCalendar(Base):
+    """共有アカウント内に作成された、社員ごとの個人専用カレンダー(本人のメールアドレスに共有済み)。"""
+    __tablename__ = "user_personal_calendars"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    calendar_id: Mapped[str] = mapped_column(String(255))
+    shared_email: Mapped[str] = mapped_column(String(255))
+    acl_rule_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    acl_status: Mapped[str] = mapped_column(String(20), default="shared")  # shared | error
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
@@ -429,6 +461,12 @@ class Meeting(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending", index=True) # pending, processing, completed, failed
     audio_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 保存先パス
     analysis_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 議事録生成(文字起こし＋抽出)にかかった秒数
+    # 解析をどこで実行したか: 'local'(自プロセス内のMeetingAnalyzer) / 'agent'(別PCの議事録AIエージェント)
+    # エージェント経路のジョブは別マシンで動いているため、こちらの再起動では死なない。
+    # cleanup_orphaned_meetings() がローカルの死んだタスクと区別するために使う。
+    analysis_backend: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    agent_dispatched_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)  # エージェントへ委譲した時刻
+    analysis_progress: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # エージェントから届く進捗率 0-100
     transcript: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     decisions: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)
     tasks: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True)

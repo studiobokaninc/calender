@@ -221,6 +221,64 @@ async def verify_readonly_token(
     )
 
 
+# --- 議事録生成AIエージェント (別PC) 用の静的トークン認証 ---
+# docs/calendar_integration_spec.md の連携仕様により、エージェントは
+#   GET  /api/projects/{pid}/meetings/{mid}/audio
+#   PATCH /api/meetings/{mid}
+# の両方に `Authorization: Bearer <api_token>` だけを付けてくる（X-Actor-User-Id は付かない）。
+# verify_readonly_token と同じ流儀で、静的トークン一致なら通し、それ以外は従来の検証に委ねる。
+
+def _minutes_agent_token_matches(authorization: Optional[str]) -> bool:
+    """Authorization: Bearer が MINUTES_AGENT_TOKEN と一致するか。
+    MINUTES_AGENT_TOKEN 未設定なら常に False（未設定の環境変数が認可してはならない）。"""
+    expected = os.getenv("MINUTES_AGENT_TOKEN", "").strip()
+    if not expected:
+        return False
+    if not authorization or not authorization.startswith("Bearer "):
+        return False
+    return authorization.split("Bearer ", 1)[1].strip() == expected
+
+
+async def get_current_user_or_agent_for_audio(
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+) -> Optional[models.User]:
+    """音声配信用。議事録AIエージェントの静的トークンなら None を返す。
+    それ以外は従来通り ?token=<JWT> / Authorization: Bearer <JWT> を検証して User を返す
+    （ブラウザの <audio> タグ経路は一切変わらない）。"""
+    if _minutes_agent_token_matches(authorization):
+        logger.info("AUTH minutes-agent: static token accepted for meeting audio")
+        return None
+    return await get_current_user_for_audio(token, authorization, db)
+
+
+async def get_meeting_write_principal(
+    authorization: Optional[str] = Header(None),
+    x_actor_user_id: Optional[int] = Header(None),
+    db: Session = Depends(get_db),
+) -> Optional[models.User]:
+    """PATCH /api/meetings/{id} 用。None = 議事録AIエージェント / User = 人間の手動編集。"""
+    if _minutes_agent_token_matches(authorization):
+        logger.info("AUTH minutes-agent: static token accepted for meeting callback")
+        return None
+    if not authorization or not authorization.startswith("Bearer "):
+        raise invalid_token_exception
+    return await verify_token(authorization.split("Bearer ", 1)[1].strip(), db, x_actor_user_id)
+
+
+async def verify_minutes_agent_token(
+    authorization: Optional[str] = Header(None),
+) -> None:
+    """議事録AIエージェント専用（JWTは受け付けない）。テスト用エイリアスEPで使う。"""
+    if not _minutes_agent_token_matches(authorization):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="有効な議事録エージェントトークンが必要です。Authorization: Bearer を使用してください。",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
 async def verify_casper_write_token(
     authorization: Optional[str] = Header(None),
     x_actor_user_id: Optional[int] = Header(None),

@@ -663,6 +663,7 @@ const TasksPage: React.FC = () => {
 
     const handleCloseDialog = () => {
         setOpenDialog(false);
+        setEditTaskId(null);
     };
 
 
@@ -759,14 +760,24 @@ const TasksPage: React.FC = () => {
 
 
 
-            await api.post('/tasks', taskData);
-            setSnackbar({
-                open: true,
-                message: 'タスクが作成されました',
-                severity: 'success'
-            });
+            if (editTaskId) {
+                await api.put(`/tasks/${editTaskId}`, taskData);
+                setSnackbar({
+                    open: true,
+                    message: 'タスクが更新されました',
+                    severity: 'success'
+                });
+            } else {
+                await api.post('/tasks', taskData);
+                setSnackbar({
+                    open: true,
+                    message: 'タスクが作成されました',
+                    severity: 'success'
+                });
+            }
 
             setOpenDialog(false);
+            setEditTaskId(null);
 
             // グローバルデータを更新して他のページにも反映
             if (refreshGlobalData) {

@@ -45,7 +45,8 @@ def get_authorize_url(state: Optional[str] = None) -> Optional[str]:
         "scope": SCOPE,
         "access_type": "offline",
         "prompt": "consent",
-        "hd": "studiobokan.com", # Workspace domain 制限
+        # 共有アカウント方式: 管理者個人のGoogleアカウント(Workspace非契約)で認証するため
+        # ドメイン制限(hd)は付けない。
     }
     if state:
         params["state"] = state
@@ -106,17 +107,18 @@ def _ensure_valid_token(access_token: str, refresh_token: Optional[str], expires
         return tokens.get("access_token") if tokens else None
     return access_token
 
-def get_or_create_app_calendar(
+def get_or_create_calendar(
     access_token: str,
     refresh_token: Optional[str],
     expires_at: Optional[datetime],
+    calendar_name: str,
+    description: Optional[str] = None,
 ) -> Optional[str]:
-    """アプリ用のカレンダーを取得するか作成して、その ID を返す"""
+    """指定名のカレンダーを取得するか作成して、その ID を返す（共有アカウント内で使用）"""
     token = _ensure_valid_token(access_token, refresh_token, expires_at)
     if not token:
         return None
-    
-    calendar_name = "Calendar App Tasks"
+
     try:
         with httpx.Client() as client:
             r = client.get(
@@ -129,10 +131,10 @@ def get_or_create_app_calendar(
             for cal in calendars:
                 if cal.get("summary") == calendar_name:
                     return cal.get("id")
-            
+
             body = {
                 "summary": calendar_name,
-                "description": "カレンダーアプリからのタスク・プロジェクト・イベント"
+                "description": description or "カレンダーアプリが自動作成した個人用カレンダー",
             }
             res = client.post(
                 f"{CALENDAR_API}/calendars",
@@ -143,7 +145,99 @@ def get_or_create_app_calendar(
             res.raise_for_status()
             return res.json().get("id")
     except Exception as e:
-        logger.exception("Google Calendar get/create app calendar failed: %s", e)
+        logger.exception("Google Calendar get/create calendar failed (%s): %s", calendar_name, e)
+        return None
+
+
+def share_calendar_with_user(
+    access_token: str,
+    refresh_token: Optional[str],
+    expires_at: Optional[datetime],
+    calendar_id: str,
+    email: str,
+    role: str = "reader",
+) -> Optional[str]:
+    """カレンダーを指定ユーザーに共有(ACL)。成功時は ACL ルール ID を返す。"""
+    token = _ensure_valid_token(access_token, refresh_token, expires_at)
+    if not token:
+        return None
+    body = {"role": role, "scope": {"type": "user", "value": email}}
+    try:
+        with httpx.Client() as client:
+            r = client.post(
+                f"{CALENDAR_API}/calendars/{calendar_id}/acl",
+                json=body,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                timeout=15.0,
+            )
+            if r.status_code == 409:  # 既に共有済み
+                return f"user:{email}"
+            r.raise_for_status()
+            return r.json().get("id")
+    except Exception as e:
+        logger.exception("Google Calendar ACL share failed for %s on %s: %s", email, calendar_id, e)
+        return None
+
+
+def revoke_calendar_share(
+    access_token: str,
+    refresh_token: Optional[str],
+    expires_at: Optional[datetime],
+    calendar_id: str,
+    rule_id: str,
+) -> bool:
+    """ACL 共有を解除。"""
+    token = _ensure_valid_token(access_token, refresh_token, expires_at)
+    if not token:
+        return False
+    try:
+        with httpx.Client() as client:
+            r = client.delete(
+                f"{CALENDAR_API}/calendars/{calendar_id}/acl/{rule_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=15.0,
+            )
+            return r.status_code in (204, 404, 410)
+    except Exception as e:
+        logger.error("Google Calendar ACL revoke failed: %s", e)
+        return False
+
+
+def delete_calendar(
+    access_token: str,
+    refresh_token: Optional[str],
+    expires_at: Optional[datetime],
+    calendar_id: str,
+) -> bool:
+    """副カレンダー自体を削除する。中のイベントと共有(ACL)もまとめて消える。"""
+    token = _ensure_valid_token(access_token, refresh_token, expires_at)
+    if not token:
+        return False
+    try:
+        with httpx.Client() as client:
+            r = client.delete(
+                f"{CALENDAR_API}/calendars/{calendar_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=15.0,
+            )
+            return r.status_code in (204, 404, 410)
+    except Exception as e:
+        logger.error("Google Calendar delete calendar failed: %s", e)
+        return False
+
+
+def get_userinfo(access_token: str) -> Optional[dict]:
+    """共有アカウントのメールアドレス等を取得（管理画面表示用）。"""
+    try:
+        with httpx.Client() as client:
+            r = client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10.0,
+            )
+            r.raise_for_status()
+            return r.json()
+    except Exception:
         return None
 
 

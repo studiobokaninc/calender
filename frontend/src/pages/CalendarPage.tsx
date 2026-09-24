@@ -162,9 +162,10 @@ const CalendarPage: React.FC = () => {
     // 2. Googleカレンダー連携フック
     const {
         googleStatus,
+        connecting: googleConnecting,
         googleSnackbar,
         closeSnackbar,
-        handleGoogleConnect,
+        handleConnectMyCalendar,
         handleGoogleSyncEventToggle,
         handleGoogleDisconnect,
     } = useGoogleCalendar();
@@ -1167,16 +1168,34 @@ const CalendarPage: React.FC = () => {
                                 <Tooltip title="Google連携はバックエンドで設定されていません">
                                     <Chip size="small" label="Google連携未設定" variant="outlined" sx={{ color: 'text.secondary', cursor: 'default' }} />
                                 </Tooltip>
-                            ) : !googleStatus.connected ? (
+                            ) : !googleStatus.shared_account_connected ? (
+                                user?.role === 'admin' ? (
+                                    <Tooltip title="管理者アカウントでのGoogle連携がまだ設定されていません">
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            onClick={() => navigate('/admin/google')}
+                                            sx={{ textTransform: 'none', fontWeight: 600 }}
+                                        >
+                                            Google連携を設定する
+                                        </Button>
+                                    </Tooltip>
+                                ) : (
+                                    <Tooltip title="管理者がGoogle連携を設定するとカレンダー連携が使えるようになります">
+                                        <Chip size="small" label="Google連携: 管理者未設定" variant="outlined" sx={{ color: 'text.secondary', cursor: 'default' }} />
+                                    </Tooltip>
+                                )
+                            ) : !googleStatus.my_calendar_connected ? (
                                 <Tooltip title="Google連携するとタスク・イベントなどが自動でカレンダーに同期されます">
                                     <Button
                                         size="small"
                                         variant="contained"
                                         color="primary"
-                                        onClick={handleGoogleConnect}
+                                        onClick={handleConnectMyCalendar}
+                                        disabled={googleConnecting}
                                         sx={{ textTransform: 'none', fontWeight: 600 }}
                                     >
-                                        Google カレンダー連携
+                                        {googleConnecting ? '連携中...' : 'Google カレンダー連携'}
                                     </Button>
                                 </Tooltip>
                             ) : (

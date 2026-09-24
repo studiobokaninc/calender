@@ -112,8 +112,12 @@ class MeetingAnalyzer:
             logger.error(f"Failed to split audio: {e}")
         return []
 
-    async def analyze_meeting(self, meeting_id: int, audio_path: str):
-        """音声を分割し、レート制限に配慮しながら段階的に解析・統合する"""
+    async def analyze_meeting(self, meeting_id: int, audio_path: str, transcript_prefix: str = ""):
+        """音声を分割し、レート制限に配慮しながら段階的に解析・統合する。
+
+        transcript_prefix: 文字起こし本文の先頭に必ず差し込む文言（録音チャンク欠損の警告など）。
+        解析完了後に別処理で後付けすると、非同期化した際に取りこぼすため確定処理まで持ち回る。
+        """
         # ANALYZE_SEMAPHORE により同時実行数を制限し、バックエンドのフリーズを防止
         async with ANALYZE_SEMAPHORE:
             analysis_start = time.time()  # 議事録生成の所要時間計測開始
@@ -125,7 +129,7 @@ class MeetingAnalyzer:
                 if not db_meeting: 
                     logger.error(f"Meeting {meeting_id} not found in DB.")
                     return
-                crud.update_meeting(db, db_meeting, {"status": "processing"})
+                crud.update_meeting(db, db_meeting, {"status": "processing", "analysis_backend": "local"})
                 db.commit()
             except Exception as e:
                 logger.error(f"Initial meeting check failed: {e}")
@@ -166,47 +170,18 @@ class MeetingAnalyzer:
 
                 # 2. 全結果の統合
                 final_minutes = await self._consolidate_results(all_results, meeting_id)
-                
-                db = SessionLocal()
-                try:
-                    db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-                    if db_meeting:
-                        crud.update_meeting(db, db_meeting, {**final_minutes, "status": "completed", "analysis_seconds": int(time.time() - analysis_start)})
-                        
-                        # RAGメタデータの準備と追加
-                        ref_date = db_meeting.date or now_jst_naive()
-                        await self._add_meeting_data_to_rag(
-                            meeting_id=meeting_id,
-                            db_meeting=db_meeting,
-                            final_minutes=final_minutes,
-                            all_results=all_results,
-                            ref_date=ref_date
-                        )
 
-                        if db_meeting.version_group:
-                            db.query(models.Decision).filter(
-                                models.Decision.project_id == db_meeting.project_id,
-                                models.Decision.meeting_id != meeting_id,
-                                models.Decision.superseded == False
-                            ).join(models.Meeting).filter(
-                                models.Meeting.version_group == db_meeting.version_group
-                            ).update({"superseded": True}, synchronize_session=False)
-                        for dec_content in final_minutes.get('decisions', []):
-                            crud.create_decision(db, schemas.DecisionCreate(
-                                meeting_id=meeting_id,
-                                content=dec_content,
-                                date=ref_date,
-                                project_id=db_meeting.project_id
-                            ))
-                        
-                        # 検出されたタスクを MeetingTask テーブルに保存
-                        self._save_detected_tasks(db, meeting_id, final_minutes.get('tasks', []))
+                # 3. 確定保存と後処理(RAG / Decision / MeetingTask)
+                # 議事録AIエージェント経路(services/minutes_agent.py)と同じ関数を使い、
+                # ローカル解析とエージェント解析で挙動がズレないようにする。
+                await finalize_minutes(
+                    meeting_id,
+                    final_minutes,
+                    analysis_seconds=int(time.time() - analysis_start),
+                    segment_results=all_results,
+                    transcript_prefix=transcript_prefix,
+                )
 
-                        db.commit()
-                        logger.info(f"Meeting {meeting_id} analysis completed.")
-                finally:
-                    db.close()
-                    
             except Exception as e:
                 logger.error(f"Meeting processing failed (id={meeting_id}): {e}")
                 db = SessionLocal()
@@ -384,13 +359,7 @@ class MeetingAnalyzer:
 
     def _is_meta_line(self, item: str) -> bool:
         """決定事項等として不適切な、モデルのナレーション/メタ文かどうかを判定する。"""
-        s = item.strip()
-        if not s:
-            return True
-        # 見出し記号だけ、あるいは区切り線
-        if set(s) <= set("=-—―*・● "):
-            return True
-        return any(mk in s for mk in self._META_MARKERS)
+        return is_meta_line(item, self._META_MARKERS)
 
     async def _consolidate_results(self, chunk_results: List[Dict[str, Any]], meeting_id: int) -> Dict[str, Any]:
         """全てのチャンク結果を一つの議事録データに統合・整形する"""
@@ -482,133 +451,289 @@ class MeetingAnalyzer:
                 "deadlines": list(dict.fromkeys(all_deadlines))
             }
 
-    async def _add_meeting_data_to_rag(
-        self, 
-        meeting_id: int, 
-        db_meeting: models.Meeting, 
-        final_minutes: Dict[str, Any], 
-        all_results: List[Dict[str, Any]], 
-        ref_date: Any
-    ):
-        """議事録の全文、セグメント、重要構造化データ（決定事項、タスク、論点、期限）をRAGに追加する"""
-        rag_metadata = {
-            "meeting_id": meeting_id, 
-            "title": db_meeting.title, 
-            "project_id": db_meeting.project_id,
-            "version_group": db_meeting.version_group,
-            "type": "meeting",
-            "date": ref_date.isoformat()
+
+async def add_meeting_data_to_rag(
+    meeting_id: int, 
+    db_meeting: models.Meeting, 
+    final_minutes: Dict[str, Any], 
+    all_results: List[Dict[str, Any]], 
+    ref_date: Any
+):
+    """議事録の全文、セグメント、重要構造化データ（決定事項、タスク、論点、期限）をRAGに追加する"""
+    rag_metadata = {
+        "meeting_id": meeting_id, 
+        "title": db_meeting.title, 
+        "project_id": db_meeting.project_id,
+        "version_group": db_meeting.version_group,
+        "type": "meeting",
+        "date": ref_date.isoformat()
+    }
+
+    docs_to_add = []
+    date_str = ref_date.strftime("%Y-%m-%d") if hasattr(ref_date, "strftime") else str(ref_date)[:10]
+
+    # 1. 文字起こし全文 (transcript) のChunk分割してRAGに追加
+    raw_transcript = final_minutes.get('transcript', '') or db_meeting.transcript or ""
+    if raw_transcript.strip():
+        chunks = []
+        start = 0
+        chunk_size = 4000
+        overlap = 500
+        while start < len(raw_transcript):
+            end = start + chunk_size
+            chunks.append(raw_transcript[start:end])
+            if end >= len(raw_transcript):
+                break
+            start += chunk_size - overlap
+
+        for idx, chunk in enumerate(chunks):
+            chunk_text_data = f"【会議発言録チャンク {idx+1}/{len(chunks)}】 会議: {db_meeting.title} ({date_str}), 内容:\n{chunk}"
+            chunk_metadata = rag_metadata.copy()
+            chunk_metadata["type"] = "meeting_transcript_chunk"
+            chunk_metadata["content_type"] = "transcript_chunk"
+            chunk_metadata["chunk_index"] = idx
+            docs_to_add.append(Document(text=chunk_text_data, metadata=chunk_metadata))
+
+    # 2. 個別のセグメント（チャンク）もRAGに追加
+    if len(all_results) > 1:
+        for idx, segment in enumerate(all_results):
+            seg_transcript = segment.get("transcript")
+            if seg_transcript:
+                seg_metadata = rag_metadata.copy()
+                seg_metadata["segment_index"] = idx
+                seg_metadata["type"] = "meeting_segment"
+                seg_text = f"--- [Segment {idx+1}/{len(all_results)}] {db_meeting.title} ---\n{seg_transcript}"
+                docs_to_add.append(Document(text=seg_text, metadata=seg_metadata))
+
+    # 3. 意味単位で構造化したナレッジ（決定事項、タスク、論点、期限）を個別にRAGに追加
+    project_name = db_meeting.project.name if db_meeting.project else "不明"
+
+    # 決定事項 (decisions)
+    for dec in final_minutes.get('decisions', []):
+        if dec and dec.strip():
+            dec_text = f"【決定事項】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dec}"
+            dec_metadata = rag_metadata.copy()
+            dec_metadata["type"] = "meeting_decision"
+            dec_metadata["content_type"] = "decision"
+            docs_to_add.append(Document(text=dec_text, metadata=dec_metadata))
+
+    # タスク (tasks)
+    for tsk in final_minutes.get('tasks', []):
+        if tsk and tsk.strip():
+            tsk_text = f"【タスク】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {tsk}"
+            tsk_metadata = rag_metadata.copy()
+            tsk_metadata["type"] = "meeting_task"
+            tsk_metadata["content_type"] = "task"
+            docs_to_add.append(Document(text=tsk_text, metadata=tsk_metadata))
+
+    # 論点 (discussion_points)
+    for dp in final_minutes.get('discussion_points', []):
+        if dp and dp.strip():
+            dp_text = f"【論点・議論】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dp}"
+            dp_metadata = rag_metadata.copy()
+            dp_metadata["type"] = "meeting_discussion_point"
+            dp_metadata["content_type"] = "discussion_point"
+            docs_to_add.append(Document(text=dp_text, metadata=dp_metadata))
+
+    # 期限・日程候補 (deadlines)
+    for dl in final_minutes.get('deadlines', []):
+        if dl and dl.strip():
+            dl_text = f"【期限・日程】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dl}"
+            dl_metadata = rag_metadata.copy()
+            dl_metadata["type"] = "meeting_deadline"
+            dl_metadata["content_type"] = "deadline"
+            docs_to_add.append(Document(text=dl_text, metadata=dl_metadata))
+
+    # まとめてRAGに登録 (ディスクI/Oのボトルネック防止)
+    if docs_to_add:
+        await rag_service.add_documents(docs_to_add)
+
+def save_detected_tasks(db: Session, meeting_id: int, tasks: List[str]):
+    """議事録から検出されたタスクを MeetingTask テーブルに解析・保存する。
+
+    冪等: 同じ会議に同じ content が既にある分はスキップする（再解析・PATCH再送対策）。
+    既存行は削除しない（adopted 済みで task_id が付いている場合があるため）。
+    """
+    import re
+    existing_contents = {
+        row[0] for row in db.query(models.MeetingTask.content)
+        .filter(models.MeetingTask.meeting_id == meeting_id).all()
+    }
+    for task_str in tasks:
+        # 解析ロジック: [タイプ] 担当者：内容（期限）
+        m_type = re.search(r'\[(.*?)\]', task_str)
+        task_type = m_type.group(1) if m_type else None
+
+        remaining = task_str
+        if m_type: 
+            remaining = remaining.replace(m_type.group(0), "").strip()
+
+        assignee = None
+        if "：" in remaining:
+            parts = remaining.split("：", 1)
+            assignee = parts[0].strip()
+            remaining = parts[1].strip()
+            # 先頭のリストマーカーを除去
+            assignee = assignee.lstrip('-*• ').strip()
+
+        # 内容から期限表記を除去。プロンプトが指示している書式は全角括弧「（期限）」だが、
+        # モデル（およびエージェント側のQwen）は半角 () を返すこともあるため両方を見る。
+        m_date = re.search(r'[（(](.*?)[）)]', remaining)
+        if m_date:
+            remaining = remaining.replace(m_date.group(0), "").strip()
+
+        content = remaining.lstrip('-*• ').strip()
+        if not content or content in existing_contents:
+            continue
+
+        crud.create_meeting_task(db, schemas.MeetingTaskCreate(
+            meeting_id=meeting_id,
+            content=content,
+            type=task_type,
+            assignee_suggestion=assignee,
+            status="detected"
+        ))
+        existing_contents.add(content)
+
+
+
+# ---------------------------------------------------------------------------
+# 解析結果の確定処理（ローカル解析 / 議事録AIエージェント の共通の出口）
+# ---------------------------------------------------------------------------
+
+_MINUTES_LIST_FIELDS = ("decisions", "tasks", "discussion_points", "deadlines")
+
+
+def is_meta_line(item: str, markers=None) -> bool:
+    """決定事項等として不適切な、モデルのナレーション/メタ文かどうかを判定する。
+
+    ローカル解析(_parse_output)と、議事録AIエージェントからの結果(normalize_minutes)の
+    両方から使う。エージェントも「文字起こし内に具体的な期限は言及されていない」のような
+    メタ文を配列要素として返してくるため、同じ基準で落とす必要がある。
+    """
+    s = (item or "").strip()
+    if not s:
+        return True
+    if s.lower() in ("なし", "none", "特になし"):
+        return True
+    # 見出し記号だけ、あるいは区切り線
+    if set(s) <= set("=-—―*・● "):
+        return True
+    return any(mk in s for mk in (markers if markers is not None else MeetingAnalyzer._META_MARKERS))
+
+
+def normalize_minutes(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """解析結果を DB に入れられる形へ正規化する。
+
+    エージェントから来る JSON は外部入力なので、ここが信頼境界になる。
+    - 想定外のキーは落とす
+    - リスト項目は str 化 + 前後空白除去 + 空要素除去（dict が混ざっても落とさない）
+    - transcript は必ず str
+    """
+    out: Dict[str, Any] = {"transcript": ""}
+    transcript = raw.get("transcript")
+    out["transcript"] = transcript if isinstance(transcript, str) else ("" if transcript is None else str(transcript))
+
+    for field in _MINUTES_LIST_FIELDS:
+        value = raw.get(field)
+        if not isinstance(value, (list, tuple)):
+            out[field] = []
+            continue
+        items: List[str] = []
+        for entry in value:
+            text = entry if isinstance(entry, str) else str(entry)
+            text = text.strip()
+            # 「なし」「文字起こし内に期限は言及されていない」等のメタ発話を落とす。
+            # ローカル解析では _parse_output が同じ基準で除去しており、経路で差が出ないようにする。
+            if text and not is_meta_line(text):
+                items.append(text)
+        out[field] = items
+    return out
+
+
+async def finalize_minutes(
+    meeting_id: int,
+    final_minutes: Dict[str, Any],
+    analysis_seconds: Optional[int] = None,
+    segment_results: Optional[List[Dict[str, Any]]] = None,
+    transcript_prefix: str = "",
+) -> bool:
+    """解析結果を DB へ確定保存し、後処理（RAG登録 / Decision / MeetingTask 検出）まで行う。
+
+    ローカル解析(MeetingAnalyzer.analyze_meeting)と、別PCの議事録AIエージェントからの
+    コールバック(services/minutes_agent.apply_agent_result)の両方がここを通る。
+    どちらの経路でも同じ副作用が起きることを保証するための唯一の確定経路。
+
+    segment_results: チャンク毎の中間結果。エージェント経路では持てないので None。
+        （RAGのセグメント別ドキュメント登録がスキップされるだけで、他は同じ）
+    transcript_prefix: 文字起こし先頭に差し込む警告文（録音チャンク欠損時など）。
+    """
+    from ..database import SessionLocal
+
+    minutes = normalize_minutes(final_minutes)
+    if transcript_prefix:
+        minutes["transcript"] = transcript_prefix + minutes["transcript"]
+
+    all_results = segment_results or []
+
+    db = SessionLocal()
+    try:
+        db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
+        if not db_meeting:
+            logger.error(f"finalize_minutes: meeting {meeting_id} not found.")
+            return False
+
+        updates: Dict[str, Any] = {**minutes, "status": "completed"}
+        if analysis_seconds is not None:
+            updates["analysis_seconds"] = analysis_seconds
+        crud.update_meeting(db, db_meeting, updates)
+
+        # RAGメタデータの準備と追加
+        ref_date = db_meeting.date or now_jst_naive()
+        await add_meeting_data_to_rag(
+            meeting_id=meeting_id,
+            db_meeting=db_meeting,
+            final_minutes=minutes,
+            all_results=all_results,
+            ref_date=ref_date
+        )
+
+        if db_meeting.version_group:
+            db.query(models.Decision).filter(
+                models.Decision.project_id == db_meeting.project_id,
+                models.Decision.meeting_id != meeting_id,
+                models.Decision.superseded == False
+            ).join(models.Meeting).filter(
+                models.Meeting.version_group == db_meeting.version_group
+            ).update({"superseded": True}, synchronize_session=False)
+
+        # 冪等性: 再解析やエージェントのPATCH再送で重複行が増えないよう、
+        # 同じ内容が既にある分は作り直さない（既存行の削除はしない。
+        # MeetingTask は adopted 済み=task_id 付きになっている場合があるため）。
+        existing_decisions = {
+            row[0] for row in db.query(models.Decision.content)
+            .filter(models.Decision.meeting_id == meeting_id).all()
         }
-        
-        docs_to_add = []
-        date_str = ref_date.strftime("%Y-%m-%d") if hasattr(ref_date, "strftime") else str(ref_date)[:10]
-
-        # 1. 文字起こし全文 (transcript) のChunk分割してRAGに追加
-        raw_transcript = final_minutes.get('transcript', '') or db_meeting.transcript or ""
-        if raw_transcript.strip():
-            chunks = []
-            start = 0
-            chunk_size = 4000
-            overlap = 500
-            while start < len(raw_transcript):
-                end = start + chunk_size
-                chunks.append(raw_transcript[start:end])
-                if end >= len(raw_transcript):
-                    break
-                start += chunk_size - overlap
-                
-            for idx, chunk in enumerate(chunks):
-                chunk_text_data = f"【会議発言録チャンク {idx+1}/{len(chunks)}】 会議: {db_meeting.title} ({date_str}), 内容:\n{chunk}"
-                chunk_metadata = rag_metadata.copy()
-                chunk_metadata["type"] = "meeting_transcript_chunk"
-                chunk_metadata["content_type"] = "transcript_chunk"
-                chunk_metadata["chunk_index"] = idx
-                docs_to_add.append(Document(text=chunk_text_data, metadata=chunk_metadata))
-
-        # 2. 個別のセグメント（チャンク）もRAGに追加
-        if len(all_results) > 1:
-            for idx, segment in enumerate(all_results):
-                seg_transcript = segment.get("transcript")
-                if seg_transcript:
-                    seg_metadata = rag_metadata.copy()
-                    seg_metadata["segment_index"] = idx
-                    seg_metadata["type"] = "meeting_segment"
-                    seg_text = f"--- [Segment {idx+1}/{len(all_results)}] {db_meeting.title} ---\n{seg_transcript}"
-                    docs_to_add.append(Document(text=seg_text, metadata=seg_metadata))
-
-        # 3. 意味単位で構造化したナレッジ（決定事項、タスク、論点、期限）を個別にRAGに追加
-        project_name = db_meeting.project.name if db_meeting.project else "不明"
-
-        # 決定事項 (decisions)
-        for dec in final_minutes.get('decisions', []):
-            if dec and dec.strip():
-                dec_text = f"【決定事項】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dec}"
-                dec_metadata = rag_metadata.copy()
-                dec_metadata["type"] = "meeting_decision"
-                dec_metadata["content_type"] = "decision"
-                docs_to_add.append(Document(text=dec_text, metadata=dec_metadata))
-
-        # タスク (tasks)
-        for tsk in final_minutes.get('tasks', []):
-            if tsk and tsk.strip():
-                tsk_text = f"【タスク】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {tsk}"
-                tsk_metadata = rag_metadata.copy()
-                tsk_metadata["type"] = "meeting_task"
-                tsk_metadata["content_type"] = "task"
-                docs_to_add.append(Document(text=tsk_text, metadata=tsk_metadata))
-
-        # 論点 (discussion_points)
-        for dp in final_minutes.get('discussion_points', []):
-            if dp and dp.strip():
-                dp_text = f"【論点・議論】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dp}"
-                dp_metadata = rag_metadata.copy()
-                dp_metadata["type"] = "meeting_discussion_point"
-                dp_metadata["content_type"] = "discussion_point"
-                docs_to_add.append(Document(text=dp_text, metadata=dp_metadata))
-
-        # 期限・日程候補 (deadlines)
-        for dl in final_minutes.get('deadlines', []):
-            if dl and dl.strip():
-                dl_text = f"【期限・日程】 会議: {db_meeting.title} ({date_str}), プロジェクト: {project_name}, 内容: {dl}"
-                dl_metadata = rag_metadata.copy()
-                dl_metadata["type"] = "meeting_deadline"
-                dl_metadata["content_type"] = "deadline"
-                docs_to_add.append(Document(text=dl_text, metadata=dl_metadata))
-                
-        # まとめてRAGに登録 (ディスクI/Oのボトルネック防止)
-        if docs_to_add:
-            await rag_service.add_documents(docs_to_add)
-
-    def _save_detected_tasks(self, db: Session, meeting_id: int, tasks: List[str]):
-        """議事録から検出されたタスクを MeetingTask テーブルに解析・保存する"""
-        import re
-        for task_str in tasks:
-            # 解析ロジック: [タイプ] 担当者：内容（期限）
-            m_type = re.search(r'\[(.*?)\]', task_str)
-            task_type = m_type.group(1) if m_type else None
-            
-            remaining = task_str
-            if m_type: 
-                remaining = remaining.replace(m_type.group(0), "").strip()
-            
-            assignee = None
-            if "：" in remaining:
-                parts = remaining.split("：", 1)
-                assignee = parts[0].strip()
-                remaining = parts[1].strip()
-                # 先頭のリストマーカーを除去
-                assignee = assignee.lstrip('-*• ').strip()
-            
-            m_date = re.search(r'\((.*?)\)', remaining)
-            if m_date:
-                # 内容から期限表記を除去
-                remaining = remaining.replace(m_date.group(0), "").strip()
-            
-            crud.create_meeting_task(db, schemas.MeetingTaskCreate(
+        for dec_content in minutes.get('decisions', []):
+            if dec_content in existing_decisions:
+                continue
+            crud.create_decision(db, schemas.DecisionCreate(
                 meeting_id=meeting_id,
-                content=remaining.lstrip('-*• ').strip(),
-                type=task_type,
-                assignee_suggestion=assignee,
-                status="detected"
+                content=dec_content,
+                date=ref_date,
+                project_id=db_meeting.project_id
             ))
+            existing_decisions.add(dec_content)
 
+        # 検出されたタスクを MeetingTask テーブルに保存
+        save_detected_tasks(db, meeting_id, minutes.get('tasks', []))
+
+        db.commit()
+        logger.info(
+            f"Meeting {meeting_id} analysis completed. "
+            f"(decisions={len(minutes.get('decisions', []))}, tasks={len(minutes.get('tasks', []))}, "
+            f"transcript={len(minutes.get('transcript') or '')}文字)"
+        )
+        return True
+    finally:
+        db.close()

@@ -97,7 +97,7 @@ interface EventDetailsPanelProps {
   eventTypeFilter: Record<string, boolean>;
   onEventTypeFilterChange: (typeKey: string, checked: boolean) => void;
   projects: Project[];
-  googleStatus?: { configured: boolean; connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] };
+  googleStatus?: { configured: boolean; my_calendar_connected: boolean; synced_task_ids: number[]; synced_event_ids: number[] };
   onGoogleSyncToggle?: (eventId: number, currentSynced: boolean) => void;
   onUpdateTask?: (taskId: number, updates: any) => Promise<void>;
   onUpdateEvent?: (eventId: number, updates: any) => Promise<void>;
@@ -460,7 +460,7 @@ const EventDetailsPanel: React.FC<EventDetailsPanelProps> = ({
                 )}
               </Box>
 
-              {googleStatus?.connected && !['task', 'project'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && (
+              {googleStatus?.my_calendar_connected && !['task', 'project'].includes(selectedEvent.extendedProps?.type?.toLowerCase() || '') && (
                 <Box sx={{ mt: 2, p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                   <Typography variant="caption" sx={{ display: 'block', mb: 0.5, fontWeight: 'bold' }}>Google連携</Typography>
                   <FormControlLabel

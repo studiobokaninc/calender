@@ -29,6 +29,7 @@ import KnowledgePage from './pages/KnowledgePage';
 import ProductionTrackerPage from './pages/ProductionTrackerPage';
 import AIRecommendedTasksPage from './pages/AIRecommendedTasksPage';
 import ScoreDataAdminPage from './pages/ScoreDataAdminPage';
+import GoogleAdminSettingsPage from './pages/GoogleAdminSettingsPage';
 import ShotListPage from './pages/ShotListPage';
 import BugReportPage from './pages/BugReportPage';
 import { initOpLogListeners } from './utils/opLog';
@@ -120,6 +121,7 @@ const App: React.FC = () => {
             <Route path="admin/data" element={<AdminRoute><MockDataConsole /></AdminRoute>} />
             <Route path="admin/user-activities" element={<AdminRoute><UserActivityPage /></AdminRoute>} />
             <Route path="admin/score-data" element={<AdminRoute><ScoreDataAdminPage /></AdminRoute>} />
+            <Route path="admin/google" element={<AdminRoute><GoogleAdminSettingsPage /></AdminRoute>} />
             <Route path="admin/*" element={<AdminRoute><Navigate to="/metrics" replace /></AdminRoute>} />
 
             <Route path="*" element={<DefaultRedirect />} />

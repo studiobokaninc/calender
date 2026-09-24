@@ -216,6 +216,36 @@ def test_task_seq_id_editing_and_creation(db: Session):
     updated_camel = crud.update_task(db, task, task_update_camel)
     assert updated_camel.seqID == "SEQ777"
 
+    # 5. Create sequence-level task without a shot using seq_id
+    task_no_shot = schemas.TaskCreate(
+        name="Seq-level Task Without Shot",
+        project_id=project.id,
+        seq_id="SQ01"
+    )
+    seq_task = crud.create_task(db, task_no_shot)
+    assert seq_task.seqID == "SQ01"
+
+    # 6. Update sequence-level task without a shot using seq_id
+    seq_task_update = schemas.TaskUpdate(
+        seq_id="SQ02"
+    )
+    updated_seq_task = crud.update_task(db, seq_task, seq_task_update)
+    assert updated_seq_task.seqID == "SQ02"
+
+    # 7. Update unrelated field (e.g. name) on sequence-level task and verify seqID is preserved
+    unrelated_update = schemas.TaskUpdate(
+        name="Updated Name Only"
+    )
+    updated_unrelated = crud.update_task(db, updated_seq_task, unrelated_update)
+    assert updated_unrelated.seqID == "SQ02"
+
+    # 8. Reset seq_id to empty on shot-less task and verify it falls back to SEQ_PM
+    reset_update = schemas.TaskUpdate(
+        seq_id=""
+    )
+    reset_seq_task = crud.update_task(db, updated_unrelated, reset_update)
+    assert reset_seq_task.seqID == "SEQ_PM"
+
 
 def test_task_shot_id_synchronization(db: Session):
     # 1. Create project, shot and task

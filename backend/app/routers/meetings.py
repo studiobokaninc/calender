@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import asyncio
+import mimetypes
 import uuid
 import shutil
 import subprocess
 from pathlib import Path
 from .. import crud, models, schemas
 from ..database import get_db, SessionLocal
-from ..security import get_current_user, get_current_user_for_audio
+from ..security import get_current_user, get_current_user_for_audio, get_current_user_or_agent_for_audio, get_meeting_write_principal, verify_minutes_agent_token
 import logging
 from ..services.llm import get_llm_client
 
@@ -27,6 +28,71 @@ AUDIO_DIR = BASE_DIR / "data" / "audio"
 def ensure_audio_dir():
     if not AUDIO_DIR.exists():
         AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# 音声の物理ファイルとして許可するディレクトリ。
+# audio_url に絶対パスが入る経路（meeting_scanner のネットワークドライブ取込）があるため、
+# 静的トークンで叩けるエンドポイントから任意ファイルを読み出されないようホワイトリストで縛る。
+def _audio_allowed_roots() -> List[Path]:
+    roots = [AUDIO_DIR, BASE_DIR / "static" / "audio"]
+    try:
+        from ..services.meeting_scanner import BASE_DIR as SCAN_BASE_DIR
+        roots.append(Path(SCAN_BASE_DIR))
+    except Exception:
+        pass
+    return roots
+
+
+def _is_within_allowed_roots(path: Path) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    for root in _audio_allowed_roots():
+        try:
+            if resolved.is_relative_to(root.resolve()):
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+# 音声ファイルの拡張子候補（reanalyze と揃える）
+AUDIO_EXTENSIONS = (".webm", ".m4a", ".mp3", ".mp4", ".wav", ".ogg", ".opus", ".aac")
+
+
+def resolve_meeting_audio_path(db_meeting: models.Meeting) -> Optional[Path]:
+    """会議の音声ファイルの実体を探す。
+
+    1) data/audio/{uuid}.{ext}                    … アップロード・ブラウザ録音
+    2) audio_url がホワイトリスト配下の実在する絶対パス … ネットワークドライブ取込(X:\\...)
+    3) data/audio/{basename(audio_url)}
+    4) static/audio/{basename(audio_url)}
+    """
+    if db_meeting.uuid:
+        for ext in AUDIO_EXTENSIONS:
+            candidate = AUDIO_DIR / f"{db_meeting.uuid}{ext}"
+            if candidate.exists():
+                return candidate
+
+    audio_url = db_meeting.audio_url
+    if audio_url:
+        # 2) 絶対パス（meeting_scanner が登録した X:\cg\proj\... など）
+        if os.path.isabs(audio_url):
+            candidate = Path(audio_url)
+            try:
+                if candidate.is_file() and _is_within_allowed_roots(candidate):
+                    return candidate
+            except OSError:
+                pass
+
+        filename = os.path.basename(audio_url)
+        if "." in filename:
+            for base in (AUDIO_DIR, BASE_DIR / "static" / "audio"):
+                candidate = base / filename
+                if candidate.exists():
+                    return candidate
+    return None
 
 @router.post("/upload", response_model=schemas.MeetingResponse)
 async def upload_meeting_audio(
@@ -97,12 +163,17 @@ async def upload_meeting_audio(
         db.refresh(db_meeting)
         
         # 4. バックグラウンドでAI解析を開始
+        from ..services import minutes_agent
+        api_key = ""
         try:
-            client = get_llm_client()
-            import asyncio
-            asyncio.create_task(analyze_meeting_background(db_meeting.id, str(file_path), client.api_key))
+            api_key = get_llm_client().api_key
         except Exception as e:
-            logger.error(f"LLM API Key is not set. Background analysis will not start: {e}")
+            # エージェントへ委譲する場合、ローカルLLMのキーが無くても解析は開始できる
+            if not minutes_agent.is_enabled():
+                logger.error(f"LLM API Key is not set. Background analysis will not start: {e}")
+        asyncio.create_task(
+            analyze_meeting_background(db_meeting.id, str(file_path), api_key, project_id=project_id)
+        )
         
         return db_meeting
     except Exception as e:
@@ -169,38 +240,41 @@ async def get_meeting_audio_stream(
     project_id: int,
     meeting_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user_for_audio)
+    principal: Optional[models.User] = Depends(get_current_user_or_agent_for_audio)
 ):
-    """音声ファイルを直接ストリーミング配信する (認証必須)"""
+    """音声ファイルを直接ストリーミング配信する (認証必須)。
+
+    principal が None の場合は議事録生成AIエージェント（別PC）からの取得。
+    """
     db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
     if not db_meeting:
         raise HTTPException(status_code=404, detail="音声データが見つかりません")
     if db_meeting.project_id != project_id:
         raise HTTPException(status_code=400, detail="プロジェクトIDが一致しません")
-    
-    # 物理ファイルの特定
-    file_path = None
-    if db_meeting.uuid:
-        for ext in [".webm", ".m4a", ".mp3", ".mp4"]:
-            candidate = AUDIO_DIR / f"{db_meeting.uuid}{ext}"
-            if candidate.exists():
-                file_path = candidate
-                break
 
-    if not file_path and db_meeting.audio_url:
-        filename = os.path.basename(db_meeting.audio_url)
-        if "." in filename:
-            candidate = AUDIO_DIR / filename
-            if candidate.exists():
-                file_path = candidate
-    
+    # 物理ファイルの特定（ネットワークドライブ取込の絶対パスも解決する）
+    file_path = resolve_meeting_audio_path(db_meeting)
+
     if not file_path or not file_path.exists():
         logger.error(f"Audio file not found on disk for meeting {meeting_id}")
         raise HTTPException(status_code=404, detail="ファイルが物理的に見つかりません")
-        
+
+    if principal is None:
+        # エージェント向け: 実際の拡張子・MIMEをそのまま伝える。
+        # ffmpeg / faster-whisper 側がコンテナ種別を誤認しないようにするため
+        # （ブラウザ録音は .webm(Opus) で、audio/mpeg と偽ると扱いを誤る）。
+        media_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        logger.info(f"minutes-agent: serving audio for meeting {meeting_id} ({file_path.name}, {media_type})")
+        return FileResponse(
+            path=str(file_path),
+            media_type=media_type,
+            filename=file_path.name,
+            content_disposition_type="inline",
+        )
+
     # 大きなファイルの場合、ブラウザのRangeリクエストを確実に処理するためのヘッダー調整
     file_size = os.path.getsize(file_path)
-    
+
     # 完全に手動でのRange処理は複雑なので、一旦標準のFileResponseに任せつつ、
     # 巨大なファイル向けにブラウザが要求しやすいようヘッダーを補助する
     headers = {
@@ -233,14 +307,29 @@ async def scan_network_drive(
     await run_batch_scan(api_key)
     return {"message": "Scanning started, new meetings will appear as they are processed."}
 
-async def analyze_meeting_background(meeting_id: int, audio_path: str, api_key: str):
-    """バックグラウンド解析タスク"""
+async def analyze_meeting_background(
+    meeting_id: int,
+    audio_path: str,
+    api_key: str,
+    project_id: Optional[int] = None,
+    transcript_prefix: str = "",
+):
+    """バックグラウンド解析タスク。
+
+    議事録AIエージェント(別PC)が有効ならそちらへ委譲し、無効・失敗時は
+    従来どおりローカルの MeetingAnalyzer で解析する。
+    """
     try:
-        from ..services.meeting_analyzer import MeetingAnalyzer
-        analyzer = MeetingAnalyzer(api_key=api_key)
-        await analyzer.analyze_meeting(meeting_id, audio_path)
+        from ..services import minutes_agent
+        await minutes_agent.analyze(
+            meeting_id,
+            audio_path,
+            project_id=project_id,
+            api_key=api_key,
+            transcript_prefix=transcript_prefix,
+        )
     except Exception as e:
-        logger.error(f"Background analysis for meeting {meeting_id} failed: {e}")
+        logger.exception(f"Background analysis for meeting {meeting_id} failed: {e}")
 
 
 # --- §2 新規 API エンドポイントの実装 (API v3) ---
@@ -337,18 +426,34 @@ async def create_manual_meeting(
 @api_router.patch("/meetings/{meeting_id}", response_model=schemas.MeetingResponse)
 async def update_meeting_manual(
     meeting_id: int,
-    meeting_data: schemas.MeetingUpdateManual,
+    meeting_data: schemas.MeetingPatchBody,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    principal: Optional[models.User] = Depends(get_meeting_write_principal)
 ):
     """
     §2.6 議事録を手動編集・部分更新します。
+
+    principal が None の場合は議事録生成AIエージェント(別PC)からの解析結果コールバック
+    （docs/calendar_integration_spec.md §3【ステップ3】）として処理する。
+    人間の手動編集経路は従来と同一。
     """
     db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
     if not db_meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会議が見つかりません")
 
+    if principal is None:
+        # --- 議事録AIエージェントからのコールバック ---
+        from ..services import minutes_agent
+        result = await minutes_agent.apply_agent_result(meeting_id, meeting_data)
+        logger.info(f"minutes-agent: callback for meeting {meeting_id} -> {result}")
+        db.expire_all()
+        return db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+
     update_dict = meeting_data.model_dump(exclude_unset=True)
+    # 手動編集では解析ステータス系を触らせない（従来の MeetingUpdateManual と同じ挙動を維持）
+    update_dict.pop("status", None)
+    update_dict.pop("analysis_seconds", None)
+    update_dict.pop("error", None)
     for key, value in update_dict.items():
         setattr(db_meeting, key, value)
         
@@ -363,6 +468,30 @@ async def update_meeting_manual(
             db.commit()
             
     return db_meeting
+
+
+@api_router.patch("/minutes-agent/meetings/{meeting_id}")
+async def minutes_agent_callback(
+    meeting_id: int,
+    payload: schemas.MeetingAgentResult,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_minutes_agent_token),
+):
+    """議事録AIエージェント専用のコールバック（JWTでは叩けない）。
+
+    正式な連携パスは PATCH /api/meetings/{meeting_id}（仕様書 §3）だが、
+    エージェント無しで後処理チェーンを curl 検証するため、および将来の
+    移行先として、エージェント専用の別名を用意しておく。
+    """
+    from ..services import minutes_agent
+    db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
+    if not db_meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会議が見つかりません")
+
+    body = schemas.MeetingPatchBody(**payload.model_dump(exclude_unset=True))
+    result = await minutes_agent.apply_agent_result(meeting_id, body)
+    logger.info(f"minutes-agent: alias callback for meeting {meeting_id} -> {result}")
+    return {"result": result, "meeting_id": meeting_id}
 
 
 # --- 録音・自動作成機能用 API エンドポイント ---
@@ -593,20 +722,25 @@ async def process_concat_and_analyze(
         # ----------------------------------------------------
         # PHASE 4: AI解析パイプラインの実行 (DBセッションなし)
         # ----------------------------------------------------
-        from ..services.meeting_analyzer import MeetingAnalyzer
-        client = get_llm_client()
-        analyzer = MeetingAnalyzer(api_key=client.api_key)
-        await analyzer.analyze_meeting(meeting_id, str(output_audio_path))
-
-        # ----------------------------------------------------
-        # PHASE 5: 警告ヘッダーの追記 (DBセッション3)
-        # ----------------------------------------------------
-        if warning_header:
-            with SessionLocal() as db:
-                db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
-                if db_meeting and db_meeting.status == "completed" and db_meeting.transcript:
-                    db_meeting.transcript = warning_header + db_meeting.transcript
-                    db.commit()
+        # 注意: 警告ヘッダー(warning_header)は「解析が終わってから後付け」してはいけない。
+        # 議事録AIエージェントへ委譲する場合、ここは受理された時点ですぐ返るため、
+        # 後段で status=="completed" を見て追記しようとしても必ず取りこぼす。
+        # そのため transcript_prefix として確定処理(finalize_minutes)まで持ち回る。
+        from ..services import minutes_agent
+        api_key = ""
+        try:
+            api_key = get_llm_client().api_key
+        except Exception as e:
+            if not minutes_agent.is_enabled():
+                raise
+            logger.warning(f"LLM API Key 未設定だがエージェント委譲のため続行します: {e}")
+        await minutes_agent.analyze(
+            meeting_id,
+            str(output_audio_path),
+            project_id=project_id,
+            api_key=api_key,
+            transcript_prefix=warning_header,
+        )
 
         # 成功時のみ一時チャンクを削除する（結合済み音声が復旧元として残る）。
         # 失敗時・途中再起動時はチャンクを保持し、後から再解析(復旧)できるようにする。
@@ -631,13 +765,18 @@ async def process_concat_and_analyze(
     return db_meeting
 
 
-async def _reanalyze_existing_audio(meeting_id: int, audio_path: str):
+async def _reanalyze_existing_audio(meeting_id: int, audio_path: str, project_id: Optional[int] = None):
     """結合済み音声から解析のみ再実行する（復旧用）。失敗時は status=failed に戻す。"""
     try:
-        from ..services.meeting_analyzer import MeetingAnalyzer
-        client = get_llm_client()
-        analyzer = MeetingAnalyzer(api_key=client.api_key)
-        await analyzer.analyze_meeting(meeting_id, audio_path)
+        from ..services import minutes_agent
+        api_key = ""
+        try:
+            api_key = get_llm_client().api_key
+        except Exception as e:
+            if not minutes_agent.is_enabled():
+                raise
+            logger.warning(f"LLM API Key 未設定だがエージェント委譲のため続行します: {e}")
+        await minutes_agent.analyze(meeting_id, audio_path, project_id=project_id, api_key=api_key)
     except Exception:
         logger.exception(f"reanalyze existing audio failed (meeting {meeting_id})")
         with SessionLocal() as db:
@@ -686,7 +825,7 @@ async def reanalyze_meeting(
     if audio_path:
         db_meeting.status = "processing"
         db.commit()
-        background_tasks.add_task(_reanalyze_existing_audio, meeting_id, audio_path)
+        background_tasks.add_task(_reanalyze_existing_audio, meeting_id, audio_path, db_meeting.project_id)
         return {"status": "processing", "source": "audio", "message": "既存の録音音声から再解析(復旧)を開始しました。"}
 
     # 2) 結合済みが無ければ録音チャンクから結合＋解析

@@ -30,6 +30,19 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 # 極めてシンプルな実装ですが、サーバー再起動でクリアされます
 download_tokens: Dict[str, datetime] = {}
 
+@router.get("/minutes-agent/health")
+async def get_minutes_agent_health(
+    current_user: models.User = Depends(security.get_current_active_admin),
+):
+    """議事録生成AIエージェント(別PC)の疎通状態を返す。
+
+    設定ミス（callback_url が localhost のまま等）と、エージェント停止・
+    ファイアウォール遮断を画面から切り分けるための確認用。トークンの値は返さない。
+    """
+    from ..services import minutes_agent
+    return await minutes_agent.agent_health()
+
+
 @router.get("/projects/mapping")
 def get_project_mapping(
     db: Session = Depends(get_db),

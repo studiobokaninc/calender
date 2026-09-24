@@ -22,6 +22,7 @@ import { TaskEditDialog } from '../components/SearchEditDialogs';
 import { useLocation, useNavigate } from 'react-router-dom'; //useLocationとは、現在のURLを取得するための関数です。useNavigateとは、ページを遷移するための関数です。
 import { useMetricsPageState } from '../contexts/PageStateContext'; //PageStateContextとは、ページの状態を管理するコンテキストです。
 import { getTaskStatusCategory, isOverdue } from '../utils/taskStatus';
+import { getProjectStatusLabel } from '../utils/projectStatus';
 //コンポーネントとは、フロントエンドのUIを作成するための部品です。他のコードで作成した関数を呼び出して、UIを作成します。
 const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスページを表示するコンポーネントです。
   console.log("--- Rendering MetricsPage Component ---");
@@ -646,7 +647,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
               <InputLabel id="project-status-label">プロジェクト状態</InputLabel>
               <Select labelId="project-status-label" value={statusFilter} label="プロジェクト状態" onChange={handleStatusFilterChange}>
                 <MenuItem value="all">すべて</MenuItem>
-                {projectStatusOptions.map(status => (<MenuItem key={status} value={status}>{status}</MenuItem>))}
+                {projectStatusOptions.map(status => (<MenuItem key={status} value={status}>{getProjectStatusLabel(status)}</MenuItem>))}
               </Select>
             </FormControl>
           </Box>
@@ -1738,7 +1739,7 @@ const MetricsPage: React.FC = () => { //MetricsPageとは、メトリクスペ�
             <InputLabel id="mobile-project-status-label">プロジェクト状態</InputLabel>
             <Select labelId="mobile-project-status-label" value={statusFilter} label="プロジェクト状態" onChange={handleStatusFilterChange}>
               <MenuItem value="all">すべて</MenuItem>
-              {projectStatusOptions.map(status => (<MenuItem key={status} value={status}>{status}</MenuItem>))}
+              {projectStatusOptions.map(status => (<MenuItem key={status} value={status}>{getProjectStatusLabel(status)}</MenuItem>))}
             </Select>
           </FormControl>
           <Button

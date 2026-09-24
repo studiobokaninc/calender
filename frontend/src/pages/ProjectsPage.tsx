@@ -9,6 +9,7 @@ import { usePageState } from '../contexts/PageStateContext';
 import { format, parseISO, isValid } from 'date-fns';
 import ProjectDeleteDialog from '../components/ProjectDeleteDialog';
 import { getStatusBreakdown, getStatusProgressWeight } from '../utils/taskStatus';
+import { getProjectStatusLabel } from '../utils/projectStatus';
 
 // Helper function to determine sort priority by display status (online first)
 const displayStatusOrder = (s: string): number => {
@@ -70,6 +71,7 @@ interface ProjectWithProgress extends Project {
     troubles?: number;
     directorName?: string;
     pmName?: string;
+    leaderName?: string;
     helpNames?: string[];
     todoCount: number;
     inProgressCount: number;
@@ -207,6 +209,7 @@ const ProjectsPage: React.FC = () => {
                     troubles: summary.troubles,
                     directorName: projRoles['director'] ? userNameById[projRoles['director']] : undefined,
                     pmName: projRoles['pm'] ? userNameById[projRoles['pm']] : undefined,
+                    leaderName: projRoles['lead'] ? userNameById[projRoles['lead']] : undefined,
                     helpNames: allRoles
                         .filter(r => r.project_id === project.id && r.role === 'help')
                         .map(r => userNameById[r.user_id])
@@ -681,11 +684,11 @@ const ProjectsPage: React.FC = () => {
                                                                     }}
                                                                 >
                                                                     {['planning', 'in-progress', 'completed', 'delayed', 'on-hold', 'cancelled'].map(statusVal => (
-                                                                        <MenuItem key={statusVal} value={statusVal} sx={{ fontSize: '0.85rem' }}>{statusVal}</MenuItem>
+                                                                        <MenuItem key={statusVal} value={statusVal} sx={{ fontSize: '0.85rem' }}>{getProjectStatusLabel(statusVal)}</MenuItem>
                                                                     ))}
                                                                 </Select>
                                                             ) : (
-                                                                <Chip label={project.status || '-'} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
+                                                                <Chip label={getProjectStatusLabel(project.status)} size="small" sx={{ backgroundColor: getProjectStatusColor(project.status ?? undefined), color: '#fff', fontSize: '0.85rem', height: 30, fontWeight: 700 }} />
                                                             )}
                                                             <Chip label={project.priority || '未設定'} size="small" variant="outlined" sx={{ fontSize: '0.85rem', height: 30, borderColor: getPriorityColor(project.priority ?? undefined), color: getPriorityColor(project.priority ?? undefined), fontWeight: 700 }} />
                                                             {isAdmin ? (
@@ -767,6 +770,13 @@ const ProjectsPage: React.FC = () => {
                                                                 <Box>
                                                                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>PM</Typography>
                                                                     <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.pmName || '-'}</Typography>
+                                                                </Box>
+                                                            </Box>
+                                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                                                                <PersonIcon sx={{ color: 'text.secondary', fontSize: '1.2rem' }} />
+                                                                <Box>
+                                                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.85rem', display: 'block', fontWeight: 600, lineHeight: 1.1 }}>リーダー</Typography>
+                                                                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '1.1rem', color: 'text.primary' }}>{project.leaderName || '-'}</Typography>
                                                                 </Box>
                                                             </Box>
                                                         </Box>
@@ -898,7 +908,7 @@ const ProjectsPage: React.FC = () => {
                                     <TableCell sx={{ fontWeight: 800 }}>プロジェクト名</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }}>ステータス</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }}>表示</TableCell>
-                                    <TableCell sx={{ fontWeight: 800 }}>担当 (Dir / PM)</TableCell>
+                                    <TableCell sx={{ fontWeight: 800 }}>担当 (Dir / PM / リーダー)</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }}>期間</TableCell>
                                     <TableCell sx={{ fontWeight: 800, minWidth: 160 }} align="center">タスク状況</TableCell>
                                     <TableCell sx={{ fontWeight: 800 }} width="180">進捗</TableCell>
@@ -991,13 +1001,13 @@ const ProjectsPage: React.FC = () => {
                                                             }}
                                                         >
                                                             {['planning', 'in-progress', 'completed', 'delayed', 'on-hold', 'cancelled'].map(statusVal => (
-                                                                <MenuItem key={statusVal} value={statusVal} sx={{ fontSize: '0.75rem' }}>{statusVal}</MenuItem>
+                                                                <MenuItem key={statusVal} value={statusVal} sx={{ fontSize: '0.75rem' }}>{getProjectStatusLabel(statusVal)}</MenuItem>
                                                             ))}
                                                         </Select>
                                                     ) : (
-                                                        <Chip 
-                                                            label={project.status || '-'} 
-                                                            size="small" 
+                                                        <Chip
+                                                            label={getProjectStatusLabel(project.status)}
+                                                            size="small"
                                                             sx={{ 
                                                                 backgroundColor: getProjectStatusColor(project.status ?? undefined), 
                                                                 color: '#fff', 
@@ -1068,6 +1078,9 @@ const ProjectsPage: React.FC = () => {
                                                     </Typography>
                                                     <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.primary' }}>
                                                         <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>PM:</span> <strong>{project.pmName || '-'}</strong>
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.primary' }}>
+                                                        <span style={{ color: theme.palette.text.secondary, fontWeight: 500 }}>リーダー:</span> <strong>{project.leaderName || '-'}</strong>
                                                     </Typography>
                                                     {project.helpNames && project.helpNames.length > 0 && (
                                                         <Typography variant="body2" sx={{ fontSize: '0.8rem', color: 'text.primary' }}>

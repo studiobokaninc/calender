@@ -1,8 +1,8 @@
 import React from 'react';
 import {
-    Box, Typography, Divider, Chip, Checkbox, FormControlLabel, TextField, List,
+    Box, Typography, Checkbox, FormControlLabel, TextField, List,
     ListItem, useTheme, Avatar, Button, FormControl, Select, MenuItem, InputLabel,
-    Autocomplete, Grid
+    Autocomplete, Grid, CircularProgress
 } from '@mui/material';
 import { Task, User, Project } from '../types';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
@@ -11,14 +11,12 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import FolderIcon from '@mui/icons-material/Folder';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AddIcon from '@mui/icons-material/Add';
-import { format, parseISO, isValid, parse, addDays } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
-import EditIcon from '@mui/icons-material/Edit';
 import HistoryIcon from '@mui/icons-material/History';
 import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
 import { useAuth } from '../contexts/AuthContext';
 import { mockDataApi } from '../services/api';
 import { TaskLabel } from '@/components/common/TaskLabel';
@@ -27,12 +25,12 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import {
     getTaskStatusColor,
-    getTaskStatusLabel,
     getGatedStatusOptions,
     getTaskStatusCategory,
 } from '../utils/taskStatus';
 import { useAllowedTransitions } from '../hooks/useAllowedTransitions';
 import Tooltip from '@mui/material/Tooltip';
+import Chip from '@mui/material/Chip';
 
 interface TaskQuickDetailProps {
     task: Task;
@@ -67,36 +65,45 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
     // Form states
     const [editName, setEditName] = React.useState(task.name);
     const [editDescription, setEditDescription] = React.useState(task.description || '');
+    const [editStatus, setEditStatus] = React.useState(task.status || 'wt');
     const [editProjectId, setEditProjectId] = React.useState<number | string>(task.project_id || '');
     const [editAssignedTo, setEditAssignedTo] = React.useState<number | string>(task.assigned_to || '');
-    const [editStartDate, setEditStartDate] = React.useState(task.start_date || '');
-    const [editDueDate, setEditDueDate] = React.useState(task.due_date || '');
+    const [editStartDate, setEditStartDate] = React.useState(task.start_date ? task.start_date.split('T')[0] : '');
+    const [editDueDate, setEditDueDate] = React.useState(task.due_date ? task.due_date.split('T')[0] : '');
     const [editCost, setEditCost] = React.useState<number | string>(task.cost !== null && task.cost !== undefined ? task.cost : '');
-    const [editPriority, setEditPriority] = React.useState(task.priority || 'low');
+    const [editPriority, setEditPriority] = React.useState(task.priority ? task.priority.toLowerCase() : 'low');
     const [editTaskType, setEditTaskType] = React.useState(task.type || '');
     const [editSeqID, setEditSeqID] = React.useState(task.seqID || '');
     const [editShotID, setEditShotID] = React.useState(task.shotID || '');
     const [editShotRelId, setEditShotRelId] = React.useState<number | null>(task.shot_id || null);
     const [editDependsOn, setEditDependsOn] = React.useState<string[]>(task.dependsOn || []);
+    const [localCheckItems, setLocalCheckItems] = React.useState<{ label: string; checked: boolean }[]>(task.check_items || []);
+    const [localDeliverables, setLocalDeliverables] = React.useState<string>(task.deliverables || '');
+    const [editPhases, setEditPhases] = React.useState<{ name: string; date: string; is_completed?: boolean }[]>(task.phases || []);
+    const [newItemText, setNewItemText] = React.useState('');
+    const [isSaving, setIsSaving] = React.useState(false);
 
     const [shots, setShots] = React.useState<{ id: number; shotID: string; seqID: string }[]>([]);
 
-    // Reset edit form when task changes
-    const dependsOnStr = JSON.stringify(task.dependsOn || []);
+    // Reset form when active task changes
     React.useEffect(() => {
         setEditName(task.name);
         setEditDescription(task.description || '');
+        setEditStatus(task.status || 'wt');
         setEditProjectId(task.project_id || '');
         setEditAssignedTo(task.assigned_to || '');
         setEditStartDate(task.start_date ? task.start_date.split('T')[0] : '');
         setEditDueDate(task.due_date ? task.due_date.split('T')[0] : '');
         setEditCost(task.cost !== null && task.cost !== undefined ? task.cost : '');
-        setEditPriority(task.priority || 'low');
+        setEditPriority(task.priority ? task.priority.toLowerCase() : 'low');
         setEditTaskType(task.type || '');
         setEditSeqID(task.seqID || '');
         setEditShotID(task.shotID || '');
         setEditShotRelId(task.shot_id || null);
         setEditDependsOn(task.dependsOn || []);
+        setLocalCheckItems(task.check_items || []);
+        setLocalDeliverables(task.deliverables || '');
+        setEditPhases(task.phases || []);
     }, [task.id]);
 
     // Fetch shots when project selection changes
@@ -136,202 +143,123 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
         })).sort((a, b) => a.label.localeCompare(b.label));
     }, [users]);
 
-    // Local states for smoother interaction
-    const [localCheckItems, setLocalCheckItems] = React.useState<{ label: string, checked: boolean }[]>(task.check_items || []);
-    const [localDeliverables, setLocalDeliverables] = React.useState<string>(task.deliverables || '');
-    const [newItemText, setNewItemText] = React.useState('');
+    // Check if there are unsaved local modifications
+    const isDirty = React.useMemo(() => {
+        if (editName !== task.name) return true;
+        if (editDescription !== (task.description || '')) return true;
+        if (editStatus !== (task.status || 'wt')) return true;
+        if ((editAssignedTo ? Number(editAssignedTo) : null) !== (task.assigned_to || null)) return true;
+        const origStart = task.start_date ? task.start_date.split('T')[0] : '';
+        if (editStartDate !== origStart) return true;
+        const origDue = task.due_date ? task.due_date.split('T')[0] : '';
+        if (editDueDate !== origDue) return true;
+        const origCost = task.cost !== null && task.cost !== undefined ? String(task.cost) : '';
+        if (String(editCost) !== origCost) return true;
+        const origPriority = task.priority ? task.priority.toLowerCase() : 'low';
+        if (editPriority.toLowerCase() !== origPriority) return true;
+        if (editTaskType !== (task.type || '')) return true;
+        if (editShotRelId !== (task.shot_id || null)) return true;
+        if (editSeqID !== (task.seqID || '')) return true;
+        if (editShotID !== (task.shotID || '')) return true;
+        if (JSON.stringify(editDependsOn) !== JSON.stringify(task.dependsOn || [])) return true;
+        if (localDeliverables !== (task.deliverables || '')) return true;
+        if (JSON.stringify(localCheckItems) !== JSON.stringify(task.check_items || [])) return true;
+        if (JSON.stringify(editPhases) !== JSON.stringify(task.phases || [])) return true;
+        return false;
+    }, [
+        editName, editDescription, editStatus, editAssignedTo, editStartDate, editDueDate,
+        editCost, editPriority, editTaskType, editShotRelId, editSeqID, editShotID,
+        editDependsOn, localDeliverables, localCheckItems, editPhases, task
+    ]);
 
-    // Sync with props when task changes
-    React.useEffect(() => {
-        setLocalCheckItems(task.check_items || []);
-        setLocalDeliverables(task.deliverables || '');
-    }, [task.id, task.check_items, task.deliverables]);
-
-    const handleAddCheckItem = async () => {
-        if (!newItemText.trim()) return;
-        const newItems = [...localCheckItems, { label: newItemText.trim(), checked: false }];
-        setLocalCheckItems(newItems); // Optimistic UI
-        setNewItemText('');
-        await onUpdate(task.id, { check_items: newItems });
+    const handleSave = async () => {
+        if (!isDirty || isSaving) return;
+        setIsSaving(true);
+        try {
+            let formattedStartDate = editStartDate;
+            if (formattedStartDate && !formattedStartDate.includes('T')) {
+                formattedStartDate = `${formattedStartDate}T00:00:00+09:00`;
+            }
+            let formattedDueDate = editDueDate;
+            if (formattedDueDate && !formattedDueDate.includes('T')) {
+                formattedDueDate = `${formattedDueDate}T00:00:00+09:00`;
+            }
+            const updates: Partial<Task> = {
+                name: editName,
+                description: editDescription || null,
+                status: editStatus,
+                assigned_to: editAssignedTo ? Number(editAssignedTo) : null,
+                start_date: formattedStartDate || null,
+                due_date: formattedDueDate || null,
+                cost: editCost !== '' ? Number(editCost) : null,
+                priority: editPriority ? editPriority.toUpperCase() : 'LOW',
+                type: editTaskType || null,
+                shot_id: editShotRelId,
+                seqID: editSeqID || null,
+                shotID: editShotID || null,
+                dependsOn: editDependsOn,
+                deliverables: localDeliverables || null,
+                check_items: localCheckItems,
+                phases: editPhases,
+            };
+            await onUpdate(task.id, updates);
+        } catch (err) {
+            console.error('Failed to save task updates:', err);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    const handleToggleCheckItem = async (idx: number, checked: boolean) => {
+    const handleResetForm = () => {
+        setEditName(task.name);
+        setEditDescription(task.description || '');
+        setEditStatus(task.status || 'wt');
+        setEditProjectId(task.project_id || '');
+        setEditAssignedTo(task.assigned_to || '');
+        setEditStartDate(task.start_date ? task.start_date.split('T')[0] : '');
+        setEditDueDate(task.due_date ? task.due_date.split('T')[0] : '');
+        setEditCost(task.cost !== null && task.cost !== undefined ? task.cost : '');
+        setEditPriority(task.priority ? task.priority.toLowerCase() : 'low');
+        setEditTaskType(task.type || '');
+        setEditSeqID(task.seqID || '');
+        setEditShotID(task.shotID || '');
+        setEditShotRelId(task.shot_id || null);
+        setEditDependsOn(task.dependsOn || []);
+        setLocalCheckItems(task.check_items || []);
+        setLocalDeliverables(task.deliverables || '');
+        setEditPhases(task.phases || []);
+    };
+
+    const handleAddCheckItem = () => {
+        if (!newItemText.trim()) return;
+        const newItems = [...localCheckItems, { label: newItemText.trim(), checked: false }];
+        setLocalCheckItems(newItems);
+        setNewItemText('');
+        onEdit?.();
+    };
+
+    const handleToggleCheckItem = (idx: number, checked: boolean) => {
         const newItems = [...localCheckItems];
         newItems[idx] = { ...newItems[idx], checked };
         setLocalCheckItems(newItems);
-        await onUpdate(task.id, { check_items: newItems });
+        onEdit?.();
     };
 
-    const handleDeleteCheckItem = async (idx: number) => {
+    const handleDeleteCheckItem = (idx: number) => {
         const newItems = localCheckItems.filter((_, i) => i !== idx);
         setLocalCheckItems(newItems);
-        await onUpdate(task.id, { check_items: newItems });
-    };
-
-    const nameDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
-    const descDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
-    const costDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
-    const seqDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
-    const shotDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
-    const deliverablesDebounceRef = React.useRef<NodeJS.Timeout | null>(null);
-
-    // Cleanup debounces on unmount or task change
-    React.useEffect(() => {
-        return () => {
-            if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
-            if (descDebounceRef.current) clearTimeout(descDebounceRef.current);
-            if (costDebounceRef.current) clearTimeout(costDebounceRef.current);
-            if (seqDebounceRef.current) clearTimeout(seqDebounceRef.current);
-            if (shotDebounceRef.current) clearTimeout(shotDebounceRef.current);
-            if (deliverablesDebounceRef.current) clearTimeout(deliverablesDebounceRef.current);
-        };
-    }, [task.id]);
-
-    const handleDeliverablesChange = (val: string) => {
-        setLocalDeliverables(val);
-        if (deliverablesDebounceRef.current) clearTimeout(deliverablesDebounceRef.current);
-        deliverablesDebounceRef.current = setTimeout(async () => {
-            if (val !== (task.deliverables || '')) {
-                await onUpdate(task.id, { deliverables: val });
-            }
-        }, 1000);
-    };
-
-    const handleDeliverablesBlur = async () => {
-        if (deliverablesDebounceRef.current) {
-            clearTimeout(deliverablesDebounceRef.current);
-            deliverablesDebounceRef.current = null;
-        }
-        if (localDeliverables !== (task.deliverables || '')) {
-            await onUpdate(task.id, { deliverables: localDeliverables });
-        }
-    };
-
-    const handleNameChange = (val: string) => {
-        setEditName(val);
         onEdit?.();
-        if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
-        nameDebounceRef.current = setTimeout(async () => {
-            if (val.trim() && val !== task.name) {
-                await onUpdate(task.id, { name: val });
-            }
-        }, 500);
     };
 
-    const handleNameBlur = async () => {
-        if (nameDebounceRef.current) {
-            clearTimeout(nameDebounceRef.current);
-            nameDebounceRef.current = null;
-        }
-        if (!editName.trim()) {
-            setEditName(task.name);
-            return;
-        }
-        if (editName !== task.name) {
-            await onUpdate(task.id, { name: editName });
-        }
-    };
-
-    const handleDescriptionChange = (val: string) => {
-        setEditDescription(val);
-        onEdit?.();
-        if (descDebounceRef.current) clearTimeout(descDebounceRef.current);
-        descDebounceRef.current = setTimeout(async () => {
-            if (val !== (task.description || '')) {
-                await onUpdate(task.id, { description: val || null });
-            }
-        }, 1000);
-    };
-
-    const handleDescriptionBlur = async () => {
-        if (descDebounceRef.current) {
-            clearTimeout(descDebounceRef.current);
-            descDebounceRef.current = null;
-        }
-        if (editDescription !== (task.description || '')) {
-            await onUpdate(task.id, { description: editDescription || null });
-        }
-    };
-
-    const handleCostChange = (val: string) => {
-        setEditCost(val);
-        onEdit?.();
-        if (costDebounceRef.current) clearTimeout(costDebounceRef.current);
-        costDebounceRef.current = setTimeout(async () => {
-            const newCost = val !== '' ? Number(val) : null;
-            if (newCost !== task.cost) {
-                await onUpdate(task.id, { cost: newCost });
-            }
-        }, 1000);
-    };
-
-    const handleCostBlur = async () => {
-        if (costDebounceRef.current) {
-            clearTimeout(costDebounceRef.current);
-            costDebounceRef.current = null;
-        }
-        const newCost = editCost !== '' ? Number(editCost) : null;
-        if (newCost !== task.cost) {
-            await onUpdate(task.id, { cost: newCost });
-        }
-    };
-
-    const handleIncrementCost = async () => {
-        if (costDebounceRef.current) {
-            clearTimeout(costDebounceRef.current);
-            costDebounceRef.current = null;
-        }
+    const handleIncrementCost = () => {
         const currentCost = editCost !== '' ? Number(editCost) : 0;
-        const newCost = currentCost + 1;
-        setEditCost(String(newCost));
-        await onUpdate(task.id, { cost: newCost });
-    };
-
-    const handleSeqIDChange = (val: string) => {
-        setEditSeqID(val);
+        setEditCost(String(currentCost + 1));
         onEdit?.();
-        if (seqDebounceRef.current) clearTimeout(seqDebounceRef.current);
-        seqDebounceRef.current = setTimeout(async () => {
-            if (val !== (task.seqID || '')) {
-                await onUpdate(task.id, { seqID: val || null });
-            }
-        }, 1000);
-    };
-
-    const handleSeqIDBlur = async () => {
-        if (seqDebounceRef.current) {
-            clearTimeout(seqDebounceRef.current);
-            seqDebounceRef.current = null;
-        }
-        if (editSeqID !== (task.seqID || '')) {
-            await onUpdate(task.id, { seqID: editSeqID || null });
-        }
-    };
-
-    const handleShotIDChange = (val: string) => {
-        setEditShotID(val);
-        onEdit?.();
-        if (shotDebounceRef.current) clearTimeout(shotDebounceRef.current);
-        shotDebounceRef.current = setTimeout(async () => {
-            if (val !== (task.shotID || '')) {
-                await onUpdate(task.id, { shotID: val || null });
-            }
-        }, 1000);
-    };
-
-    const handleShotIDBlur = async () => {
-        if (shotDebounceRef.current) {
-            clearTimeout(shotDebounceRef.current);
-            shotDebounceRef.current = null;
-        }
-        if (editShotID !== (task.shotID || '')) {
-            await onUpdate(task.id, { shotID: editShotID || null });
-        }
     };
 
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ja}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 2, position: 'relative' }}>
                 {/* Basic Info Header - Unified & Prominent */}
                 <Box sx={{
                     mb: 1,
@@ -358,13 +286,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                     {isAdmin ? (
                         <TextField
                             value={editName}
-                            onChange={(e) => handleNameChange(e.target.value)}
-                            onBlur={handleNameBlur}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    (e.target as HTMLInputElement).blur();
-                                }
+                            onChange={(e) => {
+                                setEditName(e.target.value);
+                                onEdit?.();
                             }}
                             placeholder="タスク名"
                             fullWidth
@@ -402,8 +326,10 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                     {isAdmin ? (
                         <TextField
                             value={editDescription}
-                            onChange={(e) => handleDescriptionChange(e.target.value)}
-                            onBlur={handleDescriptionBlur}
+                            onChange={(e) => {
+                                setEditDescription(e.target.value);
+                                onEdit?.();
+                            }}
                             placeholder="説明を追加..."
                             multiline
                             fullWidth
@@ -449,12 +375,10 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                             <TaskAltIcon fontSize="small" color="primary" /> ステータス
                         </Typography>
-                        {/* task_status_redesign_v2 §1.3: 推奨遷移(★)を先頭に。BEの合法遷移・役職ルールに反する
-                            選択肢はグレーアウトし、理由をツールチップで示す(殿要求(b)/F-9)。 */}
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                            {getGatedStatusOptions(task.status, allowedTransitions?.allowedNext, allowedTransitions?.actorRole).map((opt) => {
+                            {getGatedStatusOptions(editStatus, allowedTransitions?.allowedNext, allowedTransitions?.actorRole).map((opt) => {
                                 const s = opt.value;
-                                const selected = task.status === s;
+                                const selected = editStatus === s;
                                 const color = getTaskStatusColor(s);
                                 const tooltipTitle = opt.disabled
                                     ? opt.disabledReason || '選択できません'
@@ -466,7 +390,10 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                                 label={opt.label}
                                                 size="small"
                                                 disabled={opt.disabled}
-                                                onClick={opt.disabled ? undefined : () => onUpdate(task.id, { status: s })}
+                                                onClick={opt.disabled ? undefined : () => {
+                                                    setEditStatus(s);
+                                                    onEdit?.();
+                                                }}
                                                 variant={selected ? "filled" : "outlined"}
                                                 sx={{
                                                     transition: 'all 0.2s',
@@ -513,11 +440,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                             <Select
                                                 value={editAssignedTo}
                                                 label="担当者"
-                                                onChange={async (e) => {
-                                                    const val = e.target.value;
-                                                    const newAssignedTo = val ? Number(val) : null;
-                                                    setEditAssignedTo(val);
-                                                    await onUpdate(task.id, { assigned_to: newAssignedTo });
+                                                onChange={(e) => {
+                                                    setEditAssignedTo(e.target.value);
+                                                    onEdit?.();
                                                 }}
                                             >
                                                 <MenuItem value=""><em>未割り当て</em></MenuItem>
@@ -535,13 +460,10 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <DatePicker
                                             label="開始日"
                                             value={editStartDate ? parseISO(editStartDate) : null}
-                                            onChange={async (val) => {
-                                                let formattedStartDate = val && isValid(val) ? format(val, 'yyyy-MM-dd') : '';
+                                            onChange={(val) => {
+                                                const formattedStartDate = val && isValid(val) ? format(val, 'yyyy-MM-dd') : '';
                                                 setEditStartDate(formattedStartDate);
-                                                if (formattedStartDate && !formattedStartDate.includes('T')) {
-                                                    formattedStartDate = `${formattedStartDate}T00:00:00+09:00`;
-                                                }
-                                                await onUpdate(task.id, { start_date: formattedStartDate || null });
+                                                onEdit?.();
                                             }}
                                             slotProps={{ textField: { size: 'small', fullWidth: true } }}
                                         />
@@ -550,13 +472,10 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <DatePicker
                                             label="期日"
                                             value={editDueDate ? parseISO(editDueDate) : null}
-                                            onChange={async (val) => {
-                                                let formattedDueDate = val && isValid(val) ? format(val, 'yyyy-MM-dd') : '';
+                                            onChange={(val) => {
+                                                const formattedDueDate = val && isValid(val) ? format(val, 'yyyy-MM-dd') : '';
                                                 setEditDueDate(formattedDueDate);
-                                                if (formattedDueDate && !formattedDueDate.includes('T')) {
-                                                    formattedDueDate = `${formattedDueDate}T00:00:00+09:00`;
-                                                }
-                                                await onUpdate(task.id, { due_date: formattedDueDate || null });
+                                                onEdit?.();
                                             }}
                                             slotProps={{ textField: { size: 'small', fullWidth: true } }}
                                         />
@@ -571,12 +490,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                                 label="コスト（時間）"
                                                 type="number"
                                                 value={editCost}
-                                                onChange={(e) => handleCostChange(e.target.value)}
-                                                onBlur={handleCostBlur}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        (e.target as HTMLInputElement).blur();
-                                                    }
+                                                onChange={(e) => {
+                                                    setEditCost(e.target.value);
+                                                    onEdit?.();
                                                 }}
                                                 size="small"
                                                 fullWidth
@@ -598,10 +514,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                             <Select
                                                 value={editPriority.toLowerCase()}
                                                 label="優先度"
-                                                onChange={async (e) => {
-                                                    const val = e.target.value;
-                                                    setEditPriority(val);
-                                                    await onUpdate(task.id, { priority: val.toUpperCase() });
+                                                onChange={(e) => {
+                                                    setEditPriority(e.target.value);
+                                                    onEdit?.();
                                                 }}
                                             >
                                                 <MenuItem value="high">高</MenuItem>
@@ -618,10 +533,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                     <Select
                                         value={editTaskType}
                                         label="タスクタイプ"
-                                        onChange={async (e) => {
-                                            const val = e.target.value;
-                                            setEditTaskType(val);
-                                            await onUpdate(task.id, { type: val || null });
+                                        onChange={(e) => {
+                                            setEditTaskType(e.target.value);
+                                            onEdit?.();
                                         }}
                                     >
                                         <MenuItem value="">未設定</MenuItem>
@@ -637,29 +551,20 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                     <Select
                                         value={editShotRelId ?? ''}
                                         label="既存IDセット"
-                                        onChange={async (e) => {
+                                        onChange={(e) => {
                                             const val = e.target.value;
                                             if (val === '') {
                                                 setEditShotRelId(null);
                                                 setEditSeqID('');
                                                 setEditShotID('');
-                                                await onUpdate(task.id, {
-                                                    shot_id: null,
-                                                    seqID: null,
-                                                    shotID: null
-                                                });
                                             } else {
                                                 const shotNum = Number(val);
                                                 const selectedShot = shots.find(s => s.id === shotNum);
                                                 setEditShotRelId(shotNum);
                                                 setEditSeqID(selectedShot?.seqID ?? '');
                                                 setEditShotID(selectedShot?.shotID ?? '');
-                                                await onUpdate(task.id, {
-                                                    shot_id: shotNum,
-                                                    seqID: selectedShot?.seqID ?? null,
-                                                    shotID: selectedShot?.shotID ?? null
-                                                });
                                             }
+                                            onEdit?.();
                                         }}
                                     >
                                         {!editProjectId ? (
@@ -681,12 +586,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <TextField
                                             label="シーケンスID"
                                             value={editSeqID}
-                                            onChange={(e) => handleSeqIDChange(e.target.value)}
-                                            onBlur={handleSeqIDBlur}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    (e.target as HTMLInputElement).blur();
-                                                }
+                                            onChange={(e) => {
+                                                setEditSeqID(e.target.value);
+                                                onEdit?.();
                                             }}
                                             size="small"
                                             fullWidth
@@ -699,12 +601,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                         <TextField
                                             label="ショットID"
                                             value={editShotID}
-                                            onChange={(e) => handleShotIDChange(e.target.value)}
-                                            onBlur={handleShotIDBlur}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    (e.target as HTMLInputElement).blur();
-                                                }
+                                            onChange={(e) => {
+                                                setEditShotID(e.target.value);
+                                                onEdit?.();
                                             }}
                                             size="small"
                                             fullWidth
@@ -719,10 +618,10 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                     options={taskOptions}
                                     getOptionLabel={(option) => option.name}
                                     value={taskOptions.filter(opt => editDependsOn.includes(opt.id))}
-                                    onChange={async (_event, newValue) => {
+                                    onChange={(_event, newValue) => {
                                         const newDependsOn = newValue.map(v => v.id);
                                         setEditDependsOn(newDependsOn);
-                                        await onUpdate(task.id, { dependsOn: newDependsOn });
+                                        onEdit?.();
                                     }}
                                     isOptionEqualToValue={(option, value) => option.id === value.id}
                                     disabled={!editProjectId}
@@ -865,13 +764,13 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                     </Box>
 
                     {/* Phases (Sub-milestones) */}
-                    {task.phases && task.phases.length > 0 && (
+                    {editPhases && editPhases.length > 0 && (
                         <Box>
                             <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                 <CalendarTodayIcon fontSize="small" color="primary" /> 段階目標
                             </Typography>
                             <List sx={{ p: 0, bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 1 }}>
-                                {task.phases.map((p, idx) => (
+                                {editPhases.map((p, idx) => (
                                     <ListItem key={idx} sx={{ py: 0.5, px: 2 }}>
                                         <FormControlLabel
                                             control={
@@ -879,10 +778,11 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                                                     size="small"
                                                     checked={!!p.is_completed}
                                                     disabled={!isAdmin}
-                                                    onChange={async (e) => {
-                                                        const updatedPhases = [...(task.phases || [])];
+                                                    onChange={(e) => {
+                                                        const updatedPhases = [...editPhases];
                                                         updatedPhases[idx] = { ...updatedPhases[idx], is_completed: e.target.checked };
-                                                        await onUpdate(task.id, { phases: updatedPhases });
+                                                        setEditPhases(updatedPhases);
+                                                        onEdit?.();
                                                     }}
                                                 />
                                             }
@@ -971,21 +871,9 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
 
                     {/* Memo (Deliverables) */}
                     <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <AssignmentIcon fontSize="small" color="primary" /> メモ
-                            </Typography>
-                            {isAdmin && localDeliverables !== (task.deliverables || '') && (
-                                <Button
-                                    size="small"
-                                    variant="contained"
-                                    onClick={handleDeliverablesBlur}
-                                    sx={{ py: 0, fontSize: '0.75rem' }}
-                                >
-                                    確定
-                                </Button>
-                            )}
-                        </Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            <AssignmentIcon fontSize="small" color="primary" /> メモ
+                        </Typography>
                         <TextField
                             key={`deliverables-input-${task.id}`}
                             multiline
@@ -994,14 +882,11 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                             size="small"
                             placeholder={isAdmin ? "タスクに関するメモやリンク、参考情報をご記入ください..." : "メモはありません"}
                             value={localDeliverables}
-                            onChange={(e) => handleDeliverablesChange(e.target.value)}
-                            onBlur={handleDeliverablesBlur}
-                            disabled={!isAdmin}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                    handleDeliverablesBlur();
-                                }
+                            onChange={(e) => {
+                                setLocalDeliverables(e.target.value);
+                                onEdit?.();
                             }}
+                            disabled={!isAdmin}
                             sx={{
                                 '& .MuiInputBase-root': {
                                     fontSize: '0.85rem',
@@ -1011,6 +896,57 @@ export const TaskQuickDetail: React.FC<TaskQuickDetailProps> = ({ task, projects
                         />
                     </Box>
                 </Box>
+
+                {/* Sticky Action Footer Bar */}
+                {isAdmin && (
+                    <Box sx={{
+                        position: 'sticky',
+                        bottom: -16,
+                        left: 0,
+                        right: 0,
+                        mx: -2,
+                        mb: -2,
+                        mt: 2,
+                        p: 2,
+                        bgcolor: isDark ? '#1e293b' : '#ffffff',
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                        boxShadow: isDark ? '0 -4px 20px rgba(0,0,0,0.5)' : '0 -4px 20px rgba(0,0,0,0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        zIndex: 10,
+                        borderRadius: '0 0 12px 12px',
+                    }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: isDirty ? 'warning.main' : 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            {isDirty ? '● 未保存の変更があります' : 'すべての変更が保存されています'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            {isDirty && (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    color="inherit"
+                                    onClick={handleResetForm}
+                                    disabled={isSaving}
+                                >
+                                    元に戻す
+                                </Button>
+                            )}
+                            <Button
+                                size="small"
+                                variant="contained"
+                                color="primary"
+                                startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+                                onClick={handleSave}
+                                disabled={!isDirty || isSaving}
+                                sx={{ fontWeight: 700, px: 2 }}
+                            >
+                                {isSaving ? '保存中...' : '保存'}
+                            </Button>
+                        </Box>
+                    </Box>
+                )}
             </Box>
         </LocalizationProvider>
     );

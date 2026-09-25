@@ -124,11 +124,16 @@ class MeetingAnalyzer:
             from ..database import SessionLocal
             db = SessionLocal()
             db_meeting = None
+            attendee_names: List[str] = []
             try:
                 db_meeting = crud.get_meeting(db, meeting_id=meeting_id)
-                if not db_meeting: 
+                if not db_meeting:
                     logger.error(f"Meeting {meeting_id} not found in DB.")
                     return
+                attendee_names = [
+                    a.get("name") for a in (db_meeting.attendees or [])
+                    if isinstance(a, dict) and a.get("name")
+                ]
                 crud.update_meeting(db, db_meeting, {"status": "processing", "analysis_backend": "local"})
                 db.commit()
             except Exception as e:
@@ -158,10 +163,10 @@ class MeetingAnalyzer:
                 all_results = []
                 for i, path in enumerate(chunk_paths):
                     logger.info(f"Processing chunk {i+1}/{len(chunk_paths)}: {path}")
-                    res = await self._process_segment_with_retry(path, i+1, len(chunk_paths), meeting_id)
+                    res = await self._process_segment_with_retry(path, i+1, len(chunk_paths), meeting_id, attendee_names)
                     if res:
                         all_results.append(res)
-                    
+
                     if i < len(chunk_paths) - 1:
                         await asyncio.sleep(float(os.getenv("ANALYZE_CHUNK_SLEEP", "30")))
 
@@ -169,7 +174,7 @@ class MeetingAnalyzer:
                     raise Exception("No results obtained from any segment.")
 
                 # 2. 全結果の統合
-                final_minutes = await self._consolidate_results(all_results, meeting_id)
+                final_minutes = await self._consolidate_results(all_results, meeting_id, attendee_names)
 
                 # 3. 確定保存と後処理(RAG / Decision / MeetingTask)
                 # 議事録AIエージェント経路(services/minutes_agent.py)と同じ関数を使い、
@@ -195,7 +200,7 @@ class MeetingAnalyzer:
             finally:
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
-    async def _process_segment_with_retry(self, path: str, index: int, total: int, meeting_id: int) -> Optional[Dict[str, Any]]:
+    async def _process_segment_with_retry(self, path: str, index: int, total: int, meeting_id: int, attendee_names: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
         """セグメントを処理する。
         方針:
         1) 文字起こしは Whisper の【生テキストをそのまま】採用する（LLMに書き換え・補完させない）。
@@ -222,6 +227,16 @@ class MeetingAnalyzer:
 
         # --- 2) LLMは「抽出のみ」。文字起こしの再生成・創作は禁止 ---
         segment_info = f"（第 {index} / {total} セグメント）" if total > 1 else ""
+        attendee_block = ""
+        if attendee_names:
+            attendee_block = (
+                "【会議参加者（既知の氏名一覧）】\n"
+                "文字起こし中でこれらの名前や、その一部・言い換え・敬称付きの表記が話されている場合は、"
+                "担当者名など人名の表記をこの正式表記に正規化してください。"
+                "話者分離は行われていないため、ここに無い名前が明確に話されている場合はそれを優先し、"
+                "この参加者一覧の誰かが発言したと無理に決めつけないでください。\n"
+                f"{', '.join(attendee_names)}\n\n"
+            )
         extract_prompt = f"""あなたは会議の文字起こしから重要情報だけを抽出する精密な議事録アシスタントです。{segment_info}
 
 【最重要ルール】
@@ -230,7 +245,7 @@ class MeetingAnalyzer:
 - 文字起こし本文は出力しないでください（抽出結果のみ）。挨拶・前置き・「改善します」等の締め文句も一切書かないでください。
 - 各項目は「それ」「この件」等の曖昧な指示語のまま書かず、文字起こし中で実際に使われている具体的な名称（人名・作品名・機能名など）に置き換えてください（新しい情報を作るのではなく、同じ文字起こし内の語で言い換えるだけです）。
 
-【対象の文字起こし】
+{attendee_block}【対象の文字起こし】
 {raw}
 
 【出力フォーマット】（このキーワードだけをセクション区切りに使用し、他の説明文は書かない）
@@ -361,7 +376,7 @@ class MeetingAnalyzer:
         """決定事項等として不適切な、モデルのナレーション/メタ文かどうかを判定する。"""
         return is_meta_line(item, self._META_MARKERS)
 
-    async def _consolidate_results(self, chunk_results: List[Dict[str, Any]], meeting_id: int) -> Dict[str, Any]:
+    async def _consolidate_results(self, chunk_results: List[Dict[str, Any]], meeting_id: int, attendee_names: Optional[List[str]] = None) -> Dict[str, Any]:
         """全てのチャンク結果を一つの議事録データに統合・整形する"""
         full_transcript = []
         all_decisions = []
@@ -389,7 +404,16 @@ class MeetingAnalyzer:
             }
 
         logger.info("Executing final consolidation pass...")
-        
+
+        attendee_block = ""
+        attendee_requirement = ""
+        if attendee_names:
+            attendee_block = (
+                "【会議参加者（既知の氏名一覧。担当者名の表記正規化に使用）】\n"
+                f"{', '.join(attendee_names)}\n\n"
+            )
+            attendee_requirement = "\n4. 担当者名の表記ゆれがある場合は、参加者一覧の正式な表記に統一してください。"
+
         # 抽出項目を整理するためのプロンプト
         summary_prompt = f"""
 あなたは、断片的な抽出データと文字起こしを元に、統合された完璧な議事録を作成するシニア・エディターです。
@@ -398,7 +422,7 @@ class MeetingAnalyzer:
 【出力言語（最優先・絶対厳守）】
 出力はすべて【必ず日本語】で記述してください。中国語（简体字・繁体字）や英語での出力は固く禁止します。
 
-【提供された断片データ】
+{attendee_block}【提供された断片データ】
 決定事項: {all_decisions}
 タスク: {all_tasks}
 論点: {all_points}
@@ -407,7 +431,7 @@ class MeetingAnalyzer:
 【要件】
 1. 重複排除: 同じ内容の決定事項やタスクが複数回出てくる場合、最も詳細なもの一つに統合してください。
 2. 矛盾の解消: セグメント間で矛盾する記述がある場合、全体の流れから総合的に判断してください。
-3. 構造化: 誰がいつまでに何をすべきか、何が決まったのかを、即座に実行可能なレベルで整理してください。
+3. 構造化: 誰がいつまでに何をすべきか、何が決まったのかを、即座に実行可能なレベルで整理してください。{attendee_requirement}
 
 【出力フォーマット】（厳守。説明なしで直接開始してください）
 ===DECISIONS===

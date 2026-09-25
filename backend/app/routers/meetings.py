@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import asyncio
+import json
 import mimetypes
 import uuid
 import shutil
@@ -28,6 +29,21 @@ AUDIO_DIR = BASE_DIR / "data" / "audio"
 def ensure_audio_dir():
     if not AUDIO_DIR.exists():
         AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _parse_attendee_names(raw: Optional[str]) -> List[str]:
+    """会議参加者名のJSON配列文字列（例: '["田中","鈴木"]'）をパースする。
+    不正な入力でも生成処理自体は止めたくないため、失敗時は空リストを返す。"""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        logger.warning(f"Failed to parse attendees JSON: {raw!r}")
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(n).strip() for n in parsed if str(n).strip()]
 
 
 # 音声の物理ファイルとして許可するディレクトリ。
@@ -100,6 +116,7 @@ async def upload_meeting_audio(
     background_tasks: BackgroundTasks,
     title: str = Form("新規会議"),
     date: Optional[str] = Form(None),
+    attendees: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
@@ -149,10 +166,12 @@ async def upload_meeting_audio(
                  except ValueError:
                      pass
 
+        attendee_names = _parse_attendee_names(attendees)
         meeting_in = schemas.MeetingCreate(
-            title=title, 
-            project_id=project_id, 
-            date=meeting_date or now_jst_naive()
+            title=title,
+            project_id=project_id,
+            date=meeting_date or now_jst_naive(),
+            attendees=[{"name": n} for n in attendee_names] or None
         )
         db_meeting = crud.create_meeting(db, meeting=meeting_in)
         db_meeting.uuid = meeting_uuid
@@ -501,6 +520,7 @@ async def start_recording(
     project_id: int,
     title: str = Form("新規録音会議"),
     date: Optional[str] = Form(None),
+    attendees: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -526,13 +546,15 @@ async def start_recording(
             pass
 
     meeting_uuid = str(uuid.uuid4())
+    attendee_names = _parse_attendee_names(attendees)
 
     db_meeting = models.Meeting(
         project_id=project_id,
         title=title,
         date=meeting_date or now_jst_naive(),
         status="recording",
-        uuid=meeting_uuid
+        uuid=meeting_uuid,
+        attendees=[{"name": n} for n in attendee_names] or None
     )
     db.add(db_meeting)
     db.commit()
@@ -582,6 +604,7 @@ async def complete_recording(
     background_tasks: BackgroundTasks,
     total_chunks: int = Form(...),
     force: bool = Form(False),
+    attendees: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -613,6 +636,11 @@ async def complete_recording(
             "missing_indexes": missing_chunks,
             "message": "一部のチャンクがサーバー上に存在しません。再送信するか、欠損したまま結合（force=true）してください。"
         }
+
+    # 参加者リストが送られてきていれば、録音停止時点の最終値として上書きする
+    attendee_names = _parse_attendee_names(attendees)
+    if attendee_names:
+        db_meeting.attendees = [{"name": n} for n in attendee_names]
 
     # ステータスを processing に更新
     db_meeting.status = "processing"
@@ -790,6 +818,7 @@ async def _reanalyze_existing_audio(meeting_id: int, audio_path: str, project_id
 async def reanalyze_meeting(
     meeting_id: int,
     background_tasks: BackgroundTasks,
+    attendees: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -800,6 +829,12 @@ async def reanalyze_meeting(
     db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id).first()
     if not db_meeting:
         raise HTTPException(status_code=404, detail="会議が見つかりません")
+
+    # 参加者リストが送られてきていれば、再生成前に上書きしておく（音声/チャンクどちらの経路でも共通で反映）
+    attendee_names = _parse_attendee_names(attendees)
+    if attendee_names:
+        db_meeting.attendees = [{"name": n} for n in attendee_names]
+        db.commit()
 
     uuid_str = db_meeting.uuid
 

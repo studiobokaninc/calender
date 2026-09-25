@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box, Button, Typography, Paper, Dialog, DialogTitle,
-  DialogContent, DialogActions, CircularProgress, Alert, IconButton, Tooltip
+  DialogContent, DialogActions, CircularProgress, Alert, IconButton, Tooltip,
+  TextField, Autocomplete, Chip
 } from '@mui/material';
 import {
   Mic as MicIcon,
@@ -26,7 +27,34 @@ interface SavedRecording {
   projectId: number;
   title: string;
   startTime: number;
+  attendees?: string[];
 }
+
+// 参加者名の自由入力欄（開始・停止両ダイアログで共用。ProjectMeetingsからも再利用）
+export const AttendeesInput: React.FC<{ value: string[]; onChange: (v: string[]) => void }> = ({ value, onChange }) => (
+  <Autocomplete
+    multiple
+    freeSolo
+    options={[]}
+    value={value}
+    onChange={(_e, newValue) => onChange(newValue as string[])}
+    renderTags={(tagValue, getTagProps) =>
+      tagValue.map((option, index) => (
+        <Chip variant="outlined" label={option} size="small" {...getTagProps({ index })} />
+      ))
+    }
+    renderInput={(params) => (
+      <TextField
+        {...params}
+        variant="outlined"
+        label="会議参加者（任意）"
+        placeholder="名前を入力してEnter"
+        helperText="登録ユーザーでなくても自由に入力できます。議事録の担当者名の精度が上がります。"
+        sx={{ mt: 1 }}
+      />
+    )}
+  />
+);
 
 const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordingComplete }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -37,10 +65,23 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
   const [title, setTitle] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [uploadingStatus, setUploadingStatus] = useState<string>('');
-  
+  const [chunkUploadFailures, setChunkUploadFailures] = useState(0);
+
   // 復旧ダイアログ用
   const [pendingRecording, setPendingRecording] = useState<SavedRecording | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
+
+  // 開始ダイアログ（タイトル＋参加者）
+  const [showStartDialog, setShowStartDialog] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftAttendees, setDraftAttendees] = useState<string[]>([]);
+
+  // 停止確認ダイアログ（参加者の追記・修正が可能）
+  const [showStopDialog, setShowStopDialog] = useState(false);
+  const [stopAttendees, setStopAttendees] = useState<string[]>([]);
+
+  // このセッションで確定している参加者（復旧フローや停止ダイアログの初期値に使う）
+  const sessionAttendeesRef = useRef<string[]>([]);
 
   // マイク(getUserMedia)はセキュアコンテキスト(HTTPS/localhost)限定。http://<LAN-IP> 等では
   // navigator.mediaDevices が無く、Chromeのサイト設定でもマイク許可がグレーアウトして変更できない。
@@ -123,26 +164,48 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
     }
   };
 
-  // 録音の開始
-  const handleStart = async () => {
+  // 録音開始ボタン：非セキュア接続ならヘルプを、それ以外はタイトル＋参加者ダイアログを開く
+  const handleStart = () => {
     setError(null);
-    // 非セキュア接続ではブラウザがマイクを許可しない。タイトル入力前に手順ダイアログを出す。
     if (micUnavailable) { setShowMicHelp(true); return; }
-    const meetingTitle = window.prompt('会議のタイトルを入力してください：', `定例会議_${new Date().toLocaleDateString('ja-JP')}`);
-    if (meetingTitle === null) return; // キャンセル
+    setDraftTitle(`定例会議_${new Date().toLocaleDateString('ja-JP')}`);
+    setDraftAttendees([]);
+    setShowStartDialog(true);
+  };
 
-    const finalTitle = meetingTitle.trim() || `定例会議_${new Date().toLocaleDateString('ja-JP')}`;
+  // ダイアログ確定後の実際の録音開始処理
+  const handleConfirmStart = async () => {
+    setShowStartDialog(false);
+    const finalTitle = draftTitle.trim() || `定例会議_${new Date().toLocaleDateString('ja-JP')}`;
+    const attendeeNames = draftAttendees.map(a => a.trim()).filter(Boolean);
     setTitle(finalTitle);
+    sessionAttendeesRef.current = attendeeNames;
 
     try {
       // 1. マイクアクセスの取得
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
+      // マイク切断（デバイス取り外し等）の検知。無音のまま録音が続くのを防ぐ。
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => {
+          console.warn('Audio track ended unexpectedly (device disconnected?).');
+          setError('マイクデバイスの接続が切れました。録音を停止し、マイクを確認して再度開始してください。');
+          isStoppingRef.current = true;
+          if (chunkIntervalRef.current) { clearInterval(chunkIntervalRef.current); chunkIntervalRef.current = null; }
+          if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+          setIsRecording(false);
+        };
+      });
+
       // 2. サーバー側で録音セッションを開始
       const formData = new FormData();
       formData.append('title', finalTitle);
       formData.append('date', new Date().toISOString());
+      formData.append('attendees', JSON.stringify(attendeeNames));
 
       const res = await api.post(`/projects/${projectId}/meetings/record/start`, formData);
       const { meeting_id, meeting_uuid } = res.data;
@@ -153,6 +216,7 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
       setIsPaused(false);
       setIsMuted(false);
       setTimer(0);
+      setChunkUploadFailures(0);
       currentChunkIndexRef.current = 0;
       isStoppingRef.current = false;
 
@@ -162,7 +226,8 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
         meetingUuid: meeting_uuid,
         projectId,
         title: finalTitle,
-        startTime: Date.now()
+        startTime: Date.now(),
+        attendees: attendeeNames
       }));
 
       // 4. Wake Lock 取得
@@ -238,6 +303,19 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
         uploadChunk(currentMeetingId, chunkIndex, blob);
       };
 
+      // MediaRecorder自体がエラーを起こした場合（ドライバ異常等）、
+      // 何も知らせないと「録音中」表示のまま実際は何も録れていない状態になる。
+      recorder.onerror = (event: any) => {
+        console.error('MediaRecorder error:', event?.error || event);
+        setError(`録音デバイスでエラーが発生しました（${event?.error?.name || 'unknown'}）。録音を停止しました。再度開始してください。`);
+        isStoppingRef.current = true;
+        if (chunkIntervalRef.current) { clearInterval(chunkIntervalRef.current); chunkIntervalRef.current = null; }
+        if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null; }
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        streamRef.current = null;
+        setIsRecording(false);
+      };
+
       // 録音開始
       recorder.start();
 
@@ -268,13 +346,25 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
       // 送信成功したためIndexedDBから削除
       await deleteChunk(mId, index);
       setUploadingStatus('');
-    } catch (err) {
+    } catch (err: any) {
       console.warn(`Chunk ${index} upload failed (attempt ${attempt}):`, err);
-      // ネットワーク切断などの場合は、10秒後にリトライ（最大10回）
+      // 認証切れ(401)はリトライしても回復しないため即座に打ち切り、ユーザーに明示する。
+      // チャンクはIndexedDBに残っているため、再ログイン後に「未送信の録音データ」から復旧可能。
+      if (err?.response?.status === 401) {
+        setError('認証の有効期限が切れました。録音データは端末に保存されています。録音を停止し、再ログイン後に「未送信の録音データ」から復旧してください。');
+        return;
+      }
+      // ネットワーク切断などの場合はリトライ（最大10回、指数バックオフ・上限30秒）
       if (attempt <= 10 && isRecording) {
+        const delay = Math.min(5000 * attempt, 30000);
         setTimeout(() => {
           uploadChunk(mId, index, blob, attempt + 1);
-        }, 10000);
+        }, delay);
+      } else if (attempt > 10) {
+        // リトライを使い切った。チャンクはIndexedDBに残っているので消失はしないが、
+        // 従来はここで無言で諦めていたため画面上に見える形で知らせる。
+        setChunkUploadFailures(prev => prev + 1);
+        setError('一部の音声チャンクの送信に失敗しました（自動再試行を終了）。録音データは端末に保存されています。録音停止後、「未送信の録音データ」から再送信してください。');
       }
     }
   };
@@ -283,31 +373,49 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
   const handlePauseToggle = () => {
     if (!mediaRecorderRef.current) return;
 
-    if (isPaused) {
-      mediaRecorderRef.current.resume();
-      setIsPaused(false);
-    } else {
-      mediaRecorderRef.current.pause();
-      setIsPaused(true);
+    try {
+      if (isPaused) {
+        mediaRecorderRef.current.resume();
+        setIsPaused(false);
+      } else {
+        mediaRecorderRef.current.pause();
+        setIsPaused(true);
+      }
+    } catch (e) {
+      console.error('Failed to toggle pause state:', e);
+      setError('一時停止/再開の操作に失敗しました。録音デバイスの状態を確認してください。');
     }
   };
 
   // ミュート・解除（音声トラックを有効/無効化する）
   const handleMuteToggle = () => {
     if (!streamRef.current) return;
-    
-    const audioTrack = streamRef.current.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = isMuted; // 有効化フラグを設定
-      setIsMuted(!isMuted);
+
+    try {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = isMuted; // 有効化フラグを設定
+        setIsMuted(!isMuted);
+      }
+    } catch (e) {
+      console.error('Failed to toggle mute state:', e);
+      setError('ミュート/解除の操作に失敗しました。');
     }
   };
 
-  // 録音の終了
-  const handleStop = async () => {
+  // 録音停止ボタン：確認＋参加者の最終確認ダイアログを開く
+  const handleStop = () => {
     if (!mediaRecorderRef.current || !meetingIdRef.current) return;
+    setStopAttendees(sessionAttendeesRef.current);
+    setShowStopDialog(true);
+  };
 
-    if (!window.confirm('録音を終了して議事録を作成しますか？')) return;
+  // ダイアログ確定後の実際の停止処理
+  const handleConfirmStop = async () => {
+    setShowStopDialog(false);
+    if (!mediaRecorderRef.current || !meetingIdRef.current) return;
+    const attendeeNames = stopAttendees.map(a => a.trim()).filter(Boolean);
+    sessionAttendeesRef.current = attendeeNames;
 
     setIsSaving(true);
     isStoppingRef.current = true;
@@ -338,10 +446,20 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
     const currentMeetingId = meetingIdRef.current;
     const totalChunks = currentChunkIndexRef.current + 1;
 
+    let pollAttempts = 0;
+    const MAX_POLL_ATTEMPTS = 150; // 2秒間隔 * 150 = 5分でタイムアウト
     const checkAndComplete = setInterval(async () => {
+      pollAttempts++;
       try {
         const unsent = await getUnsentChunks(currentMeetingId);
         if (unsent.length > 0) {
+          if (pollAttempts >= MAX_POLL_ATTEMPTS) {
+            clearInterval(checkAndComplete);
+            setIsSaving(false);
+            setUploadingStatus('');
+            setError(`一部の音声データ（${unsent.length}件）を送信できませんでした。ネットワーク状況を確認し、画面を再読み込みして「未送信の録音データ」から復旧してください。`);
+            return;
+          }
           setUploadingStatus(`残りの音声データを送信中... (残り: ${unsent.length}件)`);
           return;
         }
@@ -353,6 +471,7 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
           const completeData = new FormData();
           completeData.append('total_chunks', totalChunks.toString());
           completeData.append('force', 'true');
+          completeData.append('attendees', JSON.stringify(attendeeNames));
           await api.post(`/meetings/${currentMeetingId}/record/complete`, completeData);
 
           // 成功時のみローカルをクリーンアップ
@@ -392,16 +511,18 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
     setError(null);
 
     const mId = pendingRecording.meetingId;
-    
+    const attendeeNames = pendingRecording.attendees || [];
+
     try {
       const unsent = await getUnsentChunks(mId);
-      
+
       if (unsent.length === 0) {
         // 未送信チャンクがない場合は、推測される最大インデックスで完了を試みる
         // (完了処理はサーバー側で存在するファイルのみで結合される)
         const completeData = new FormData();
         completeData.append('total_chunks', '1000'); // 十分に大きな値
         completeData.append('force', 'true');
+        completeData.append('attendees', JSON.stringify(attendeeNames));
         await api.post(`/meetings/${mId}/record/complete`, completeData);
       } else {
         // 残っているチャンクをアップロード
@@ -409,18 +530,19 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
           const formData = new FormData();
           formData.append('file', item.blob, `chunk_${item.index}.webm`);
           formData.append('chunk_index', item.index.toString());
-          
+
           await api.post(`/meetings/${mId}/record/chunk`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
           });
           await deleteChunk(mId, item.index);
         }
-        
+
         // 最大インデックスを取得して完了
         const maxIndex = Math.max(...unsent.map(u => u.index));
         const completeData = new FormData();
         completeData.append('total_chunks', (maxIndex + 1).toString());
         completeData.append('force', 'true');
+        completeData.append('attendees', JSON.stringify(attendeeNames));
         await api.post(`/meetings/${mId}/record/complete`, completeData);
       }
 
@@ -431,8 +553,23 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
       onRecordingComplete();
       alert('中断された録音データの復旧・解析依頼が完了しました。');
     } catch (err) {
-      console.error('Failed to recover recording:', err);
-      setError('録音データの復旧に失敗しました。サーバーに接続できないか、データが既に失われている可能性があります。');
+      console.error('Failed to recover recording via record/complete, falling back to reanalyze:', err);
+      // record/complete が失敗する場合（例: バックエンド再起動時のクリーンアップで
+      // status が recording/failed 以外に変わってしまった等）でも、サーバー側に残っている
+      // temp_audio のチャンクからステータス不問で復旧できる /reanalyze を試す。
+      try {
+        const reanalyzeData = new FormData();
+        reanalyzeData.append('attendees', JSON.stringify(attendeeNames));
+        await api.post(`/projects/${projectId}/meetings/${mId}/reanalyze`, reanalyzeData);
+        localStorage.removeItem('current_recording');
+        await clearMeetingChunks(mId);
+        setPendingRecording(null);
+        onRecordingComplete();
+        alert('サーバーに残っている録音データから復旧・再解析を開始しました。');
+      } catch (err2) {
+        console.error('Failed to recover recording via reanalyze fallback:', err2);
+        setError('録音データの復旧に失敗しました。サーバーに接続できないか、データが既に失われている可能性があります。');
+      }
     } finally {
       setIsRecovering(false);
     }
@@ -489,6 +626,41 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
           このページ（{pageOrigin}）はHTTPSではないため、ブラウザがマイクを許可しません。録音するには対処が必要です。
         </Alert>
       )}
+
+      {/* 録音開始ダイアログ（タイトル＋参加者） */}
+      <Dialog open={showStartDialog} onClose={() => setShowStartDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>録音を開始</DialogTitle>
+        <DialogContent dividers>
+          <TextField
+            autoFocus
+            fullWidth
+            label="会議のタイトル"
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <AttendeesInput value={draftAttendees} onChange={setDraftAttendees} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowStartDialog(false)}>キャンセル</Button>
+          <Button variant="contained" color="error" onClick={handleConfirmStart}>開始</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 録音停止確認ダイアログ（参加者の追記・修正が可能） */}
+      <Dialog open={showStopDialog} onClose={() => setShowStopDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>録音を終了して議事録を作成しますか？</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">
+            参加者名を確認・追記してください。担当者名の抽出精度が上がります。
+          </Typography>
+          <AttendeesInput value={stopAttendees} onChange={setStopAttendees} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowStopDialog(false)}>キャンセル</Button>
+          <Button variant="contained" color="error" onClick={handleConfirmStop}>終了して作成</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* マイク有効化の手順ダイアログ（Chromeフラグによる回避策） */}
       <Dialog open={showMicHelp} onClose={() => setShowMicHelp(false)} maxWidth="sm" fullWidth>
@@ -682,6 +854,13 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
               </Button>
             </Box>
           </Box>
+
+          {/* チャンク送信の再試行が尽きた場合の持続的な警告 */}
+          {chunkUploadFailures > 0 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              {chunkUploadFailures}個の音声チャンクの送信に失敗しました。録音は続行していますが、録音停止後に「未送信の録音データ」からの再送信が必要になる場合があります。
+            </Alert>
+          )}
 
           {/* アップロード中のステータス表示 */}
           {uploadingStatus && (

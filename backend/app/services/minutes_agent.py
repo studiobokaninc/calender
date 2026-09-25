@@ -103,6 +103,7 @@ def _load(meeting_id: int) -> Optional[Dict[str, Any]]:
             "transcript": m.transcript,
             "uuid": m.uuid,
             "audio_url": m.audio_url,
+            "attendees": m.attendees,
         }
 
 
@@ -179,12 +180,19 @@ async def analyze(
             await _run_local(meeting_id, audio_path, api_key, "音声ファイルが見つからない", transcript_prefix)
             return
 
+        row = _load(meeting_id)
         if project_id is None:
-            row = _load(meeting_id)
             if not row:
                 logger.error(f"minutes-agent: meeting {meeting_id} が見つかりません")
                 return
             project_id = row["project_id"]
+
+        attendee_names = []
+        if row:
+            attendee_names = [
+                a.get("name") for a in (row.get("attendees") or [])
+                if isinstance(a, dict) and a.get("name")
+            ]
 
         # 委譲の記録は POST の前に行う（accepted 後にこちらが落ちても追跡できるように）
         _mark(meeting_id, {
@@ -198,6 +206,8 @@ async def analyze(
             "project_id": project_id,
             "callback_url": callback_url(),
             "api_token": agent_token(),
+            # forward-compat: リモートエージェント側が対応すれば使う想定。未対応でも無視されるだけで実害なし。
+            "attendee_names": attendee_names,
         }
         url = f"{agent_url()}/process_meeting"
         try:

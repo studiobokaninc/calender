@@ -3,7 +3,8 @@ import {
     Box, Typography, Paper, Button, List, ListItem, ListItemText,
     IconButton, CircularProgress,
     Accordion, AccordionSummary, AccordionDetails,
-    Alert, Snackbar, Grid, Chip, useMediaQuery, useTheme
+    Alert, Snackbar, Grid, Chip, useMediaQuery, useTheme,
+    Dialog, DialogTitle, DialogContent, DialogActions, TextField
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -16,11 +17,12 @@ import {
     Assignment as AssignmentIcon,
     Help as HelpIcon,
     Schedule as ScheduleIcon,
-    Download as DownloadIcon
+    Download as DownloadIcon,
+    People as PeopleIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 import { Meeting } from '../types';
-import MeetingRecorder from './MeetingRecorder';
+import MeetingRecorder, { AttendeesInput } from './MeetingRecorder';
 
 interface ProjectMeetingsProps {
     projectId: number;
@@ -39,6 +41,19 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [loading, setLoading] = useState(true);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+
+    // アップロード確認ダイアログ（タイトル＋参加者）
+    const [pendingUpload, setPendingUpload] = useState<{ file: File; detectedDate: string | null } | null>(null);
+    const [uploadTitle, setUploadTitle] = useState('');
+    const [uploadAttendees, setUploadAttendees] = useState<string[]>([]);
+
+    // 再生成（reanalyze）確認ダイアログ
+    const [reanalyzeTarget, setReanalyzeTarget] = useState<Meeting | null>(null);
+    const [reanalyzeAttendees, setReanalyzeAttendees] = useState<string[]>([]);
+
+    // 参加者の後からの編集ダイアログ
+    const [editAttendeesTarget, setEditAttendeesTarget] = useState<Meeting | null>(null);
+    const [editAttendeesValue, setEditAttendeesValue] = useState<string[]>([]);
 
     useEffect(() => {
         fetchMeetings();
@@ -70,16 +85,77 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
     };
 
     // 失敗/中断した議事録を、サーバに残っている録音データ（結合済み音声 or 録音チャンク）から再生成する
-    const handleReanalyze = async (meetingId: number) => {
-        if (!window.confirm('サーバに残っている録音データから議事録を再生成しますか？')) return;
+    const handleReanalyze = (meeting: Meeting) => {
+        setReanalyzeAttendees((meeting.attendees || []).map(a => a.name));
+        setReanalyzeTarget(meeting);
+    };
+
+    const handleConfirmReanalyze = async () => {
+        if (!reanalyzeTarget) return;
+        const meetingId = reanalyzeTarget.id;
+        setReanalyzeTarget(null);
         try {
-            await api.post(`/projects/${projectId}/meetings/${meetingId}/reanalyze`);
+            const formData = new FormData();
+            formData.append('attendees', JSON.stringify(reanalyzeAttendees.map(a => a.trim()).filter(Boolean)));
+            await api.post(`/projects/${projectId}/meetings/${meetingId}/reanalyze`, formData);
             setSnackbar({ open: true, message: '再生成を開始しました。完了までしばらくお待ちください。', severity: 'success' });
             fetchMeetings(false);
         } catch (err: any) {
             console.error('Reanalyze failed:', err);
             const detail = err?.response?.data?.detail;
             setSnackbar({ open: true, message: detail || '再生成に失敗しました', severity: 'error' });
+        }
+    };
+
+    // 参加者だけを後から編集する（既存の PATCH /api/meetings/{id} を利用）
+    const handleOpenEditAttendees = (meeting: Meeting) => {
+        setEditAttendeesValue((meeting.attendees || []).map(a => a.name));
+        setEditAttendeesTarget(meeting);
+    };
+
+    const handleSaveAttendees = async () => {
+        if (!editAttendeesTarget) return;
+        const meetingId = editAttendeesTarget.id;
+        const names = editAttendeesValue.map(a => a.trim()).filter(Boolean);
+        setEditAttendeesTarget(null);
+        try {
+            await api.patch(`/meetings/${meetingId}`, {
+                attendees: names.map(n => ({ name: n }))
+            });
+            setSnackbar({ open: true, message: '参加者を更新しました', severity: 'success' });
+            fetchMeetings(false);
+        } catch (err) {
+            console.error('Failed to update attendees:', err);
+            setSnackbar({ open: true, message: '参加者の更新に失敗しました', severity: 'error' });
+        }
+    };
+
+    const handleConfirmUpload = async () => {
+        if (!pendingUpload) return;
+        const { file, detectedDate } = pendingUpload;
+        setPendingUpload(null);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', uploadTitle.trim() || file.name.split('.')[0]);
+        formData.append('attendees', JSON.stringify(uploadAttendees.map(a => a.trim()).filter(Boolean)));
+        if (detectedDate) {
+            // サーバー側でパース可能な ISO format で送信
+            formData.append('date', `${detectedDate}T00:00:00Z`);
+        }
+
+        try {
+            setLoading(true);
+            await api.post(`/projects/${projectId}/meetings/upload`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setSnackbar({ open: true, message: 'アップロードが完了しました。解析を開始します。', severity: 'success' });
+            fetchMeetings(); // 一覧を再取得
+        } catch (err) {
+            console.error('Upload failed:', err);
+            setSnackbar({ open: true, message: 'アップロードに失敗しました。', severity: 'error' });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -119,13 +195,10 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                         id="meeting-upload-input"
                         accept="audio/*"
                         style={{ display: 'none' }}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                             const file = e.target.files?.[0];
+                            e.target.value = ''; // 同じファイルを連続選択しても onChange が発火するように
                             if (!file) return;
-
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            formData.append('title', file.name.split('.')[0]);
 
                             // --- 会議実施日の自動検出ロジック ---
                             let detectedDateStr: string | null = null;
@@ -164,26 +237,11 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                 const day = String(lastModDate.getDate()).padStart(2, '0');
                                 detectedDateStr = `${year}-${month}-${day}`;
                             }
-
-                            if (detectedDateStr) {
-                                // サーバー側でパース可能な ISO format で送信
-                                formData.append('date', `${detectedDateStr}T00:00:00Z`);
-                            }
                             // ------------------------------------
 
-                            try {
-                                setLoading(true);
-                                await api.post(`/projects/${projectId}/meetings/upload`, formData, {
-                                    headers: { 'Content-Type': 'multipart/form-data' }
-                                });
-                                setSnackbar({ open: true, message: 'アップロードが完了しました。解析を開始します。', severity: 'success' });
-                                fetchMeetings(); // 一覧を再取得
-                            } catch (err) {
-                                console.error('Upload failed:', err);
-                                setSnackbar({ open: true, message: 'アップロードに失敗しました。', severity: 'error' });
-                            } finally {
-                                setLoading(false);
-                            }
+                            setUploadTitle(file.name.split('.')[0]);
+                            setUploadAttendees([]);
+                            setPendingUpload({ file, detectedDate: detectedDateStr });
                         }}
                     />
                     <Button
@@ -236,7 +294,7 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                 size="small"
                                                 variant="outlined"
                                                 color="primary"
-                                                onClick={(e) => { e.stopPropagation(); handleReanalyze(meeting.id); }}
+                                                onClick={(e) => { e.stopPropagation(); handleReanalyze(meeting); }}
                                                 sx={{ textTransform: 'none', whiteSpace: 'nowrap' }}
                                             >
                                                 再生成
@@ -265,6 +323,14 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                             <DownloadIcon fontSize="small" />
                                         </IconButton>
                                     )}
+                                    <IconButton
+                                        size="small"
+                                        title="参加者を編集"
+                                        onClick={(e) => { e.stopPropagation(); handleOpenEditAttendees(meeting); }}
+                                        sx={{ mr: 0.5 }}
+                                    >
+                                        <PeopleIcon fontSize="small" />
+                                    </IconButton>
                                     <IconButton
                                         size="small"
                                         color="error"
@@ -426,8 +492,52 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                 </Box>
             )}
 
-            {/* アップロードダイアログ */}
-            {/* Upload Dialog removed. Automation via Network Drive is now used. */}
+            {/* アップロード確認ダイアログ（タイトル＋参加者） */}
+            <Dialog open={!!pendingUpload} onClose={() => setPendingUpload(null)} maxWidth="sm" fullWidth>
+                <DialogTitle>音声をアップロード</DialogTitle>
+                <DialogContent dividers>
+                    <TextField
+                        autoFocus
+                        fullWidth
+                        label="会議のタイトル"
+                        value={uploadTitle}
+                        onChange={(e) => setUploadTitle(e.target.value)}
+                        sx={{ mb: 2 }}
+                    />
+                    <AttendeesInput value={uploadAttendees} onChange={setUploadAttendees} />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPendingUpload(null)}>キャンセル</Button>
+                    <Button variant="contained" onClick={handleConfirmUpload}>アップロード</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* 再生成確認ダイアログ（参加者の追記・修正が可能） */}
+            <Dialog open={!!reanalyzeTarget} onClose={() => setReanalyzeTarget(null)} maxWidth="sm" fullWidth>
+                <DialogTitle>サーバに残っている録音データから議事録を再生成しますか？</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" sx={{ mb: 1 }} color="text.secondary">
+                        参加者名を確認・追記してください。担当者名の抽出精度が上がります。
+                    </Typography>
+                    <AttendeesInput value={reanalyzeAttendees} onChange={setReanalyzeAttendees} />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setReanalyzeTarget(null)}>キャンセル</Button>
+                    <Button variant="contained" color="primary" onClick={handleConfirmReanalyze}>再生成</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* 参加者の後からの編集ダイアログ */}
+            <Dialog open={!!editAttendeesTarget} onClose={() => setEditAttendeesTarget(null)} maxWidth="sm" fullWidth>
+                <DialogTitle>参加者を編集</DialogTitle>
+                <DialogContent dividers>
+                    <AttendeesInput value={editAttendeesValue} onChange={setEditAttendeesValue} />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setEditAttendeesTarget(null)}>キャンセル</Button>
+                    <Button variant="contained" onClick={handleSaveAttendees}>保存</Button>
+                </DialogActions>
+            </Dialog>
 
             <Snackbar
                 open={snackbar.open}

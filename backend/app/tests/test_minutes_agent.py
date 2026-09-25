@@ -501,7 +501,7 @@ async def test_watchdog_treats_unknown_stage_as_alive(
     from app.services import minutes_agent
 
     meeting = _make_meeting(db, status="processing", backend="agent")
-    monkeypatch.setattr(minutes_agent, "job_timeout_sec", lambda: 0)
+    monkeypatch.setattr(minutes_agent, "watchdog_interval_sec", lambda: 0)
 
     async def fake_job_status(mid):
         return {"meeting_id": mid, "status": "extracting", "progress": 65}
@@ -563,3 +563,69 @@ def test_normal_content_is_not_over_filtered():
     ]
     out = normalize_minutes({"transcript": "x", "decisions": keep})
     assert out["decisions"] == keep
+
+
+@pytest.mark.anyio
+async def test_watchdog_tolerates_transient_unreachable(
+    enabled_agent, db, monkeypatch, anyio_backend
+):
+    """エージェントへ照会できないだけでは即failedにしない（瞬断でジョブを殺さない）。
+
+    TTLを短くしても安全に運用できることの担保。
+    規定回数を超えて照会不能が続いたときだけ失敗として扱う。
+    """
+    from app.services import minutes_agent
+
+    meeting = _make_meeting(db, status="processing", backend="agent")
+    monkeypatch.setattr(minutes_agent, "watchdog_interval_sec", lambda: 0)
+
+    async def unreachable(mid):
+        return None
+
+    failed = {}
+
+    async def fake_failure(meeting_id, audio_path, api_key, reason):
+        failed["reason"] = reason
+        return "failed"
+
+    monkeypatch.setattr(minutes_agent, "agent_job_status", unreachable)
+    monkeypatch.setattr(minutes_agent, "_handle_failure", fake_failure)
+
+    # 1回目・2回目は再スケジュールされ、失敗しない
+    await minutes_agent._watchdog(meeting.id, "/tmp/x.webm", None, unreachable_strikes=0)
+    assert "reason" not in failed
+    await minutes_agent._watchdog(meeting.id, "/tmp/x.webm", None, unreachable_strikes=1)
+    assert "reason" not in failed
+
+    # 規定回数に達したら失敗として扱う
+    await minutes_agent._watchdog(meeting.id, "/tmp/x.webm", None, unreachable_strikes=2)
+    assert failed.get("reason") == "タイムアウト"
+
+
+@pytest.mark.anyio
+async def test_watchdog_fails_when_agent_says_done_but_no_callback(
+    enabled_agent, db, monkeypatch, anyio_backend
+):
+    """エージェント側が完了しているのに結果が届かない＝折り返し経路の不通。
+
+    そのまま放置せずフォールバックへ回す。
+    """
+    from app.services import minutes_agent
+
+    meeting = _make_meeting(db, status="processing", backend="agent")
+    monkeypatch.setattr(minutes_agent, "watchdog_interval_sec", lambda: 0)
+
+    async def done(mid):
+        return {"meeting_id": mid, "status": "completed", "progress": 100}
+
+    failed = {}
+
+    async def fake_failure(meeting_id, audio_path, api_key, reason):
+        failed["reason"] = reason
+        return "failed"
+
+    monkeypatch.setattr(minutes_agent, "agent_job_status", done)
+    monkeypatch.setattr(minutes_agent, "_handle_failure", fake_failure)
+
+    await minutes_agent._watchdog(meeting.id, "/tmp/x.webm", None)
+    assert failed.get("reason") == "タイムアウト"

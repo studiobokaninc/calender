@@ -21,6 +21,7 @@ def create_meeting(db: Session, meeting: schemas.MeetingCreate) -> models.Meetin
         project_id=meeting.project_id,
         date=meeting.date or now_jst_naive(),
         version_group=meeting.version_group,
+        attendees=meeting.attendees,
         created_at=now_jst_naive(),
         updated_at=now_jst_naive()
     )

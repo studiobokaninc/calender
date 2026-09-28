@@ -745,8 +745,10 @@ async def finalize_minutes(
                 meeting_id=meeting_id,
                 content=dec_content,
                 date=ref_date,
-                project_id=db_meeting.project_id
+                project_id=db_meeting.project_id,
+                shot_id=None
             ))
+
             existing_decisions.add(dec_content)
 
         # 検出されたタスクを MeetingTask テーブルに保存

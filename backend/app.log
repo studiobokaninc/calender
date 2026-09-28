@@ -21556,3 +21556,37 @@ LookupError: 'deliver' is not among the defined enum values. Enum name: taskstat
 2026-09-24 20:31:18,697 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
 2026-09-24 20:31:18,697 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
 2026-09-24 20:31:18,704 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-09-28 13:41:19,411 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-09-28 13:41:19,485 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-09-28 13:41:19,486 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-09-28 13:41:19,516 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-09-28 13:41:19,956 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-09-28 13:41:20,010 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-09-28 13:41:20,052 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-09-28 13:41:20,613 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-09-28 13:41:20,938 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-09-28 13:41:29,179 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-09-28 13:41:29,921 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-09-28 13:41:30,658 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-09-28 13:41:31,362 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-09-28 13:41:31,404 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-09-28 13:41:31,547 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-09-28 13:41:31,620 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-09-28 13:41:31,691 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-09-28 13:41:31,694 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-09-28 13:41:31,760 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-09-28 13:41:31,822 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-09-28 13:41:31,890 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-09-28 13:41:31,957 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-09-28 13:41:32,038 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-09-28 13:41:32,106 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-09-28 13:41:32,171 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-09-28 13:41:32,235 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-09-28 13:41:32,239 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-09-28 13:41:33,938 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-09-28 13:41:33,949 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-09-28 13:41:33,949 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-09-28 13:41:33,950 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-09-28 13:41:33,950 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-09-28 13:41:33,950 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-09-28 13:41:33,959 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

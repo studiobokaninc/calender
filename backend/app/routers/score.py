@@ -128,6 +128,21 @@ def create_retake(
     db.refresh(db_retake)
     return db_retake
 
+@router.patch("/retakes/{id}/status", response_model=schemas.Retake)
+def update_retake_status(
+    id: int,
+    status_in: schemas.RetakeStatusUpdate,
+    db: Session = Depends(get_db),
+    actor_id: int = Depends(get_actor_user_id)
+):
+    db_retake = db.query(models.Retake).filter(models.Retake.id == id).first()
+    if not db_retake:
+        raise HTTPException(status_code=404, detail="Retake not found")
+    db_retake.status = status_in.status
+    db.commit()
+    db.refresh(db_retake)
+    return db_retake
+
 @router.post("/shots/{id}/approve", response_model=schemas.ShotResponse)
 def approve_shot(
     id: int,

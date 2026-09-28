@@ -9,8 +9,33 @@ logger = logging.getLogger(__name__)
 VALID_TASK_TYPES = {
     "animation", "layout", "comp", "fx", "lighting", "asset",
     "programming", "design", "testing", "documentation",
-    "shoot", "gs", "report", "other"
+    "shoot", "gs", "report", "other", "unclassified"
 }
+
+def normalize_task_type(v: Optional[str]) -> Optional[str]:
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s:
+        return "other"
+    lower_s = s.lower()
+
+    if lower_s == "aseet":
+        return "asset"
+    elif lower_s in ("anim", "animation"):
+        return "animation"
+    elif lower_s in ("comp", "compositing"):
+        return "comp"
+    elif lower_s in ("l//c", "task") or lower_s in ("other", "unclassified"):
+        if lower_s == "other":
+            return "other"
+        return "unclassified"
+
+    if lower_s in VALID_TASK_TYPES:
+        return lower_s
+
+    return "unclassified"
+
 
 # --- タスクステータス正規化 (task_status_redesign_plan.md §4.2 / §5.2 準拠) ---
 # 旧 API ステータス → 新体系。表記揺れの吸収も兼ねる。
@@ -380,16 +405,7 @@ class TaskBase(BaseModel):
 
     @validator('type', pre=True)
     def validate_task_type(cls, v):
-        if v is None:
-            return None
-        s = str(v).strip().lower()
-        if s == "aseet":
-            s = "asset"
-        elif s == "anim":
-            s = "animation"
-        if s not in VALID_TASK_TYPES:
-            s = "other"
-        return s
+        return normalize_task_type(v)
 
 class TaskCreate(TaskBase):
     project_id: Optional[int] = None
@@ -437,16 +453,7 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
 
     @validator('type', pre=True)
     def validate_task_type_update(cls, v):
-        if v is None:
-            return None
-        s = str(v).strip().lower()
-        if s == "aseet":
-            s = "asset"
-        elif s == "anim":
-            s = "animation"
-        if s not in VALID_TASK_TYPES:
-            s = "other"
-        return s
+        return normalize_task_type(v)
 
 class TaskBulkUpdateRequest(BaseModel):
     """一括更新: 指定したタスクに同じ項目を適用"""
@@ -466,16 +473,7 @@ class TaskBulkUpdateRequest(BaseModel):
 
     @validator('type', pre=True)
     def validate_task_type_bulk(cls, v):
-        if v is None:
-            return None
-        s = str(v).strip().lower()
-        if s == "aseet":
-            s = "asset"
-        elif s == "anim":
-            s = "animation"
-        if s not in VALID_TASK_TYPES:
-            s = "other"
-        return s
+        return normalize_task_type(v)
 
 
 class TaskResponse(TaskBase):
@@ -826,6 +824,7 @@ class DecisionBase(BaseModel):
     superseded: bool = False
     project_id: Optional[int] = None
     meeting_id: Optional[int] = None
+    shot_id: Optional[int] = None
 
 class DecisionCreate(DecisionBase):
     pass
@@ -836,6 +835,7 @@ class DecisionUpdate(BaseModel):
     superseded: Optional[bool] = None
     project_id: Optional[int] = None
     meeting_id: Optional[int] = None
+    shot_id: Optional[int] = None
 
 class DecisionResponse(DecisionBase):
     id: int
@@ -961,6 +961,10 @@ class Retake(RetakeBase):
     creator_name: Optional[str] = None
     class Config:
         from_attributes = True
+
+class RetakeStatusUpdate(BaseModel):
+    status: Literal["open", "in_progress", "closed"]
+
 
 class ChangeRequestBase(BaseModel):
     shot_id: Optional[int] = None
@@ -1438,7 +1442,9 @@ class ReadonlyEvent(BaseModel):
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     location: Optional[str] = None
+    meeting_url: Optional[str] = None
     type: Optional[str] = None
+
     allDay: Optional[bool] = None
     status: Optional[str] = None
     user_ids: Optional[List[int]] = None
@@ -1497,12 +1503,65 @@ class ReadonlyDecision(BaseModel):
     id: int
     meeting_id: Optional[int] = None
     project_id: Optional[int] = None
+    shot_id: Optional[int] = None
     content: str
     date: Optional[datetime] = None
     superseded: bool
 
     class Config:
         from_attributes = True
+
+
+class ReadonlyRetakeTimecode(BaseModel):
+    id: int
+    timecode: str
+    comment: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyRetake(BaseModel):
+    id: int
+    shot_id: int
+    overall_comment: Optional[str] = None
+    status: str
+    priority: Optional[str] = None
+    deadline: Optional[datetime] = None
+    assigned_to: Optional[int] = None
+    created_by: int
+    created_at: datetime
+    timecodes: List[ReadonlyRetakeTimecode] = []
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyAsset(BaseModel):
+    id: int
+    shot_id: Optional[int] = None
+    task_id: Optional[int] = None
+    version: str
+    file_path: Optional[str] = None
+    filename: Optional[str] = None
+    created_by: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ReadonlyTaskStatusHistory(BaseModel):
+    id: int
+    task_id: int
+    status: str
+    changed_at: datetime
+    changed_by: Optional[int] = None
+    change_source: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 
 
 class ReadonlyListResponse(BaseModel):

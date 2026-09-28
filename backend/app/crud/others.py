@@ -254,3 +254,16 @@ def delete_user_personal_calendar(db: Session, user_id: int):
 
 def get_all_user_personal_calendars(db: Session) -> List[models.UserPersonalCalendar]:
     return db.query(models.UserPersonalCalendar).all()
+
+def get_event_google_sync_by_google_id(db: Session, google_event_id: str) -> Optional[models.EventGoogleSync]:
+    return db.query(models.EventGoogleSync).filter(models.EventGoogleSync.google_event_id == google_event_id).first()
+
+def update_user_personal_calendar_sync_token(db: Session, user_id: int, sync_token: Optional[str]) -> Optional[models.UserPersonalCalendar]:
+    row = db.query(models.UserPersonalCalendar).filter(models.UserPersonalCalendar.user_id == user_id).first()
+    if row:
+        row.events_sync_token = sync_token
+        row.updated_at = now_jst_naive()
+        db.commit()
+        db.refresh(row)
+    return row
+

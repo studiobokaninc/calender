@@ -475,3 +475,49 @@ def find_event_by_sync_id(
     except Exception as e:
         logger.exception("Google Calendar find event by sync_id failed: %s", e)
     return None
+
+
+def list_calendar_events(
+    access_token: str,
+    refresh_token: Optional[str],
+    expires_at: Optional[datetime],
+    calendar_id: str,
+    sync_token: Optional[str] = None,
+) -> Optional[dict]:
+    """Google Calendar API events.list を呼び出して増分または全件のイベントを取得する。
+
+    410 Gone の場合は sync_token が無効なため、{"sync_token_invalid": True} を返す。
+    成功時は {"items": [...], "next_sync_token": ...} を返す。
+    """
+    token = _ensure_valid_token(access_token, refresh_token, expires_at)
+    if not token:
+        return None
+
+    url = f"{CALENDAR_API}/calendars/{calendar_id}/events"
+    params = {}
+    if sync_token:
+        params["syncToken"] = sync_token
+    else:
+        params["timeMin"] = datetime.utcnow().isoformat() + "Z"
+
+    try:
+        with httpx.Client() as client:
+            r = client.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+                timeout=15.0,
+            )
+            if r.status_code == 410:
+                logger.warning("syncToken 410 Gone for calendar_id=%s, token invalidated", calendar_id)
+                return {"sync_token_invalid": True}
+            r.raise_for_status()
+            res_data = r.json()
+            return {
+                "items": res_data.get("items", []),
+                "next_sync_token": res_data.get("nextSyncToken"),
+            }
+    except Exception as e:
+        logger.error("Google Calendar list_calendar_events failed: %s", e)
+        return None
+

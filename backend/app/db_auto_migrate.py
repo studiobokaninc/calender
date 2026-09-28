@@ -99,6 +99,17 @@ def check_and_migrate_db():
             conn.commit()
             print("analysis_progressカラムを追加しました。")
 
+        # decisionsテーブルのshot_idカラム確認・追加
+        cursor.execute("PRAGMA table_info(decisions)")
+        decision_columns = [row[1] for row in cursor.fetchall()]
+        if 'shot_id' not in decision_columns:
+            print("decisions: shot_idカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE decisions ADD COLUMN shot_id INTEGER REFERENCES shots(id) ON DELETE SET NULL")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_decisions_shot ON decisions(shot_id)")
+            conn.commit()
+            print("decisions: shot_idカラムを追加しました。")
+
+
 
         # usersテーブルの既存のカラムを確認
         cursor.execute("PRAGMA table_info(users)")
@@ -331,6 +342,16 @@ def check_and_migrate_db():
             cursor.execute("ALTER TABLE events ADD COLUMN user_ids JSON")
             conn.commit()
             print("eventsテーブルにuser_idsカラムを追加しました。")
+
+        # user_personal_calendarsテーブルのevents_sync_tokenカラム確認・追加
+        cursor.execute("PRAGMA table_info(user_personal_calendars)")
+        upc_columns = [row[1] for row in cursor.fetchall()]
+        if upc_columns and 'events_sync_token' not in upc_columns:
+            print("user_personal_calendars: events_sync_token カラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE user_personal_calendars ADD COLUMN events_sync_token TEXT")
+            conn.commit()
+            print("user_personal_calendars: events_sync_token カラムを追加しました。")
+
         
         # --- Score Related Tables ---
         

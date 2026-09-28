@@ -222,6 +222,87 @@ def get_meeting_minutes(
 
 
 @mcp.tool()
+def get_retakes(
+    shot_id: Optional[int] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    actor_id: Optional[int] = None,
+) -> dict:
+    """Get retake (redo request) records, optionally filtered by shot_id/status."""
+    db = SessionLocal()
+    try:
+        q = db.query(models.Retake)
+        if shot_id is not None:
+            q = q.filter(models.Retake.shot_id == shot_id)
+        if status is not None:
+            q = q.filter(models.Retake.status == status)
+        total = q.count()
+        rows = q.offset(offset).limit(min(limit, 500)).all()
+        items = [schemas.ReadonlyRetake.from_orm(r).model_dump(mode="json") for r in rows]
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_assets(
+    shot_id: Optional[int] = None,
+    task_id: Optional[int] = None,
+    limit: int = 100,
+    offset: int = 0,
+    actor_id: Optional[int] = None,
+) -> dict:
+    """Get asset (deliverable file) records. file_path is redacted unless it is an http(s) URL; filename is provided instead."""
+    import os
+    db = SessionLocal()
+    try:
+        q = db.query(models.Asset)
+        if shot_id is not None:
+            q = q.filter(models.Asset.shot_id == shot_id)
+        if task_id is not None:
+            q = q.filter(models.Asset.task_id == task_id)
+        total = q.count()
+        rows = q.offset(offset).limit(min(limit, 500)).all()
+        items = []
+        for r in rows:
+            a = schemas.ReadonlyAsset.from_orm(r)
+            a.filename = os.path.basename(r.file_path) if r.file_path else None
+            a.file_path = a.file_path if (a.file_path and a.file_path.startswith(("http://", "https://"))) else None
+            items.append(a.model_dump(mode="json"))
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+    finally:
+        db.close()
+
+
+@mcp.tool()
+def get_task_status_history(
+    task_id: Optional[int] = None,
+    project_id: Optional[int] = None,
+    limit: int = 100,
+    offset: int = 0,
+    actor_id: Optional[int] = None,
+) -> dict:
+    """Get task status change history records, optionally filtered by task_id/project_id."""
+    db = SessionLocal()
+    try:
+        q = db.query(models.TaskStatusHistory)
+        if task_id is not None:
+            q = q.filter(models.TaskStatusHistory.task_id == task_id)
+        if project_id is not None:
+            q = q.join(models.Task, models.TaskStatusHistory.task_id == models.Task.id).filter(
+                models.Task.project_id == project_id
+            )
+        total = q.count()
+        rows = q.offset(offset).limit(min(limit, 500)).all()
+        items = [schemas.ReadonlyTaskStatusHistory.from_orm(r).model_dump(mode="json") for r in rows]
+        return {"total": total, "limit": limit, "offset": offset, "items": items}
+    finally:
+        db.close()
+
+
+
+@mcp.tool()
 def get_delay_rates(
     project_id: Annotated[Optional[int], Field(description="プロジェクトIDで絞り込み (任意)")] = None,
     task_type: Annotated[Optional[str], Field(description="タスク種別で絞り込み (任意) 例: animation, comp")] = None,

@@ -216,6 +216,8 @@ async def import_csv_data(
             except:
                 cost = 0.0
             t_type = row[5].strip() if len(row) > 5 else "Task"
+            t_type = schemas.normalize_task_type(t_type)
+
             seq_id = row[6].strip() if len(row) > 6 else None
             shot_id = row[7].strip() if len(row) > 7 else None
             deps_raw = row[8].strip() if len(row) > 8 else ""

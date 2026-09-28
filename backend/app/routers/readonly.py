@@ -1,6 +1,8 @@
 import logging
+import os
 from datetime import datetime
 from typing import Optional
+
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -334,6 +336,92 @@ def list_score_user_roles(
     rows = q.offset(offset).limit(limit).all()
     items = [schemas.ReadonlyScoreUserRole.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+# ---- Retakes ----
+
+@router.get("/retakes", response_model=schemas.ReadonlyListResponse)
+def list_readonly_retakes(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    shot_id: Optional[int] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Retake)
+    if shot_id is not None:
+        q = q.filter(models.Retake.shot_id == shot_id)
+    if status is not None:
+        q = q.filter(models.Retake.status == status)
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    items = [schemas.ReadonlyRetake.from_orm(r) for r in rows]
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+@router.get("/retakes/{retake_id}", response_model=schemas.ReadonlyRetake)
+def get_readonly_retake(
+    retake_id: int,
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    row = db.query(models.Retake).filter(models.Retake.id == retake_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Retake not found")
+    return schemas.ReadonlyRetake.from_orm(row)
+
+
+# ---- Assets ----
+
+@router.get("/assets", response_model=schemas.ReadonlyListResponse)
+def list_readonly_assets(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    shot_id: Optional[int] = Query(default=None),
+    task_id: Optional[int] = Query(default=None),
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.Asset)
+    if shot_id is not None:
+        q = q.filter(models.Asset.shot_id == shot_id)
+    if task_id is not None:
+        q = q.filter(models.Asset.task_id == task_id)
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    items = []
+    for r in rows:
+        a = schemas.ReadonlyAsset.from_orm(r)
+        a.filename = os.path.basename(r.file_path) if r.file_path else None
+        a.file_path = _public_url(a.file_path)
+        items.append(a)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+
+
+# ---- Task Status History ----
+
+@router.get("/task_status_history", response_model=schemas.ReadonlyListResponse)
+def list_readonly_task_status_history(
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    task_id: Optional[int] = Query(default=None),
+    project_id: Optional[int] = Query(default=None),
+    _: None = Depends(verify_readonly_token),
+    db: Session = Depends(get_db),
+):
+    q = db.query(models.TaskStatusHistory)
+    if task_id is not None:
+        q = q.filter(models.TaskStatusHistory.task_id == task_id)
+    if project_id is not None:
+        q = q.join(models.Task, models.TaskStatusHistory.task_id == models.Task.id).filter(
+            models.Task.project_id == project_id
+        )
+    total = q.count()
+    rows = q.offset(offset).limit(limit).all()
+    items = [schemas.ReadonlyTaskStatusHistory.from_orm(r) for r in rows]
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+
 
 
 # ---- Task status metadata ----

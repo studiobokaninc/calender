@@ -85,6 +85,23 @@ def get_events(
         query = query.filter(models.Event.start_time <= end_date)
     return query.offset(skip).limit(limit).all()
 
+def _derive_user_ids_from_participants(participants: Optional[List[dict]]) -> List[int]:
+    """participants リストから user_ids を自動補完する"""
+    if not participants or not isinstance(participants, list):
+        return []
+    derived = []
+    for item in participants:
+        if isinstance(item, dict):
+            val_id = item.get("id")
+            if val_id is not None:
+                try:
+                    user_id_int = int(val_id)
+                    if user_id_int not in derived:
+                        derived.append(user_id_int)
+                except (ValueError, TypeError):
+                    pass
+    return derived
+
 def create_event(db: Session, event: schemas.EventCreate) -> models.Event:
     """新規イベントを作成"""
     event_dict = event.dict(exclude_unset=True)
@@ -99,18 +116,23 @@ def create_event(db: Session, event: schemas.EventCreate) -> models.Event:
     final_end = event_dict.get('end_time') or end_time
     final_allday = event_dict.get('allDay') if 'allDay' in event_dict else all_day_flag
     
+    final_user_ids = event.user_ids or []
+    if not final_user_ids and event.participants:
+        final_user_ids = _derive_user_ids_from_participants(event.participants)
+
     db_event = models.Event(
         title=event.title,
         description=event.description,
         type=event.type,
         location=event.location,
+        meeting_url=event.meeting_url,
         allDay=final_allday,
         start_time=final_start,
         end_time=final_end,
         status=event.status or 'offline',
         project_id=event.project_id,
         participants=event.participants or [],
-        user_ids=event.user_ids or []
+        user_ids=final_user_ids
     )
     db.add(db_event)
     db.commit()
@@ -134,10 +156,16 @@ def update_event(db: Session, db_event: models.Event, event_in: schemas.EventUpd
         if hasattr(db_event, key):
             setattr(db_event, key, value)
     
+    if (not db_event.user_ids or len(db_event.user_ids) == 0) and db_event.participants:
+        derived = _derive_user_ids_from_participants(db_event.participants)
+        if derived:
+            db_event.user_ids = derived
+
     db_event.updated_at = now_jst_naive()
     db.commit()
     db.refresh(db_event)
     return db_event
+
 
 def delete_event(db: Session, db_event: models.Event) -> None:
     """イベントを削除"""

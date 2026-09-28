@@ -501,3 +501,115 @@ def delete_project_syncs(db: Session, project_id: int):
     for s in proj_syncs:
         db.delete(s)
     db.commit()
+
+
+import asyncio
+
+def pull_events_for_user(db: Session, user_id: int, access_token: str, account: models.GoogleSharedAccount):
+    """Google Calendar から個人カレンダーのイベントを取得して Calender 側へ取り込む（逆方向同期）。"""
+    calendar_row = crud.get_user_personal_calendar(db, user_id)
+    if not calendar_row or not calendar_row.calendar_id:
+        return
+
+    res = google_calendar.list_calendar_events(
+        access_token=access_token,
+        refresh_token=account.refresh_token,
+        expires_at=account.expires_at,
+        calendar_id=calendar_row.calendar_id,
+        sync_token=calendar_row.events_sync_token
+    )
+
+    if not res:
+        return
+
+    if res.get("sync_token_invalid"):
+        crud.update_user_personal_calendar_sync_token(db, user_id, None)
+        res = google_calendar.list_calendar_events(
+            access_token=access_token,
+            refresh_token=account.refresh_token,
+            expires_at=account.expires_at,
+            calendar_id=calendar_row.calendar_id,
+            sync_token=None
+        )
+        if not res or res.get("sync_token_invalid"):
+            return
+
+    google_items = res.get("items", [])
+    for g_item in google_items:
+        g_id = g_item.get("id")
+        if not g_id or g_item.get("status") == "cancelled":
+            continue
+
+        # 方針① (Calender優先): 既に紐付けが存在するかチェック
+        existing_sync = crud.get_event_google_sync_by_google_id(db, g_id)
+        if existing_sync:
+            # 既にCalenderからGoogleへpushされたイベント、または以前取り込み済みのイベント
+            continue
+
+        # Google側でネイティブに新規作成されたイベント -> Calender側にEvent行を新規登録
+        summary = g_item.get("summary") or "無題"
+        description = g_item.get("description")
+        start_obj = g_item.get("start", {})
+        end_obj = g_item.get("end", {})
+
+        is_allday = "date" in start_obj
+        if is_allday:
+            start_str = start_obj.get("date") + "T00:00:00"
+            end_str = end_obj.get("date") + "T00:00:00"
+        else:
+            start_str = start_obj.get("dateTime")
+            end_str = end_obj.get("dateTime")
+
+        start_dt = to_datetime(start_str) or now_jst_naive()
+        end_dt = to_datetime(end_str) or (start_dt + timedelta(hours=1))
+
+        # [Google取込] のプレフィックスをタイトルの先頭に付与
+        new_title = f"[Google取込] {summary}"
+        
+        new_event = models.Event(
+            title=new_title,
+            description=description,
+            type=models.EventType.GENERIC,
+            start_time=start_dt,
+            end_time=end_dt,
+            location=g_item.get("location"),
+            allDay=is_allday,
+            status="offline",
+            user_ids=[user_id],
+            participants=[{"type": "user", "id": user_id}],
+            created_at=now_jst_naive(),
+            updated_at=now_jst_naive()
+        )
+        db.add(new_event)
+        db.flush()
+
+        crud.set_event_google_sync(db, user_id, new_event.id, g_id)
+
+    next_sync_token = res.get("next_sync_token")
+    if next_sync_token:
+        crud.update_user_personal_calendar_sync_token(db, user_id, next_sync_token)
+    db.commit()
+
+
+async def google_pull_loop():
+    """定期的に全ユーザーのGoogle Calendarイベントをpullするバックグラウンドループ（15分間隔）。"""
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                account = crud.get_google_shared_account(db)
+                access_token = _ensure_shared_token_updated(db) if account else None
+                if account and access_token:
+                    calendar_rows = crud.get_all_user_personal_calendars(db)
+                    for row in calendar_rows:
+                        try:
+                            pull_events_for_user(db, row.user_id, access_token, account)
+                        except Exception as pe:
+                            logger.error(f"pull_events_for_user failed for user {row.user_id}: {pe}")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"google_pull_loop iteration failed: {e}")
+
+        await asyncio.sleep(900)  # 15分 (900秒)
+

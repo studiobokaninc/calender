@@ -414,7 +414,9 @@ class UserPersonalCalendar(Base):
     shared_email: Mapped[str] = mapped_column(String(255))
     acl_rule_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     acl_status: Mapped[str] = mapped_column(String(20), default="shared")  # shared | error
+    events_sync_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
+
     updated_at: Mapped[Optional[datetime]] = mapped_column(default=now_jst_naive)
 
 
@@ -492,9 +494,12 @@ class Decision(Base):
     date: Mapped[datetime] = mapped_column(default=now_jst_naive)
     superseded: Mapped[bool] = mapped_column(Boolean, default=False)
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), index=True, nullable=True)
+    shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id", ondelete="SET NULL"), nullable=True, index=True)
 
     meeting: Mapped[Optional["Meeting"]] = relationship("Meeting")
     project: Mapped[Optional["Project"]] = relationship("Project")
+    shot: Mapped[Optional["Shot"]] = relationship("Shot")
+
 
 class MeetingTask(Base):
     __tablename__ = "meeting_tasks"

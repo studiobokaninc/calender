@@ -197,6 +197,9 @@ async def lifespan(app):
             print("Main: RAGサービスの初期化が完了しました。")
             from .services.auto_backup import auto_backup_loop
             asyncio.create_task(auto_backup_loop())
+            from .services.google_sync import google_pull_loop
+            asyncio.create_task(google_pull_loop())
+
         except Exception as e:
             print(f"Main: サービスの初期化に失敗しました: {e}")
         yield

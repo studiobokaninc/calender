@@ -470,6 +470,8 @@ export interface Meeting {
   attendees?: MeetingAttendee[] | null; // ★★★ 追加: 出席者リスト ★★★
   audio_url?: string | null;
   analysis_seconds?: number | null; // 議事録生成にかかった秒数
+  analysis_progress?: number | null; // 議事録生成の進捗率 0-100（外部エージェント経由時のみ届く）
+  analysis_backend?: string | null; // 'local' | 'agent'
   transcript?: string | null;
   decisions?: string[] | null;
   tasks?: string[] | null;

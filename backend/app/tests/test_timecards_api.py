@@ -204,3 +204,82 @@ def test_get_my_timecards_filters_and_defaults(client, db, admin_user, auth_head
     assert 480 in worked_mins_all
     assert 30 in worked_mins_all
     assert 40 in worked_mins_all
+
+
+def test_get_timecards_no_auth_returns_401(client, db, admin_user):
+    """GET /api/timecards without authorization header must return 401."""
+    tc = models.Timecard(
+        user_id=admin_user.id,
+        date=datetime.now(),
+        worked_minutes=480,
+        break_minutes=60,
+    )
+    db.add(tc)
+    db.commit()
+
+    resp = client.get("/api/timecards")
+    assert resp.status_code == 401
+
+
+def test_get_timecards_admin_can_access_all(client, db, admin_user, auth_headers):
+    """Admin user can retrieve timecards for all users or filtered by user_id."""
+    from app.security import get_password_hash
+    other_user = models.User(
+        username="employee_tc",
+        email="emp_tc@example.com",
+        hashed_password=get_password_hash("password"),
+        role="user",
+    )
+    db.add(other_user)
+    db.commit()
+
+    tc1 = models.Timecard(user_id=admin_user.id, date=datetime.now(), worked_minutes=100)
+    tc2 = models.Timecard(user_id=other_user.id, date=datetime.now(), worked_minutes=200)
+    db.add_all([tc1, tc2])
+    db.commit()
+
+    # Admin without filter gets all
+    resp = client.get("/api/timecards", headers=auth_headers)
+    assert resp.status_code == 200
+    ids = [item["user_id"] for item in resp.json()]
+    assert admin_user.id in ids
+    assert other_user.id in ids
+
+    # Admin filtering by specific user_id
+    resp_filtered = client.get(f"/api/timecards?user_id={other_user.id}", headers=auth_headers)
+    assert resp_filtered.status_code == 200
+    filtered_items = resp_filtered.json()
+    assert all(item["user_id"] == other_user.id for item in filtered_items)
+
+
+def test_get_timecards_regular_user_cannot_access_others(client, db, admin_user):
+    """Regular user gets only their own timecards and receives 403 when requesting others."""
+    from app.security import get_password_hash
+    regular_user = models.User(
+        username="regular_worker",
+        email="regular_worker@example.com",
+        hashed_password=get_password_hash("password"),
+        role="user",
+    )
+    db.add(regular_user)
+    db.commit()
+
+    tc_admin = models.Timecard(user_id=admin_user.id, date=datetime.now(), worked_minutes=100)
+    tc_user = models.Timecard(user_id=regular_user.id, date=datetime.now(), worked_minutes=200)
+    db.add_all([tc_admin, tc_user])
+    db.commit()
+
+    reg_token = make_token(regular_user.email)
+    reg_headers = {"Authorization": f"Bearer {reg_token}"}
+
+    # Requesting without user_id filter: returns only own timecards
+    resp = client.get("/api/timecards", headers=reg_headers)
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) >= 1
+    assert all(item["user_id"] == regular_user.id for item in items)
+
+    # Requesting other user's timecards: returns 403 Forbidden
+    resp_forbidden = client.get(f"/api/timecards?user_id={admin_user.id}", headers=reg_headers)
+    assert resp_forbidden.status_code == 403
+

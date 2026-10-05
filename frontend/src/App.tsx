@@ -22,12 +22,9 @@ import NotesPage from './pages/NotesPage'; // ← メモページを追加
 // ★★★ AdminRoute をインポート ★★★
 import AdminRoute from './components/AdminRoute';
 import MockDataConsole from './components/MockDataConsole';
-import ChatPage from './pages/ChatPage';
 import UserActivityPage from './pages/UserActivityPage';
 import MeetingMinutesPage from './pages/MeetingMinutesPage';
-import KnowledgePage from './pages/KnowledgePage';
 import ProductionTrackerPage from './pages/ProductionTrackerPage';
-import AIRecommendedTasksPage from './pages/AIRecommendedTasksPage';
 import ScoreDataAdminPage from './pages/ScoreDataAdminPage';
 import GoogleAdminSettingsPage from './pages/GoogleAdminSettingsPage';
 import ShotListPage from './pages/ShotListPage';
@@ -50,10 +47,9 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
-/** ロールに応じたデフォルトリダイレクト（管理者→カレンダー、一般→チャット） */
+/** デフォルトリダイレクト（全ロール共通でカレンダー） */
 const DefaultRedirect: React.FC = () => {
-  const { user } = useAuth();
-  return <Navigate to={user?.role === 'admin' ? '/calendar' : '/chat'} replace />;
+  return <Navigate to="/calendar" replace />;
 };
 
 
@@ -89,10 +85,8 @@ const App: React.FC = () => {
               </PrivateRoute>
             }
           >
-            {/* デフォルト: 管理者はカレンダー、一般ユーザーはチャット */}
+            {/* デフォルト: カレンダー */}
             <Route index element={<DefaultRedirect />} />
-            {/* 一般ユーザーのみアクセス可能: 管理者はカレンダーへリダイレクト */}
-            <Route path="chat" element={<ChatPage />} />
             {/* 以下は管理者のみへのガードが必要なページ、または共通ページ */}
             <Route path="calendar" element={
               <Suspense fallback={<div style={{display:'flex',justifyContent:'center',padding:'2rem'}}>読み込み中...</div>}>
@@ -104,9 +98,7 @@ const App: React.FC = () => {
             <Route path="tasks" element={<AdminRoute><TasksPage /></AdminRoute>} />
             <Route path="notes" element={<NotesPage />} />
             <Route path="bug_report" element={<BugReportPage />} />
-            <Route path="ai-tasks" element={<AdminRoute><AIRecommendedTasksPage /></AdminRoute>} />
             <Route path="meetings" element={<AdminRoute><MeetingMinutesPage /></AdminRoute>} />
-            <Route path="knowledge" element={<AdminRoute><KnowledgePage /></AdminRoute>} />
             {/* /eventsは/event-managementに統一（MetricsのEventsタブは/metrics?tab=eventsで直接アクセス可能） */}
             <Route path="events" element={<AdminRoute><Navigate to="/event-management" replace /></AdminRoute>} />
             <Route path="projects/:projectId" element={<AdminRoute><ProjectDetailPage /></AdminRoute>} />

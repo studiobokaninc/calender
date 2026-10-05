@@ -825,6 +825,7 @@ class DecisionBase(BaseModel):
     project_id: Optional[int] = None
     meeting_id: Optional[int] = None
     shot_id: Optional[int] = None
+    task_id: Optional[int] = None
 
 class DecisionCreate(DecisionBase):
     pass
@@ -836,6 +837,7 @@ class DecisionUpdate(BaseModel):
     project_id: Optional[int] = None
     meeting_id: Optional[int] = None
     shot_id: Optional[int] = None
+    task_id: Optional[int] = None
 
 class DecisionResponse(DecisionBase):
     id: int
@@ -954,6 +956,8 @@ class Retake(RetakeBase):
     id: int
     created_by: int
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    status_changed_by: Optional[int] = None
     timecodes: List[RetakeTimecode] = []
     shot_code: Optional[str] = None
     project_name: Optional[str] = None
@@ -1504,6 +1508,7 @@ class ReadonlyDecision(BaseModel):
     meeting_id: Optional[int] = None
     project_id: Optional[int] = None
     shot_id: Optional[int] = None
+    task_id: Optional[int] = None
     content: str
     date: Optional[datetime] = None
     superseded: bool
@@ -1531,6 +1536,8 @@ class ReadonlyRetake(BaseModel):
     assigned_to: Optional[int] = None
     created_by: int
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    status_changed_by: Optional[int] = None
     timecodes: List[ReadonlyRetakeTimecode] = []
 
     class Config:

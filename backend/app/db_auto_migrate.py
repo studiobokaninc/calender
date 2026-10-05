@@ -99,7 +99,7 @@ def check_and_migrate_db():
             conn.commit()
             print("analysis_progressカラムを追加しました。")
 
-        # decisionsテーブルのshot_idカラム確認・追加
+        # decisionsテーブルのshot_id / task_idカラム確認・追加
         cursor.execute("PRAGMA table_info(decisions)")
         decision_columns = [row[1] for row in cursor.fetchall()]
         if 'shot_id' not in decision_columns:
@@ -108,6 +108,12 @@ def check_and_migrate_db():
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_decisions_shot ON decisions(shot_id)")
             conn.commit()
             print("decisions: shot_idカラムを追加しました。")
+        if 'task_id' not in decision_columns:
+            print("decisions: task_idカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE decisions ADD COLUMN task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_decisions_task ON decisions(task_id)")
+            conn.commit()
+            print("decisions: task_idカラムを追加しました。")
 
 
 
@@ -352,7 +358,22 @@ def check_and_migrate_db():
             conn.commit()
             print("user_personal_calendars: events_sync_token カラムを追加しました。")
 
-        
+        # retakesテーブルのupdated_at / status_changed_byカラム確認・追加
+        cursor.execute("PRAGMA table_info(retakes)")
+        retake_cols = [row[1] for row in cursor.fetchall()]
+        if retake_cols:
+            if 'updated_at' not in retake_cols:
+                print("retakes: updated_at カラムが見つかりません。追加しています...")
+                cursor.execute("ALTER TABLE retakes ADD COLUMN updated_at DATETIME")
+                conn.commit()
+                print("retakes: updated_at カラムを追加しました。")
+            if 'status_changed_by' not in retake_cols:
+                print("retakes: status_changed_by カラムが見つかりません。追加しています...")
+                cursor.execute("ALTER TABLE retakes ADD COLUMN status_changed_by INTEGER REFERENCES users(id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_retakes_status_changed_by ON retakes(status_changed_by)")
+                conn.commit()
+                print("retakes: status_changed_by カラムを追加しました。")
+
         # --- Score Related Tables ---
         
         # score_user_roles

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, List, ListItem, ListItemText,
-    IconButton, CircularProgress,
+    IconButton, CircularProgress, LinearProgress,
     Accordion, AccordionSummary, AccordionDetails,
     Alert, Snackbar, Grid, Chip, useMediaQuery, useTheme,
     Dialog, DialogTitle, DialogContent, DialogActions, TextField
@@ -37,6 +37,47 @@ const fmtDuration = (sec?: number | null): string => {
     return s ? `${m}分${s}秒` : `${m}分`;
 };
 
+// 議事録を生成中（順番待ち含む）か。再生成中は旧 transcript が残るため transcript の有無では判定しない
+const isGenerating = (m: Meeting): boolean => m.status === 'processing' || m.status === 'pending';
+
+// 進捗率（0-100）。エージェント経由のときだけ届くので、無ければ null
+const progressOf = (m: Meeting): number | null =>
+    m.status === 'processing' && m.analysis_progress != null ? Math.max(0, Math.min(100, m.analysis_progress)) : null;
+
+const generatingLabel = (m: Meeting): string => {
+    if (m.status === 'pending') return '生成待ち…';
+    const p = progressOf(m);
+    return p != null ? `議事録生成中 ${p}%` : '議事録生成中…';
+};
+
+// 展開部に出す「生成中」パネル
+const GeneratingPanel: React.FC<{ meeting: Meeting }> = ({ meeting }) => {
+    const p = progressOf(meeting);
+    const pending = meeting.status === 'pending';
+    return (
+        <Paper variant="outlined" sx={{ p: 2.5, borderColor: 'info.main', bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(33, 150, 243, 0.08)' : 'info.50' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                <CircularProgress size={22} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    {pending ? '議事録生成の順番待ちです' : 'AIが議事録を生成しています'}
+                </Typography>
+                {p != null && (
+                    <Typography variant="subtitle1" color="primary" sx={{ ml: 'auto', fontWeight: 700 }}>{p}%</Typography>
+                )}
+            </Box>
+            <LinearProgress
+                variant={p != null ? 'determinate' : 'indeterminate'}
+                value={p ?? undefined}
+                sx={{ height: 8, borderRadius: 4, mb: 1.5 }}
+            />
+            <Typography variant="body2" color="text.secondary">
+                音声の文字起こし → 決定事項・課題・期限の抽出 の順に処理しています。
+                録音の長さによって数分〜数十分かかります。完了すると自動で表示されるので、このページを離れても問題ありません。
+            </Typography>
+        </Paper>
+    );
+};
+
 const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [loading, setLoading] = useState(true);
@@ -55,22 +96,19 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
     const [editAttendeesTarget, setEditAttendeesTarget] = useState<Meeting | null>(null);
     const [editAttendeesValue, setEditAttendeesValue] = useState<string[]>([]);
 
+    const generatingCount = meetings.filter(isGenerating).length;
+    const needsPolling = meetings.some(m => isGenerating(m) || (!m.transcript && m.status !== 'failed'));
+
     useEffect(() => {
         fetchMeetings();
-
-        // 10秒ごとに自動更新（解析中のものがある場合）
-        const interval = setInterval(() => {
-            setMeetings(prev => {
-                const hasProcessing = prev.some(m => !m.transcript || m.status === 'processing' || m.status === 'pending');
-                if (hasProcessing) {
-                    fetchMeetings(false); // サイレント更新
-                }
-                return prev;
-            });
-        }, 10000);
-
-        return () => clearInterval(interval);
     }, [projectId]);
+
+    // 生成中は5秒、それ以外で未完了のものがあれば10秒ごとにサイレント更新
+    useEffect(() => {
+        if (!needsPolling) return;
+        const interval = setInterval(() => fetchMeetings(false), generatingCount > 0 ? 5000 : 10000);
+        return () => clearInterval(interval);
+    }, [projectId, needsPolling, generatingCount > 0]);
 
     const fetchMeetings = async (showLoading = true) => {
         if (showLoading) setLoading(true);
@@ -269,6 +307,21 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                 </Paper>
             ) : (
                 <Box>
+                    {generatingCount > 0 && (
+                        <Alert
+                            severity="info"
+                            icon={<CircularProgress size={20} />}
+                            sx={{ mb: 2, alignItems: 'center', '& .MuiAlert-message': { width: '100%' } }}
+                        >
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                議事録を生成中です（{generatingCount}件）
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                                完了すると自動で表示されます。ページを離れても処理は続きます。
+                            </Typography>
+                            <LinearProgress sx={{ borderRadius: 2 }} />
+                        </Alert>
+                    )}
                     {meetings.map((meeting) => (
                         <Accordion key={meeting.id} sx={{ mb: 1.5, borderRadius: '8px !important', overflow: 'hidden', '&:before': { display: 'none' }, boxShadow: 1 }}>
                             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -300,14 +353,14 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                 再生成
                                             </Button>
                                         </Box>
-                                    ) : (!meeting.transcript && (meeting.status === 'processing' || meeting.status === 'pending')) && (
+                                    ) : isGenerating(meeting) && (
                                         <Chip
                                             size="small"
-                                            label={meeting.status === 'processing' ? 'AI解析中...' : '解析待ち...'}
+                                            label={generatingLabel(meeting)}
                                             color="info"
-                                            variant="outlined"
-                                            sx={{ mr: 2 }}
-                                            icon={meeting.status === 'processing' ? <CircularProgress size={12} /> : undefined}
+                                            variant={meeting.status === 'processing' ? 'filled' : 'outlined'}
+                                            sx={{ mr: 2, fontWeight: 600 }}
+                                            icon={meeting.status === 'processing' ? <CircularProgress size={12} color="inherit" /> : undefined}
                                         />
                                     )}
                                     {meeting.audio_url && (
@@ -358,6 +411,17 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                             </Button>
                                         )}
                                     </Grid>
+
+                                    {isGenerating(meeting) && (
+                                        <Grid item xs={12}>
+                                            <GeneratingPanel meeting={meeting} />
+                                            {meeting.transcript && (
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                                                    ※ 再生成中のため、以下は前回の議事録です。
+                                                </Typography>
+                                            )}
+                                        </Grid>
+                                    )}
 
                                     {meeting.transcript ? (
                                         <>
@@ -474,15 +538,11 @@ const ProjectMeetings: React.FC<ProjectMeetingsProps> = ({ projectId }) => {
                                                 AI解析に失敗しました。AIが解答を返さなかったか、形式が不適切だった可能性があります。
                                             </Alert>
                                         </Grid>
-                                    ) : (meeting.status === 'processing' || meeting.status === 'pending' || !meeting.transcript) ? (
+                                    ) : !isGenerating(meeting) ? (
                                         <Grid item xs={12}>
-                                            <Box sx={{ p: 4, textAlign: 'center' }}>
-                                                <CircularProgress size={32} sx={{ mb: 2 }} />
-                                                <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                                                    {meeting.status === 'processing' ? 'AIが音声を解析中です...' : '解析の順番待ちです...'}
-                                                </Typography>
-                                                <Typography variant="body2" color="text.secondary">文字起こし、決定事項、課題の抽出を行っています。完了まで数分かかる場合があります。</Typography>
-                                            </Box>
+                                            <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+                                                議事録はまだありません。
+                                            </Typography>
                                         </Grid>
                                     ) : null}
                                 </Grid>

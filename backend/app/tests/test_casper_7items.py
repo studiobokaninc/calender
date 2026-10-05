@@ -50,9 +50,12 @@ def test_update_retake_status_endpoint(client: TestClient, db, monkeypatch):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "in_progress"
+    assert data["status_changed_by"] == user.id
 
     db.refresh(retake)
     assert retake.status == "in_progress"
+    assert retake.status_changed_by == user.id
+    assert retake.updated_at is not None
 
 def test_decision_shot_id_schema_and_model(db):
     proj = models.Project(name="Decision Shot Test Project")
@@ -63,15 +66,21 @@ def test_decision_shot_id_schema_and_model(db):
     db.add(shot)
     db.commit()
 
-    decision = models.Decision(content="Approved shot design", project_id=proj.id, shot_id=shot.id)
+    task = models.Task(name="Test Task", project_id=proj.id)
+    db.add(task)
+    db.commit()
+
+    decision = models.Decision(content="Approved shot design", project_id=proj.id, shot_id=shot.id, task_id=task.id)
     db.add(decision)
     db.commit()
 
     db.refresh(decision)
     assert decision.shot_id == shot.id
+    assert decision.task_id == task.id
 
     r_dec = schemas.ReadonlyDecision.model_validate(decision)
     assert r_dec.shot_id == shot.id
+    assert r_dec.task_id == task.id
 
 def test_readonly_new_endpoints(client: TestClient, db, monkeypatch):
     monkeypatch.setenv("SCORE_READONLY_TOKEN", "SCORE_READONLY_TOKEN")

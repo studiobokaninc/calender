@@ -45,13 +45,10 @@ import {
   EventNote as EventNoteIcon,
   Note as NoteIcon,
   Person as PersonIcon,
-  QuestionAnswer as ChatIcon,
   AccessTime as AccessTimeIcon,
   Search as SearchIcon,
   Description as DescriptionIcon,
-  LibraryBooks as KnowledgeIcon,
   ViewModule as TrackerIcon,
-  SmartToy as AIRecommendedIcon,
   VpnKey as VpnKeyIcon,
 } from '@mui/icons-material'
 import DarkModeIcon from '@mui/icons-material/DarkMode'
@@ -145,7 +142,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const allMenuItems: MenuItemType[] = [
     { text: 'ダッシュボード', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'AIアシスタント', icon: <ChatIcon />, path: '/chat' },
     { text: 'カレンダー', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'プロジェクト', icon: <ProjectIcon />, path: '/projects' },
     { text: 'タスク', icon: <TaskIcon />, path: '/tasks' },
@@ -153,8 +149,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: '進捗トラッカー', icon: <TrackerIcon />, path: '/production-tracker' },
     { text: 'メモ', icon: <NoteIcon />, path: '/notes' },
     { text: '議事録', icon: <DescriptionIcon />, path: '/meetings' },
-    { text: 'AI推薦タスク', icon: <AIRecommendedIcon />, path: '/ai-tasks', isAdmin: true },
-    { text: 'ナレッジベース', icon: <KnowledgeIcon />, path: '/knowledge' },
     { text: 'イベント管理', icon: <EventNoteIcon />, path: '/event-management', isAdmin: true },
     { text: 'グループ管理', icon: <GroupIcon />, path: '/admin/groups', isAdmin: true },
     { text: 'バックアップ・インポート管理', icon: <StorageIcon />, path: '/admin/data', isAdmin: true },
@@ -322,7 +316,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       return true
     } else {
       // 一般ユーザーは特定の項目のみ表示
-      return ['/calendar', '/chat', '/notes', '/knowledge', '/bug_report'].includes(item.path)
+      return ['/calendar', '/notes', '/bug_report'].includes(item.path)
     }
   })
 
@@ -386,8 +380,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </Tooltip>
               {!isDrawerCollapsed && <ListItemText primary={item.text} sx={{ '& .MuiTypography-root': { fontSize: { xs: '0.95rem', sm: '0.875rem' } } }} />}
             </ListItem>
-            {/* カレンダー、進捗トラッカー、ナレッジベースの後に仕切り線を入れる */}
-            {['/calendar', '/production-tracker', '/knowledge'].includes(item.path) && (
+            {/* カレンダー、進捗トラッカー、議事録の後に仕切り線を入れる */}
+            {['/calendar', '/production-tracker', '/meetings'].includes(item.path) && (
               <Divider sx={{ my: 1 }} />
             )}
           </React.Fragment>

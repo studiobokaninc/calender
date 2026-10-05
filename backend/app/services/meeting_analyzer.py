@@ -746,7 +746,8 @@ async def finalize_minutes(
                 content=dec_content,
                 date=ref_date,
                 project_id=db_meeting.project_id,
-                shot_id=None
+                shot_id=None,
+                task_id=None
             ))
 
             existing_decisions.add(dec_content)

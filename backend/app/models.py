@@ -495,10 +495,12 @@ class Decision(Base):
     superseded: Mapped[bool] = mapped_column(Boolean, default=False)
     project_id: Mapped[Optional[int]] = mapped_column(ForeignKey("projects.id"), index=True, nullable=True)
     shot_id: Mapped[Optional[int]] = mapped_column(ForeignKey("shots.id", ondelete="SET NULL"), nullable=True, index=True)
+    task_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True, index=True)
 
     meeting: Mapped[Optional["Meeting"]] = relationship("Meeting")
     project: Mapped[Optional["Project"]] = relationship("Project")
     shot: Mapped[Optional["Shot"]] = relationship("Shot")
+    task: Mapped[Optional["Task"]] = relationship("Task")
 
 
 class MeetingTask(Base):
@@ -593,6 +595,8 @@ class Retake(Base):
     assigned_to: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    status_changed_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
 
     timecodes: Mapped[List["RetakeTimecode"]] = relationship("RetakeTimecode", back_populates="retake", cascade="all, delete-orphan")
 

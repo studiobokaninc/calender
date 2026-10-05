@@ -139,6 +139,8 @@ def update_retake_status(
     if not db_retake:
         raise HTTPException(status_code=404, detail="Retake not found")
     db_retake.status = status_in.status
+    db_retake.updated_at = now_jst_naive()
+    db_retake.status_changed_by = actor_id
     db.commit()
     db.refresh(db_retake)
     return db_retake
@@ -537,7 +539,8 @@ def delete_asset(
 def list_deliveries(
     task_id: Optional[int] = None,
     project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     query = db.query(models.Delivery)
     if task_id:
@@ -970,7 +973,8 @@ def get_my_troubles(
 @router.get("/shots/similar", response_model=List[schemas.ShotResponse])
 def get_similar_shots(
     based_on: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     # 簡易実装: 同じプロジェクトのショットを返す
     target_shot = db.query(models.Shot).filter(models.Shot.id == based_on).first()
@@ -1152,7 +1156,8 @@ def get_all_projects_production_summary(
 def list_retakes(
     shot_id: Optional[int] = None,
     project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     from sqlalchemy.orm import aliased
     Creator = aliased(models.User)
@@ -1188,7 +1193,8 @@ def list_retakes(
 def list_troubles(
     shot_id: Optional[int] = None,
     project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     from sqlalchemy.orm import aliased
     Reporter = aliased(models.User)
@@ -1222,7 +1228,8 @@ def list_troubles(
 @router.get("/change_requests", response_model=List[schemas.ChangeRequest])
 def list_change_requests(
     project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     query = db.query(models.ChangeRequest)
     if project_id:
@@ -1232,7 +1239,8 @@ def list_change_requests(
 @router.get("/look_distributions", response_model=List[schemas.LookDistribution])
 def list_look_distributions(
     project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     import json
     from sqlalchemy.orm import aliased
@@ -1264,11 +1272,20 @@ def list_look_distributions(
 def list_timecards(
     user_id: Optional[int] = None,
     date: Optional[datetime] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     query = db.query(models.Timecard)
-    if user_id:
-        query = query.filter(models.Timecard.user_id == user_id)
+    if current_user.role != "admin":
+        if user_id is not None and user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="他のユーザーのタイムカードを閲覧する権限がありません",
+            )
+        query = query.filter(models.Timecard.user_id == current_user.id)
+    else:
+        if user_id:
+            query = query.filter(models.Timecard.user_id == user_id)
     if date:
         # 日付のみで比較（時間の無視）
         from sqlalchemy import func
@@ -1279,11 +1296,20 @@ def list_timecards(
 def list_routines(
     user_id: Optional[int] = None,
     date: Optional[datetime] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     query = db.query(models.Routine)
-    if user_id:
-        query = query.filter(models.Routine.user_id == user_id)
+    if current_user.role != "admin":
+        if user_id is not None and user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="他のユーザーのルーティンを閲覧する権限がありません",
+            )
+        query = query.filter(models.Routine.user_id == current_user.id)
+    else:
+        if user_id:
+            query = query.filter(models.Routine.user_id == user_id)
     if date:
         from sqlalchemy import func
         query = query.filter(func.date(models.Routine.date) == date.date())
@@ -1293,11 +1319,15 @@ def list_routines(
 def list_notifications(
     recipient_id: Optional[int] = None,
     project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     from sqlalchemy import or_
     query = db.query(models.Notification)
-    if recipient_id:
+    if current_user.role != "admin":
+        # 一般ユーザーは自分宛ての通知のみ閲覧可能
+        query = query.filter(models.Notification.recipient_id == current_user.id)
+    elif recipient_id:
         query = query.filter(models.Notification.recipient_id == recipient_id)
     if project_id:
         project = db.query(models.Project).filter(models.Project.id == project_id).first()
@@ -1315,7 +1345,8 @@ def list_notifications(
 @router.post("/notifications", response_model=schemas.Notification, status_code=status.HTTP_201_CREATED)
 def create_notification(
     payload: schemas.NotificationCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     db_notif = models.Notification(
         recipient_id=payload.recipient_id,
@@ -1335,7 +1366,8 @@ def list_user_messages(
     shot_id: Optional[int] = None,
     author_id: Optional[int] = None,
     project_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
 ):
     query = db.query(models.UserMessage)
     if shot_id:

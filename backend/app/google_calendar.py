@@ -12,8 +12,10 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# スコープ: カレンダー全体の読み書き（専用カレンダー作成や取得に必要）
-SCOPE = "https://www.googleapis.com/auth/calendar"
+# スコープ: カレンダー全体の読み書き（専用カレンダー作成や取得に必要）＋
+# 管理画面表示用にメールアドレスを取得するための userinfo.email
+# （これが無いと get_userinfo() が権限不足で失敗し、google_account_email が常に None になる）
+SCOPE = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 CALENDAR_API = "https://www.googleapis.com/calendar/v3"
@@ -237,7 +239,8 @@ def get_userinfo(access_token: str) -> Optional[dict]:
             )
             r.raise_for_status()
             return r.json()
-    except Exception:
+    except Exception as e:
+        logger.warning("Google userinfo fetch failed (scope不足の可能性): %s", e)
         return None
 
 

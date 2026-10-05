@@ -20,7 +20,7 @@ const AdminRoute: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   }
 
   if (user?.role !== 'admin') {
-    return <Navigate to="/chat" replace />;
+    return <Navigate to="/calendar" replace />;
     // あるいはアクセス拒否メッセージを表示
     // return <Typography color="error">アクセス権限がありません。</Typography>;
   }

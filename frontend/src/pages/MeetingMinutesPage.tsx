@@ -15,6 +15,7 @@ import {
     useMediaQuery,
     useTheme,
     Button,
+    Chip,
 } from '@mui/material';
 import {
     Description as DescriptionIcon,
@@ -31,6 +32,22 @@ const MeetingMinutesPage: React.FC = () => {
     const [projects, setProjects] = useState<Project[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
+    const [activeStatusMap, setActiveStatusMap] = useState<Record<number, { recording: boolean; processing: boolean }>>({});
+
+    const fetchActiveStatus = async () => {
+        try {
+            const res = await api.get<{ meetings: Array<{ project_id: number; status: string }> }>('/meetings/active-status');
+            const map: Record<number, { recording: boolean; processing: boolean }> = {};
+            (res.data.meetings || []).forEach(m => {
+                if (!map[m.project_id]) map[m.project_id] = { recording: false, processing: false };
+                if (m.status === 'recording') map[m.project_id].recording = true;
+                if (m.status === 'processing') map[m.project_id].processing = true;
+            });
+            setActiveStatusMap(map);
+        } catch {
+            // エラー時は無視
+        }
+    };
 
     useEffect(() => {
         const fetchProjects = async () => {
@@ -46,6 +63,15 @@ const MeetingMinutesPage: React.FC = () => {
             }
         };
         fetchProjects();
+        fetchActiveStatus();
+
+        const interval = setInterval(fetchActiveStatus, 10000);
+        window.addEventListener('meetingStatusChanged', fetchActiveStatus);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('meetingStatusChanged', fetchActiveStatus);
+        };
     }, []);
 
     // 録音中の画面離脱・プロジェクト変更防止確認
@@ -206,9 +232,41 @@ const MeetingMinutesPage: React.FC = () => {
                                         >
                                             <CardActionArea onClick={() => handleProjectChange(project.id)}>
                                                 <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                                    <Typography variant="subtitle2" noWrap>
-                                                        {project.name}
-                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+                                                        <Typography variant="subtitle2" noWrap sx={{ fontWeight: 700 }}>
+                                                            {project.name}
+                                                        </Typography>
+                                                        {activeStatusMap[project.id]?.recording && (
+                                                            <Chip
+                                                                label="🔴 録音中"
+                                                                size="small"
+                                                                sx={{
+                                                                    height: 20,
+                                                                    fontSize: '0.65rem',
+                                                                    fontWeight: 800,
+                                                                    bgcolor: 'rgba(211, 47, 47, 0.12)',
+                                                                    color: '#d32f2f',
+                                                                    border: '1px solid #ef5350',
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {activeStatusMap[project.id]?.processing && !activeStatusMap[project.id]?.recording && (
+                                                            <Chip
+                                                                label="⚙️ 生成中"
+                                                                size="small"
+                                                                sx={{
+                                                                    height: 20,
+                                                                    fontSize: '0.65rem',
+                                                                    fontWeight: 800,
+                                                                    bgcolor: 'rgba(245, 124, 0, 0.12)',
+                                                                    color: '#e65100',
+                                                                    border: '1px solid #ffb74d',
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Box>
                                                     <Typography variant="caption" color="text.secondary">
                                                         ステータス: {project.status}
                                                     </Typography>

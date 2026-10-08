@@ -564,7 +564,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
-            <MeetingServerStatusIndicator />
+            <MeetingServerStatusIndicator variant="chip" />
             <Tooltip title={mode === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え'}>
               <IconButton
                 color="inherit"
@@ -650,6 +650,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         }}
       >
         <Toolbar sx={{ minHeight: { xs: '56px !important', sm: '40px !important' }, flexShrink: 0 }} />
+        <MeetingServerStatusIndicator variant="banner" />
         <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {children}
         </Box>

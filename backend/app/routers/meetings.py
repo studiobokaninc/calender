@@ -309,6 +309,66 @@ async def get_meeting_audio_stream(
         headers=headers
     )
 
+
+@root_router.get("/active-status")
+def get_active_meetings_status(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """
+    現在アクティブな会議タスク（ブラウザ録音中、または議事録生成中）のステータスを取得する。
+    他のユーザーが録音中・議事録生成中に誤ってサーバーを再起動しないようフロントエンドで可視化するための監視用API。
+    """
+    active_meetings = (
+        db.query(models.Meeting)
+        .filter(models.Meeting.status.in_(["recording", "processing"]))
+        .order_by(models.Meeting.updated_at.desc(), models.Meeting.id.desc())
+        .all()
+    )
+
+    recording_count = 0
+    processing_count = 0
+    meetings_data = []
+
+    for m in active_meetings:
+        if m.status == "recording":
+            recording_count += 1
+        elif m.status == "processing":
+            processing_count += 1
+
+        # 参加者リストの文字列化
+        attendee_list = []
+        if m.attendees:
+            for a in m.attendees:
+                if isinstance(a, dict):
+                    attendee_list.append(a.get("name") or "")
+                elif isinstance(a, str):
+                    attendee_list.append(a)
+        attendee_list = [a for a in attendee_list if a]
+
+        meetings_data.append({
+            "id": m.id,
+            "project_id": m.project_id,
+            "project_name": m.project.name if m.project else f"プロジェクト #{m.project_id}",
+            "title": m.title,
+            "status": m.status,
+            "date": m.date.isoformat() if m.date else None,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "updated_at": m.updated_at.isoformat() if m.updated_at else None,
+            "attendees": attendee_list,
+            "analysis_progress": m.analysis_progress,
+            "analysis_backend": m.analysis_backend
+        })
+
+    return {
+        "has_active_tasks": len(active_meetings) > 0,
+        "recording_count": recording_count,
+        "processing_count": processing_count,
+        "total_active_count": len(active_meetings),
+        "meetings": meetings_data
+    }
+
+
 @root_router.post("/scan")
 async def scan_network_drive(
     db: Session = Depends(get_db),

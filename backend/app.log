@@ -21825,3 +21825,752 @@ LookupError: 'deliver' is not among the defined enum values. Enum name: taskstat
 2026-10-07 14:04:11,204 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
 2026-10-07 14:04:11,204 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
 2026-10-07 14:04:11,204 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-10-08 12:15:15,290 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:15:15,320 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:15:17,080 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 12:15:17,160 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 12:15:17,162 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 12:15:17,202 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 12:15:17,672 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=8 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 12:15:18,280 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 12:15:18,560 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 12:15:30,018 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 12:15:30,821 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: –ğE•s‘«‚Ìassigned_to•ÏX‚ğ‹–‰Â task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 12:15:31,581 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 12:15:32,305 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:15:32,339 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:15:32,455 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:15:32,556 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 12:15:32,622 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:15:32,624 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 12:15:32,692 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 12:15:32,760 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 12:15:32,824 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 12:15:32,888 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 12:15:32,952 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 12:15:33,020 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:15:33,090 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:15:33,160 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:15:33,163 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 12:15:35,539 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 12:15:35,546 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 12:15:35,546 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 12:15:35,547 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 12:15:35,547 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 12:15:35,547 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 12:15:35,555 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 12:38:29,643 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 12:38:54,556 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 12:39:25,696 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:39:26,453 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:39:33,066 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 12:39:38,463 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 12:39:38,639 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 12:39:39,117 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 12:39:39,264 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:39:39,433 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:39:39,537 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:39:39,625 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:39:39,736 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:39:39,740 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:39:39.740455', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:39:39,743 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:39:39.742456', 1, None, 'task', 1, None, 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:39:39,745 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:39:39.745453', None, None, None, None, '{"path": "/tasks/1", "error_type": "PendingRollbackError"}', 'error')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:40:05,704 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 12:40:05,796 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 12:40:05,798 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 12:40:05,848 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 12:40:06,498 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=8 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 12:40:07,264 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 12:40:07,655 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 12:40:25,581 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:40:25,593 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:40:25.592140', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:40:25,600 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:40:25.600139', 1, None, 'task', 1, None, 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:40:25,602 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:40:25.602651', None, None, None, None, '{"path": "/tasks/1", "error_type": "PendingRollbackError"}', 'error')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:40:31,680 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 12:40:32,538 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: –ğE•s‘«‚Ìassigned_to•ÏX‚ğ‹–‰Â task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 12:40:35,747 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 12:40:36,657 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:40:36,718 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:40:36,896 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:40:36,975 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 12:40:37,058 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:40:37,061 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 12:40:37,137 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 12:40:37,232 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 12:40:37,321 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 12:40:37,406 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 12:40:38,195 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 12:40:38,306 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:40:38,397 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:40:38,495 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:40:38,501 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 12:40:43,520 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 12:40:43,531 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 12:40:43,532 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 12:40:43,532 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 12:40:43,533 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 12:40:43,533 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 12:40:43,539 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 12:40:45,739 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:40:45,755 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:40:45.754254', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:40:45,762 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:40:45.761254', 1, None, 'task', 1, None, 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:40:45,764 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:40:45.764255', None, None, None, None, '{"path": "/tasks/1", "error_type": "PendingRollbackError"}', 'error')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:41:29,669 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 12:41:29,838 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 12:41:30,164 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 12:41:30,277 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:41:30,281 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:41:30,396 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:41:30,490 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:41:30,629 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:41:30,635 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:41:30.634256', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:41:30,654 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 12:41:31,919 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:41:31,923 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 12:41:32,035 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:41:58,070 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 12:41:58,195 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 12:41:58,517 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 12:41:58,662 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:41:58,670 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:41:58,756 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:41:58,830 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:41:58,927 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:41:58,933 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:41:58.932766', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:41:59,552 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:41:59,557 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 12:41:59,656 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:43:03,324 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:43:03,325 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:43:06,856 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 12:43:19,333 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 12:43:19,388 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 12:43:19,390 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 12:43:19,423 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 12:43:19,961 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=8 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 12:43:20,675 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 12:43:21,044 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 12:43:40,785 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 12:43:40,991 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 12:43:41,599 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 12:43:41,781 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:43:44,539 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:43:44,679 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:43:44,811 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:43:45,041 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:43:45,047 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:43:45.046498', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:43:45,058 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 12:43:45,274 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:43:45,278 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 12:43:45,476 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:43:45,705 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 12:43:46,660 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: –ğE•s‘«‚Ìassigned_to•ÏX‚ğ‹–‰Â task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 12:43:47,647 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 12:43:48,469 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:43:48,514 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:43:48,643 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:43:48,718 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 12:43:48,793 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:43:48,797 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 12:43:48,905 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 12:43:48,985 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 12:43:49,067 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 12:43:49,149 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 12:43:49,239 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 12:43:49,329 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:43:49,411 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:43:49,492 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 12:43:49,497 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 12:43:52,911 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 12:43:52,918 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 12:43:52,918 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 12:43:52,919 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 12:43:52,920 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 12:43:52,920 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 12:43:52,927 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 12:44:26,140 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-10-08 12:44:26,148 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-10-08 12:44:26,164 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-10-08 12:44:26,165 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-10-08 12:44:26,165 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-10-08 12:44:26,165 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-10-08 12:44:26,165 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 12:44:26,170 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-10-08 12:44:26,171 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-10-08 12:44:26,171 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-10-08 12:44:26,171 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-10-08 12:44:26,171 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-10-08 12:44:41,711 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-10-08 12:44:41,721 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=TypeError: '<' not supported between instances of 'AsyncMock' and 'int'
+2026-10-08 12:44:41,736 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=1
+2026-10-08 12:44:41,736 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=2
+2026-10-08 12:44:41,736 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=3
+2026-10-08 12:44:41,737 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=500 attempt=4
+2026-10-08 12:44:41,737 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 12:44:41,742 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=1
+2026-10-08 12:44:41,743 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=2
+2026-10-08 12:44:41,744 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=3
+2026-10-08 12:44:41,744 - app.utils.webhook_sender - WARNING - webhook timeout: event_type=dm_thread.new_message attempt=4
+2026-10-08 12:44:41,744 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=dm_thread.new_message
+2026-10-08 12:50:06,367 - app.routers.score - WARNING - Failed to remove physical file /mnt/e/calender/backend/static/assets/shot_1_task_1_v001_test_upload_owner.png: [Errno 2] No such file or directory: '/mnt/e/calender/backend/static/assets/shot_1_task_1_v001_test_upload_owner.png'
+2026-10-08 12:50:29,464 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:50:29,470 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:50:34,039 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 12:50:35,578 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:50:35,582 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 12:50:46,756 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 12:51:07,102 - app.services.meeting_scanner - WARNING - Base MTG directory not found: X:\cg\proj\kikaku\MTG_audio. Could not create project folder.
+2026-10-08 12:51:07,110 - app.services.meeting_scanner - WARNING - Base MTG directory not found: X:\cg\proj\kikaku\MTG_audio. Could not create project folder.
+2026-10-08 12:51:11,000 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ã¯å®Œäº†æ¸ˆã¿ã®ãŸã‚é‡è¤‡ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‚’ç„¡è¦–ã—ã¾ã™
+2026-10-08 12:51:11,006 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ã¯å®Œäº†æ¸ˆã¿ã®ãŸã‚é‡è¤‡ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‚’ç„¡è¦–ã—ã¾ã™
+2026-10-08 12:51:11,082 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ã®æ–‡å­—èµ·ã“ã—ãŒç©ºã®ãŸã‚ failed ã¨ã—ã¦æ‰±ã„ã¾ã™
+2026-10-08 12:51:11,083 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ã®æ–‡å­—èµ·ã“ã—ãŒç©ºã®ãŸã‚ failed ã¨ã—ã¦æ‰±ã„ã¾ã™
+2026-10-08 12:51:11,086 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ã‚’ failed ã«ã—ã¾ã™ (æ–‡å­—èµ·ã“ã—ãŒç©º)
+2026-10-08 12:51:11,125 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ã‚’ failed ã«ã—ã¾ã™ (whisper crashed)
+2026-10-08 12:51:11,128 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ã‚’ failed ã«ã—ã¾ã™ (whisper crashed)
+2026-10-08 12:51:11,310 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ã«å¤±æ•—ã—ã¾ã—ãŸ (meeting=8 url=http://192.0.2.1:8090/process_meeting ç†ç”±=[RuntimeError] connection refused)ã€‚ãƒ­ãƒ¼ã‚«ãƒ«è§£æã¸ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ã—ã¾ã™ã€‚
+2026-10-08 12:51:11,311 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ã«å¤±æ•—ã—ã¾ã—ãŸ (meeting=8 url=http://192.0.2.1:8090/process_meeting ç†ç”±=[RuntimeError] connection refused)ã€‚ãƒ­ãƒ¼ã‚«ãƒ«è§£æã¸ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ã—ã¾ã™ã€‚
+2026-10-08 12:51:11,377 - app.services.minutes_agent - WARNING - minutes-agent: CALENDAR_PUBLIC_BASE_URL=http://192.168.44.78:8001 ã¯ ã“ã®ãƒ›ã‚¹ãƒˆã®IP ['127.0.1.1'] ã«ä¸€è‡´ã—ã¾ã›ã‚“ã€‚ã‚¨ãƒ¼ã‚¸ã‚§ãƒ³ãƒˆãŒçµæœã‚’è¿”ã›ãªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ï¼ˆ.env ã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼‰ã€‚
+2026-10-08 12:51:11,378 - app.services.minutes_agent - WARNING - minutes-agent: CALENDAR_PUBLIC_BASE_URL=http://192.168.44.78:8001 ã¯ ã“ã®ãƒ›ã‚¹ãƒˆã®IP ['127.0.1.1'] ã«ä¸€è‡´ã—ã¾ã›ã‚“ã€‚ã‚¨ãƒ¼ã‚¸ã‚§ãƒ³ãƒˆãŒçµæœã‚’è¿”ã›ãªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ï¼ˆ.env ã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼‰ã€‚
+2026-10-08 12:51:11,563 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 12:51:11,564 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 12:51:11,768 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ã‚’ failed ã«ã—ã¾ã™ (éŸ³å£°ã‹ã‚‰æœ‰åŠ¹ãªç™ºè©±ãŒæ¤œå‡ºã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚)
+2026-10-08 12:51:11,771 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ã‚’ failed ã«ã—ã¾ã™ (éŸ³å£°ã‹ã‚‰æœ‰åŠ¹ãªç™ºè©±ãŒæ¤œå‡ºã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚)
+2026-10-08 12:51:23,398 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 12:51:23,523 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 12:51:23,963 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 12:51:24,075 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:51:24,082 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 12:51:24,158 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:51:24,228 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:51:24,338 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:51:24,343 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 12:51:24.343055', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 12:51:24,355 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 12:51:24,468 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:51:24,473 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 12:51:24,579 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 12:51:25,621 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 12:51:26,562 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: å½¹è·ä¸è¶³ã®assigned_toå¤‰æ›´ã‚’è¨±å¯ task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 12:51:27,124 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 12:51:27,595 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 12:51:27,637 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 12:51:27,755 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 12:51:27,824 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 12:51:27,892 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 12:51:27,895 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 12:51:27,970 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 12:51:28,036 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’wt error=role_not_permitted
+2026-10-08 12:51:28,107 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’mk error=role_not_permitted
+2026-10-08 12:51:28,169 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’qc_fb error=role_not_permitted
+2026-10-08 12:51:28,229 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 deliverâ†’qc_fb error=role_not_permitted
+2026-10-08 12:51:28,291 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 12:51:28,363 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 12:51:28,464 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 12:51:28,471 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 12:51:32,844 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 12:51:32,855 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 12:51:32,857 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 12:51:32,858 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 12:51:32,859 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 12:51:32,859 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 12:51:32,865 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:04:50,420 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:04:50,423 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:04:58,519 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:05:09,880 - app.services.meeting_scanner - WARNING - Base MTG directory not found: X:\cg\proj\kikaku\MTG_audio. Could not create project folder.
+2026-10-08 15:05:12,285 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ã¯å®Œäº†æ¸ˆã¿ã®ãŸã‚é‡è¤‡ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‚’ç„¡è¦–ã—ã¾ã™
+2026-10-08 15:05:12,364 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ã®æ–‡å­—èµ·ã“ã—ãŒç©ºã®ãŸã‚ failed ã¨ã—ã¦æ‰±ã„ã¾ã™
+2026-10-08 15:05:12,367 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ã‚’ failed ã«ã—ã¾ã™ (æ–‡å­—èµ·ã“ã—ãŒç©º)
+2026-10-08 15:05:12,413 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ã‚’ failed ã«ã—ã¾ã™ (whisper crashed)
+2026-10-08 15:05:12,581 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ã«å¤±æ•—ã—ã¾ã—ãŸ (meeting=8 url=http://192.0.2.1:8090/process_meeting ç†ç”±=[RuntimeError] connection refused)ã€‚ãƒ­ãƒ¼ã‚«ãƒ«è§£æã¸ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ã—ã¾ã™ã€‚
+2026-10-08 15:05:12,641 - app.services.minutes_agent - WARNING - minutes-agent: CALENDAR_PUBLIC_BASE_URL=http://192.168.44.78:8001 ã¯ ã“ã®ãƒ›ã‚¹ãƒˆã®IP ['127.0.1.1'] ã«ä¸€è‡´ã—ã¾ã›ã‚“ã€‚ã‚¨ãƒ¼ã‚¸ã‚§ãƒ³ãƒˆãŒçµæœã‚’è¿”ã›ãªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ï¼ˆ.env ã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼‰ã€‚
+2026-10-08 15:05:12,822 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:05:13,053 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ã‚’ failed ã«ã—ã¾ã™ (éŸ³å£°ã‹ã‚‰æœ‰åŠ¹ãªç™ºè©±ãŒæ¤œå‡ºã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚)
+2026-10-08 15:05:32,349 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:05:32,472 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:05:32,830 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:05:32,951 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:05:32,955 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:05:33,025 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:05:33,088 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:05:33,194 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:05:33,198 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:05:33.198564', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:05:33,208 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:05:33,325 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:05:33,330 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:05:33,442 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:05:33,593 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:05:34,251 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: å½¹è·ä¸è¶³ã®assigned_toå¤‰æ›´ã‚’è¨±å¯ task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:05:34,802 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:05:35,271 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:05:35,319 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:05:35,416 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:05:35,482 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:05:35,549 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:05:35,553 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:05:35,615 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:05:35,670 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’wt error=role_not_permitted
+2026-10-08 15:05:35,727 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’mk error=role_not_permitted
+2026-10-08 15:05:35,787 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’qc_fb error=role_not_permitted
+2026-10-08 15:05:35,847 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 deliverâ†’qc_fb error=role_not_permitted
+2026-10-08 15:05:35,909 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:05:35,981 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:05:36,039 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:05:36,045 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:05:38,099 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:05:38,104 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:05:38,106 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:05:38,106 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:05:38,107 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:05:38,107 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:05:38,112 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:13:30,506 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:13:54,165 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+dError
+2026-10-08 15:13:54,729 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:13:56,809 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=ReadError
+2026-10-08 15:13:59,310 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.deleted error=ReadError
+2026-10-08 15:14:01,834 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:14:05,578 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:14:06,206 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:14:14,919 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:14:16,585 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 15:14:16,648 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 15:14:16,650 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 15:14:16,679 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 15:14:17,280 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=8 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 15:14:18,136 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:14:18,614 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 15:14:29,105 - app.services.minutes_agent - WARNING - minutes-agent: meeting 3 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 15:14:29,230 - app.services.minutes_agent - WARNING - minutes-agent: meeting 5 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 15:14:29,233 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 15:14:29,297 - app.services.minutes_agent - ERROR - minutes-agent: meeting 6 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 15:14:30,025 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=9 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 15:14:30,863 - app.main - WARNING - Cleaned up orphaned meeting 14 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:14:31,290 - app.services.minutes_agent - ERROR - minutes-agent: meeting 17 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 15:14:38,714 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:14:39,273 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:14:46,416 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:14:57,583 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:15:00,096 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.updated error=ReadError
+2026-10-08 15:15:00,259 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 15:15:00,328 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 15:15:00,330 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 15:15:00,366 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 15:15:00,914 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=8 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 15:15:01,646 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:15:02,050 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 15:15:02,573 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.deleted error=ReadError
+2026-10-08 15:15:09,899 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:15:10,754 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:15:20,289 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:15:21,625 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:15:21,854 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:15:22,663 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:15:22,945 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:15:22,952 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:15:23,080 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:15:23,258 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:23,598 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:23,606 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:15:23.606432', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:15:23,625 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:15:23,952 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:23,957 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:15:24,255 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:24,536 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:15:25,661 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: –ğE•s‘«‚Ìassigned_to•ÏX‚ğ‹–‰Â task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:15:26,816 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:15:27,906 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:15:27,972 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:15:28,155 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:15:28,245 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:15:28,387 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:15:28,395 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:15:28,607 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:15:28,811 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 15:15:29,006 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 15:15:29,164 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 15:15:29,261 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 15:15:29,384 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:15:29,503 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:15:29,636 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:15:29,645 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:15:33,754 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:15:33,765 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:15:33,766 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:15:33,766 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:15:33,767 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:15:33,767 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:15:33,777 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:15:37,275 - app.services.minutes_agent - WARNING - minutes-agent: meeting 3 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 15:15:37,349 - app.services.minutes_agent - WARNING - minutes-agent: meeting 5 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 15:15:37,350 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 15:15:37,385 - app.services.minutes_agent - ERROR - minutes-agent: meeting 6 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 15:15:37,998 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=9 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 15:15:38,762 - app.main - WARNING - Cleaned up orphaned meeting 14 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:15:39,143 - app.services.minutes_agent - ERROR - minutes-agent: meeting 17 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 15:15:54,403 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:15:54,661 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:15:55,440 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:15:55,770 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:15:55,776 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:15:55,915 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:15:56,033 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:56,293 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:56,299 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:15:56.299643', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:15:56,317 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:15:56,517 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:56,520 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:15:56,725 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:15:56,943 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:15:57,675 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:15:58,064 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: –ğE•s‘«‚Ìassigned_to•ÏX‚ğ‹–‰Â task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:15:58,311 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:15:59,110 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:15:59,950 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:00,011 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:16:00,229 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:00,345 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:16:00,507 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:00,514 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:16:00,619 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:16:00,714 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 15:16:00,800 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 15:16:00,905 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 15:16:00,992 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 15:16:01,083 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:01,177 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:01,256 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:01,262 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:16:04,652 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:16:04,662 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:16:04,663 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:16:04,667 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:16:04,668 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:16:04,669 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:16:04,678 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:16:05,886 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:16:20,331 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 15:16:20,419 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 15:16:20,421 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 15:16:20,469 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 15:16:21,183 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=8 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 15:16:22,039 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:16:22,570 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 15:16:42,147 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:16:42,404 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:16:43,203 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:16:43,411 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:16:43,416 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:16:43,528 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:16:43,628 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:16:43,850 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:16:43,854 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:16:43.854751', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:16:43,864 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:16:44,056 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:16:44,060 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:16:44,217 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:16:44,383 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:16:45,424 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: –ğE•s‘«‚Ìassigned_to•ÏX‚ğ‹–‰Â task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:16:46,413 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:16:47,231 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:47,275 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:16:47,414 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:47,498 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:16:47,593 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:47,597 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:16:47,684 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:16:47,771 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 15:16:47,862 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 15:16:47,950 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 15:16:48,029 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 15:16:48,113 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:48,199 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:48,272 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:16:48,277 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:16:51,442 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:16:51,453 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:16:51,454 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:16:51,457 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:16:51,458 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:16:51,458 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:16:51,469 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:17:14,933 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:17:15,047 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:17:23,130 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:17:38,204 - app.services.meeting_scanner - WARNING - Base MTG directory not found: X:\cg\proj\kikaku\MTG_audio. Could not create project folder.
+2026-10-08 15:17:54,991 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ã¯å®Œäº†æ¸ˆã¿ã®ãŸã‚é‡è¤‡ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‚’ç„¡è¦–ã—ã¾ã™
+2026-10-08 15:17:55,080 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ã®æ–‡å­—èµ·ã“ã—ãŒç©ºã®ãŸã‚ failed ã¨ã—ã¦æ‰±ã„ã¾ã™
+2026-10-08 15:17:55,083 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ã‚’ failed ã«ã—ã¾ã™ (æ–‡å­—èµ·ã“ã—ãŒç©º)
+2026-10-08 15:17:55,128 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ã‚’ failed ã«ã—ã¾ã™ (whisper crashed)
+2026-10-08 15:17:55,317 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ã«å¤±æ•—ã—ã¾ã—ãŸ (meeting=8 url=http://192.0.2.1:8090/process_meeting ç†ç”±=[RuntimeError] connection refused)ã€‚ãƒ­ãƒ¼ã‚«ãƒ«è§£æã¸ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ã—ã¾ã™ã€‚
+2026-10-08 15:17:55,380 - app.services.minutes_agent - WARNING - minutes-agent: CALENDAR_PUBLIC_BASE_URL=http://192.168.44.78:8001 ã¯ ã“ã®ãƒ›ã‚¹ãƒˆã®IP ['127.0.1.1'] ã«ä¸€è‡´ã—ã¾ã›ã‚“ã€‚ã‚¨ãƒ¼ã‚¸ã‚§ãƒ³ãƒˆãŒçµæœã‚’è¿”ã›ãªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ï¼ˆ.env ã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼‰ã€‚
+2026-10-08 15:17:55,602 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:17:55,916 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ã‚’ failed ã«ã—ã¾ã™ (éŸ³å£°ã‹ã‚‰æœ‰åŠ¹ãªç™ºè©±ãŒæ¤œå‡ºã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚)
+2026-10-08 15:18:11,272 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:18:11,444 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:18:11,959 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:18:12,104 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:18:12,109 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:18:12,181 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:18:12,246 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:18:12,385 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:18:12,389 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:18:12.389402', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:18:12,404 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:18:12,533 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:18:12,539 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:18:12,672 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:18:12,852 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:18:13,615 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: å½¹è·ä¸è¶³ã®assigned_toå¤‰æ›´ã‚’è¨±å¯ task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:18:14,286 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:18:14,807 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:18:14,862 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:18:14,986 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:18:15,057 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:18:15,117 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:18:15,121 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:18:15,185 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:18:15,254 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’wt error=role_not_permitted
+2026-10-08 15:18:15,335 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’mk error=role_not_permitted
+2026-10-08 15:18:15,452 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’qc_fb error=role_not_permitted
+2026-10-08 15:18:15,572 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 deliverâ†’qc_fb error=role_not_permitted
+2026-10-08 15:18:15,658 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:18:15,733 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:18:15,853 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:18:15,858 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:18:18,185 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:18:18,191 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:18:18,192 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:18:18,193 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:18:18,194 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:18:18,194 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:18:18,201 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+N_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:18:17,887 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:18:18,009 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:18:18,124 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 15:18:18,216 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 15:18:18,305 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 15:18:18,407 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 15:18:18,494 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:18:18,581 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:18:18,665 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:18:18,672 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:18:22,224 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:18:22,234 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:18:22,235 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:18:22,237 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:18:22,238 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:18:22,238 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:18:22,245 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:21:27,791 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:21:27,873 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:21:34,811 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:21:47,327 - app.services.meeting_scanner - WARNING - Base MTG directory not found: X:\cg\proj\kikaku\MTG_audio. Could not create project folder.
+2026-10-08 15:21:49,536 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ã¯å®Œäº†æ¸ˆã¿ã®ãŸã‚é‡è¤‡ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‚’ç„¡è¦–ã—ã¾ã™
+2026-10-08 15:21:49,618 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ã®æ–‡å­—èµ·ã“ã—ãŒç©ºã®ãŸã‚ failed ã¨ã—ã¦æ‰±ã„ã¾ã™
+2026-10-08 15:21:49,619 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ã‚’ failed ã«ã—ã¾ã™ (æ–‡å­—èµ·ã“ã—ãŒç©º)
+2026-10-08 15:21:49,661 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ã‚’ failed ã«ã—ã¾ã™ (whisper crashed)
+2026-10-08 15:21:49,844 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ã«å¤±æ•—ã—ã¾ã—ãŸ (meeting=8 url=http://192.0.2.1:8090/process_meeting ç†ç”±=[RuntimeError] connection refused)ã€‚ãƒ­ãƒ¼ã‚«ãƒ«è§£æã¸ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ã—ã¾ã™ã€‚
+2026-10-08 15:21:49,916 - app.services.minutes_agent - WARNING - minutes-agent: CALENDAR_PUBLIC_BASE_URL=http://192.168.44.78:8001 ã¯ ã“ã®ãƒ›ã‚¹ãƒˆã®IP ['127.0.1.1'] ã«ä¸€è‡´ã—ã¾ã›ã‚“ã€‚ã‚¨ãƒ¼ã‚¸ã‚§ãƒ³ãƒˆãŒçµæœã‚’è¿”ã›ãªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ï¼ˆ.env ã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼‰ã€‚
+2026-10-08 15:21:50,084 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:21:50,283 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ã‚’ failed ã«ã—ã¾ã™ (éŸ³å£°ã‹ã‚‰æœ‰åŠ¹ãªç™ºè©±ãŒæ¤œå‡ºã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚)
+2026-10-08 15:22:12,870 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:22:13,001 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:22:13,359 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:22:13,476 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:22:13,481 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:22:13,558 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:22:14,153 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:22:14,275 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:22:14,282 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:22:14.282410', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:22:14,293 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:22:14,425 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:22:14,431 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:22:14,567 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:22:14,733 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:22:15,520 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: å½¹è·ä¸è¶³ã®assigned_toå¤‰æ›´ã‚’è¨±å¯ task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:22:16,146 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:22:16,653 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:22:16,716 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:22:16,864 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:22:16,949 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:22:17,023 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:22:17,031 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:22:17,105 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:22:17,164 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’wt error=role_not_permitted
+2026-10-08 15:22:17,226 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’mk error=role_not_permitted
+2026-10-08 15:22:17,290 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’qc_fb error=role_not_permitted
+2026-10-08 15:22:17,354 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 deliverâ†’qc_fb error=role_not_permitted
+2026-10-08 15:22:17,423 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:22:17,486 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:22:17,554 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:22:17,559 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:22:19,807 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:22:19,819 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:22:19,820 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:22:19,821 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:22:19,821 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:22:19,822 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:22:19,826 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:26:13,177 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:26:13,179 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:26:19,027 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:26:34,471 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ‚ÍŠ®—¹Ï‚İ‚Ì‚½‚ßd•¡ƒR[ƒ‹ƒoƒbƒN‚ğ–³‹‚µ‚Ü‚·
+2026-10-08 15:26:34,542 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ‚Ì•¶š‹N‚±‚µ‚ª‹ó‚Ì‚½‚ß failed ‚Æ‚µ‚Äˆµ‚¢‚Ü‚·
+2026-10-08 15:26:34,544 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ‚ğ failed ‚É‚µ‚Ü‚· (•¶š‹N‚±‚µ‚ª‹ó)
+2026-10-08 15:26:34,581 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ‚ğ failed ‚É‚µ‚Ü‚· (whisper crashed)
+2026-10-08 15:26:35,055 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ‚É¸”s‚µ‚Ü‚µ‚½ (meeting=8 url=http://192.0.2.1:8090/process_meeting ——R=[RuntimeError] connection refused)Bƒ[ƒJƒ‹‰ğÍ‚ÖƒtƒH[ƒ‹ƒoƒbƒN‚µ‚Ü‚·B
+2026-10-08 15:26:35,710 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:26:36,097 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ‚ğ failed ‚É‚µ‚Ü‚· (‰¹º‚©‚ç—LŒø‚È”­˜b‚ªŒŸo‚³‚ê‚Ü‚¹‚ñ‚Å‚µ‚½B)
+2026-10-08 15:26:53,276 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:26:53,452 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:26:53,933 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:26:54,094 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:26:54,099 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:26:54,172 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:26:54,243 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:26:54,403 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:26:54,406 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:26:54.406288', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:26:54,420 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:26:54,615 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:26:54,620 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:26:54,786 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:26:54,939 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:26:55,705 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: –ğE•s‘«‚Ìassigned_to•ÏX‚ğ‹–‰Â task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:26:56,507 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨client_ap error=role_not_permitted
+2026-10-08 15:26:57,157 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:26:57,197 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:26:57,311 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:26:57,372 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:26:57,433 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:26:57,436 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨client_ap error=role_not_permitted
+2026-10-08 15:26:57,510 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:26:57,574 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨wt error=role_not_permitted
+2026-10-08 15:26:57,635 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨mk error=role_not_permitted
+2026-10-08 15:26:57,699 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 wip¨qc_fb error=role_not_permitted
+2026-10-08 15:26:57,764 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 deliver¨qc_fb error=role_not_permitted
+2026-10-08 15:26:57,832 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:26:57,896 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:26:57,959 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 qc¨ap error=role_not_permitted
+2026-10-08 15:26:57,965 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: ˆá–@/–¢Šm’è/–ğE•s‘«‚Ì‘JˆÚ‚ğ‹–‰Â task_id=1 ap¨qc_fb error=role_not_permitted
+2026-10-08 15:27:00,442 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:27:00,450 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:27:00,451 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:27:00,454 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:27:00,454 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:27:00,454 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:27:00,463 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-08 15:28:52,573 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:28:52,603 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-08 15:28:59,392 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-08 15:29:10,907 - app.services.meeting_scanner - WARNING - Base MTG directory not found: X:\cg\proj\kikaku\MTG_audio. Could not create project folder.
+2026-10-08 15:29:13,104 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 ã¯å®Œäº†æ¸ˆã¿ã®ãŸã‚é‡è¤‡ã‚³ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‚’ç„¡è¦–ã—ã¾ã™
+2026-10-08 15:29:13,184 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 ã®æ–‡å­—èµ·ã“ã—ãŒç©ºã®ãŸã‚ failed ã¨ã—ã¦æ‰±ã„ã¾ã™
+2026-10-08 15:29:13,186 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 ã‚’ failed ã«ã—ã¾ã™ (æ–‡å­—èµ·ã“ã—ãŒç©º)
+2026-10-08 15:29:13,228 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 ã‚’ failed ã«ã—ã¾ã™ (whisper crashed)
+2026-10-08 15:29:13,425 - app.services.minutes_agent - ERROR - minutes-agent: dispatch ã«å¤±æ•—ã—ã¾ã—ãŸ (meeting=8 url=http://192.0.2.1:8090/process_meeting ç†ç”±=[RuntimeError] connection refused)ã€‚ãƒ­ãƒ¼ã‚«ãƒ«è§£æã¸ãƒ•ã‚©ãƒ¼ãƒ«ãƒãƒƒã‚¯ã—ã¾ã™ã€‚
+2026-10-08 15:29:13,489 - app.services.minutes_agent - WARNING - minutes-agent: CALENDAR_PUBLIC_BASE_URL=http://192.168.44.78:8001 ã¯ ã“ã®ãƒ›ã‚¹ãƒˆã®IP ['127.0.1.1'] ã«ä¸€è‡´ã—ã¾ã›ã‚“ã€‚ã‚¨ãƒ¼ã‚¸ã‚§ãƒ³ãƒˆãŒçµæœã‚’è¿”ã›ãªã„å¯èƒ½æ€§ãŒã‚ã‚Šã¾ã™ï¼ˆ.env ã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼‰ã€‚
+2026-10-08 15:29:13,674 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-08 15:29:13,878 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 ã‚’ failed ã«ã—ã¾ã™ (éŸ³å£°ã‹ã‚‰æœ‰åŠ¹ãªç™ºè©±ãŒæ¤œå‡ºã•ã‚Œã¾ã›ã‚“ã§ã—ãŸã€‚)
+2026-10-08 15:29:38,763 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-08 15:29:38,892 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-08 15:29:39,266 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-08 15:29:39,388 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:29:39,392 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-08 15:29:39,461 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:29:39,518 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:29:39,629 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:29:39,635 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-08 15:29:39.634968', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-08 15:29:39,650 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-08 15:29:39,770 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:29:39,776 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-08 15:29:39,923 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-08 15:29:40,080 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:29:40,766 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: å½¹è·ä¸è¶³ã®assigned_toå¤‰æ›´ã‚’è¨±å¯ task_id=1 actor_id=1 error=role_not_permitted
+2026-10-08 15:29:41,360 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’client_ap error=role_not_permitted
+2026-10-08 15:29:41,915 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:29:41,981 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-08 15:29:42,089 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:29:42,141 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:29:42,197 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:29:42,201 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’client_ap error=role_not_permitted
+2026-10-08 15:29:42,256 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:29:42,312 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’wt error=role_not_permitted
+2026-10-08 15:29:42,366 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’mk error=role_not_permitted
+2026-10-08 15:29:42,422 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 wipâ†’qc_fb error=role_not_permitted
+2026-10-08 15:29:42,475 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 deliverâ†’qc_fb error=role_not_permitted
+2026-10-08 15:29:42,530 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:29:42,587 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:29:42,646 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 qcâ†’ap error=role_not_permitted
+2026-10-08 15:29:42,652 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: é•æ³•/æœªç¢ºå®š/å½¹è·ä¸è¶³ã®é·ç§»ã‚’è¨±å¯ task_id=1 apâ†’qc_fb error=role_not_permitted
+2026-10-08 15:29:44,855 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-08 15:29:44,860 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-08 15:29:44,861 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-08 15:29:44,862 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-08 15:29:44,863 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-08 15:29:44,863 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-08 15:29:44,869 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

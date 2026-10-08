@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 from ..status_meta import COMPLETED_STATUSES
 from .. import status_transitions
+from ..services.audit_service import record_status_conversion
 
 # task_status_redesign_v2 のカテゴリ集合（status_meta を単一の真実として参照）
 _COMPLETED_STATUSES = set(COMPLETED_STATUSES)
@@ -718,6 +719,11 @@ def create_task(db: Session, task: schemas.TaskCreate) -> models.Task:
         _recalc_shot_status(db, db_task.shot_id)
     db.commit()
 
+    # cmd_731 五: 旧い値が送られていたら監査行を残す(本処理の commit 後)。create_task は操作者を受けぬ為 actor は不明。
+    record_status_conversion(
+        db, getattr(task, "_sent_status", None), task_id=db_task.id, actor_uid=None,
+        source="crud.create_task",
+    )
     return db_task
 
 def update_task(
@@ -908,6 +914,11 @@ def update_task(
         _recalc_shot_status(db, db_task.shot_id)
 
     db.commit()
+    # cmd_731 五: 旧い値が送られていたら監査行を残す。★本処理の commit 後に呼ぶ(失敗しても巻き戻らぬ)。
+    record_status_conversion(
+        db, getattr(task_in, "_sent_status", None), task_id=db_task.id, actor_uid=actor_id,
+        source=f"crud.update_task:{getattr(change_source, 'value', change_source)}",
+    )
     db.refresh(db_task)
     combined_warnings = [w for w in (transition_warning, assignee_warning) if w]
     db_task.warnings = combined_warnings or None

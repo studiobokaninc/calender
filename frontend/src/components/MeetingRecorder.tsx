@@ -142,6 +142,79 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
     };
   }, [isRecording, isPaused]);
 
+  // グローバルフラグの管理（SPA内の画面移動やログアウト時に検知可能にする）
+  useEffect(() => {
+    (window as any).__isMeetingRecordingActive = isRecording || isSaving;
+    return () => {
+      (window as any).__isMeetingRecordingActive = false;
+    };
+  }, [isRecording, isSaving]);
+
+  // 録音中または保存中にブラウザを閉じる・他サイトへ移動する・リロードする場合の警告ダイアログ
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isRecording || isSaving) {
+        e.preventDefault();
+        // モダンブラウザでは戻り値またはreturnValueを設定することで標準の離脱確認ダイアログが表示される
+        const message = '議事録の録音または保存処理が進行中です。ページを離れると録音が中断される可能性があります。';
+        e.returnValue = message;
+        return message;
+      }
+    };
+
+    if (isRecording || isSaving) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isRecording, isSaving]);
+
+  // 録音中のブラウザ戻る・進むボタン操作に対する警告
+  useEffect(() => {
+    if (!isRecording && !isSaving) return;
+
+    window.history.pushState(null, '', window.location.href);
+
+    const handlePopState = () => {
+      const confirmed = window.confirm(
+        '議事録の録音または保存処理が進行中です。前のページに戻ると録音が中断されますが、よろしいですか？'
+      );
+      if (!confirmed) {
+        window.history.pushState(null, '', window.location.href);
+      } else {
+        (window as any).__isMeetingRecordingActive = false;
+        window.history.back();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isRecording, isSaving]);
+
+  // コンポーネントアンマウント時の安全なクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (chunkIntervalRef.current) {
+        clearInterval(chunkIntervalRef.current);
+        chunkIntervalRef.current = null;
+      }
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      releaseWakeLock();
+      (window as any).__isMeetingRecordingActive = false;
+    };
+  }, []);
+
   // Wake Lock の取得
   const requestWakeLock = async () => {
     try {
@@ -240,6 +313,9 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
       chunkIntervalRef.current = setInterval(() => {
         rotateChunk();
       }, 60000);
+
+      // 他コンポーネント（ヘッダーインジケーター等）へ録音開始を通知
+      window.dispatchEvent(new CustomEvent('meetingStatusChanged'));
 
     } catch (err: any) {
       console.error('Failed to start recording:', err);
@@ -481,6 +557,7 @@ const MeetingRecorder: React.FC<MeetingRecorderProps> = ({ projectId, onRecordin
           setIsRecording(false);
           setIsSaving(false);
           setUploadingStatus('');
+          window.dispatchEvent(new CustomEvent('meetingStatusChanged'));
           onRecordingComplete();
         } catch (err: any) {
           // 完了APIが失敗（401=認証切れ等）。UIを必ず復帰させ、原因を明示する。

@@ -1474,6 +1474,23 @@ def get_my_events(
         )
     )
 
+    # 定例の展開(from・to の両方が在り、期間に収まる定例が在る時のみ)。他は従来どおり
+    from ..crud.events import collect_with_recurrence
+    from ..recurrence import RecurrenceError
+    if start_date and end_date:
+        try:
+            expanded = collect_with_recurrence(
+                query,
+                [models.Event.start_time >= start_date, models.Event.end_time <= end_date],
+                start_date, end_date,
+                keep=lambda s, e: s >= start_date and e <= end_date,
+            )
+        except RecurrenceError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if expanded is not None:
+            expanded.sort(key=lambda ev: (ev.start_time, ev.id, getattr(ev, "occurrence_index", None) or 0))
+            return expanded
+
     if start_date:
         query = query.filter(models.Event.start_time >= start_date)
     if end_date:

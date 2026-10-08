@@ -1,5 +1,5 @@
 import logging
-from pydantic import BaseModel, Field, EmailStr, validator, root_validator, computed_field
+from pydantic import BaseModel, Field, EmailStr, PrivateAttr, validator, root_validator, computed_field
 from typing import Optional, List, Dict, Any, ForwardRef, Literal
 from datetime import datetime, date, timezone
 from . import models # models をインポート
@@ -91,25 +91,48 @@ CSV_STATUS_LABEL_MAP = {
 }
 
 
+def canonicalize_task_status_traced(value: Optional[str], is_csv: bool = False):
+    """canonicalize_task_status と同一の変換を行い、(結果, 通った畳み込み地図名のリスト) を返す。
+    地図名は監査記録用: csv_label / api_deprecation / new_status_alias / legacy_pipeline_collapse。
+    地図を一つも通らなければ空リスト。変換規則の正本はこの関数(canonicalize_task_status は薄い包み)。
+    """
+    if value is None:
+        return None, []
+    # Enum 値が来た場合は文字列化
+    s = str(value.value if hasattr(value, 'value') else value)
+    s = s.strip().replace('　', '').replace(' ', '').lower()
+    if not s:
+        return None, []
+    if is_csv and s in CSV_STATUS_LABEL_MAP:
+        return CSV_STATUS_LABEL_MAP[s], ['csv_label']
+    if s in API_STATUS_DEPRECATION_MAP:
+        return API_STATUS_DEPRECATION_MAP[s], ['api_deprecation']
+    maps = []
+    # ハイフン表記揺れを解消してから旧19→新9へ畳み込む
+    if s in NEW_STATUS_ALIAS_MAP:
+        s = NEW_STATUS_ALIAS_MAP[s]
+        maps.append('new_status_alias')
+    if s in LEGACY_PIPELINE_COLLAPSE_MAP:
+        s = LEGACY_PIPELINE_COLLAPSE_MAP[s]
+        maps.append('legacy_pipeline_collapse')
+    return s, maps
+
+
 def canonicalize_task_status(value: Optional[str], is_csv: bool = False) -> Optional[str]:
     """タスクステータス文字列を新体系(小文字, アンダースコア形式)に正規化する。
     is_csv=True の場合は日本語ラベルも救済対象に含める。
     未知の値は素通しし、Enum 変換で最終的に弾かれる想定。
     """
-    if value is None:
+    return canonicalize_task_status_traced(value, is_csv=is_csv)[0]
+
+
+def _sent_status_of(data: Dict[str, Any]) -> Optional[str]:
+    """モデル生成引数から送られた status の生値を文字列で取り出す(無ければ None)。
+    validator が畳み込む前の値を監査記録(呼び出し側 crud)へ渡す為に使う。"""
+    raw = data.get('status')
+    if raw is None:
         return None
-    # Enum 値が来た場合は文字列化
-    s = str(value.value if hasattr(value, 'value') else value)
-    s = s.strip().replace('　', '').replace(' ', '').lower()
-    if not s:
-        return None
-    if is_csv and s in CSV_STATUS_LABEL_MAP:
-        return CSV_STATUS_LABEL_MAP[s]
-    if s in API_STATUS_DEPRECATION_MAP:
-        return API_STATUS_DEPRECATION_MAP[s]
-    # ハイフン表記揺れを解消してから旧19→新9へ畳み込む
-    s = NEW_STATUS_ALIAS_MAP.get(s, s)
-    return LEGACY_PIPELINE_COLLAPSE_MAP.get(s, s)
+    return str(raw.value if hasattr(raw, 'value') else raw)
 
 
 def _validate_status_value(raw: Any, is_csv: bool = False) -> Optional[str]:
@@ -186,6 +209,16 @@ class EventBase(BaseModel):
     date: Optional[str] = None
     time: Optional[str] = None
     duration_minutes: Optional[int] = None
+    # 定例の規則(受け付ける部分集合は docs/event_recurrence_2026-10-08.md)。文法外は422で断る
+    recurrence_rule: Optional[str] = None
+
+    @validator('recurrence_rule')
+    def _validate_recurrence_rule(cls, v):
+        from .recurrence import normalize_rule, RecurrenceError
+        try:
+            return normalize_rule(v)
+        except RecurrenceError as e:
+            raise ValueError(str(e))
 
     class Config:
         from_attributes = True
@@ -216,6 +249,8 @@ class EventResponse(EventBase):
     updated_at: Optional[datetime] = None
     created_by: Optional[int] = None
     updated_by: Optional[int] = None
+    # 展開した回の番号(元の1件=0)。展開されていない行は None。id は元の予定のまま(書き込みも元の1件に向く)
+    occurrence_index: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -385,6 +420,13 @@ class TaskBase(BaseModel):
     check_items: Optional[List[Dict[str, Any]]] = None
     completed_at: Optional[datetime] = None
 
+    # 監査用: 検証(畳み込み)前に送られてきた status 生値。記録は呼び出し側(crud)が行う。
+    _sent_status: Optional[str] = PrivateAttr(default=None)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._sent_status = _sent_status_of(data)
+
     @validator('status', pre=True)
     def validate_status(cls, v):
         return _validate_status_value(v)
@@ -432,6 +474,13 @@ class TaskUpdate(BaseModel): # 更新用は Optional にすることが多い
     phases: Optional[List[Dict[str, Any]]] = None
     deliverables: Optional[str] = None
     check_items: Optional[List[Dict[str, Any]]] = None
+
+    # 監査用: 検証(畳み込み)前に送られてきた status 生値。記録は呼び出し側(crud)が行う。
+    _sent_status: Optional[str] = PrivateAttr(default=None)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._sent_status = _sent_status_of(data)
 
     @validator('status', pre=True)
     def validate_status_update(cls, v):
@@ -1457,6 +1506,8 @@ class ReadonlyEvent(BaseModel):
     date: Optional[str] = None
     time: Optional[str] = None
     duration_minutes: Optional[int] = None
+    recurrence_rule: Optional[str] = None
+    occurrence_index: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -1576,4 +1627,5 @@ class ReadonlyListResponse(BaseModel):
     limit: int
     offset: int
     items: List[Any]
+    next_cursor: Optional[str] = None  # cursor 指定時のみ。続きが無ければ null
 

@@ -62,6 +62,7 @@ import api, { userActivityApi } from '../services/api'
 import { debounce } from 'lodash'
 import { ProjectEditDialog, TaskEditDialog, EventEditDialog } from './SearchEditDialogs'
 import PasswordChangeDialog from './PasswordChangeDialog'
+import MeetingServerStatusIndicator from './MeetingServerStatusIndicator'
 
 interface LayoutProps {
   children?: ReactNode;
@@ -345,6 +346,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
 
 
+  // 議事録録音中の画面離脱・ログアウト防止確認
+  const confirmNavigationIfRecording = () => {
+    if ((window as any).__isMeetingRecordingActive) {
+      return window.confirm('議事録の録音または保存処理が進行中です。画面を移動すると録音が中断されますが、よろしいですか？');
+    }
+    return true;
+  };
+
   const drawer = (
     <div>
       <Toolbar sx={{ minHeight: '48px !important' }}>
@@ -364,6 +373,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <ListItem
               button
               onClick={() => {
+                if (!confirmNavigationIfRecording()) return;
                 navigate(item.path)
               }}
               selected={location.pathname.startsWith(item.path)}
@@ -391,7 +401,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <List>
         <ListItem
           button
-          onClick={logout}
+          onClick={() => {
+            if (!confirmNavigationIfRecording()) return;
+            logout();
+          }}
           sx={{
             px: isDrawerCollapsed ? 1 : { xs: 2, sm: 2 },
             minHeight: { xs: 56, sm: 48 },
@@ -412,6 +425,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const handleBottomNavChange = (_event: React.SyntheticEvent, newValue: number) => {
     const targetPath = bottomNavItems[newValue]?.path
     if (targetPath) {
+      if (!confirmNavigationIfRecording()) return;
       navigate(targetPath)
     }
   }
@@ -550,6 +564,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1 }, flexShrink: 0 }}>
+            <MeetingServerStatusIndicator />
             <Tooltip title={mode === 'light' ? 'ダークモードに切り替え' : 'ライトモードに切り替え'}>
               <IconButton
                 color="inherit"

@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..crud import meetings as crud_meetings
+from ..crud.events import collect_with_recurrence
+from ..recurrence import RecurrenceError, sort_key_desc
 from ..database import get_db
+from ..readonly_paging import page_rows
 from ..security import verify_readonly_token
 
 logger = logging.getLogger(__name__)
@@ -39,6 +42,7 @@ def _parse_updated_since(value: Optional[str]) -> Optional[datetime]:
 def list_projects(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     updated_since: Optional[str] = Query(default=None),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
@@ -47,10 +51,9 @@ def list_projects(
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.Project.updated_at >= dt)
-    total = q.count()
-    rows = q.order_by(models.Project.created_at.desc(), models.Project.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Project.id, [models.Project.created_at.desc(), models.Project.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyProject.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 @router.get("/projects/{project_id}", response_model=schemas.ReadonlyProject)
@@ -70,6 +73,7 @@ def list_project_shots(
     project_id: int,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     updated_since: Optional[str] = Query(default=None),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
@@ -81,14 +85,13 @@ def list_project_shots(
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.Shot.updated_at >= dt)
-    total = q.count()
-    rows = q.order_by(models.Shot.created_at.desc(), models.Shot.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Shot.id, [models.Shot.created_at.desc(), models.Shot.id.desc()], limit, offset, cursor)
     items = []
     for r in rows:
         s = schemas.ReadonlyShot.from_orm(r)
         s.thumbnail_url = _public_url(s.thumbnail_url)
         items.append(s)
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- Shots ----
@@ -97,6 +100,7 @@ def list_project_shots(
 def list_shots(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     updated_since: Optional[str] = Query(default=None),
     project_id: Optional[int] = Query(default=None),
     _: None = Depends(verify_readonly_token),
@@ -108,14 +112,13 @@ def list_shots(
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.Shot.updated_at >= dt)
-    total = q.count()
-    rows = q.order_by(models.Shot.created_at.desc(), models.Shot.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Shot.id, [models.Shot.created_at.desc(), models.Shot.id.desc()], limit, offset, cursor)
     items = []
     for r in rows:
         s = schemas.ReadonlyShot.from_orm(r)
         s.thumbnail_url = _public_url(s.thumbnail_url)
         items.append(s)
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 @router.get("/shots/{shot_id}", response_model=schemas.ReadonlyShot)
@@ -140,14 +143,14 @@ def list_shot_tasks(
     shot_id: int,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.Task).filter(models.Task.shot_id == shot_id)
-    total = q.count()
-    rows = q.order_by(models.Task.created_at.desc(), models.Task.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Task.id, [models.Task.created_at.desc(), models.Task.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyTask.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- Tasks ----
@@ -156,6 +159,7 @@ def list_shot_tasks(
 def list_tasks(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     updated_since: Optional[str] = Query(default=None),
     project_id: Optional[int] = Query(default=None),
     shot_id: Optional[int] = Query(default=None),
@@ -170,10 +174,9 @@ def list_tasks(
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.Task.updated_at >= dt)
-    total = q.count()
-    rows = q.order_by(models.Task.created_at.desc(), models.Task.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Task.id, [models.Task.created_at.desc(), models.Task.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyTask.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 @router.get("/tasks/{task_id}", response_model=schemas.ReadonlyTask)
@@ -206,8 +209,11 @@ def get_task_thread(
 def list_events(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     updated_since: Optional[str] = Query(default=None),
     project_id: Optional[int] = Query(default=None),
+    start_date: Optional[datetime] = Query(default=None, description="期間の始端 ISO8601。start_date と end_date の両方を指定した時のみ期間絞込み+定例の展開を行う"),
+    end_date: Optional[datetime] = Query(default=None, description="期間の終端 ISO8601"),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
 ):
@@ -217,10 +223,28 @@ def list_events(
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.Event.updated_at >= dt)
-    total = q.count()
-    rows = q.order_by(models.Event.start_time.desc(), models.Event.id.desc()).offset(offset).limit(limit).all()
+    if start_date is not None and end_date is not None:
+        if cursor is not None:
+            raise HTTPException(status_code=400, detail="start_date/end_date(定例の展開)指定時は cursor を使えません。")
+        # 期間指定あり(新引数): 重なりで絞り、定例を展開する。指定なしの従来呼出は下の無改変の経路
+        try:
+            expanded = collect_with_recurrence(
+                q,
+                [models.Event.end_time >= start_date, models.Event.start_time <= end_date],
+                start_date, end_date,
+                keep=lambda s, e: e >= start_date and s <= end_date,
+            )
+        except RecurrenceError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if expanded is None:
+            q = q.filter(models.Event.end_time >= start_date, models.Event.start_time <= end_date)
+        else:
+            expanded.sort(key=sort_key_desc, reverse=True)
+            items = [schemas.ReadonlyEvent.from_orm(r) for r in expanded[offset:offset + limit]]
+            return schemas.ReadonlyListResponse(total=len(expanded), limit=limit, offset=offset, items=items)
+    total, rows, next_cursor = page_rows(q, models.Event.id, [models.Event.start_time.desc(), models.Event.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyEvent.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- Users ----
@@ -229,6 +253,7 @@ def list_events(
 def list_users(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     updated_since: Optional[str] = Query(default=None),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
@@ -237,14 +262,13 @@ def list_users(
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.User.updated_at >= dt)
-    total = q.count()
-    rows = q.order_by(models.User.created_at.desc(), models.User.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.User.id, [models.User.created_at.desc(), models.User.id.desc()], limit, offset, cursor)
     items = []
     for r in rows:
         u = schemas.ReadonlyUser.from_orm(r)
         u.avatar_url = _public_url(u.avatar_url)
         items.append(u)
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- Notifications ----
@@ -253,14 +277,14 @@ def list_users(
 def list_notifications(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
 ):
     q = db.query(models.Notification)
-    total = q.count()
-    rows = q.order_by(models.Notification.created_at.desc(), models.Notification.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Notification.id, [models.Notification.created_at.desc(), models.Notification.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyNotification.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- Meetings ----
@@ -269,6 +293,7 @@ def list_notifications(
 def list_meetings(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     updated_since: Optional[str] = Query(default=None),
     project_id: Optional[int] = Query(default=None),
     title: Optional[str] = Query(default=None, description="題名の部分一致(大文字小文字を区別しない)"),
@@ -286,10 +311,9 @@ def list_meetings(
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.Meeting.updated_at >= dt)
-    total = q.count()
-    rows = q.order_by(models.Meeting.date.desc(), models.Meeting.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Meeting.id, [models.Meeting.date.desc(), models.Meeting.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyMeeting.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 @router.get("/meetings/{meeting_id}", response_model=schemas.ReadonlyMeeting)
@@ -310,6 +334,7 @@ def get_meeting(
 def list_decisions(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     project_id: Optional[int] = Query(default=None),
     meeting_id: Optional[int] = Query(default=None),
     _: None = Depends(verify_readonly_token),
@@ -320,10 +345,9 @@ def list_decisions(
         q = q.filter(models.Decision.project_id == project_id)
     if meeting_id is not None:
         q = q.filter(models.Decision.meeting_id == meeting_id)
-    total = q.count()
-    rows = q.order_by(models.Decision.date.desc(), models.Decision.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Decision.id, [models.Decision.date.desc(), models.Decision.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyDecision.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- ScoreUserRoles ----
@@ -332,6 +356,7 @@ def list_decisions(
 def list_score_user_roles(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     project_id: Optional[int] = Query(default=None),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
@@ -339,10 +364,9 @@ def list_score_user_roles(
     q = db.query(models.ScoreUserRole)
     if project_id is not None:
         q = q.filter(models.ScoreUserRole.project_id == project_id)
-    total = q.count()
-    rows = q.order_by(models.ScoreUserRole.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.ScoreUserRole.id, [models.ScoreUserRole.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyScoreUserRole.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- Retakes ----
@@ -351,6 +375,7 @@ def list_score_user_roles(
 def list_readonly_retakes(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     shot_id: Optional[int] = Query(default=None),
     status: Optional[str] = Query(default=None),
     _: None = Depends(verify_readonly_token),
@@ -361,10 +386,9 @@ def list_readonly_retakes(
         q = q.filter(models.Retake.shot_id == shot_id)
     if status is not None:
         q = q.filter(models.Retake.status == status)
-    total = q.count()
-    rows = q.order_by(models.Retake.created_at.desc(), models.Retake.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Retake.id, [models.Retake.created_at.desc(), models.Retake.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyRetake.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 @router.get("/retakes/{retake_id}", response_model=schemas.ReadonlyRetake)
@@ -385,6 +409,7 @@ def get_readonly_retake(
 def list_readonly_assets(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     shot_id: Optional[int] = Query(default=None),
     task_id: Optional[int] = Query(default=None),
     _: None = Depends(verify_readonly_token),
@@ -395,15 +420,14 @@ def list_readonly_assets(
         q = q.filter(models.Asset.shot_id == shot_id)
     if task_id is not None:
         q = q.filter(models.Asset.task_id == task_id)
-    total = q.count()
-    rows = q.order_by(models.Asset.created_at.desc(), models.Asset.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.Asset.id, [models.Asset.created_at.desc(), models.Asset.id.desc()], limit, offset, cursor)
     items = []
     for r in rows:
         a = schemas.ReadonlyAsset.from_orm(r)
         a.filename = os.path.basename(r.file_path) if r.file_path else None
         a.file_path = _public_url(a.file_path)
         items.append(a)
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 # ---- Task Status History ----
@@ -412,6 +436,7 @@ def list_readonly_assets(
 def list_readonly_task_status_history(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    cursor: Optional[str] = Query(default=None, description="続きから取る頁送り。1回目は start、以降は直前の応答の next_cursor をそのまま指定(offset とは併用不可)。この指定時の並びは id 降順"),
     task_id: Optional[int] = Query(default=None),
     project_id: Optional[int] = Query(default=None),
     _: None = Depends(verify_readonly_token),
@@ -424,10 +449,9 @@ def list_readonly_task_status_history(
         q = q.join(models.Task, models.TaskStatusHistory.task_id == models.Task.id).filter(
             models.Task.project_id == project_id
         )
-    total = q.count()
-    rows = q.order_by(models.TaskStatusHistory.changed_at.desc(), models.TaskStatusHistory.id.desc()).offset(offset).limit(limit).all()
+    total, rows, next_cursor = page_rows(q, models.TaskStatusHistory.id, [models.TaskStatusHistory.changed_at.desc(), models.TaskStatusHistory.id.desc()], limit, offset, cursor)
     items = [schemas.ReadonlyTaskStatusHistory.from_orm(r) for r in rows]
-    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
+    return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items, next_cursor=next_cursor)
 
 
 

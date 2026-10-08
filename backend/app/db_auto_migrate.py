@@ -353,6 +353,13 @@ def check_and_migrate_db():
             conn.commit()
             print("eventsテーブルにuser_idsカラムを追加しました。")
 
+        # eventsテーブルの定例規則カラム(recurrence_rule): nullable で後付け(SQLiteの縛り)
+        if 'recurrence_rule' not in event_columns:
+            print("eventsテーブルにrecurrence_ruleカラムが見つかりません。追加しています...")
+            cursor.execute("ALTER TABLE events ADD COLUMN recurrence_rule VARCHAR")
+            conn.commit()
+            print("eventsテーブルにrecurrence_ruleカラムを追加しました。")
+
         # user_personal_calendarsテーブルのevents_sync_tokenカラム確認・追加
         cursor.execute("PRAGMA table_info(user_personal_calendars)")
         upc_columns = [row[1] for row in cursor.fetchall()]

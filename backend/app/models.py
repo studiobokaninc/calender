@@ -281,6 +281,8 @@ class Event(Base):
     minutes_id: Mapped[Optional[int]] = mapped_column(ForeignKey("meetings.id"), nullable=True)
     created_at: Mapped[Optional[datetime]] = mapped_column()
     updated_at: Mapped[Optional[datetime]] = mapped_column()
+    # 定例の規則(iCalendar RRULEの部分集合。app/recurrence.py)。NULL=規則なし。展開は読み出し時のみでDBは1行のまま
+    recurrence_rule: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     @property
     def date(self) -> Optional[str]:

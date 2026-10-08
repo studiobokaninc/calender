@@ -48,7 +48,18 @@ const MeetingMinutesPage: React.FC = () => {
         fetchProjects();
     }, []);
 
+    // 録音中の画面離脱・プロジェクト変更防止確認
+    const confirmIfRecording = () => {
+        if ((window as any).__isMeetingRecordingActive) {
+            return window.confirm('議事録の録音または保存処理が進行中です。画面を移動すると録音が中断されますが、よろしいですか？');
+        }
+        return true;
+    };
+
     const handleProjectChange = (projectId: number) => {
+        if (selectedProjectId !== projectId) {
+            if (!confirmIfRecording()) return;
+        }
         setSelectedProjectId(projectId);
     };
 
@@ -64,7 +75,14 @@ const MeetingMinutesPage: React.FC = () => {
         <Box sx={{ p: isMobile ? 2 : 3, pb: isMobile ? 10 : 3 }}>
             <Box sx={{ mb: 4 }}>
                 <Breadcrumbs sx={{ mb: 1.5 }}>
-                    <Link color="inherit" onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>
+                    <Link
+                        color="inherit"
+                        onClick={() => {
+                            if (!confirmIfRecording()) return;
+                            navigate('/dashboard');
+                        }}
+                        sx={{ cursor: 'pointer', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                    >
                         App
                     </Link>
                     <Typography color="text.primary" sx={{ fontWeight: 500 }}>Meetings</Typography>
@@ -219,7 +237,10 @@ const MeetingMinutesPage: React.FC = () => {
                                     {isMobile && (
                                         <Button
                                             size="small"
-                                            onClick={() => setSelectedProjectId(null)}
+                                            onClick={() => {
+                                                if (!confirmIfRecording()) return;
+                                                setSelectedProjectId(null);
+                                            }}
                                             variant="outlined"
                                             sx={{ borderRadius: 2, ml: 1, flexShrink: 0 }}
                                         >

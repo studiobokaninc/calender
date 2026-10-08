@@ -169,7 +169,8 @@ def test_backward_compatible_without_new_args(mcp_db, client, readonly_headers):
     assert res_p["total"] == 23
 
     r = client.get("/api/readonly/meetings", headers=readonly_headers).json()
-    assert set(r.keys()) == {"total", "limit", "offset", "items"}
+    # cmd_733: 返りに next_cursor 欄が増える事のみ許容(cursor 無しなら null)
+    assert set(r.keys()) == {"total", "limit", "offset", "items", "next_cursor"} and r["next_cursor"] is None
     assert r["total"] == 69 and r["limit"] == 100 and len(r["items"]) == 69
     r = client.get(f"/api/readonly/meetings?project_id={projects[1].id}", headers=readonly_headers).json()
     assert r["total"] == 23 and len(r["items"]) == 23

@@ -115,6 +115,45 @@ def auto_sync_event_bg(event_id: int, db: Session = None):
         if should_close:
             db.close()
 
+def auto_sync_events_bg(event_ids: List[int], db: Session = None):
+    """複数イベントの一括同期(cmd_731 四)。auto_sync_event_bg を予定ごとに回すと、予定ごとに
+    個人カレンダー一覧の取得と共有トークン更新を繰り返し「予定の件数×個人カレンダー数」の呼び出しになる。
+    ここでは予定のループを内側に持ち、一覧・アカウント・トークンは1回だけ取得する。
+    さらに、参加者でも既存の同期行も無い(=sync_event_to_google が何もしない)組は呼ばない。"""
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+    try:
+        ids = list(dict.fromkeys(event_ids))
+        if not ids:
+            return
+        events = db.query(models.Event).filter(models.Event.id.in_(ids)).all()
+        if not events:
+            return
+        calendar_rows = crud.get_all_user_personal_calendars(db)
+        if not calendar_rows:
+            return
+        account = crud.get_google_shared_account(db)
+        access_token = _ensure_shared_token_updated(db)
+        if not access_token or not account:
+            return
+        synced = {
+            (s.user_id, s.event_id)
+            for s in db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id.in_(ids)).all()
+            if s.google_event_id
+        }
+        for event in events:
+            attendees = set(event.user_ids or [])
+            for row in calendar_rows:
+                if row.user_id in attendees or (row.user_id, event.id) in synced:
+                    sync_event_to_google(db, event, row, access_token, account)
+    except Exception as e:
+        logger.exception("auto_sync_events_bg failed: %s", e)
+    finally:
+        if should_close:
+            db.close()
+
 def _ensure_shared_token_updated(db: Session) -> Optional[str]:
     """共有アカウントのアクセストークンを必要に応じてリフレッシュして返す。
     リフレッシュに失敗しても行は削除せず、status="error" としてマークするだけに留める
@@ -474,6 +513,35 @@ def delete_event_syncs(db: Session, event_id: int):
     access_token = _ensure_shared_token_updated(db) if account else None
     for s in syncs:
         calendar_row = crud.get_user_personal_calendar(db, s.user_id)
+        if calendar_row and s.google_event_id and access_token and account:
+            try:
+                google_calendar.delete_calendar_event(
+                    access_token=access_token,
+                    refresh_token=account.refresh_token,
+                    expires_at=account.expires_at,
+                    event_id=s.google_event_id,
+                    calendar_id=calendar_row.calendar_id
+                )
+            except Exception as e:
+                logger.error(f"Failed to delete event sync {s.google_event_id}: {e}")
+        db.delete(s)
+    db.commit()
+
+def delete_events_syncs(db: Session, event_ids: List[int]):
+    """複数イベントの同期解除(cmd_731 四)。delete_event_syncs を予定ごとに回すと予定ごとに
+    共有トークン更新と個人カレンダー取得を繰り返すため、アカウント・トークン・カレンダー行は1回だけ取得する。
+    Google側の削除は同期行1件につき1回(これは本質的に必要な呼び出し)。"""
+    ids = list(dict.fromkeys(event_ids))
+    if not ids:
+        return
+    syncs = db.query(models.EventGoogleSync).filter(models.EventGoogleSync.event_id.in_(ids)).all()
+    if not syncs:
+        return
+    account = crud.get_google_shared_account(db)
+    access_token = _ensure_shared_token_updated(db) if account else None
+    calendars = {r.user_id: r for r in crud.get_all_user_personal_calendars(db)}
+    for s in syncs:
+        calendar_row = calendars.get(s.user_id)
         if calendar_row and s.google_event_id and access_token and account:
             try:
                 google_calendar.delete_calendar_event(

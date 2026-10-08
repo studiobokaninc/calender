@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..crud import meetings as crud_meetings
 from ..database import get_db
 from ..security import verify_readonly_token
 
@@ -47,7 +48,7 @@ def list_projects(
     if dt:
         q = q.filter(models.Project.updated_at >= dt)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Project.created_at.desc(), models.Project.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyProject.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -81,7 +82,7 @@ def list_project_shots(
     if dt:
         q = q.filter(models.Shot.updated_at >= dt)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Shot.created_at.desc(), models.Shot.id.desc()).offset(offset).limit(limit).all()
     items = []
     for r in rows:
         s = schemas.ReadonlyShot.from_orm(r)
@@ -108,7 +109,7 @@ def list_shots(
     if dt:
         q = q.filter(models.Shot.updated_at >= dt)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Shot.created_at.desc(), models.Shot.id.desc()).offset(offset).limit(limit).all()
     items = []
     for r in rows:
         s = schemas.ReadonlyShot.from_orm(r)
@@ -144,7 +145,7 @@ def list_shot_tasks(
 ):
     q = db.query(models.Task).filter(models.Task.shot_id == shot_id)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Task.created_at.desc(), models.Task.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyTask.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -170,7 +171,7 @@ def list_tasks(
     if dt:
         q = q.filter(models.Task.updated_at >= dt)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Task.created_at.desc(), models.Task.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyTask.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -217,7 +218,7 @@ def list_events(
     if dt:
         q = q.filter(models.Event.updated_at >= dt)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Event.start_time.desc(), models.Event.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyEvent.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -237,7 +238,7 @@ def list_users(
     if dt:
         q = q.filter(models.User.updated_at >= dt)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.User.created_at.desc(), models.User.id.desc()).offset(offset).limit(limit).all()
     items = []
     for r in rows:
         u = schemas.ReadonlyUser.from_orm(r)
@@ -257,7 +258,7 @@ def list_notifications(
 ):
     q = db.query(models.Notification)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Notification.created_at.desc(), models.Notification.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyNotification.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -270,17 +271,23 @@ def list_meetings(
     offset: int = Query(default=0, ge=0),
     updated_since: Optional[str] = Query(default=None),
     project_id: Optional[int] = Query(default=None),
+    title: Optional[str] = Query(default=None, description="題名の部分一致(大文字小文字を区別しない)"),
+    date_from: Optional[str] = Query(default=None, description="会議日の下限(ISO8601・含む)"),
+    date_to: Optional[str] = Query(default=None, description="会議日の上限(ISO8601・含む。日付のみなら当日末まで)"),
     _: None = Depends(verify_readonly_token),
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.Meeting)
-    if project_id is not None:
-        q = q.filter(models.Meeting.project_id == project_id)
+    try:
+        d_from = crud_meetings.parse_date_bound(date_from)
+        d_to = crud_meetings.parse_date_bound(date_to, end=True)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date_from / date_to は ISO8601 形式で指定してください。")
+    q = crud_meetings.filter_meetings(db.query(models.Meeting), project_id, title, d_from, d_to)
     dt = _parse_updated_since(updated_since)
     if dt:
         q = q.filter(models.Meeting.updated_at >= dt)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Meeting.date.desc(), models.Meeting.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyMeeting.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -314,7 +321,7 @@ def list_decisions(
     if meeting_id is not None:
         q = q.filter(models.Decision.meeting_id == meeting_id)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Decision.date.desc(), models.Decision.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyDecision.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -333,7 +340,7 @@ def list_score_user_roles(
     if project_id is not None:
         q = q.filter(models.ScoreUserRole.project_id == project_id)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.ScoreUserRole.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyScoreUserRole.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -355,7 +362,7 @@ def list_readonly_retakes(
     if status is not None:
         q = q.filter(models.Retake.status == status)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Retake.created_at.desc(), models.Retake.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyRetake.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 
@@ -389,7 +396,7 @@ def list_readonly_assets(
     if task_id is not None:
         q = q.filter(models.Asset.task_id == task_id)
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.Asset.created_at.desc(), models.Asset.id.desc()).offset(offset).limit(limit).all()
     items = []
     for r in rows:
         a = schemas.ReadonlyAsset.from_orm(r)
@@ -418,7 +425,7 @@ def list_readonly_task_status_history(
             models.Task.project_id == project_id
         )
     total = q.count()
-    rows = q.offset(offset).limit(limit).all()
+    rows = q.order_by(models.TaskStatusHistory.changed_at.desc(), models.TaskStatusHistory.id.desc()).offset(offset).limit(limit).all()
     items = [schemas.ReadonlyTaskStatusHistory.from_orm(r) for r in rows]
     return schemas.ReadonlyListResponse(total=total, limit=limit, offset=offset, items=items)
 

@@ -179,10 +179,13 @@ def get_meeting_minutes(
     meeting_id: Annotated[Optional[int], Field(description="特定の議事録ID (任意)。指定時はその1件の詳細(文字起こし全文含む)を返す。")] = None,
     limit: Annotated[int, Field(description="取得件数上限 (任意・デフォルト20・最大100)")] = 20,
     offset: Annotated[int, Field(description="取得開始位置 (任意)")] = 0,
+    title: Annotated[Optional[str], Field(description="題名の部分一致 (任意・大文字小文字を区別しない)")] = None,
+    date_from: Annotated[Optional[str], Field(description="会議日の下限 (任意・ISO8601・含む)")] = None,
+    date_to: Annotated[Optional[str], Field(description="会議日の上限 (任意・ISO8601・含む。日付のみなら当日末まで)")] = None,
 ) -> dict:
     """議事録(決定事項・検出タスク・議論事項・期限を含む)を取得する。
     meeting_id 指定時: その1件の詳細(transcript全文含む)を返す。
-    未指定時: project_id 等で絞り込んだ一覧を date 降順で返す(要約情報のみ、transcriptは含まない)。"""
+    未指定時: project_id / title(部分一致) / date_from・date_to(日付範囲) 等で絞り込んだ一覧を date 降順(同順位は id 降順)で返す(要約情報のみ、transcriptは含まない)。"""
     db = SessionLocal()
     try:
         def _serialize(m: "models.Meeting", with_transcript: bool = False) -> dict:
@@ -210,11 +213,15 @@ def get_meeting_minutes(
                 return {"error": "Meeting not found", "status_code": 404}
             return {"meeting": _serialize(db_meeting, with_transcript=True)}
 
-        q = db.query(models.Meeting)
-        if project_id is not None:
-            q = q.filter(models.Meeting.project_id == project_id)
+        from .crud import meetings as crud_meetings
+        try:
+            d_from = crud_meetings.parse_date_bound(date_from)
+            d_to = crud_meetings.parse_date_bound(date_to, end=True)
+        except ValueError:
+            return {"error": "date_from / date_to は ISO8601 形式で指定してください。", "status_code": 400}
+        q = crud_meetings.filter_meetings(db.query(models.Meeting), project_id, title, d_from, d_to)
         total = q.count()
-        rows = q.order_by(models.Meeting.date.desc()).offset(offset).limit(min(limit, 100)).all()
+        rows = q.order_by(models.Meeting.date.desc(), models.Meeting.id.desc()).offset(offset).limit(min(limit, 100)).all()
         items = [_serialize(m) for m in rows]
         return {"total": total, "limit": limit, "offset": offset, "items": items}
     finally:

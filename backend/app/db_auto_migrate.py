@@ -159,6 +159,10 @@ def check_and_migrate_db():
             conn.commit()
             print("既存のデータのステータスを更新しました。")
         
+        # meetings.date の index（日付範囲での絞り込み用）。名前は models.py の index=True 由来 ix_meetings_date と揃える
+        cursor.execute("CREATE INDEX IF NOT EXISTS ix_meetings_date ON meetings(date)")
+        conn.commit()
+
         # version_groupカラムが存在しない場合のみ追加
         if 'version_group' not in meeting_columns:
             print("version_groupカラムが見つかりません。追加しています...")

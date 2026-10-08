@@ -1,6 +1,7 @@
 import logging
+from datetime import datetime, time
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, Query
 from .. import models, schemas
 from ..timezone import now_jst_naive
 
@@ -13,6 +14,48 @@ def get_meeting(db: Session, meeting_id: int) -> Optional[models.Meeting]:
 def get_meetings_by_project(db: Session, project_id: int, skip: int = 0, limit: int = 100) -> List[models.Meeting]:
     """プロジェクト別の議事録リストを取得"""
     return db.query(models.Meeting).filter(models.Meeting.project_id == project_id).order_by(models.Meeting.date.desc()).offset(skip).limit(limit).all()
+
+def parse_date_bound(value: Optional[str], *, end: bool = False) -> Optional[datetime]:
+    """ISO8601 文字列を datetime にする。日付のみ(YYYY-MM-DD)の上限は当日の終わりまで含める。
+    不正な形式は ValueError。"""
+    if value is None or not str(value).strip():
+        return None
+    text = str(value).strip()
+    dt = datetime.fromisoformat(text)
+    if end and len(text) <= 10:
+        dt = datetime.combine(dt.date(), time.max)
+    return dt
+
+def filter_meetings(
+    query: Query,
+    project_id: Optional[int] = None,
+    title: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+) -> Query:
+    """議事録クエリへ案件(任意)・題名の部分一致・日付範囲を足す。題名は crud/search.py の ilike 流儀を踏襲。"""
+    if project_id is not None:
+        query = query.filter(models.Meeting.project_id == project_id)
+    if title is not None and title.strip():
+        query = query.filter(models.Meeting.title.ilike(f"%{title.strip()}%"))
+    if date_from is not None:
+        query = query.filter(models.Meeting.date >= date_from)
+    if date_to is not None:
+        query = query.filter(models.Meeting.date <= date_to)
+    return query
+
+def search_meetings(
+    db: Session,
+    project_id: Optional[int] = None,
+    title: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[models.Meeting]:
+    """案件任意・題名・日付範囲で議事録を引く(date 降順・id 降順)"""
+    q = filter_meetings(db.query(models.Meeting), project_id, title, date_from, date_to)
+    return q.order_by(models.Meeting.date.desc(), models.Meeting.id.desc()).offset(skip).limit(limit).all()
 
 def create_meeting(db: Session, meeting: schemas.MeetingCreate) -> models.Meeting:
     """新規議事録を作成"""

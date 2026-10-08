@@ -459,7 +459,7 @@ class Meeting(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), index=True)
     title: Mapped[str] = mapped_column(index=True)
-    date: Mapped[datetime] = mapped_column(default=now_jst_naive)
+    date: Mapped[datetime] = mapped_column(default=now_jst_naive, index=True)
     status: Mapped[str] = mapped_column(String(50), default="pending", index=True) # pending, processing, completed, failed
     audio_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 保存先パス
     analysis_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 議事録生成(文字起こし＋抽出)にかかった秒数

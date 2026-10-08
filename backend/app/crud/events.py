@@ -83,7 +83,7 @@ def get_events(
         query = query.filter(models.Event.end_time >= start_date)
     if end_date is not None:
         query = query.filter(models.Event.start_time <= end_date)
-    return query.offset(skip).limit(limit).all()
+    return query.order_by(models.Event.start_time.desc(), models.Event.id.desc()).offset(skip).limit(limit).all()
 
 def _derive_user_ids_from_participants(participants: Optional[List[dict]]) -> List[int]:
     """participants リストから user_ids を自動補完する"""

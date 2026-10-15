@@ -331,6 +331,14 @@ class DmThreadParticipant(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
     created_at: Mapped[Optional[datetime]] = mapped_column()
 
+class TaskDmThread(Base):
+    """タスク専用DMスレッドの対応表（task_id ⇄ thread_id）。FKは付けない素の整数。"""
+    __tablename__ = "task_dm_threads"
+
+    task_id: Mapped[int] = mapped_column(primary_key=True)
+    thread_id: Mapped[int] = mapped_column(nullable=False, unique=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column()
+
 class Note(Base):
     __tablename__ = "notes"
 

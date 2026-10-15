@@ -22598,3 +22598,333 @@ N_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not
 2026-10-08 20:40:50,857 - app.routers.users - WARNING - GET /api/users auth attempt: X-Readonly-Token=False, Authorization=Bearer***, X-Actor-User-Id=False
 2026-10-08 20:40:50,858 - app.routers.users - WARNING - GET /api/users: readonly token: MISMATCH
 2026-10-08 20:40:50,867 - app.routers.users - WARNING - GET /api/users: auth PASSED via JWT
+2026-10-15 16:04:28,206 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:04:28,206 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:04:32,985 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:04:46,661 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:04:46,721 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:04:46,722 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:04:46,765 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:04:47,354 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:04:48,113 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:04:48,511 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:05:08,546 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-15 16:05:08,723 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-15 16:05:09,303 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-15 16:05:09,489 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:05:09,494 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:05:09,578 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:05:09,655 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:05:09,840 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:05:09,847 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-15 16:05:09.847023', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-15 16:05:09,858 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-15 16:05:10,066 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:05:10,069 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-15 16:05:10,239 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:05:10,423 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:05:11,316 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-10-15 16:05:12,279 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:05:13,095 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:05:13,138 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:05:13,273 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:05:13,348 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:05:13,417 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:05:13,419 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:05:13,491 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:05:13,563 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-10-15 16:05:13,643 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-10-15 16:05:13,713 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-10-15 16:05:13,791 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-10-15 16:05:13,870 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:05:13,940 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:05:14,023 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:05:14,029 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:05:16,595 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-15 16:05:16,602 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-15 16:05:16,603 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-15 16:05:16,603 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-15 16:05:16,603 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-15 16:05:16,604 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-15 16:05:16,610 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-15 16:05:49,928 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:05:50,532 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:05:57,938 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:06:11,052 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:06:11,123 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:06:11,124 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:06:11,156 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:06:11,687 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:06:12,395 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:06:12,784 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:07:21,840 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:07:22,423 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:07:30,056 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:07:43,762 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:07:43,843 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:07:43,845 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:07:43,875 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:07:44,457 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:07:45,224 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:07:45,598 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:08:08,739 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-15 16:08:08,941 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-15 16:08:09,565 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-15 16:08:09,777 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:08:09,782 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:08:09,872 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:08:09,951 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:08:10,178 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:08:10,185 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-15 16:08:10.184506', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-15 16:08:10,203 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-15 16:08:10,392 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:08:10,395 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-15 16:08:10,614 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:08:10,808 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:08:11,781 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-10-15 16:08:12,871 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:08:13,704 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:08:13,768 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:08:13,946 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:08:14,043 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:08:14,128 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:08:14,132 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:08:14,219 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:08:14,300 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-10-15 16:08:14,387 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-10-15 16:08:14,472 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-10-15 16:08:14,550 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-10-15 16:08:14,637 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:08:14,720 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:08:14,804 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:08:14,810 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:08:17,584 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-15 16:08:17,593 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-15 16:08:17,593 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-15 16:08:17,593 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-15 16:08:17,594 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-15 16:08:17,594 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-15 16:08:17,600 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-15 16:09:49,443 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:09:50,047 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:09:57,567 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:10:11,541 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:10:11,602 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:10:11,603 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:10:11,633 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:10:12,156 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:10:12,843 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:10:14,138 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:10:33,998 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-15 16:10:34,172 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-15 16:10:34,746 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-15 16:10:34,931 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:10:34,935 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:10:35,020 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:10:35,108 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:10:35,325 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:10:35,331 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-15 16:10:35.330764', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-15 16:10:35,346 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-15 16:10:35,555 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:10:35,559 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-15 16:10:35,729 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:10:35,907 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:10:36,919 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-10-15 16:10:37,865 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:10:38,598 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:10:38,637 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:10:38,794 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:10:38,868 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:10:38,943 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:10:38,947 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:10:39,031 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:10:39,113 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-10-15 16:10:39,193 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-10-15 16:10:39,279 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-10-15 16:10:39,350 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-10-15 16:10:39,431 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:10:39,514 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:10:39,586 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:10:39,592 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:10:42,242 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-15 16:10:42,249 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-15 16:10:42,250 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-15 16:10:42,250 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-15 16:10:42,251 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-15 16:10:42,251 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-15 16:10:42,257 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-15 16:16:46,000 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:16:46,561 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:16:53,824 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:17:07,536 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:17:07,592 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:17:07,593 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:17:07,628 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:17:08,134 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:17:08,838 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:17:09,407 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:18:06,150 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:18:26,705 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:18:29,355 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:18:29,934 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:18:36,767 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:18:49,144 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:18:49,201 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:18:49,202 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:18:49,237 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:18:49,816 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:18:50,537 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:18:50,914 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:19:10,771 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-15 16:19:10,980 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-15 16:19:11,603 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-15 16:19:11,800 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:19:11,804 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:19:11,890 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:19:11,972 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:19:12,161 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:19:12,165 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-15 16:19:12.165900', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-15 16:19:12,180 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-15 16:19:12,395 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:19:12,399 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-15 16:19:12,595 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:19:12,774 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:19:13,653 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-10-15 16:19:14,575 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:19:15,330 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:19:15,369 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:19:15,499 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:19:15,577 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:19:15,657 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:19:15,660 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:19:15,753 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:19:15,840 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-10-15 16:19:15,922 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-10-15 16:19:16,000 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-10-15 16:19:16,074 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-10-15 16:19:16,150 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:19:16,227 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:19:16,301 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:19:16,305 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:19:19,025 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-15 16:19:19,032 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-15 16:19:19,032 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-15 16:19:19,033 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-15 16:19:19,033 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-15 16:19:19,033 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-15 16:19:19,039 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-15 16:19:41,920 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:19:44,648 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:19:45,210 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:19:51,850 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:20:05,848 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:20:05,910 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:20:05,912 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:20:05,941 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:20:06,450 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:20:07,223 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:20:07,602 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:20:27,668 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-15 16:20:27,848 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-15 16:20:28,442 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-15 16:20:28,670 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:20:28,675 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:20:28,778 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:20:28,860 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:20:29,032 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:20:29,036 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-15 16:20:29.036046', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-15 16:20:29,046 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-15 16:20:29,242 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:20:29,246 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-15 16:20:29,446 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:20:29,645 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:20:30,564 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-10-15 16:20:31,482 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:20:32,258 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:20:32,296 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:20:32,436 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:20:32,516 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:20:32,597 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:20:32,600 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:20:32,684 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:20:32,761 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-10-15 16:20:32,837 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-10-15 16:20:32,911 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-10-15 16:20:32,994 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-10-15 16:20:33,076 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:20:33,158 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:20:33,237 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:20:33,243 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:20:36,041 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-15 16:20:36,049 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-15 16:20:36,050 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-15 16:20:36,051 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-15 16:20:36,051 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-15 16:20:36,051 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-15 16:20:36,059 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down
+2026-10-15 16:21:51,054 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:21:53,156 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:21:53,740 - app.utils.webhook_sender - WARNING - webhook error: event_type=dm_thread.new_message error=ReadError
+2026-10-15 16:22:00,705 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=ReadError
+2026-10-15 16:22:13,292 - app.services.minutes_agent - WARNING - minutes-agent: meeting 2 は完了済みのため重複コールバックを無視します
+2026-10-15 16:22:13,355 - app.services.minutes_agent - WARNING - minutes-agent: meeting 4 の文字起こしが空のため failed として扱います
+2026-10-15 16:22:13,357 - app.services.minutes_agent - ERROR - minutes-agent: meeting 4 を failed にします (文字起こしが空)
+2026-10-15 16:22:13,393 - app.services.minutes_agent - ERROR - minutes-agent: meeting 5 を failed にします (whisper crashed)
+2026-10-15 16:22:13,919 - app.services.minutes_agent - ERROR - minutes-agent: dispatch に失敗しました (meeting=8 url=http://192.0.2.1:8090/process_meeting 理由=[RuntimeError] connection refused)。ローカル解析へフォールバックします。
+2026-10-15 16:22:14,656 - app.main - WARNING - Cleaned up orphaned meeting 13 (status reset from 'processing' to 'failed' on startup)
+2026-10-15 16:22:15,044 - app.services.minutes_agent - ERROR - minutes-agent: meeting 16 を failed にします (音声から有効な発話が検出されませんでした。)
+2026-10-15 16:22:34,766 - app.schemas - WARNING - Deprecated or alias task status received: 'in-progress' -> automatically mapped to 'wip'.
+2026-10-15 16:22:35,015 - app.schemas - WARNING - Deprecated or alias task status received: 'dir-ap' -> automatically mapped to 'ap'.
+2026-10-15 16:22:35,643 - app.schemas - WARNING - Deprecated or alias task status received: 'tanaka-taro@example.com Bearer sk-secret-123' -> automatically mapped to 'tanaka-taro@example.combearersk-secret-123'.
+2026-10-15 16:22:35,847 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:22:35,851 - app.schemas - WARNING - Deprecated or alias task status received: 'review' -> automatically mapped to 'qc'.
+2026-10-15 16:22:35,933 - app.schemas - WARNING - Deprecated or alias task status received: 'retake' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:22:36,005 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:22:36,204 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:22:36,208 - app.services.audit_service - WARNING - audit record failed (non-fatal): (sqlite3.IntegrityError) NOT NULL constraint failed: audit_logs.action
+[SQL: INSERT INTO audit_logs (ts, actor_uid, action, target_type, target_id, detail, level) VALUES (?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('2026-10-15 16:22:36.208184', 1, None, 'task', 1, '{"sent": "todo", "stored": "mk", "maps": ["api_deprecation"], "source": "crud.update_task:manual"}', 'info')]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+2026-10-15 16:22:36,223 - app.schemas - WARNING - Deprecated or alias task status received: 'in_progress' -> automatically mapped to 'wip'.
+2026-10-15 16:22:36,415 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:22:36,420 - app.services.audit_service - WARNING - status conversion audit failed (non-fatal): audit exploded
+2026-10-15 16:22:36,612 - app.schemas - WARNING - Deprecated or alias task status received: 'todo' -> automatically mapped to 'mk'.
+2026-10-15 16:22:36,796 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:22:37,678 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 役職不足のassigned_to変更を許可 task_id=1 actor_id=1 error=role_not_permitted
+2026-10-15 16:22:38,635 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→client_ap error=role_not_permitted
+2026-10-15 16:22:39,390 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:22:39,426 - app.schemas - WARNING - Deprecated or alias task status received: 'qc-fb' -> automatically mapped to 'qc_fb'.
+2026-10-15 16:22:39,556 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:22:39,629 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:22:39,723 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:22:39,726 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→client_ap error=role_not_permitted
+2026-10-15 16:22:39,806 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:22:39,886 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→wt error=role_not_permitted
+2026-10-15 16:22:39,992 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→mk error=role_not_permitted
+2026-10-15 16:22:40,075 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 wip→qc_fb error=role_not_permitted
+2026-10-15 16:22:40,155 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 deliver→qc_fb error=role_not_permitted
+2026-10-15 16:22:40,246 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:22:40,321 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:22:40,406 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 qc→ap error=role_not_permitted
+2026-10-15 16:22:40,412 - app.crud.tasks - WARNING - TASK_TRANSITION_ENFORCE=warn: 違法/未確定/役職不足の遷移を許可 task_id=1 ap→qc_fb error=role_not_permitted
+2026-10-15 16:22:43,236 - app.utils.webhook_sender - WARNING - webhook 4xx: event_type=event.created status=400
+2026-10-15 16:22:43,245 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=1
+2026-10-15 16:22:43,246 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=2
+2026-10-15 16:22:43,246 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=3
+2026-10-15 16:22:43,246 - app.utils.webhook_sender - WARNING - webhook 5xx: event_type=event.created status=503 attempt=4
+2026-10-15 16:22:43,247 - app.utils.webhook_sender - WARNING - webhook failed after retries: event_type=event.created
+2026-10-15 16:22:43,257 - app.utils.webhook_sender - WARNING - webhook error: event_type=event.created error=RuntimeError: network down

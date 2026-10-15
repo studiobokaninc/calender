@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, and_, func, text
 from typing import List, Optional
 from .. import models, schemas, database, security, status_transitions
-from ..crud.tasks import _resolve_dm_thread_id, _recalc_shot_status, _enforce_status_transition
+from ..crud.tasks import _resolve_dm_thread_id, _resolve_task_dm_thread_id, _recalc_shot_status, _enforce_status_transition
 from ..database import get_db
 from ..security import get_current_user
 from datetime import datetime
@@ -683,7 +683,13 @@ def create_dm_thread(
         raise HTTPException(status_code=400, detail="スレッドには少なくとも2人の参加者が必要です")
         
     try:
-        thread_id = _resolve_dm_thread_id(db, participants)
+        task_for_thread = None
+        if thread_in.task_id:
+            task_for_thread = db.query(models.Task).filter(models.Task.id == thread_in.task_id).first()
+        if task_for_thread:
+            thread_id = _resolve_task_dm_thread_id(db, participants, thread_in.task_id)
+        else:
+            thread_id = _resolve_dm_thread_id(db, participants)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
         

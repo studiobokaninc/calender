@@ -421,7 +421,8 @@ def _resolve_dm_thread_id(db: Session, participant_ids: List[int]) -> int:
     rows = db.query(
         models.DmThreadParticipant.thread_id,
         func.count(models.DmThreadParticipant.user_id).label("cnt")
-    ).group_by(models.DmThreadParticipant.thread_id)\
+    ).filter(~models.DmThreadParticipant.thread_id.in_(db.query(models.TaskDmThread.thread_id)))\
+     .group_by(models.DmThreadParticipant.thread_id)\
      .having(func.count(models.DmThreadParticipant.user_id) == target_len)\
      .all()
 
@@ -449,6 +450,41 @@ def _resolve_dm_thread_id(db: Session, participant_ids: List[int]) -> int:
     db.commit()
 
     return new_tid
+
+def _resolve_task_dm_thread_id(db: Session, participant_ids: List[int], task_id: int) -> int:
+    """タスク専用のDMスレッドIDを取得または新規採番する（task_dm_threads 対応表）。
+    対応表に task_id があればそれを返す（冪等）。無ければ >=10000000 で新採番し、
+    2人でも全参加者を dm_thread_participants に登録して一度だけ commit する。
+    """
+    from sqlalchemy import func
+    from sqlalchemy.exc import IntegrityError
+    participants = sorted(list(set(participant_ids)))
+    if len(participants) < 2:
+        raise ValueError("スレッドには少なくとも2人の参加者が必要です")
+
+    for _ in range(3):
+        row = db.query(models.TaskDmThread).filter(models.TaskDmThread.task_id == task_id).first()
+        if row:
+            return row.thread_id
+
+        max_dm_tid = db.query(func.max(models.DirectMessage.thread_id)).scalar() or 0
+        max_dtp_tid = db.query(func.max(models.DmThreadParticipant.thread_id)).scalar() or 0
+        max_task_tid = db.query(func.max(models.TaskDmThread.thread_id)).scalar() or 0
+        new_tid = max(10000000, max_dm_tid + 1, max_dtp_tid + 1, max_task_tid + 1)
+
+        now = now_jst_naive()
+        for pid in participants:
+            db.add(models.DmThreadParticipant(thread_id=new_tid, user_id=pid, created_at=now))
+        db.add(models.TaskDmThread(task_id=task_id, thread_id=new_tid, created_at=now))
+        try:
+            db.commit()
+            return new_tid
+        except IntegrityError:
+            db.rollback()
+            row = db.query(models.TaskDmThread).filter(models.TaskDmThread.task_id == task_id).first()
+            if row:
+                return row.thread_id
+    raise RuntimeError("タスク専用スレッドIDの採番に失敗しました")
 
 def _send_dm_to_participants(db: Session, thread_id: int, sender_id: int, participant_ids: List[int], body: str):
     """送信者を除く全参加者に対して、代表者1名に向けてメッセージを1件だけ挿入する（複製データ無し）"""
